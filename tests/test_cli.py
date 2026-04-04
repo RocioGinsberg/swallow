@@ -4,11 +4,14 @@ import tempfile
 import unittest
 from pathlib import Path
 import sys
+import subprocess
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ai_workflow.cli import main
+from ai_workflow.executor import build_fallback_output, classify_failure_kind, run_codex_executor
+from ai_workflow.models import ExecutorResult, TaskState
 
 
 class CliLifecycleTest(unittest.TestCase):
@@ -97,6 +100,58 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn('"status": "failed"', state)
                 self.assertIn("Codex binary not found", summary)
                 self.assertIn("Codex binary not found", executor_output)
+
+    def test_codex_timeout_preserves_partial_output(self) -> None:
+        state = TaskState(
+            task_id="timeout123",
+            title="Timeout executor",
+            goal="Keep partial output on timeout",
+            workspace_root="/tmp",
+        )
+        timeout_exc = subprocess.TimeoutExpired(
+            cmd=["codex", "exec"],
+            timeout=5,
+            output="partial stdout",
+            stderr="partial stderr",
+        )
+
+        with patch("ai_workflow.executor.shutil.which", return_value="/usr/bin/codex"):
+            with patch("ai_workflow.executor.subprocess.run", side_effect=timeout_exc):
+                result = run_codex_executor(state, [])
+
+        self.assertEqual(result.status, "failed")
+        self.assertIn("timed out", result.message)
+        self.assertIn("Structured fallback note generated", result.message)
+        self.assertEqual(result.failure_kind, "timeout")
+        self.assertIn("# Executor Fallback Note", result.output)
+        self.assertIn("partial stdout", result.output)
+
+    def test_failure_classifier_marks_unreachable_backend(self) -> None:
+        failure_kind = classify_failure_kind(
+            1,
+            "failed to connect to websocket: Operation not permitted",
+            "ERROR: Reconnecting... 2/5",
+        )
+        self.assertEqual(failure_kind, "unreachable_backend")
+
+    def test_unreachable_backend_fallback_includes_connectivity_guidance(self) -> None:
+        state = TaskState(
+            task_id="net123",
+            title="Connectivity failure",
+            goal="Classify unreachable backend correctly",
+            workspace_root="/tmp",
+        )
+        unreachable_result = ExecutorResult(
+            executor_name="codex",
+            status="failed",
+            message="Backend connection failed.",
+            output="failed to connect to websocket",
+            prompt="prompt",
+            failure_kind="unreachable_backend",
+        )
+        note = build_fallback_output(state, [], unreachable_result)
+        self.assertIn("outbound network and websocket access", note)
+        self.assertIn("backend connectivity", note)
 
 
 if __name__ == "__main__":

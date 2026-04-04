@@ -290,9 +290,16 @@ The current implementation now includes a narrow Codex executor adapter:
 - default mode: run `codex exec` against the task workspace
 - test mode: set `AIWF_EXECUTOR_MODE=mock` for deterministic local verification
 - timeout control: set `AIWF_EXECUTOR_TIMEOUT_SECONDS` to bound non-interactive executor runs
+- fallback control: `AIWF_EXECUTOR_FALLBACK=structured-note` by default, or set it to `off` to disable fallback note generation
 - execution artifacts:
   - `executor_prompt.md`
   - `executor_output.md`
+
+When live `codex exec` fails, the task still remains failed. The fallback does not pretend execution succeeded; it only writes a structured persisted note into `executor_output.md` so the run is easier to resume or inspect.
+
+Current executor failures are classified into small, explicit categories such as `timeout`, `unreachable_backend`, `launch_error`, and `generic_failure`.
+
+For `unreachable_backend`, the persisted fallback guidance now explicitly points the operator to check outbound network and websocket access before retrying live execution.
 
 ## Working Convention
 

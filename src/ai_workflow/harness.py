@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .executor import run_executor
+from .executor import build_failure_recommendations, run_executor
 from .models import Event, ExecutorResult, RetrievalItem, TaskState
 from .retrieval import retrieve_context
 from .store import append_event, save_retrieval, write_artifact
@@ -30,7 +30,10 @@ def run_harness(base_dir: Path, state: TaskState) -> tuple[list[RetrievalItem], 
             task_id=state.task_id,
             event_type=f"executor.{executor_result.status}",
             message=executor_result.message,
-            payload={"executor_name": executor_result.executor_name},
+            payload={
+                "executor_name": executor_result.executor_name,
+                "failure_kind": executor_result.failure_kind,
+            },
         ),
     )
     return retrieval_items, executor_result
@@ -91,13 +94,15 @@ def build_summary(
         lines.append("- No matching local context was found.")
 
     lines.extend(["", "## Executor Result", f"- message: {executor_result.message}", "", "## Executor Output"])
+    if executor_result.failure_kind:
+        lines.insert(len(lines) - 2, f"- failure_kind: {executor_result.failure_kind}")
     lines.append(executor_result.output or "(no executor output)")
 
     lines.extend(["", "## Next Suggested Step"])
     if executor_result.status == "completed":
         lines.append("Use the executor output to decide the next implementation action.")
     else:
-        lines.append("Fix the executor failure before relying on this task run.")
+        lines.extend(build_failure_recommendations(executor_result.failure_kind))
     return "\n".join(lines)
 
 
@@ -118,12 +123,13 @@ def build_resume_note(
             f"- top retrieved sources: {top_paths}",
             f"- executor: {executor_result.executor_name}",
             f"- executor status: {executor_result.status}",
+            f"- failure kind: {executor_result.failure_kind or 'none'}",
             "",
             "## Executor Message",
             executor_result.message,
             "",
             "## Follow-up",
-            "- Review `executor_output.md` before continuing.",
+            *build_failure_recommendations(executor_result.failure_kind),
             "- Add validators once the first workflow is concrete.",
             "- Expand retrieval scoring when the source set grows.",
         ]

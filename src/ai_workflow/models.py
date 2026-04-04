@@ -62,6 +62,7 @@ class ExecutorResult:
     message: str
     output: str = ""
     prompt: str = ""
+    failure_kind: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

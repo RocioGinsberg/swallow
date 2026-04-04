@@ -35,6 +35,13 @@ This file tracks the implementation status of the repository itself so work can 
   - timeout handling
   - executor prompt/output artifacts
   - terminal failure recording when executor runs stall or fail
+- Improved the live executor adapter by:
+  - using `codex exec --output-last-message` for more stable result capture
+  - using `--ephemeral` and `--color never` for cleaner non-interactive runs
+  - preserving partial stdout/stderr on timeout for diagnosis
+  - generating a structured fallback note on live executor failure without marking the task as successful
+  - classifying failures into small explicit kinds such as `timeout`, `unreachable_backend`, `launch_error`, and `generic_failure`
+  - giving `unreachable_backend` failures more specific recovery guidance in persisted artifacts
 
 ## Current Behavior
 
@@ -49,14 +56,14 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Known Issues
 
-- A real `codex exec` run can still time out in this environment, so the adapter is structurally correct but not yet operationally reliable.
+- A real `codex exec` run can still fail in this environment because outbound network/WebSocket connections are denied, so the adapter is structurally correct but not yet operationally reliable.
 - The package metadata and CLI help text still describe the project as a Phase 0 bootstrap, which is correct for now but should be revised once the first real executor is integrated.
 
 ## Next Resume Step
 
 1. Re-run the test suite.
 2. Verify the editable install exposes the `swl` entrypoint correctly.
-3. Improve live `codex exec` reliability or add a resumable execution strategy.
+3. Refine the fallback policy if needed, but keep failed live runs semantically failed.
 4. Update this file after each substantial code change.
 
 ## Resume Command
