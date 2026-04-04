@@ -1,4 +1,4 @@
-# Project Name
+# ai_workflow
 
 [中文](./README.zh-CN.md) | English
 
@@ -160,6 +160,10 @@ The immediate priority is to make the system **reliably useful for a single user
 
 Phase 0 CLI bootstrap.
 
+Implementation checkpoint for interrupted sessions:
+
+- [current_state.md](./current_state.md)
+
 ## Quickstart
 
 This repository now includes a minimal runnable CLI for the documented Phase 0 loop.
@@ -173,7 +177,7 @@ python3 -m pip install -e .
 Create a task:
 
 ```bash
-aiwf task create \
+swl task create \
   --title "Design orchestrator" \
   --goal "Create a minimal Phase 0 harness runtime" \
   --workspace-root .
@@ -182,35 +186,35 @@ aiwf task create \
 Run the task:
 
 ```bash
-aiwf task run <task-id>
+swl task run <task-id>
 ```
 
 Print the generated artifacts:
 
 ```bash
-aiwf task summarize <task-id>
-aiwf task handoff <task-id>
+swl task summarize <task-id>
+swl task handoff <task-id>
 ```
 
 Run the test suite:
 
 ```bash
-python3 -m pytest
+python3 -m unittest discover -s tests
 ```
 
 ## Current CLI Shape
 
 The Phase 0 CLI currently implements:
 
-- `aiwf task create`
-- `aiwf task run`
-- `aiwf task summarize`
-- `aiwf task handoff`
+- `swl task create`
+- `swl task run`
+- `swl task summarize`
+- `swl task handoff`
 
 Task state and artifacts are written under:
 
 ```text
-.aiwf/
+.swl/
   tasks/
     <task-id>/
       state.json
@@ -221,7 +225,22 @@ Task state and artifacts are written under:
         handoff.md
 ```
 
-This is still a bootstrap. The current `run` command performs retrieval, records state and events, and writes placeholder handoff/summary artifacts. Replacing the placeholder execution step with a real executor adapter is the next implementation step.
+This is still a bootstrap. The current `run` command performs retrieval, invokes a narrow Codex executor adapter, records state and events, and writes executor, summary, and handoff artifacts.
+
+The current implementation now includes a narrow Codex executor adapter:
+
+- default mode: run `codex exec` against the task workspace
+- test mode: set `AIWF_EXECUTOR_MODE=mock` for deterministic local verification
+- timeout control: set `AIWF_EXECUTOR_TIMEOUT_SECONDS` to bound non-interactive executor runs
+- execution artifacts:
+  - `executor_prompt.md`
+  - `executor_output.md`
+
+## Working Convention
+
+To make interrupted terminal sessions recoverable, keep the repo-level checkpoint updated here:
+
+- [current_state.md](./current_state.md)
 
 ## License
 

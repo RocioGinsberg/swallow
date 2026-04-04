@@ -29,7 +29,7 @@ def retrieve_context(workspace_root: Path, query: str, limit: int = 8) -> list[R
     for path in sorted(workspace_root.rglob("*")):
         if not path.is_file():
             continue
-        if ".aiwf" in path.parts or ".git" in path.parts:
+        if ".swl" in path.parts or ".git" in path.parts:
             continue
         if path.suffix.lower() not in TEXT_SUFFIXES:
             continue

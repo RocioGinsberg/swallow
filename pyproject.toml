@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-workflow-codex-bootstrap"
+name = "ai-workflow"
 version = "0.1.0"
 description = "CLI-first Phase 0 bootstrap for a stateful AI workflow system."
 readme = "README.md"
@@ -13,7 +13,7 @@ authors = [{ name = "Rocio" }]
 dependencies = []
 
 [project.scripts]
-aiwf = "ai_workflow_codex_bootstrap.cli:main"
+swl = "ai_workflow.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

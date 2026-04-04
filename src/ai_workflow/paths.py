@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 
-APP_DIR_NAME = ".aiwf"
+APP_DIR_NAME = ".swl"
 
 
 def app_root(base_dir: Path) -> Path:

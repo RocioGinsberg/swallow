@@ -1,4 +1,4 @@
-# 项目名称
+# ai_workflow
 
 中文 | [English](./README.md)
 
@@ -178,7 +178,7 @@ python3 -m pip install -e .
 创建任务：
 
 ```bash
-aiwf task create \
+swl task create \
   --title "Design orchestrator" \
   --goal "Create a minimal Phase 0 harness runtime" \
   --workspace-root .
@@ -187,35 +187,41 @@ aiwf task create \
 运行任务：
 
 ```bash
-aiwf task run <task-id>
+swl task run <task-id>
 ```
 
 查看产物：
 
 ```bash
-aiwf task summarize <task-id>
-aiwf task handoff <task-id>
+swl task summarize <task-id>
+swl task handoff <task-id>
 ```
 
 运行测试：
 
 ```bash
-python3 -m pytest
+python3 -m unittest discover -s tests
 ```
+
+## 工作约定
+
+为了在终端意外中断后快速恢复，仓库级实现状态记录在这里：
+
+- [current_state.md](./current_state.md)
 
 ## 当前 CLI 形态
 
 Phase 0 CLI 目前提供：
 
-- `aiwf task create`
-- `aiwf task run`
-- `aiwf task summarize`
-- `aiwf task handoff`
+- `swl task create`
+- `swl task run`
+- `swl task summarize`
+- `swl task handoff`
 
 任务状态与产物会写入：
 
 ```text
-.aiwf/
+.swl/
   tasks/
     <task-id>/
       state.json
@@ -227,6 +233,15 @@ Phase 0 CLI 目前提供：
 ```
 
 当前仍然是 bootstrap。`run` 命令已经能完成检索、状态记录、事件追加和 summary/handoff 产物写入，但执行步骤仍是占位实现。下一步应替换为真实 executor adapter。
+
+当前实现已经包含一个收敛范围很小的 Codex executor adapter：
+
+- 默认模式：对任务工作目录执行 `codex exec`
+- 测试模式：设置 `AIWF_EXECUTOR_MODE=mock`，用于稳定的本地验证
+- 超时控制：设置 `AIWF_EXECUTOR_TIMEOUT_SECONDS`，为非交互执行设置上限
+- 执行产物：
+  - `executor_prompt.md`
+  - `executor_output.md`
 
 ## 许可证
 

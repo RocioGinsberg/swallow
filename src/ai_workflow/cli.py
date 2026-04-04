@@ -8,11 +8,11 @@ from .paths import artifacts_dir
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="aiwf", description="Phase 0 AI workflow bootstrap CLI.")
+    parser = argparse.ArgumentParser(prog="swl", description="Phase 0 AI workflow bootstrap CLI.")
     parser.add_argument(
         "--base-dir",
         default=".",
-        help="Directory that stores the .aiwf task state and artifacts. Defaults to the current directory.",
+        help="Directory that stores the .swl task state and artifacts. Defaults to the current directory.",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
