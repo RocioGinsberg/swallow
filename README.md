@@ -1,4 +1,4 @@
-# ai_workflow
+# swallow
 
 [中文](./README.zh-CN.md) | English
 
@@ -254,6 +254,12 @@ swl task summarize <task-id>
 swl task resume-note <task-id>
 ```
 
+Run a minimal Codex preflight:
+
+```bash
+swl doctor codex
+```
+
 Run the test suite:
 
 ```bash
@@ -268,6 +274,7 @@ The Phase 0 CLI currently implements:
 - `swl task run`
 - `swl task summarize`
 - `swl task resume-note`
+- `swl doctor codex`
 
 Task state and artifacts are written under:
 
@@ -281,6 +288,8 @@ Task state and artifacts are written under:
       artifacts/
         summary.md
         resume_note.md
+        executor_stdout.txt
+        executor_stderr.txt
 ```
 
 This is still a bootstrap. The current `run` command performs retrieval, invokes a narrow Codex executor adapter, records state and events, and writes executor, summary, and resume note artifacts.
@@ -289,17 +298,28 @@ The current implementation now includes a narrow Codex executor adapter:
 
 - default mode: run `codex exec` against the task workspace
 - test mode: set `AIWF_EXECUTOR_MODE=mock` for deterministic local verification
+- note-only mode: set `AIWF_EXECUTOR_MODE=note-only` to skip live execution and directly write a structured continuation note
 - timeout control: set `AIWF_EXECUTOR_TIMEOUT_SECONDS` to bound non-interactive executor runs
 - fallback control: `AIWF_EXECUTOR_FALLBACK=structured-note` by default, or set it to `off` to disable fallback note generation
 - execution artifacts:
   - `executor_prompt.md`
   - `executor_output.md`
+  - `executor_stdout.txt`
+  - `executor_stderr.txt`
 
 When live `codex exec` fails, the task still remains failed. The fallback does not pretend execution succeeded; it only writes a structured persisted note into `executor_output.md` so the run is easier to resume or inspect.
 
 Current executor failures are classified into small, explicit categories such as `timeout`, `unreachable_backend`, `launch_error`, and `generic_failure`.
 
 For `unreachable_backend`, the persisted fallback guidance now explicitly points the operator to check outbound network and websocket access before retrying live execution.
+
+The raw `executor_stdout.txt` and `executor_stderr.txt` artifacts are preserved so operators can distinguish between code-path failures and environment/backend failures without relying only on summarized notes.
+
+`swl doctor codex` is a minimal preflight. It can distinguish between:
+
+- binary not found
+- local launch failure
+- local binary is launchable, while live backend reachability remains unknown
 
 ## Working Convention
 

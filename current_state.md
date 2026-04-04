@@ -11,24 +11,25 @@ This file tracks the implementation status of the repository itself so work can 
 - last checked: 2026-04-05
 - verification:
   - `python3 -m unittest discover -s tests`
-  - `PYTHONPATH=src python3 -m ai_workflow.cli --help`
-  - `AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m ai_workflow.cli --base-dir /tmp/aiwf-exec-real task run <task-id>`
+  - `PYTHONPATH=src python3 -m swallow.cli --help`
+  - `AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m swallow.cli --base-dir /tmp/aiwf-exec-real task run <task-id>`
 
 ## Completed
 
-- Added a Python package under `src/ai_workflow/`.
+- Added a Python package under `src/swallow/`.
 - Added a minimal CLI with:
   - `swl task create`
   - `swl task run`
   - `swl task summarize`
   - `swl task resume-note`
+  - `swl doctor codex`
 - Added explicit modules for:
   - orchestrator
   - harness runtime
   - retrieval
   - state/event/artifact storage
 - Updated the main README files with quickstart and CLI shape.
-- Unified the repo and package references around `ai_workflow`.
+- Unified the repo and package references around `swallow`.
 - Switched the documented test command to `unittest` so it matches the current dependency-light setup.
 - Added a narrow `codex exec` adapter with:
   - mock mode for tests
@@ -42,6 +43,8 @@ This file tracks the implementation status of the repository itself so work can 
   - generating a structured fallback note on live executor failure without marking the task as successful
   - classifying failures into small explicit kinds such as `timeout`, `unreachable_backend`, `launch_error`, and `generic_failure`
   - giving `unreachable_backend` failures more specific recovery guidance in persisted artifacts
+  - saving `executor_stdout.txt` and `executor_stderr.txt` as first-class diagnostic artifacts
+  - adding `AIWF_EXECUTOR_MODE=note-only` for explicit non-live continuation-note generation
 
 ## Current Behavior
 
@@ -49,7 +52,7 @@ This file tracks the implementation status of the repository itself so work can 
 - The run loop performs:
   - retrieval
   - executor prompt construction
-  - `codex exec` or mock execution
+  - `codex exec`, `mock`, or `note-only` execution selection
   - summary artifact generation
   - resume note artifact generation
 - Failed executor runs now end in `status=failed` instead of leaving the task stuck in `running`.
@@ -71,6 +74,6 @@ This file tracks the implementation status of the repository itself so work can 
 Use this first after reopening the terminal:
 
 ```bash
-cd /home/rocio/projects/ai-workflow
+cd /home/rocio/projects/swallow
 sed -n '1,220p' current_state.md
 ```

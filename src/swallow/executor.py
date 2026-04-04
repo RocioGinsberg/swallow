@@ -20,6 +20,29 @@ def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> Exec
             output="Mock executor output for Phase 0 verification.",
             prompt=prompt,
             failure_kind="",
+            stdout="",
+            stderr="",
+        )
+    if mode == "note-only":
+        prompt = build_executor_prompt(state, retrieval_items)
+        base_result = ExecutorResult(
+            executor_name="note-only-codex",
+            status="failed",
+            message="Operator selected note-only non-live mode; live Codex execution was skipped.",
+            prompt=prompt,
+            failure_kind="unreachable_backend",
+            stdout="",
+            stderr="",
+        )
+        return ExecutorResult(
+            executor_name=base_result.executor_name,
+            status=base_result.status,
+            message=base_result.message,
+            output=build_fallback_output(state, retrieval_items, base_result),
+            prompt=base_result.prompt,
+            failure_kind=base_result.failure_kind,
+            stdout="",
+            stderr="",
         )
 
     return run_codex_executor(state, retrieval_items)
@@ -64,6 +87,8 @@ def run_codex_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -
             message=f"Codex binary not found: {codex_bin}",
             prompt=prompt,
             failure_kind="launch_error",
+            stdout="",
+            stderr=f"Codex binary not found: {codex_bin}",
         )
         return apply_fallback_if_enabled(state, retrieval_items, result)
 
@@ -101,6 +126,8 @@ def run_codex_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -
                 output=output,
                 prompt=prompt,
                 failure_kind="timeout",
+                stdout=clean_timeout_stream(getattr(exc, "stdout", None), getattr(exc, "output", None)),
+                stderr=clean_timeout_stream(getattr(exc, "stderr", None), None),
             )
             return apply_fallback_if_enabled(state, retrieval_items, result)
         except OSError as exc:
@@ -110,6 +137,8 @@ def run_codex_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -
                 message=f"Failed to launch Codex: {exc}",
                 prompt=prompt,
                 failure_kind="launch_error",
+                stdout="",
+                stderr=str(exc),
             )
             return apply_fallback_if_enabled(state, retrieval_items, result)
 
@@ -128,6 +157,8 @@ def run_codex_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -
                 output=combined_output,
                 prompt=prompt,
                 failure_kind=failure_kind,
+                stdout=clean_output(completed.stdout),
+                stderr=error_output,
             )
             return apply_fallback_if_enabled(state, retrieval_items, result)
 
@@ -138,6 +169,8 @@ def run_codex_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -
             output=output or "Codex completed without a final text response.",
             prompt=prompt,
             failure_kind="",
+            stdout=clean_output(completed.stdout),
+            stderr=error_output,
         )
 
 
@@ -164,6 +197,13 @@ def clean_output(raw: str | bytes | None) -> str:
     return raw.strip()
 
 
+def clean_timeout_stream(primary: str | bytes | None, fallback: str | bytes | None) -> str:
+    cleaned_primary = clean_output(primary)
+    if cleaned_primary:
+        return cleaned_primary
+    return clean_output(fallback)
+
+
 def classify_failure_kind(returncode: int, error_output: str, output: str) -> str:
     haystack = f"{error_output}\n{output}".lower()
     unreachable_markers = [
@@ -173,6 +213,13 @@ def classify_failure_kind(returncode: int, error_output: str, output: str) -> st
         "transport channel closed",
         "connectfailed",
         "tcp open error",
+        "websocket",
+        "connection failed",
+        "request failed",
+        "https://chatgpt.com/backend-api/wham/apps",
+        "wss://chatgpt.com/backend-api/codex/responses",
+        "连接失败",
+        "请求失败",
     ]
     if any(marker in haystack for marker in unreachable_markers):
         return "unreachable_backend"
@@ -202,6 +249,8 @@ def apply_fallback_if_enabled(
         output=combined_output,
         prompt=result.prompt,
         failure_kind=result.failure_kind,
+        stdout=result.stdout,
+        stderr=result.stderr,
     )
 
 

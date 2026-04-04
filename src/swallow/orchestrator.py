@@ -61,6 +61,8 @@ def run_task(base_dir: Path, task_id: str) -> TaskState:
     state.artifact_paths = {
         "executor_prompt": str((artifacts_dir(base_dir, task_id) / "executor_prompt.md").resolve()),
         "executor_output": str((artifacts_dir(base_dir, task_id) / "executor_output.md").resolve()),
+        "executor_stdout": str((artifacts_dir(base_dir, task_id) / "executor_stdout.txt").resolve()),
+        "executor_stderr": str((artifacts_dir(base_dir, task_id) / "executor_stderr.txt").resolve()),
         "summary": str((artifacts_dir(base_dir, task_id) / "summary.md").resolve()),
         "resume_note": str((artifacts_dir(base_dir, task_id) / "resume_note.md").resolve()),
     }

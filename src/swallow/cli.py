@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from .doctor import diagnose_codex, format_codex_doctor_result
 from .orchestrator import create_task, run_task
 from .paths import artifacts_dir
 
@@ -19,6 +20,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     task_parser = subparsers.add_parser("task", help="Task lifecycle commands.")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
+    doctor_parser = subparsers.add_parser("doctor", help="Diagnostic commands.")
+    doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=True)
 
     create_parser = task_subparsers.add_parser("create", help="Create a task.")
     create_parser.add_argument("--title", required=True, help="Short task title.")
@@ -40,6 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task resume note artifact.",
     )
     resume_note_parser.add_argument("task_id", help="Task identifier.")
+
+    doctor_subparsers.add_parser("codex", help="Run a minimal Codex executor preflight.")
 
     return parser
 
@@ -68,6 +73,11 @@ def main(argv: list[str] | None = None) -> int:
         artifact_name = "summary.md" if args.task_command == "summarize" else "resume_note.md"
         print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
         return 0
+
+    if args.command == "doctor" and args.doctor_command == "codex":
+        exit_code, result = diagnose_codex()
+        print(format_codex_doctor_result(result))
+        return exit_code
 
     parser.error("Unsupported command.")
     return 2
