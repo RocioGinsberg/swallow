@@ -15,7 +15,7 @@ Real project context is fragmented across many places:
 
 - code repositories and Git history
 - Obsidian / Markdown notes
-- docs, summaries, handoff notes, and prior task outputs
+- docs, summaries, resume notes, and prior task outputs
 - diffs, patches, test logs, and intermediate artifacts
 
 The problem is usually not that information does not exist, but that it cannot be retrieved, executed against, and consolidated at the right moment. Typical AI tools are often good at isolated responses but weak at sustained task execution, local project interaction, and long-term result reuse.
@@ -72,7 +72,7 @@ Architecturally, this project is organized around five core layers:
 - **Orchestrator**: decides what to do, in what order, and with which agent profile or workflow
 - **Harness Runtime**: runs the task loop, assembles context, executes tools, applies permissions and hooks, and writes results back into state
 - **Capabilities**: reusable tools, skills, profiles, workflows, and validators
-- **State / Memory / Artifacts**: tasks, events, artifacts, Git truth, retrieval memory, and handoff outputs
+- **State / Memory / Artifacts**: tasks, events, artifacts, Git truth, retrieval memory, and resume note outputs
 - **Provider Router**: model, executor, provider, and auth-path routing
 
 So it is not just a chatbot, not just a RAG project, and not just a multi-agent demo.
@@ -156,6 +156,59 @@ The current phase does not prioritize the following:
 
 The immediate priority is to make the system **reliably useful for a single user while preserving clean boundaries for future expansion**.
 
+### Backend Compatibility Principle
+
+This project may allow multiple harness backends in the future, but **multiple backends do not imply universal compatibility**.
+
+A backend is not the same thing as a model, and it is not the same thing as an executor.
+
+The system should distinguish between three layers:
+
+* **Model**: the underlying reasoning provider, such as OpenAI, Anthropic, Gemini, or routed providers
+* **Runtime backend**: the agent or workflow runtime used inside the harness
+* **Executor**: the concrete execution unit used for code, commands, or other task actions
+
+Because of that, the project should not assume that:
+
+* every model supports the same agent capabilities
+* every runtime backend supports the same handoff semantics
+* every executor can participate in every workflow step
+* every backend can support code execution, tool loops, structured handoff, or resumable runs equally
+
+Instead, the system should follow this rule:
+
+> **The harness may expose a unified backend interface, but each backend must declare its own capability level.**
+
+For example, a backend may or may not support:
+
+* structured handoff packets
+* tool loops
+* multi-step runtime sessions
+* code execution
+* resumable execution after failure
+* tracing or richer runtime metadata
+
+This means the architecture should aim for **routable compatibility**, not universal compatibility.
+
+In practice:
+
+* the **Orchestrator** chooses a backend or executor according to task needs
+* the **Harness Runtime** provides a stable integration boundary
+* each backend declares what it can actually do
+* workflow design should target role and capability, not hard-code specific model vendors
+
+This principle matters because the project is not trying to become a thin wrapper around a single agent framework. Its core value lies in its own orchestration, retrieval, state, artifact, and execution design 
+
+So the intended direction is:
+
+* keep the project’s own orchestration and persistence semantics stable
+* allow multiple backends later where useful
+* avoid assuming that “supporting many models” automatically means “supporting all agent behaviors”
+
+A practical interpretation is:
+
+> **Unified interface at the harness boundary, capability-based routing underneath.**
+
 ## Status
 
 Phase 0 CLI bootstrap.
@@ -163,6 +216,11 @@ Phase 0 CLI bootstrap.
 Implementation checkpoint for interrupted sessions:
 
 - [current_state.md](./current_state.md)
+
+## Terminology
+
+- `agent handoff`: a future runtime delegation step where the orchestrator or harness runtime passes work to another agent or backend
+- `resume note`: a persisted continuation artifact written after a run so a later agent or human can recover, continue, or inspect the task state
 
 ## Quickstart
 
@@ -193,7 +251,7 @@ Print the generated artifacts:
 
 ```bash
 swl task summarize <task-id>
-swl task handoff <task-id>
+swl task resume-note <task-id>
 ```
 
 Run the test suite:
@@ -209,7 +267,7 @@ The Phase 0 CLI currently implements:
 - `swl task create`
 - `swl task run`
 - `swl task summarize`
-- `swl task handoff`
+- `swl task resume-note`
 
 Task state and artifacts are written under:
 
@@ -222,10 +280,10 @@ Task state and artifacts are written under:
       retrieval.json
       artifacts/
         summary.md
-        handoff.md
+        resume_note.md
 ```
 
-This is still a bootstrap. The current `run` command performs retrieval, invokes a narrow Codex executor adapter, records state and events, and writes executor, summary, and handoff artifacts.
+This is still a bootstrap. The current `run` command performs retrieval, invokes a narrow Codex executor adapter, records state and events, and writes executor, summary, and resume note artifacts.
 
 The current implementation now includes a narrow Codex executor adapter:
 

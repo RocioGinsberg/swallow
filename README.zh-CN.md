@@ -15,7 +15,7 @@
 
 - 代码仓库与 Git 历史
 - Obsidian / Markdown 笔记
-- 文档、阶段总结、handoff note 与历史任务成果
+- 文档、阶段总结、恢复说明与历史任务成果
 - diff、patch、测试日志和中间产物
 
 问题往往不是“信息不存在”，而是**在真正需要时，无法及时取回、联动执行并沉淀为后续可复用的成果**。与此同时，传统 AI 工具往往更擅长单次响应，却不擅长持续推进任务、联动本地项目，以及整理长期成果。
@@ -77,7 +77,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - **Orchestrator**：决定做什么、按什么顺序做、调用哪个 profile 或 workflow
 - **Harness Runtime**：驱动任务循环、装配上下文、执行工具、应用权限与 hooks，并把结果回写到状态中
 - **Capabilities**：可复用的 tools、skills、profiles、workflows 与 validators
-- **State / Memory / Artifacts**：任务、事件、工件、Git 真相层、检索记忆与 handoff 输出
+- **State / Memory / Artifacts**：任务、事件、工件、Git 真相层、检索记忆与恢复说明输出
 - **Provider Router**：模型、执行器、provider 与鉴权路径的路由层
 
 因此，它不是单纯的 chatbot，不只是一个 RAG 项目，也不只是“多个 agent 分工”的 demo。
@@ -161,9 +161,69 @@ Phase 0 聚焦于：
 
 项目首先追求的是：**让单用户场景稳定可用，并为后续扩展保留清晰边界。**
 
+### Backend 兼容性原则
+
+这个项目未来可以允许 Harness 挂接多个 backend，但**多 backend 并不等于全兼容**。
+
+backend 不等于模型，也不等于 executor。
+
+系统应当区分三层：
+
+* **模型（Model）**：底层推理来源，例如 OpenAI、Anthropic、Gemini 或经路由接入的 provider
+* **运行时 backend（Runtime backend）**：Harness 内部使用的 agent / workflow 运行时
+* **执行器（Executor）**：真正执行代码、命令或其他任务动作的具体执行单元
+
+因此，项目不应假设：
+
+* 所有模型都支持相同的 agent 能力
+* 所有 runtime backend 都支持相同的 handoff 语义
+* 所有 executor 都能参与所有工作流步骤
+* 所有 backend 都同等支持代码执行、tool loop、结构化 handoff 或失败后恢复
+
+更合理的原则是：
+
+> **Harness 可以对外提供统一接口，但每个 backend 都必须声明自己的能力等级。**
+
+例如，一个 backend 可能支持，也可能不支持：
+
+* 结构化 handoff packet
+* tool loop
+* 多步 runtime session
+* 代码执行
+* 失败后的恢复继续执行
+* tracing 或更丰富的运行时元数据
+
+这意味着，这套架构追求的应当是：
+
+> **可路由的兼容性（routable compatibility）**，而不是“所有能力的全兼容”。
+
+在实际设计中：
+
+* **Orchestrator** 根据任务需求选择 backend 或 executor
+* **Harness Runtime** 提供稳定的集成边界
+* 每个 backend 明确声明自己真正支持的能力
+* 工作流设计应面向“角色与能力”，而不是写死某个模型厂商
+
+这条原则很重要，因为这个项目并不是想成为某一个 agent framework 的薄封装。它真正的核心价值仍然在于自己的 orchestration、retrieval、state、artifact 和 execution 设计 
+
+因此，项目的长期方向应是：
+
+* 保持自身编排与持久化语义稳定
+* 在合适的时候接入多个 backend
+* 不把“支持很多模型”误解为“天然支持所有 agent 行为”
+
+一个更实用的压缩表达是：
+
+> **在 Harness 边界上统一接口，在边界之下按能力路由。**
+
 ## 当前状态
 
 Phase 0 CLI bootstrap。
+
+## 术语说明
+
+- `agent handoff`：未来的运行时委派能力，表示 orchestrator 或 harness runtime 在执行过程中把工作交给另一个 agent 或 backend
+- `resume note`：当前 Phase 0 已落盘的续跑说明 / 恢复说明产物，用于一次运行结束后恢复、继续或人工接手任务
 
 ## 快速开始
 
@@ -194,7 +254,7 @@ swl task run <task-id>
 
 ```bash
 swl task summarize <task-id>
-swl task handoff <task-id>
+swl task resume-note <task-id>
 ```
 
 运行测试：
@@ -216,7 +276,7 @@ Phase 0 CLI 目前提供：
 - `swl task create`
 - `swl task run`
 - `swl task summarize`
-- `swl task handoff`
+- `swl task resume-note`
 
 任务状态与产物会写入：
 
@@ -229,10 +289,10 @@ Phase 0 CLI 目前提供：
       retrieval.json
       artifacts/
         summary.md
-        handoff.md
+        resume_note.md
 ```
 
-当前仍然是 bootstrap。`run` 命令已经能完成检索、状态记录、事件追加和 summary/handoff 产物写入，但执行步骤仍是占位实现。下一步应替换为真实 executor adapter。
+当前仍然是 bootstrap。`run` 命令已经能完成检索、状态记录、事件追加以及 executor、summary、resume note 产物写入。
 
 当前实现已经包含一个收敛范围很小的 Codex executor adapter：
 

@@ -35,8 +35,11 @@ def build_parser() -> argparse.ArgumentParser:
     summarize_parser = task_subparsers.add_parser("summarize", help="Print the task summary artifact.")
     summarize_parser.add_argument("task_id", help="Task identifier.")
 
-    handoff_parser = task_subparsers.add_parser("handoff", help="Print the task handoff artifact.")
-    handoff_parser.add_argument("task_id", help="Task identifier.")
+    resume_note_parser = task_subparsers.add_parser(
+        "resume-note",
+        help="Print the task resume note artifact.",
+    )
+    resume_note_parser.add_argument("task_id", help="Task identifier.")
 
     return parser
 
@@ -61,8 +64,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
         return 0
 
-    if args.command == "task" and args.task_command in {"summarize", "handoff"}:
-        artifact_name = "summary.md" if args.task_command == "summarize" else "handoff.md"
+    if args.command == "task" and args.task_command in {"summarize", "resume-note"}:
+        artifact_name = "summary.md" if args.task_command == "summarize" else "resume_note.md"
         print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
         return 0
 

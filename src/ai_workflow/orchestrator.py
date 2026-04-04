@@ -62,7 +62,7 @@ def run_task(base_dir: Path, task_id: str) -> TaskState:
         "executor_prompt": str((artifacts_dir(base_dir, task_id) / "executor_prompt.md").resolve()),
         "executor_output": str((artifacts_dir(base_dir, task_id) / "executor_output.md").resolve()),
         "summary": str((artifacts_dir(base_dir, task_id) / "summary.md").resolve()),
-        "handoff": str((artifacts_dir(base_dir, task_id) / "handoff.md").resolve()),
+        "resume_note": str((artifacts_dir(base_dir, task_id) / "resume_note.md").resolve()),
     }
     write_task_artifacts(base_dir, state, retrieval_items, executor_result)
     save_state(base_dir, state)

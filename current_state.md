@@ -21,7 +21,7 @@ This file tracks the implementation status of the repository itself so work can 
   - `swl task create`
   - `swl task run`
   - `swl task summarize`
-  - `swl task handoff`
+  - `swl task resume-note`
 - Added explicit modules for:
   - orchestrator
   - harness runtime
@@ -44,7 +44,7 @@ This file tracks the implementation status of the repository itself so work can 
   - executor prompt construction
   - `codex exec` or mock execution
   - summary artifact generation
-  - handoff artifact generation
+  - resume note artifact generation
 - Failed executor runs now end in `status=failed` instead of leaving the task stuck in `running`.
 
 ## Known Issues

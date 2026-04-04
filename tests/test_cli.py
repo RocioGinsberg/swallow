@@ -44,7 +44,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(exit_code, 0)
 
                 summary = (tasks_dir / task_id / "artifacts" / "summary.md").read_text(encoding="utf-8")
-                handoff = (tasks_dir / task_id / "artifacts" / "handoff.md").read_text(encoding="utf-8")
+                resume_note = (tasks_dir / task_id / "artifacts" / "resume_note.md").read_text(encoding="utf-8")
                 executor_output = (tasks_dir / task_id / "artifacts" / "executor_output.md").read_text(
                     encoding="utf-8"
                 )
@@ -52,7 +52,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("Summary for", summary)
                 self.assertIn("notes.md", summary)
                 self.assertIn("mock-codex", summary)
-                self.assertIn("Handoff for", handoff)
+                self.assertIn("Resume Note for", resume_note)
                 self.assertIn("Mock executor output", executor_output)
 
     def test_task_failure_when_codex_binary_is_missing(self) -> None:

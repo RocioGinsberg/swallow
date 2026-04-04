@@ -43,15 +43,15 @@ def write_task_artifacts(
     executor_result: ExecutorResult,
 ) -> None:
     summary_body = build_summary(state, retrieval_items, executor_result)
-    handoff_body = build_handoff(state, retrieval_items, executor_result)
+    resume_note_body = build_resume_note(state, retrieval_items, executor_result)
     write_artifact(base_dir, state.task_id, "summary.md", summary_body)
-    write_artifact(base_dir, state.task_id, "handoff.md", handoff_body)
+    write_artifact(base_dir, state.task_id, "resume_note.md", resume_note_body)
     append_event(
         base_dir,
         Event(
             task_id=state.task_id,
             event_type="artifacts.written",
-            message="Wrote summary and handoff artifacts.",
+            message="Wrote summary and resume note artifacts.",
         ),
     )
 
@@ -101,7 +101,7 @@ def build_summary(
     return "\n".join(lines)
 
 
-def build_handoff(
+def build_resume_note(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
@@ -109,7 +109,7 @@ def build_handoff(
     top_paths = ", ".join(item.path for item in retrieval_items[:3]) or "none"
     return "\n".join(
         [
-            f"# Handoff for {state.task_id}",
+            f"# Resume Note for {state.task_id}",
             "",
             "## Ready State",
             f"- task: {state.title}",

@@ -41,7 +41,7 @@ The Phase 0 goal is to prove the smallest useful end-to-end loop:
 2. retrieve relevant context from local sources
 3. run a harnessed execution loop through a Codex-first local executor adapter
 4. record task state, events, and artifacts
-5. generate a structured summary and handoff output
+5. generate a structured summary and resume note output
 
 ## In scope for Phase 0
 
@@ -56,7 +56,7 @@ Phase 0 should focus on:
 - built-in tools only
 - local-first development
 - simple, inspectable architecture
-- artifact outputs such as `summary.md`, `handoff.md`, and task-scoped output folders
+- artifact outputs such as `summary.md`, `resume_note.md`, and task-scoped output folders
 
 ## Out of scope for Phase 0
 
@@ -120,6 +120,14 @@ During Phase 0:
 - keep executor boundaries narrow and swappable
 
 The provider-routing layer is a later concern, not a Phase 0 deliverable.
+
+## Backend compatibility principles
+
+For future phases:
+- distinguish clearly between **model**, **runtime backend**, and **executor**
+- do not assume all backends support the same tool loops, handoff semantics, resumability, or code execution
+- a unified harness boundary may exist, but backend capabilities must be declared explicitly
+- prefer capability-based routing over assuming universal backend compatibility
 
 ## Documentation expectations
 
