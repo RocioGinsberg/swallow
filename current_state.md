@@ -8,7 +8,7 @@ This file tracks the implementation status of the repository itself so work can 
 
 - phase: Phase 0 CLI bootstrap
 - overall state: runnable, naming-consistent, and using a narrow Codex executor adapter
-- last checked: 2026-04-05
+- last checked: 2026-04-07
 - verification:
   - `python3 -m unittest discover -s tests`
   - `PYTHONPATH=src python3 -m swallow.cli --help`
@@ -56,6 +56,17 @@ This file tracks the implementation status of the repository itself so work can 
   - summary artifact generation
   - resume note artifact generation
 - Failed executor runs now end in `status=failed` instead of leaving the task stuck in `running`.
+- Task state semantics now match real execution timing:
+  - `status` is lifecycle state, while `phase` is the current or last real workflow step
+  - phase transitions happen only when retrieval, execution, or summarize actually start
+  - final `completed` or `failed` is written only after `summary.md` and `resume_note.md` are persisted
+- Event semantics are now clearer and more resume-friendly:
+  - each run attempt starts with `task.run_started`
+  - repeated `swl task run` calls append a new run segment to `events.jsonl`
+  - retrieval, executor, artifact, and terminal task events now carry small structured payloads
+- Artifact semantics are now clearer:
+  - `summary.md` records what happened in the run
+  - `resume_note.md` records what the next operator/session should do next
 
 ## Known Issues
 

@@ -294,6 +294,29 @@ Task state and artifacts are written under:
 
 This is still a bootstrap. The current `run` command performs retrieval, invokes a narrow Codex executor adapter, records state and events, and writes executor, summary, and resume note artifacts.
 
+Current task-state semantics are intentionally small and explicit:
+
+- `status` is the lifecycle result: `created`, `running`, `completed`, or `failed`
+- `phase` is the current or last real workflow step: `intake`, `retrieval`, `executing`, or `summarize`
+- a task only switches phase when that step actually begins
+- final `completed` or `failed` is written only after `summary.md` and `resume_note.md` have been persisted
+
+`events.jsonl` is append-only and records run-attempt boundaries explicitly. A normal successful run looks like:
+
+```text
+task.created
+task.run_started
+task.phase        # retrieval
+retrieval.completed
+task.phase        # executing
+executor.completed
+task.phase        # summarize
+artifacts.written
+task.completed
+```
+
+Repeated `swl task run` calls append another `task.run_started -> ... -> task.completed|task.failed` segment instead of rewriting prior history.
+
 The current implementation now includes a narrow Codex executor adapter:
 
 - default mode: run `codex exec` against the task workspace
@@ -314,6 +337,12 @@ Current executor failures are classified into small, explicit categories such as
 For `unreachable_backend`, the persisted fallback guidance now explicitly points the operator to check outbound network and websocket access before retrying live execution.
 
 The raw `executor_stdout.txt` and `executor_stderr.txt` artifacts are preserved so operators can distinguish between code-path failures and environment/backend failures without relying only on summarized notes.
+
+Artifact roles are also intentionally distinct:
+
+- `summary.md` is the run record: task, final state, retrieved context, executor result, and executor output
+- `resume_note.md` is the hand-off note: ready state, latest executor message, and suggested next actions
+- `executor_output.md` remains the persisted execution result or fallback note, while `executor_stdout.txt` and `executor_stderr.txt` preserve diagnostic streams
 
 `swl doctor codex` is a minimal preflight. It can distinguish between:
 

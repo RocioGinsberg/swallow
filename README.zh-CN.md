@@ -277,6 +277,7 @@ Phase 0 CLI 目前提供：
 - `swl task run`
 - `swl task summarize`
 - `swl task resume-note`
+- `swl doctor codex`
 
 任务状态与产物会写入：
 
@@ -290,18 +291,53 @@ Phase 0 CLI 目前提供：
       artifacts/
         summary.md
         resume_note.md
+        executor_stdout.txt
+        executor_stderr.txt
 ```
 
 当前仍然是 bootstrap。`run` 命令已经能完成检索、状态记录、事件追加以及 executor、summary、resume note 产物写入。
+
+当前任务状态语义保持为最小且明确的形式：
+
+- `status` 表示任务生命周期结果：`created`、`running`、`completed`、`failed`
+- `phase` 表示当前或最后一个真实执行到的步骤：`intake`、`retrieval`、`executing`、`summarize`
+- 只有在真实进入某一步时才会切换 `phase`
+- 只有在 `summary.md` 与 `resume_note.md` 写完之后，任务才会进入最终 `completed` 或 `failed`
+
+`events.jsonl` 是 append-only 的执行历史，并且会明确记录每次 run attempt 的开始。一次正常成功运行的顺序现在是：
+
+```text
+task.created
+task.run_started
+task.phase        # retrieval
+retrieval.completed
+task.phase        # executing
+executor.completed
+task.phase        # summarize
+artifacts.written
+task.completed
+```
+
+如果对同一个任务再次执行 `swl task run`，新的 run attempt 会继续追加一段新的事件序列，而不是覆盖已有历史。
 
 当前实现已经包含一个收敛范围很小的 Codex executor adapter：
 
 - 默认模式：对任务工作目录执行 `codex exec`
 - 测试模式：设置 `AIWF_EXECUTOR_MODE=mock`，用于稳定的本地验证
+- note-only 模式：设置 `AIWF_EXECUTOR_MODE=note-only`，跳过 live execution，直接写入结构化 continuation note
 - 超时控制：设置 `AIWF_EXECUTOR_TIMEOUT_SECONDS`，为非交互执行设置上限
+- fallback 控制：默认 `AIWF_EXECUTOR_FALLBACK=structured-note`，可设置为 `off` 关闭 fallback note
 - 执行产物：
   - `executor_prompt.md`
   - `executor_output.md`
+  - `executor_stdout.txt`
+  - `executor_stderr.txt`
+
+当前产物职责也做了明确区分：
+
+- `summary.md` 负责记录本次运行实际发生了什么：任务信息、最终状态、检索结果、执行结果、执行输出
+- `resume_note.md` 负责为下一次接手提供 hand-off 信息：ready state、最新 executor message、建议的下一步动作
+- `executor_output.md` 保留原始执行结果或 fallback note，`executor_stdout.txt` 与 `executor_stderr.txt` 保留诊断流输出
 
 ## 许可证
 
