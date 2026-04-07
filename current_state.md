@@ -6,9 +6,11 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 CLI bootstrap
-- overall state: runnable, naming-consistent, and using a narrow Codex executor adapter
+- phase: Phase 0 accepted; Phase 1 kickoff pending
+- overall state: runnable, acceptance-validated, and ready for Phase 1 planning
 - last checked: 2026-04-07
+- phase exit reference:
+  - `docs/phase0_exit_checklist.md`
 - verification:
   - `python3 -m unittest discover -s tests`
   - `PYTHONPATH=src python3 -m swallow.cli --help`
@@ -68,6 +70,25 @@ This file tracks the implementation status of the repository itself so work can 
   - `summary.md` records what happened in the run
   - `resume_note.md` records what the next operator/session should do next
 
+## Acceptance Result
+
+- Phase 0 acceptance passed on 2026-04-07.
+- Verified through:
+  - unit test coverage
+  - successful mock acceptance workflow
+  - failed executor acceptance workflow
+  - rerun validation showing append-only event history
+- Acceptance confirmed that:
+  - `state.json` truthfully reflects lifecycle status and real phase progression
+  - `events.jsonl` truthfully reflects run boundaries and step ordering
+  - `summary.md` works as the run record
+  - `resume_note.md` works as the hand-off artifact
+
+## Phase Boundary
+
+- Phase 0 is complete enough to stop Phase 0-only cleanup work by default.
+- New work should now be evaluated against Phase 1 goals unless it fixes a clear regression in the accepted Phase 0 loop.
+
 ## Known Issues
 
 - A real `codex exec` run can still fail in this environment because outbound network/WebSocket connections are denied, so the adapter is structurally correct but not yet operationally reliable.
@@ -76,9 +97,10 @@ This file tracks the implementation status of the repository itself so work can 
 ## Next Resume Step
 
 1. Re-run the test suite.
-2. Verify the editable install exposes the `swl` entrypoint correctly.
-3. Refine the fallback policy if needed, but keep failed live runs semantically failed.
-4. Update this file after each substantial code change.
+2. Draft a small Phase 1 kickoff plan with explicit scope and non-goals.
+3. Choose the first Phase 1 slice, likely retrieval quality, harness refinement, or second-executor groundwork.
+4. Verify the editable install exposes the `swl` entrypoint correctly.
+5. Update this file after each substantial code change.
 
 ## Resume Command
 

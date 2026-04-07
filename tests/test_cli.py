@@ -65,6 +65,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("## Hand-off", resume_note)
                 self.assertIn("## Next Suggested Step", resume_note)
                 self.assertNotIn("## Executor Output", resume_note)
+                self.assertNotIn("failed live execution attempt", resume_note)
+                self.assertIn("Review summary.md to confirm the run outcome", resume_note)
                 self.assertIn("Mock executor output", executor_output)
 
     def test_task_failure_when_codex_binary_is_missing(self) -> None:
@@ -541,6 +543,34 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
         self.assertEqual(events[-1]["payload"]["retrieval_count"], 1)
+
+    def test_failure_resume_note_keeps_failure_guidance(self) -> None:
+        state = TaskState(
+            task_id="resumefail",
+            title="Failure resume note",
+            goal="Keep failure guidance",
+            workspace_root="/tmp",
+            status="failed",
+            phase="summarize",
+        )
+        retrieval_items = [
+            RetrievalItem(path="notes.md", source_type="notes", score=2, preview="failure resume"),
+        ]
+        executor_result = ExecutorResult(
+            executor_name="codex",
+            status="failed",
+            message="Codex binary not found.",
+            output="fallback",
+            failure_kind="launch_error",
+        )
+
+        from swallow.harness import build_resume_note
+
+        note = build_resume_note(state, retrieval_items, executor_result)
+
+        self.assertIn("treat this run as incomplete", note)
+        self.assertIn("Treat this run as a failed live execution attempt", note)
+        self.assertIn("Verify that the Codex binary is installed", note)
 
     def test_repeat_run_records_attempt_boundary_and_resets_phase_to_intake(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

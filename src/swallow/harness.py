@@ -155,11 +155,20 @@ def build_resume_note(
     else:
         lines.append("- treat this run as incomplete and resume from the failure context below")
 
+    if executor_result.status == "completed":
+        next_steps = [
+            "- Review summary.md to confirm the run outcome before starting the next task iteration.",
+            "- Use executor_output.md as the compact record of the latest execution result.",
+            "- Decide the next implementation action from the completed run instead of replaying the same step immediately.",
+        ]
+    else:
+        next_steps = build_failure_recommendations(executor_result.failure_kind)
+
     lines.extend(
         [
             "",
             "## Next Suggested Step",
-            *build_failure_recommendations(executor_result.failure_kind),
+            *next_steps,
             "- Review summary.md before restarting work so the prior run is not reinterpreted from scratch.",
             "- Add validators once the first workflow is concrete.",
             "- Expand retrieval scoring when the source set grows.",
