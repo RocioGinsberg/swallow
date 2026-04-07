@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .orchestrator import create_task, run_task
-from .paths import artifacts_dir
+from .paths import artifacts_dir, memory_path, validation_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -31,9 +32,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=".",
         help="Workspace to retrieve context from. Defaults to the current directory.",
     )
+    create_parser.add_argument(
+        "--executor",
+        default="codex",
+        help="Executor to persist for the task. Defaults to codex.",
+    )
 
     run_parser = task_subparsers.add_parser("run", help="Run a task through the Phase 0 loop.")
     run_parser.add_argument("task_id", help="Task identifier.")
+    run_parser.add_argument(
+        "--executor",
+        default=None,
+        help="Override the task executor for this run.",
+    )
 
     summarize_parser = task_subparsers.add_parser("summarize", help="Print the task summary artifact.")
     summarize_parser.add_argument("task_id", help="Task identifier.")
@@ -43,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task resume note artifact.",
     )
     resume_note_parser.add_argument("task_id", help="Task identifier.")
+    validation_parser = task_subparsers.add_parser("validation", help="Print the task validation report artifact.")
+    validation_parser.add_argument("task_id", help="Task identifier.")
+    grounding_parser = task_subparsers.add_parser("grounding", help="Print the task source grounding artifact.")
+    grounding_parser.add_argument("task_id", help="Task identifier.")
+    memory_parser = task_subparsers.add_parser("memory", help="Print the task memory record.")
+    memory_parser.add_argument("task_id", help="Task identifier.")
 
     doctor_subparsers.add_parser("codex", help="Run a minimal Codex executor preflight.")
 
@@ -60,18 +77,28 @@ def main(argv: list[str] | None = None) -> int:
             title=args.title.strip(),
             goal=args.goal.strip(),
             workspace_root=Path(args.workspace_root).resolve(),
+            executor_name=args.executor.strip(),
         )
         print(state.task_id)
         return 0
 
     if args.command == "task" and args.task_command == "run":
-        state = run_task(base_dir=base_dir, task_id=args.task_id)
+        state = run_task(base_dir=base_dir, task_id=args.task_id, executor_name=args.executor)
         print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
         return 0
 
-    if args.command == "task" and args.task_command in {"summarize", "resume-note"}:
-        artifact_name = "summary.md" if args.task_command == "summarize" else "resume_note.md"
+    if args.command == "task" and args.task_command in {"summarize", "resume-note", "validation", "grounding"}:
+        artifact_name = {
+            "summarize": "summary.md",
+            "resume-note": "resume_note.md",
+            "validation": "validation_report.md",
+            "grounding": "source_grounding.md",
+        }[args.task_command]
         print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
+        return 0
+
+    if args.command == "task" and args.task_command == "memory":
+        print(json.dumps(json.loads(memory_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "doctor" and args.doctor_command == "codex":

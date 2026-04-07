@@ -94,6 +94,40 @@ For Phase 0, retrieval should support only:
 Do not treat all sources identically.
 Source-specific parsing and chunking are preferred.
 
+## Retrieval and Context Policy
+
+- Treat retrieval as a system-level knowledge layer, not a single-agent-only feature.
+- Do not bind retrieval to one executor, one model vendor, or one product-surface agent.
+- Default direction:
+  - enhanced RAG first
+  - light agentic retrieval later
+  - GraphRAG only when multi-hop structure or cross-document relationship modeling is clearly needed
+- GraphRAG is optional, not the default path.
+- Keep the RAG layer and the orchestrator separate:
+  - the RAG layer is responsible for ingestion, parsing, chunking, metadata, hybrid retrieval, rerank, and citation
+  - the orchestrator is responsible for whether to retrieve, which source to retrieve, whether to retrieve again, and when to stop
+- Treat enhanced RAG as a retrieval-layer upgrade, and agentic retrieval as an orchestration-layer upgrade.
+- Vendor built-in retrieval from Codex, Claude, Gemini, or similar tools may be reused as a shortcut, but it must not be the only knowledge substrate.
+- Preserve an independent, traceable, orchestrator-controlled retrieval layer as the primary system baseline.
+- When tasks move to API key plus cheap-model operation, do not assume vendor built-in retrieval still exists or remains reliable.
+- If a task depends on external knowledge, workspace files, notes, docs, or multi-source material, route through the system retrieval layer or an equivalent explicit interface.
+- Do not collapse context into only the current prompt or current conversation.
+- Distinguish at least four context layers:
+  - session context
+  - workspace context
+  - task context
+  - historical context
+- Retrieval outputs must remain traceable, citable, and reusable.
+- Do not return only conclusions when source grounding is required; preserve sources, key excerpts, and task linkage in a form that can be written into state, memory, or artifacts.
+- Treat retrieval as cooperating with state / memory / artifacts, not as a one-shot prompt helper.
+- Domain adaptation should live in domain packs or capability packs, not in scattered hard-coded prompt fragments.
+- Domain-specific behavior may include parser choices, chunk policy, metadata schema, query rewrite policy, retrieval policy, and evaluation sets.
+- Current priority order:
+  - stable baseline
+  - enhanced retrieval
+  - light agentic retrieval
+  - graph only when clearly needed
+
 ## Capability principles
 
 For Phase 0:

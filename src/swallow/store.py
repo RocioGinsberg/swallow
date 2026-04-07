@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from .models import Event, RetrievalItem, TaskState, utc_now
-from .paths import artifacts_dir, events_path, retrieval_path, state_path, task_root, tasks_root
+from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
+from .paths import artifacts_dir, events_path, memory_path, retrieval_path, state_path, task_root, tasks_root, validation_path
 
 
 def ensure_task_layout(base_dir: Path, task_id: str) -> None:
@@ -37,6 +37,22 @@ def save_retrieval(base_dir: Path, task_id: str, items: list[RetrievalItem]) -> 
     ensure_task_layout(base_dir, task_id)
     payload = [item.to_dict() for item in items]
     retrieval_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_validation(base_dir: Path, task_id: str, result: ValidationResult) -> None:
+    ensure_task_layout(base_dir, task_id)
+    validation_path(base_dir, task_id).write_text(
+        json.dumps(result.to_dict(), indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_memory(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    memory_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )

@@ -94,6 +94,16 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - **可持续**：围绕任务状态持续推进，而不是停留在单轮对话
 - **可追踪**：把事件、工件、总结和演化过程保留下来
 
+## Retrieval 与 Context 方向
+
+在这个项目里，retrieval 是 system-level capability，而不是某个单一 executor 的附属能力。即使可以复用 Codex、Claude、Gemini 等工具内置的 retrieval / RAG，它们也只能作为 shortcut；核心知识层仍应保持外部化、可追踪、并由 orchestrator 控制。
+
+当前默认方向是先把 enhanced retrieval 做稳，再逐步加入 light agentic retrieval。GraphRAG 不是当前默认主线，只有在多跳关系、全局结构或跨文档关系确实成为核心问题时才应考虑引入。
+
+这也意味着 context 不能只等同于当前 prompt。系统需要持续区分 session context、workspace context、task context 与 historical context，并让检索结果能够与 state、memory、artifacts 协同，而不是在单次运行里一次性消费掉。
+
+领域适配应优先落在 domain packs 或 capability packs 中，而不是散落在一次性 prompt 技巧里。这个原则同样适用于 retrieval 行为、工具行为与 workflow 行为。
+
 ## 当前阶段
 
 当前优先实现一个 **CLI-first MVP**。
@@ -241,13 +251,15 @@ python3 -m pip install -e .
 swl task create \
   --title "Design orchestrator" \
   --goal "Create a minimal Phase 0 harness runtime" \
-  --workspace-root .
+  --workspace-root . \
+  --executor local
 ```
 
 运行任务：
 
 ```bash
 swl task run <task-id>
+swl task run <task-id> --executor codex
 ```
 
 查看产物：
@@ -255,6 +267,9 @@ swl task run <task-id>
 ```bash
 swl task summarize <task-id>
 swl task resume-note <task-id>
+swl task validation <task-id>
+swl task grounding <task-id>
+swl task memory <task-id>
 ```
 
 运行测试：
@@ -277,6 +292,9 @@ Phase 0 CLI 目前提供：
 - `swl task run`
 - `swl task summarize`
 - `swl task resume-note`
+- `swl task validation`
+- `swl task grounding`
+- `swl task memory`
 - `swl doctor codex`
 
 任务状态与产物会写入：
@@ -288,14 +306,18 @@ Phase 0 CLI 目前提供：
       state.json
       events.jsonl
       retrieval.json
+      validation.json
+      memory.json
       artifacts/
         summary.md
         resume_note.md
+        source_grounding.md
+        validation_report.md
         executor_stdout.txt
         executor_stderr.txt
 ```
 
-当前仍然是 bootstrap。`run` 命令已经能完成检索、状态记录、事件追加以及 executor、summary、resume note 产物写入。
+当前仍然是 bootstrap。`run` 命令已经能完成检索、执行器调用、小型 validation、状态记录、事件追加、task memory 持久化，以及 executor、summary、resume note、grounding、validation 产物写入。
 
 当前任务状态语义保持为最小且明确的形式：
 
@@ -314,17 +336,21 @@ retrieval.completed
 task.phase        # executing
 executor.completed
 task.phase        # summarize
+validation.completed
 artifacts.written
 task.completed
 ```
 
 如果对同一个任务再次执行 `swl task run`，新的 run attempt 会继续追加一段新的事件序列，而不是覆盖已有历史。
 
-当前实现已经包含一个收敛范围很小的 Codex executor adapter：
+当前实现已经有了一个显式的 executor 选择缝，并内置了一个很小的 executor 集合：
 
-- 默认模式：对任务工作目录执行 `codex exec`
-- 测试模式：设置 `AIWF_EXECUTOR_MODE=mock`，用于稳定的本地验证
-- note-only 模式：设置 `AIWF_EXECUTOR_MODE=note-only`，跳过 live execution，直接写入结构化 continuation note
+- 任务级选择：在 `swl task create` 或 `swl task run` 上使用 `--executor`
+- `codex`：对任务工作目录执行 `codex exec`
+- `local`：生成一个确定性的本地执行更新，用于在无 live backend 时验证 executor 可替换性
+- `mock`：用于本地验证的确定性测试 executor
+- `note-only`：跳过 live execution，直接写入结构化 continuation note
+- 兼容旧方式：当任务仍使用默认 `codex` 时，`AIWF_EXECUTOR_MODE` 仍可作为后备选择
 - 超时控制：设置 `AIWF_EXECUTOR_TIMEOUT_SECONDS`，为非交互执行设置上限
 - fallback 控制：默认 `AIWF_EXECUTOR_FALLBACK=structured-note`，可设置为 `off` 关闭 fallback note
 - 执行产物：
@@ -337,6 +363,10 @@ task.completed
 
 - `summary.md` 负责记录本次运行实际发生了什么：任务信息、最终状态、检索结果、执行结果、执行输出
 - `resume_note.md` 负责为下一次接手提供 hand-off 信息：ready state、最新 executor message、建议的下一步动作
+- `source_grounding.md` 负责记录本次运行的 retrieval grounding：citation、score、matched terms 与 preview
+- `validation_report.md` 负责记录本次运行的可读 validation 结果
+- `validation.json` 负责保存结构化 validation 记录，便于后续自动化复用
+- `memory.json` 负责保存紧凑的 task-memory packet，供后续 rerun 与 review 复用
 - `executor_output.md` 保留原始执行结果或 fallback note，`executor_stdout.txt` 与 `executor_stderr.txt` 保留诊断流输出
 
 ## 许可证

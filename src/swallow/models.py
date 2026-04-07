@@ -45,11 +45,35 @@ class Event:
 
 
 @dataclass(slots=True)
+class RetrievalRequest:
+    query: str
+    source_types: list[str] = field(default_factory=lambda: ["repo", "notes"])
+    context_layers: list[str] = field(default_factory=lambda: ["workspace", "task"])
+    limit: int = 8
+    strategy: str = "system_baseline"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class RetrievalItem:
     path: str
     source_type: str
     score: int
     preview: str
+    chunk_id: str = "full-file"
+    title: str = ""
+    citation: str = ""
+    matched_terms: list[str] = field(default_factory=list)
+    score_breakdown: dict[str, int] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def reference(self) -> str:
+        return self.citation or self.path
+
+    def display_title(self) -> str:
+        return self.title or self.path
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -68,3 +92,28 @@ class ExecutorResult:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(slots=True)
+class ValidationFinding:
+    code: str
+    level: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class ValidationResult:
+    status: str
+    message: str
+    findings: list[ValidationFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "message": self.message,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }

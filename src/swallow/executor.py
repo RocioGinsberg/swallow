@@ -9,43 +9,129 @@ from pathlib import Path
 from .models import ExecutorResult, RetrievalItem, TaskState
 
 
-def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
-    mode = os.environ.get("AIWF_EXECUTOR_MODE", "codex").strip().lower()
-    if mode == "mock":
-        prompt = build_executor_prompt(state, retrieval_items)
-        return ExecutorResult(
-            executor_name="mock-codex",
-            status="completed",
-            message="Mock executor completed.",
-            output="Mock executor output for Phase 0 verification.",
-            prompt=prompt,
-            failure_kind="",
-            stdout="",
-            stderr="",
-        )
-    if mode == "note-only":
-        prompt = build_executor_prompt(state, retrieval_items)
-        base_result = ExecutorResult(
-            executor_name="note-only-codex",
-            status="failed",
-            message="Operator selected note-only non-live mode; live Codex execution was skipped.",
-            prompt=prompt,
-            failure_kind="unreachable_backend",
-            stdout="",
-            stderr="",
-        )
-        return ExecutorResult(
-            executor_name=base_result.executor_name,
-            status=base_result.status,
-            message=base_result.message,
-            output=build_fallback_output(state, retrieval_items, base_result),
-            prompt=base_result.prompt,
-            failure_kind=base_result.failure_kind,
-            stdout="",
-            stderr="",
-        )
+DEFAULT_EXECUTOR = "codex"
+EXECUTOR_ALIASES = {
+    "": DEFAULT_EXECUTOR,
+    "codex": "codex",
+    "mock": "mock",
+    "note-only": "note-only",
+    "note_only": "note-only",
+    "local": "local",
+    "local-summary": "local",
+    "local_summary": "local",
+}
 
-    return run_codex_executor(state, retrieval_items)
+
+def normalize_executor_name(raw_name: str | None) -> str:
+    normalized = (raw_name or "").strip().lower()
+    return EXECUTOR_ALIASES.get(normalized, DEFAULT_EXECUTOR)
+
+
+def resolve_executor_name(state: TaskState) -> str:
+    configured = normalize_executor_name(state.executor_name)
+    legacy_mode = normalize_executor_name(os.environ.get("AIWF_EXECUTOR_MODE"))
+    if configured != DEFAULT_EXECUTOR:
+        return configured
+    return legacy_mode
+
+
+def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+    executor_name = resolve_executor_name(state)
+    prompt = build_executor_prompt(state, retrieval_items)
+
+    if executor_name == "mock":
+        return run_mock_executor(prompt)
+    if executor_name == "note-only":
+        return run_note_only_executor(state, retrieval_items, prompt)
+    if executor_name == "local":
+        return run_local_executor(state, retrieval_items, prompt)
+    return run_codex_executor(state, retrieval_items, prompt)
+
+
+def run_mock_executor(prompt: str) -> ExecutorResult:
+    return ExecutorResult(
+        executor_name="mock",
+        status="completed",
+        message="Mock executor completed.",
+        output="Mock executor output for Phase 0 verification.",
+        prompt=prompt,
+        failure_kind="",
+        stdout="",
+        stderr="",
+    )
+
+
+def run_note_only_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str,
+) -> ExecutorResult:
+    base_result = ExecutorResult(
+        executor_name="note-only",
+        status="failed",
+        message="Operator selected note-only non-live mode; live Codex execution was skipped.",
+        prompt=prompt,
+        failure_kind="unreachable_backend",
+        stdout="",
+        stderr="",
+    )
+    return ExecutorResult(
+        executor_name=base_result.executor_name,
+        status=base_result.status,
+        message=base_result.message,
+        output=build_fallback_output(state, retrieval_items, base_result),
+        prompt=base_result.prompt,
+        failure_kind=base_result.failure_kind,
+        stdout="",
+        stderr="",
+    )
+
+
+def run_local_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str,
+) -> ExecutorResult:
+    top_references = [item.reference() for item in retrieval_items[:3]]
+    top_reference_text = ", ".join(top_references) if top_references else "none"
+    next_action = (
+        f"Inspect {top_references[0]} and implement the smallest change that advances '{state.goal}'."
+        if top_references
+        else f"Inspect the workspace manually and define the smallest next change for '{state.goal}'."
+    )
+    risks = (
+        "Retrieval may not include enough grounding yet; verify the cited sources before making code changes."
+        if retrieval_items
+        else "No retrieval context was found; any execution would be speculative until the workspace is reviewed."
+    )
+    output = "\n".join(
+        [
+            "# Local Executor Update",
+            "",
+            f"- task: {state.title}",
+            f"- goal: {state.goal}",
+            f"- top_references: {top_reference_text}",
+            "",
+            "## Next Action",
+            next_action,
+            "",
+            "## Risks",
+            risks,
+            "",
+            "## First Concrete Step",
+            "Open the highest-ranked source, confirm the target module, and then apply one bounded change.",
+        ]
+    )
+    return ExecutorResult(
+        executor_name="local",
+        status="completed",
+        message="Local summary executor completed.",
+        output=output,
+        prompt=prompt,
+        failure_kind="",
+        stdout="",
+        stderr="",
+    )
 
 
 def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
@@ -54,12 +140,35 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
         f"Task ID: {state.task_id}",
         f"Task Title: {state.title}",
         f"Goal: {state.goal}",
+        f"Executor: {resolve_executor_name(state)}",
         "",
-        "Retrieved context:",
     ]
+    previous_memory_artifacts = [
+        state.artifact_paths.get("task_memory", ""),
+        state.artifact_paths.get("source_grounding", ""),
+        state.artifact_paths.get("summary", ""),
+        state.artifact_paths.get("resume_note", ""),
+    ]
+    previous_memory_artifacts = [path for path in previous_memory_artifacts if path]
+    if previous_memory_artifacts:
+        lines.extend(
+            [
+                "Prior persisted context:",
+                *[f"- {path}" for path in previous_memory_artifacts],
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+        "Retrieved context:",
+        ]
+    )
     if retrieval_items:
         for item in retrieval_items:
-            lines.append(f"- [{item.source_type}] {item.path}: {item.preview}")
+            lines.append(
+                f"- [{item.source_type}] {item.reference()} title={item.display_title()}: {item.preview}"
+            )
     else:
         lines.append("- No retrieval matches were found.")
 
@@ -76,8 +185,12 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
     return "\n".join(lines)
 
 
-def run_codex_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
-    prompt = build_executor_prompt(state, retrieval_items)
+def run_codex_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str | None = None,
+) -> ExecutorResult:
+    prompt = prompt or build_executor_prompt(state, retrieval_items)
     codex_bin = os.environ.get("AIWF_CODEX_BIN", "codex").strip()
     timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
     if not shutil.which(codex_bin):
@@ -277,7 +390,9 @@ def build_fallback_output(
     ]
     if retrieval_items:
         for item in retrieval_items[:5]:
-            lines.append(f"- [{item.source_type}] {item.path} (score={item.score})")
+            lines.append(
+                f"- [{item.source_type}] {item.reference()} (score={item.score}, title={item.display_title()})"
+            )
     else:
         lines.append("- No retrieval matches were available.")
 

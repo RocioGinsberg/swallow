@@ -6,11 +6,14 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 kickoff pending
-- overall state: runnable, acceptance-validated, and ready for Phase 1 planning
-- last checked: 2026-04-07
+- phase: Phase 0 accepted; Phase 1 in progress
+- overall state: runnable, acceptance-validated, and partway through the Phase 1 execution plan
+- last checked: 2026-04-08
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
+- phase 1 planning reference:
+  - `docs/phase1_kickoff_plan.md`
+  - `docs/phase1_task_breakdown.md`
 - verification:
   - `python3 -m unittest discover -s tests`
   - `PYTHONPATH=src python3 -m swallow.cli --help`
@@ -24,6 +27,9 @@ This file tracks the implementation status of the repository itself so work can 
   - `swl task run`
   - `swl task summarize`
   - `swl task resume-note`
+  - `swl task validation`
+  - `swl task grounding`
+  - `swl task memory`
   - `swl doctor codex`
 - Added explicit modules for:
   - orchestrator
@@ -54,9 +60,10 @@ This file tracks the implementation status of the repository itself so work can 
 - The run loop performs:
   - retrieval
   - executor prompt construction
-  - `codex exec`, `mock`, or `note-only` execution selection
-  - summary artifact generation
-  - resume note artifact generation
+  - explicit executor selection (`codex`, `local`, `mock`, or `note-only`)
+  - validation over run outputs and artifact completeness
+  - source-grounding and task-memory persistence for later review and reruns
+  - summary, resume note, and validation artifact generation
 - Failed executor runs now end in `status=failed` instead of leaving the task stuck in `running`.
 - Task state semantics now match real execution timing:
   - `status` is lifecycle state, while `phase` is the current or last real workflow step
@@ -69,6 +76,16 @@ This file tracks the implementation status of the repository itself so work can 
 - Artifact semantics are now clearer:
   - `summary.md` records what happened in the run
   - `resume_note.md` records what the next operator/session should do next
+  - `validation_report.md` records validator findings in a human-readable form
+  - `source_grounding.md` records the retrieval-backed citations and score context that grounded the run
+  - `memory.json` records a compact reusable task-memory packet for later runs
+- Phase 1 progress:
+  - `P1-01` retrieval result shape and metadata baseline is implemented
+  - `P1-02` source-aware chunking and ranking baseline is implemented for markdown notes and repo line chunks
+  - `P1-03` harness retrieval boundary cleanup is implemented with explicit retrieval requests
+  - `P1-04` executor selection seam baseline is implemented with explicit task-level selection and a second built-in executor path (`local`)
+  - `P1-05` validator and execution-policy baseline is implemented with persisted validation results, validation events, and validator-driven terminal failure on blocking inconsistencies
+  - `P1-06` artifact and memory tightening is implemented with persisted source grounding, reusable task memory, and rerun prompts that surface prior task artifacts
 
 ## Acceptance Result
 
@@ -97,8 +114,8 @@ This file tracks the implementation status of the repository itself so work can 
 ## Next Resume Step
 
 1. Re-run the test suite.
-2. Draft a small Phase 1 kickoff plan with explicit scope and non-goals.
-3. Choose the first Phase 1 slice, likely retrieval quality, harness refinement, or second-executor groundwork.
+2. Use `docs/phase1_kickoff_plan.md` and `docs/phase1_task_breakdown.md` as the active planning references for Phase 1.
+3. Revisit Phase 1 scope and decide whether to harden current slices or define the first Phase 2 planning note.
 4. Verify the editable install exposes the `swl` entrypoint correctly.
 5. Update this file after each substantial code change.
 

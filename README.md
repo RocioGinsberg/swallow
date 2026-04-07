@@ -89,6 +89,16 @@ This system is built around five core capabilities:
 - **Stateful**: continue work through task state instead of one-off chat turns
 - **Traceable**: preserve events, artifacts, summaries, and evolution over time
 
+## Retrieval and Context Direction
+
+Retrieval in this project is a system-level capability, not a helper attached to a single executor. The retrieval and context layer should remain external, traceable, and orchestrator-controlled even when vendor built-in retrieval from tools like Codex, Claude, or Gemini can be reused as a shortcut.
+
+The intended direction is to strengthen enhanced retrieval first, then add light agentic retrieval where orchestration benefits from dynamic retrieval decisions. GraphRAG is optional and should be introduced only when multi-hop relationships or broader document structure clearly justify it.
+
+This also means context should not be reduced to only the current prompt. The system should continue to distinguish session context, workspace context, task context, and historical context, while keeping retrieval results reusable across state, memory, and artifacts instead of consuming them only once inside a single run.
+
+Domain-specific behavior should live in domain packs or capability packs rather than being hard-coded into one-off prompts. That applies to retrieval behavior as much as to tools, workflows, or validators.
+
 ## Current focus
 
 The current phase is a **CLI-first MVP**.
@@ -238,13 +248,15 @@ Create a task:
 swl task create \
   --title "Design orchestrator" \
   --goal "Create a minimal Phase 0 harness runtime" \
-  --workspace-root .
+  --workspace-root . \
+  --executor local
 ```
 
 Run the task:
 
 ```bash
 swl task run <task-id>
+swl task run <task-id> --executor codex
 ```
 
 Print the generated artifacts:
@@ -252,6 +264,9 @@ Print the generated artifacts:
 ```bash
 swl task summarize <task-id>
 swl task resume-note <task-id>
+swl task validation <task-id>
+swl task grounding <task-id>
+swl task memory <task-id>
 ```
 
 Run a minimal Codex preflight:
@@ -274,6 +289,9 @@ The Phase 0 CLI currently implements:
 - `swl task run`
 - `swl task summarize`
 - `swl task resume-note`
+- `swl task validation`
+- `swl task grounding`
+- `swl task memory`
 - `swl doctor codex`
 
 Task state and artifacts are written under:
@@ -285,14 +303,18 @@ Task state and artifacts are written under:
       state.json
       events.jsonl
       retrieval.json
+      validation.json
+      memory.json
       artifacts/
         summary.md
         resume_note.md
+        source_grounding.md
+        validation_report.md
         executor_stdout.txt
         executor_stderr.txt
 ```
 
-This is still a bootstrap. The current `run` command performs retrieval, invokes a narrow Codex executor adapter, records state and events, and writes executor, summary, and resume note artifacts.
+This is still a bootstrap. The current `run` command performs retrieval, invokes the selected executor, runs a small validation pass, records state and events, persists task memory, and writes executor, summary, resume note, grounding, and validation artifacts.
 
 Current task-state semantics are intentionally small and explicit:
 
@@ -311,17 +333,21 @@ retrieval.completed
 task.phase        # executing
 executor.completed
 task.phase        # summarize
+validation.completed
 artifacts.written
 task.completed
 ```
 
 Repeated `swl task run` calls append another `task.run_started -> ... -> task.completed|task.failed` segment instead of rewriting prior history.
 
-The current implementation now includes a narrow Codex executor adapter:
+The current implementation now includes an explicit executor selection seam with a small built-in executor set:
 
-- default mode: run `codex exec` against the task workspace
-- test mode: set `AIWF_EXECUTOR_MODE=mock` for deterministic local verification
-- note-only mode: set `AIWF_EXECUTOR_MODE=note-only` to skip live execution and directly write a structured continuation note
+- task-level selection: set `--executor` on `swl task create` or `swl task run`
+- `codex`: run `codex exec` against the task workspace
+- `local`: write a deterministic local execution update so executor replaceability is testable without a live backend
+- `mock`: deterministic test executor for local verification
+- `note-only`: skip live execution and directly write a structured continuation note
+- legacy compatibility: `AIWF_EXECUTOR_MODE` still works as a fallback when the task itself stays on the default `codex` executor
 - timeout control: set `AIWF_EXECUTOR_TIMEOUT_SECONDS` to bound non-interactive executor runs
 - fallback control: `AIWF_EXECUTOR_FALLBACK=structured-note` by default, or set it to `off` to disable fallback note generation
 - execution artifacts:
@@ -342,6 +368,10 @@ Artifact roles are also intentionally distinct:
 
 - `summary.md` is the run record: task, final state, retrieved context, executor result, and executor output
 - `resume_note.md` is the hand-off note: ready state, latest executor message, and suggested next actions
+- `source_grounding.md` is the retrieval-grounding artifact: citations, scores, matched terms, and previews for the run
+- `validation_report.md` is the human-readable validation result for the run
+- `validation.json` is the structured validation record for later automation
+- `memory.json` is the compact task-memory packet reused by later runs and later review
 - `executor_output.md` remains the persisted execution result or fallback note, while `executor_stdout.txt` and `executor_stderr.txt` preserve diagnostic streams
 
 `swl doctor codex` is a minimal preflight. It can distinguish between:

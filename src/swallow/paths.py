@@ -32,3 +32,11 @@ def events_path(base_dir: Path, task_id: str) -> Path:
 
 def retrieval_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "retrieval.json"
+
+
+def validation_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "validation.json"
+
+
+def memory_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "memory.json"
