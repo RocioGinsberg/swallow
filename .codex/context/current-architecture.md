@@ -39,10 +39,15 @@ Current persisted outputs include:
 - `state.json`
 - `events.jsonl`
 - `retrieval.json`
+- `route.json`
+- `compatibility.json`
 - `validation.json`
 - `memory.json`
 - `summary.md`
 - `resume_note.md`
+- `route_report.md`
+- `compatibility_report.md`
+- `retrieval_report.md`
 - `source_grounding.md`
 - `validation_report.md`
 - executor prompt/output/stream artifacts
@@ -57,6 +62,8 @@ Current implemented shape:
 - route selection
 - route provenance
 - route-policy input via `route_mode`
+- backend-compatibility checks
+- remote-ready execution-site metadata
 
 Still deferred:
 

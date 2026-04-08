@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,12 +25,57 @@ from swallow.executor import (
 from swallow.harness import build_resume_note
 from swallow.models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskState, ValidationResult
 from swallow.orchestrator import build_task_retrieval_request, create_task, run_task
-from swallow.retrieval import retrieve_context
+from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, retrieve_context
+from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
 class CliLifecycleTest(unittest.TestCase):
+    def test_retrieval_evaluation_fixtures_cover_notes_repo_and_artifacts(self) -> None:
+        fixture_root = Path(__file__).resolve().parent / "fixtures" / "retrieval_eval"
+        cases = [
+            {
+                "query": "retrieval memory reuse grounding",
+                "source_types": ["notes"],
+                "expected_path": "notes_plan.md",
+                "expected_title": "Retrieval Memory Reuse",
+                "expected_source_type": "notes",
+            },
+            {
+                "query": "route provenance compatibility",
+                "source_types": ["repo"],
+                "expected_path": "router.py",
+                "expected_title": "select_route_policy",
+                "expected_source_type": "repo",
+            },
+            {
+                "query": "grounding artifact compatibility report",
+                "source_types": [ARTIFACTS_SOURCE_TYPE],
+                "expected_path": ".swl/tasks/demo/artifacts/summary.md",
+                "expected_title": "Summary",
+                "expected_source_type": ARTIFACTS_SOURCE_TYPE,
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            shutil.copytree(fixture_root, tmp_path, dirs_exist_ok=True)
+
+            for case in cases:
+                with self.subTest(query=case["query"], source_types=case["source_types"]):
+                    items = retrieve_context(
+                        tmp_path,
+                        query=case["query"],
+                        source_types=case["source_types"],
+                        limit=5,
+                    )
+                    self.assertGreaterEqual(len(items), 1)
+                    top_item = items[0]
+                    self.assertEqual(top_item.path, case["expected_path"])
+                    self.assertEqual(top_item.title, case["expected_title"])
+                    self.assertEqual(top_item.source_type, case["expected_source_type"])
+
     def test_task_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -72,6 +118,9 @@ class CliLifecycleTest(unittest.TestCase):
                 route_report = (tasks_dir / task_id / "artifacts" / "route_report.md").read_text(
                     encoding="utf-8"
                 )
+                retrieval_report = (tasks_dir / task_id / "artifacts" / "retrieval_report.md").read_text(
+                    encoding="utf-8"
+                )
                 source_grounding = (tasks_dir / task_id / "artifacts" / "source_grounding.md").read_text(
                     encoding="utf-8"
                 )
@@ -103,6 +152,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("compatibility_status:", summary)
                 self.assertIn("compatibility_report_artifact:", summary)
                 self.assertIn("source_grounding_artifact:", summary)
+                self.assertIn("retrieval_report_artifact:", summary)
+                self.assertIn("retrieval_record_path:", summary)
                 self.assertIn("task_memory_path:", summary)
                 self.assertIn("## Compatibility", summary)
                 self.assertIn("## Executor Output", summary)
@@ -130,6 +181,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("Validation Report", validation_report)
                 self.assertIn("Compatibility Report", compatibility_report)
                 self.assertIn("Route Report", route_report)
+                self.assertIn("Retrieval Report", retrieval_report)
                 self.assertIn("Source Grounding", source_grounding)
                 self.assertIn("notes.md#L1-L3", source_grounding)
                 self.assertEqual(compatibility["status"], "passed")
@@ -149,8 +201,14 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertTrue(memory["artifact_paths"]["compatibility_json"].endswith("compatibility.json"))
                 self.assertTrue(memory["artifact_paths"]["route_report"].endswith("route_report.md"))
                 self.assertTrue(memory["artifact_paths"]["route_json"].endswith("route.json"))
+                self.assertTrue(memory["artifact_paths"]["retrieval_json"].endswith("retrieval.json"))
+                self.assertTrue(memory["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
                 self.assertEqual(memory["artifact_paths"]["source_grounding"].endswith("source_grounding.md"), True)
                 self.assertEqual(memory["retrieval"]["top_references"], ["notes.md#L1-L3"])
+                self.assertEqual(memory["retrieval"]["grounding_artifact"].endswith("source_grounding.md"), True)
+                self.assertEqual(memory["retrieval"]["retrieval_record_path"].endswith("retrieval.json"), True)
+                self.assertEqual(memory["retrieval"]["retrieval_report_artifact"].endswith("retrieval_report.md"), True)
+                self.assertEqual(memory["retrieval"]["reuse_ready"], True)
                 self.assertEqual(memory["validation"]["status"], "passed")
                 self.assertEqual(memory["status"], "completed")
                 self.assertIn("Mock executor output", executor_output)
@@ -361,10 +419,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"route_report"', state)
         self.assertIn('"compatibility_report"', state)
         self.assertIn('"source_grounding"', state)
+        self.assertIn('"retrieval_report"', state)
         self.assertIn('"compatibility_json"', state)
         self.assertIn('"validation_report"', state)
         self.assertIn('"validation_json"', state)
         self.assertIn('"task_memory"', state)
+        self.assertIn('"retrieval_json"', state)
         self.assertIn('"route_json"', state)
 
     def test_retrieve_context_returns_traceable_metadata(self) -> None:
@@ -388,12 +448,30 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(note_item.citation, "notes.md#L1-L3")
         self.assertIn("retrieval", note_item.matched_terms)
         self.assertIn("content_hits", note_item.score_breakdown)
+        self.assertIn("rerank_bonus", note_item.score_breakdown)
+        self.assertIn("coverage_hits", note_item.score_breakdown)
+        self.assertEqual(note_item.metadata["adapter_name"], "markdown_notes")
+        self.assertEqual(note_item.metadata["query_token_count"], 3)
         self.assertEqual(note_item.metadata["title_source"], "heading")
         self.assertEqual(note_item.metadata["chunk_kind"], "markdown_section")
         self.assertEqual(note_item.metadata["line_start"], 1)
         self.assertEqual(note_item.metadata["line_end"], 3)
         self.assertEqual(repo_item.title, "task.py")
+        self.assertEqual(repo_item.metadata["adapter_name"], "repo_text")
         self.assertEqual(repo_item.metadata["title_source"], "filename")
+
+    def test_select_retrieval_adapter_uses_source_specific_seam(self) -> None:
+        markdown_adapter = select_retrieval_adapter(Path("notes.md"))
+        repo_adapter = select_retrieval_adapter(Path("task.py"))
+        unsupported_adapter = select_retrieval_adapter(Path("archive.bin"))
+
+        self.assertIsNotNone(markdown_adapter)
+        self.assertEqual(markdown_adapter.name, "markdown_notes")
+        self.assertEqual(markdown_adapter.source_type, "notes")
+        self.assertIsNotNone(repo_adapter)
+        self.assertEqual(repo_adapter.name, "repo_text")
+        self.assertEqual(repo_adapter.source_type, "repo")
+        self.assertIsNone(unsupported_adapter)
 
     def test_retrieve_context_uses_markdown_sections_for_notes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -430,6 +508,72 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(target_chunk.citation, "analyze.py#L41-L43")
         self.assertEqual(target_chunk.metadata["chunk_kind"], "repo_lines")
         self.assertEqual(target_chunk.metadata["title_source"], "symbol")
+
+    def test_retrieve_context_query_shaping_prefers_phrase_and_coverage_matches(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text(
+                "# Retrieval Memory Reuse\n\nretrieval memory reuse baseline for grounding\n\n"
+                "# Retrieval\n\nretrieval baseline only\n",
+                encoding="utf-8",
+            )
+            script = tmp_path / "memory_helper.py"
+            script.write_text(
+                "def retrieval_helper():\n    return 'retrieval memory baseline'\n",
+                encoding="utf-8",
+            )
+
+            items = retrieve_context(tmp_path, query="the retrieval memory reuse for task", limit=4)
+
+        self.assertGreaterEqual(len(items), 2)
+        self.assertEqual(items[0].title, "Retrieval Memory Reuse")
+        self.assertEqual(items[0].path, "notes.md")
+        self.assertGreater(items[0].score_breakdown["rerank_bonus"], 0)
+        self.assertGreater(items[0].score, items[1].score)
+
+    def test_retrieve_context_can_include_task_artifacts_when_explicitly_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_artifacts_dir = tmp_path / ".swl" / "tasks" / "task123" / "artifacts"
+            task_artifacts_dir.mkdir(parents=True, exist_ok=True)
+            summary = task_artifacts_dir / "summary.md"
+            summary.write_text(
+                "# Summary\n\nretrieval artifact baseline with route provenance and grounding\n",
+                encoding="utf-8",
+            )
+            memory = tmp_path / ".swl" / "tasks" / "task123" / "memory.json"
+            memory.write_text('{"note":"artifact memory baseline"}\n', encoding="utf-8")
+
+            items = retrieve_context(
+                tmp_path,
+                query="route provenance grounding artifact",
+                source_types=[ARTIFACTS_SOURCE_TYPE],
+                limit=8,
+            )
+
+        self.assertGreaterEqual(len(items), 1)
+        artifact_item = next(item for item in items if item.path.endswith("summary.md"))
+        self.assertEqual(artifact_item.source_type, ARTIFACTS_SOURCE_TYPE)
+        self.assertEqual(artifact_item.metadata["storage_scope"], "task_artifacts")
+        self.assertEqual(artifact_item.metadata["artifact_name"], "summary.md")
+        self.assertEqual(artifact_item.metadata["adapter_name"], "markdown_notes")
+
+    def test_retrieve_context_excludes_task_artifacts_from_default_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_artifacts_dir = tmp_path / ".swl" / "tasks" / "task123" / "artifacts"
+            task_artifacts_dir.mkdir(parents=True, exist_ok=True)
+            (task_artifacts_dir / "summary.md").write_text(
+                "# Summary\n\nartifact-only retrieval baseline\n",
+                encoding="utf-8",
+            )
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\nworkspace retrieval baseline\n", encoding="utf-8")
+
+            items = retrieve_context(tmp_path, query="artifact retrieval baseline", limit=8)
+
+        self.assertTrue(all(item.source_type != ARTIFACTS_SOURCE_TYPE for item in items))
 
     def test_build_task_retrieval_request_uses_explicit_system_baseline(self) -> None:
         state = TaskState(
@@ -757,6 +901,7 @@ class CliLifecycleTest(unittest.TestCase):
             events[9]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
         )
         self.assertTrue(events[9]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[9]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
         self.assertTrue(events[9]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
         self.assertTrue(events[9]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
         self.assertEqual(events[10]["payload"]["status"], "completed")
@@ -1272,8 +1417,10 @@ class CliLifecycleTest(unittest.TestCase):
             validation_stdout = StringIO()
             compatibility_stdout = StringIO()
             route_stdout = StringIO()
+            retrieval_stdout = StringIO()
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
+            retrieval_json_stdout = StringIO()
             grounding_stdout = StringIO()
             memory_stdout = StringIO()
 
@@ -1283,10 +1430,14 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "compatibility", task_id]), 0)
             with redirect_stdout(route_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "route", task_id]), 0)
+            with redirect_stdout(retrieval_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval", task_id]), 0)
             with redirect_stdout(compatibility_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "compatibility-json", task_id]), 0)
             with redirect_stdout(route_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "route-json", task_id]), 0)
+            with redirect_stdout(retrieval_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval-json", task_id]), 0)
             with redirect_stdout(grounding_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "grounding", task_id]), 0)
             with redirect_stdout(memory_stdout):
@@ -1295,10 +1446,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Validation Report", validation_stdout.getvalue())
         self.assertIn("Compatibility Report", compatibility_stdout.getvalue())
         self.assertIn("Route Report", route_stdout.getvalue())
+        self.assertIn("Retrieval Report", retrieval_stdout.getvalue())
         self.assertIn('"status"', compatibility_json_stdout.getvalue())
         self.assertIn('"name"', route_json_stdout.getvalue())
         self.assertIn('"execution_site"', route_json_stdout.getvalue())
         self.assertIn('"remote_capable"', route_json_stdout.getvalue())
+        self.assertIn('"citation"', retrieval_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())
 
@@ -1465,6 +1618,10 @@ class CliLifecycleTest(unittest.TestCase):
             second_prompt = (task_dir / "artifacts" / "executor_prompt.md").read_text(encoding="utf-8")
 
         self.assertIn("Prior persisted context:", second_prompt)
+        self.assertIn("Prior retrieval memory:", second_prompt)
+        self.assertIn("previous_retrieval_count: 1", second_prompt)
+        self.assertIn("previous_top_references: notes.md#L1-L3", second_prompt)
+        self.assertIn("previous_retrieval_record:", second_prompt)
         self.assertIn("Route Execution Site: local", second_prompt)
         self.assertIn("Route Remote Capable: no", second_prompt)
         self.assertIn("Route Transport Kind: local_process", second_prompt)

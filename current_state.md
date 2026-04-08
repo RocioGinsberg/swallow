@@ -7,7 +7,7 @@ This file tracks the implementation status of the repository itself so work can 
 ## Current Status
 
 - phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 2 documentation and planning checkpoint
+- overall state: runnable, acceptance-validated, and at a Phase 3 planning checkpoint
 - last checked: 2026-04-08
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -18,6 +18,15 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase2_kickoff_note.md`
   - `docs/phase2_closeout_note.md`
   - `docs/phase2_task_breakdown.md`
+- phase 3 planning reference:
+  - `docs/phase3_kickoff_note.md`
+  - `docs/phase3_task_breakdown.md`
+- system planning reference:
+  - `docs/system_tracks.md`
+- post-Phase-2 retrieval planning reference:
+  - `docs/post_phase2_retrieval_kickoff_note.md`
+  - `docs/post_phase2_retrieval_task_breakdown.md`
+  - `docs/post_phase2_retrieval_closeout_note.md`
 - verification:
   - `python3 -m unittest discover -s tests`
   - `PYTHONPATH=src python3 -m swallow.cli --help`
@@ -105,6 +114,21 @@ This file tracks the implementation status of the repository itself so work can 
   - `P2-05` backend-compatibility policy baseline is implemented with persisted `compatibility.json`, readable `compatibility_report.md`, compatibility events, route-policy fit checks, CLI inspection commands, and terminal failure on blocking compatibility mismatches
   - `P2-06` remote-ready hook baseline is implemented with explicit route execution-site metadata in route declarations, state, events, route artifacts, prompts, summaries, resume notes, and task memory while keeping all current routes local-only
   - Phase 2 closeout judgment is documented in `docs/phase2_closeout_note.md`, and no additional Phase 2 breadth should be added by default without a fresh planning note
+- Post-Phase-2 retrieval planning:
+  - `docs/post_phase2_retrieval_kickoff_note.md` defines the next retrieval direction: preserve the current local task loop and artifact semantics while improving retrieval quality, source coverage, and memory reuse
+  - `docs/post_phase2_retrieval_task_breakdown.md` breaks that direction into `R1-01` through `R1-06`
+  - `docs/post_phase2_retrieval_closeout_note.md` records the stop/go judgment for the completed retrieval baseline
+  - `R1-01` retrieval adapter seam baseline is implemented with a dedicated retrieval-adapter module, explicit source-adapter selection for markdown notes and repo text, and additive `adapter_name` retrieval metadata while preserving current retrieval result and artifact semantics
+  - `R1-02` query shaping and rerank baseline is implemented with explicit query preparation, stopword trimming, phrase and coverage-aware rerank signals, and additive scoring metadata while preserving current retrieval and grounding semantics
+  - `R1-03` local source coverage expansion is implemented with explicit task-artifact retrieval support under `.swl/tasks/...`, a new `artifacts` source type, and additive artifact-scope metadata while keeping default retrieval behavior unchanged unless artifacts are explicitly requested
+  - `R1-04` retrieval-memory reuse tightening is implemented with explicit retrieval snapshot fields in `memory.json`, persisted `retrieval.json` artifact paths in task memory, and rerun prompts that surface prior retrieval count, top references, grounding artifact, and retrieval record paths without hiding fresh retrieval behind an implicit cache
+  - `R1-05` retrieval artifact indexing cleanup is implemented with a readable `retrieval_report.md`, explicit retrieval artifact links in summary/resume/memory, and CLI inspection commands for both `retrieval_report.md` and `retrieval.json`
+  - `R1-06` retrieval evaluation fixture baseline is implemented with local fixture-based regression tests that cover note, repo, and task-artifact retrieval expectations without introducing a heavyweight evaluation framework
+  - The post-Phase-2 retrieval closeout judgment is documented in `docs/post_phase2_retrieval_closeout_note.md`, and no additional retrieval breadth should be added by default without a fresh planning note
+- System planning:
+  - `docs/system_tracks.md` defines the repository’s long-running tracks so future phases can be scoped against a stable system map instead of treating each phase as a mixed bundle
+  - `docs/phase3_kickoff_note.md` defines the next planned primary slice on the `Execution Topology` track
+  - `docs/phase3_task_breakdown.md` breaks that direction into `P3-01` through `P3-06`
 
 ## Acceptance Result
 
@@ -125,7 +149,7 @@ This file tracks the implementation status of the repository itself so work can 
 - Phase 0 is complete enough to stop Phase 0-only cleanup work by default.
 - Phase 1 is complete enough to stop Phase 1-only expansion work by default.
 - The planned Phase 2 baseline is complete enough to stop open-ended Phase 2 backend expansion by default.
-- New work should now begin from a fresh planning note rather than assuming more Phase 2 implementation slices exist.
+- New work should now begin from the explicit Phase 3 planning note rather than assuming more Phase 2 implementation slices exist.
 
 ## Known Issues
 
@@ -135,10 +159,12 @@ This file tracks the implementation status of the repository itself so work can 
 ## Next Resume Step
 
 1. Re-run the test suite.
-2. Use `docs/phase2_closeout_note.md` as the current stop/go decision reference.
-3. Draft the next planning note before adding more backend breadth, remote transport work, or provider integrations.
-4. Verify the editable install exposes the `swl` entrypoint correctly.
-5. Update this file after each substantial code change.
+2. Use `docs/system_tracks.md` as the system-map reference before starting new implementation.
+3. Use `docs/phase3_kickoff_note.md` as the current Phase 3 starting rationale.
+4. Use `docs/phase3_task_breakdown.md` as the active implementation order if Phase 3 begins.
+5. Use `docs/post_phase2_retrieval_closeout_note.md` as the current retrieval stop/go decision reference.
+6. Verify the editable install exposes the `swl` entrypoint correctly.
+7. Update this file after each substantial code change.
 
 ## Resume Command
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .orchestrator import create_task, run_task
-from .paths import artifacts_dir, compatibility_path, memory_path, route_path
+from .paths import artifacts_dir, compatibility_path, memory_path, retrieval_path, route_path
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -78,6 +78,8 @@ def build_parser() -> argparse.ArgumentParser:
     compatibility_parser.add_argument("task_id", help="Task identifier.")
     grounding_parser = task_subparsers.add_parser("grounding", help="Print the task source grounding artifact.")
     grounding_parser.add_argument("task_id", help="Task identifier.")
+    retrieval_parser = task_subparsers.add_parser("retrieval", help="Print the task retrieval report artifact.")
+    retrieval_parser.add_argument("task_id", help="Task identifier.")
     memory_parser = task_subparsers.add_parser("memory", help="Print the task memory record.")
     memory_parser.add_argument("task_id", help="Task identifier.")
     route_parser = task_subparsers.add_parser("route", help="Print the task route report artifact.")
@@ -89,6 +91,8 @@ def build_parser() -> argparse.ArgumentParser:
     compatibility_json_parser.add_argument("task_id", help="Task identifier.")
     route_json_parser = task_subparsers.add_parser("route-json", help="Print the task route record.")
     route_json_parser.add_argument("task_id", help="Task identifier.")
+    retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
+    retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
     doctor_subparsers.add_parser("codex", help="Run a minimal Codex executor preflight.")
 
@@ -123,6 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         "validation",
         "compatibility",
         "grounding",
+        "retrieval",
         "route",
     }:
         artifact_name = {
@@ -131,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
             "validation": "validation_report.md",
             "compatibility": "compatibility_report.md",
             "grounding": "source_grounding.md",
+            "retrieval": "retrieval_report.md",
             "route": "route_report.md",
         }[args.task_command]
         print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
@@ -146,6 +152,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "route-json":
         print(json.dumps(json.loads(route_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "retrieval-json":
+        print(json.dumps(json.loads(retrieval_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "doctor" and args.doctor_command == "codex":

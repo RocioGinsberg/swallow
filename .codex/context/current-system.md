@@ -34,10 +34,12 @@ Phase status:
 
 - Phase 0 accepted
 - Phase 1 complete
-- Phase 2 in progress
+- Phase 2 baseline complete
+- post-Phase-2 retrieval baseline complete
 
 ## Current references
 
 - `/home/rocio/projects/swallow/current_state.md`
+- `/home/rocio/projects/swallow/docs/system_tracks.md`
 - `/home/rocio/projects/swallow/docs/phase2_kickoff_note.md`
 - `/home/rocio/projects/swallow/docs/phase2_task_breakdown.md`

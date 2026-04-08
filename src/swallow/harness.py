@@ -98,6 +98,12 @@ def write_task_artifacts(
         "source_grounding.md",
         build_source_grounding(retrieval_items),
     )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "retrieval_report.md",
+        build_retrieval_report(state, retrieval_items),
+    )
     provisional_state = replace(state, status="running")
     write_artifact(
         base_dir,
@@ -189,6 +195,7 @@ def write_task_artifacts(
                     "route_report": state.artifact_paths.get("route_report", ""),
                     "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
                     "source_grounding": state.artifact_paths.get("source_grounding", ""),
+                    "retrieval_report": state.artifact_paths.get("retrieval_report", ""),
                     "validation_report": state.artifact_paths.get("validation_report", ""),
                     "task_memory": state.artifact_paths.get("task_memory", ""),
                 },
@@ -248,6 +255,34 @@ def build_source_grounding(retrieval_items: list[RetrievalItem]) -> str:
     return "\n".join(lines)
 
 
+def build_retrieval_report(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+    lines = [
+        "# Retrieval Report",
+        "",
+        f"- retrieval_count: {len(retrieval_items)}",
+        f"- retrieval_record_path: {state.artifact_paths.get('retrieval_json', '') or 'pending'}",
+        f"- source_grounding_artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
+        f"- task_memory_path: {state.artifact_paths.get('task_memory', '') or 'pending'}",
+        "",
+        "## Top References",
+    ]
+    if not retrieval_items:
+        lines.append("- No retrieval matches were available for this run.")
+        return "\n".join(lines)
+
+    for item in retrieval_items[:8]:
+        lines.extend(
+            [
+                f"- [{item.source_type}] {item.reference()}",
+                f"  title: {item.display_title()}",
+                f"  score: {item.score}",
+                f"  adapter: {item.metadata.get('adapter_name', 'unknown')}",
+                f"  chunk_kind: {item.metadata.get('chunk_kind', 'unknown')}",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def build_task_memory(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
@@ -284,6 +319,10 @@ def build_task_memory(
         "retrieval": {
             "count": len(retrieval_items),
             "top_references": [item.reference() for item in retrieval_items[:5]],
+            "grounding_artifact": state.artifact_paths.get("source_grounding", ""),
+            "retrieval_record_path": state.artifact_paths.get("retrieval_json", ""),
+            "retrieval_report_artifact": state.artifact_paths.get("retrieval_report", ""),
+            "reuse_ready": bool(retrieval_items),
             "top_items": [
                 {
                     "path": item.path,
@@ -303,6 +342,8 @@ def build_task_memory(
             "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
             "compatibility_json": state.artifact_paths.get("compatibility_json", ""),
             "source_grounding": state.artifact_paths.get("source_grounding", ""),
+            "retrieval_report": state.artifact_paths.get("retrieval_report", ""),
+            "retrieval_json": state.artifact_paths.get("retrieval_json", ""),
             "validation_report": state.artifact_paths.get("validation_report", ""),
             "validation_json": state.artifact_paths.get("validation_json", ""),
         },
@@ -394,6 +435,8 @@ def build_summary(
         f"- compatibility_status: {compatibility_result.status if compatibility_result else 'pending'}",
         f"- compatibility_report_artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
         f"- source_grounding_artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
+        f"- retrieval_report_artifact: {state.artifact_paths.get('retrieval_report', '') or 'pending'}",
+        f"- retrieval_record_path: {state.artifact_paths.get('retrieval_json', '') or 'pending'}",
         f"- task_memory_path: {state.artifact_paths.get('task_memory', '') or 'pending'}",
         "",
         "## Retrieved Context",
@@ -477,6 +520,8 @@ def build_resume_note(
         "## Hand-off",
         f"- latest executor message: {executor_result.message}",
         f"- source grounding artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
+        f"- retrieval report artifact: {state.artifact_paths.get('retrieval_report', '') or 'pending'}",
+        f"- retrieval record path: {state.artifact_paths.get('retrieval_json', '') or 'pending'}",
         f"- task memory path: {state.artifact_paths.get('task_memory', '') or 'pending'}",
     ]
     if executor_result.status == "completed":
@@ -514,6 +559,7 @@ def build_resume_note(
             "## Next Suggested Step",
             *next_steps,
             "- Review summary.md before restarting work so the prior run is not reinterpreted from scratch.",
+            "- Use retrieval_report.md to review the latest retrieval set before opening raw retrieval.json.",
             "- Use compatibility_report.md when checking whether the selected route actually matched the requested policy.",
             "- Use validation_report.md when deciding whether to reuse the current run outputs.",
             "- Expand retrieval scoring when the source set grows.",

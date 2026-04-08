@@ -7,7 +7,7 @@ from uuid import uuid4
 from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
 from .models import Event, RetrievalRequest, TaskState
-from .paths import artifacts_dir, compatibility_path, memory_path, route_path, validation_path
+from .paths import artifacts_dir, compatibility_path, memory_path, retrieval_path, route_path, validation_path
 from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
 from .store import append_event, load_state, save_state
@@ -162,6 +162,8 @@ def run_task(
         "route_report": str((artifacts_dir(base_dir, task_id) / "route_report.md").resolve()),
         "compatibility_report": str((artifacts_dir(base_dir, task_id) / "compatibility_report.md").resolve()),
         "source_grounding": str((artifacts_dir(base_dir, task_id) / "source_grounding.md").resolve()),
+        "retrieval_report": str((artifacts_dir(base_dir, task_id) / "retrieval_report.md").resolve()),
+        "retrieval_json": str(retrieval_path(base_dir, task_id).resolve()),
         "validation_report": str((artifacts_dir(base_dir, task_id) / "validation_report.md").resolve()),
         "compatibility_json": str(compatibility_path(base_dir, task_id).resolve()),
         "validation_json": str(validation_path(base_dir, task_id).resolve()),

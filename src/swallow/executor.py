@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -166,6 +167,18 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
                 "",
             ]
         )
+    prior_retrieval_snapshot = load_prior_retrieval_snapshot(state)
+    if prior_retrieval_snapshot is not None:
+        lines.extend(
+            [
+                "Prior retrieval memory:",
+                f"- previous_retrieval_count: {prior_retrieval_snapshot['count']}",
+                f"- previous_top_references: {prior_retrieval_snapshot['top_references']}",
+                f"- previous_grounding_artifact: {prior_retrieval_snapshot['grounding_artifact']}",
+                f"- previous_retrieval_record: {prior_retrieval_snapshot['retrieval_record_path']}",
+                "",
+            ]
+        )
 
     lines.extend(
         [
@@ -191,6 +204,27 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
         ]
     )
     return "\n".join(lines)
+
+
+def load_prior_retrieval_snapshot(state: TaskState) -> dict[str, str] | None:
+    task_memory_path = state.artifact_paths.get("task_memory", "")
+    if not task_memory_path:
+        return None
+    try:
+        payload = json.loads(Path(task_memory_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    retrieval = payload.get("retrieval", {})
+    top_references = retrieval.get("top_references", [])
+    if not retrieval and not top_references:
+        return None
+    return {
+        "count": str(retrieval.get("count", 0)),
+        "top_references": ", ".join(top_references) if top_references else "none",
+        "grounding_artifact": str(retrieval.get("grounding_artifact", "")),
+        "retrieval_record_path": str(retrieval.get("retrieval_record_path", "")),
+    }
 
 
 def format_route_capabilities(capabilities: dict[str, object]) -> str:
