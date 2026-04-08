@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -29,6 +30,8 @@ EXECUTOR_ALIASES = {
     "local_summary": "local",
 }
 
+DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
+
 
 def normalize_executor_name(raw_name: str | None) -> str:
     normalized = (raw_name or "").strip().lower()
@@ -44,6 +47,12 @@ def resolve_executor_name(state: TaskState) -> str:
 
 
 def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+    if state.route_transport_kind == "local_detached_process" and os.environ.get(DETACHED_CHILD_ENV) != "1":
+        return run_detached_executor(state, retrieval_items)
+    return run_executor_inline(state, retrieval_items)
+
+
+def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
     executor_name = resolve_executor_name(state)
     prompt = build_executor_prompt(state, retrieval_items)
 
@@ -54,6 +63,69 @@ def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> Exec
     if executor_name == "local":
         return run_local_executor(state, retrieval_items, prompt)
     return run_codex_executor(state, retrieval_items, prompt)
+
+
+def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+    prompt = build_executor_prompt(state, retrieval_items)
+    with tempfile.TemporaryDirectory(prefix="swallow-detached-") as tmp:
+        tmp_path = Path(tmp)
+        state_json = tmp_path / "state.json"
+        retrieval_json = tmp_path / "retrieval.json"
+        result_json = tmp_path / "result.json"
+        state_json.write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+        retrieval_json.write_text(
+            json.dumps([item.to_dict() for item in retrieval_items], indent=2) + "\n",
+            encoding="utf-8",
+        )
+        child_env = os.environ.copy()
+        child_env[DETACHED_CHILD_ENV] = "1"
+        repo_root = Path(__file__).resolve().parents[2]
+        src_root = str(repo_root / "src")
+        existing_pythonpath = child_env.get("PYTHONPATH", "")
+        child_env["PYTHONPATH"] = src_root if not existing_pythonpath else f"{src_root}{os.pathsep}{existing_pythonpath}"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "swallow.executor",
+                "--detached-child",
+                "--state-json",
+                str(state_json),
+                "--retrieval-json",
+                str(retrieval_json),
+                "--result-json",
+                str(result_json),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=child_env,
+        )
+        if completed.returncode != 0:
+            return ExecutorResult(
+                executor_name=resolve_executor_name(state),
+                status="failed",
+                message="Detached local executor child process failed.",
+                output="",
+                prompt=prompt,
+                failure_kind="launch_error",
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+            )
+        try:
+            payload = json.loads(result_json.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            return ExecutorResult(
+                executor_name=resolve_executor_name(state),
+                status="failed",
+                message="Detached local executor did not return a readable result.",
+                output="",
+                prompt=prompt,
+                failure_kind="generic_failure",
+                stdout=completed.stdout,
+                stderr=f"{completed.stderr}\n{exc}".strip(),
+            )
+    return ExecutorResult(**payload)
 
 
 def run_mock_executor(prompt: str) -> ExecutorResult:
@@ -557,3 +629,32 @@ def build_failure_recommendations(failure_kind: str) -> list[str]:
         "- Re-run when the Codex backend is reachable, or continue manually from the retrieved context.",
         *common_tail,
     ]
+
+
+def _run_detached_child(state_json_path: Path, retrieval_json_path: Path, result_json_path: Path) -> int:
+    state = TaskState.from_dict(json.loads(state_json_path.read_text(encoding="utf-8")))
+    retrieval_payload = json.loads(retrieval_json_path.read_text(encoding="utf-8"))
+    retrieval_items = [RetrievalItem(**item) for item in retrieval_payload]
+    result = run_executor_inline(state, retrieval_items)
+    result_json_path.write_text(json.dumps(result.to_dict(), indent=2) + "\n", encoding="utf-8")
+    return 0
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(prog="python -m swallow.executor")
+    parser.add_argument("--detached-child", action="store_true")
+    parser.add_argument("--state-json")
+    parser.add_argument("--retrieval-json")
+    parser.add_argument("--result-json")
+    args = parser.parse_args()
+    if not args.detached_child:
+        parser.error("Unsupported executor entrypoint invocation.")
+    raise SystemExit(
+        _run_detached_child(
+            Path(args.state_json),
+            Path(args.retrieval_json),
+            Path(args.result_json),
+        )
+    )

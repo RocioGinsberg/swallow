@@ -6,8 +6,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; Phase 6 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 6 Retrieval / Memory Operationalization closeout checkpoint
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; Phase 6 baseline complete; Phase 7 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 7 Execution-Site Boundary closeout checkpoint
 - last checked: 2026-04-09
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -34,6 +34,10 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase6_kickoff_note.md`
   - `docs/phase6_task_breakdown.md`
   - `docs/phase6_closeout_note.md`
+- phase 7 planning reference:
+  - `docs/phase7_kickoff_note.md`
+  - `docs/phase7_task_breakdown.md`
+  - `docs/phase7_closeout_note.md`
 - post-Phase-5 planning reference:
   - `docs/post_phase5_executor_and_external_input_kickoff_note.md`
   - `docs/post_phase5_executor_and_external_input_task_breakdown.md`
@@ -187,6 +191,12 @@ This file tracks the implementation status of the repository itself so work can 
   - `P6-04` cross-task retrieval reuse baseline is implemented by binding reusable knowledge selection to explicit retrieval context layers, distinguishing current-task versus cross-task reusable knowledge through `knowledge_task_id` and `knowledge_task_relation`, and surfacing those reuse boundaries across retrieval events, reports, prompt context, task memory, summary/resume artifacts, and inspect/review flows while leaving the default `repo + notes` task retrieval baseline unchanged
   - `P6-05` reusable-knowledge evaluation tightening is implemented with fixture-based retrieval regression coverage for current-task reuse, cross-task reuse, and blocked reusable knowledge boundaries so retrieval/memory operationalization remains protected by local, inspectable evaluation cases
   - `P6-06` inspection and closeout tightening is implemented with aligned operator-facing reusable-knowledge inspection, a dedicated Phase 6 closeout note, and synchronized status-entry documents that now treat Phase 6 as a completed baseline rather than an active planning checkpoint
+  - `P7-01` execution-site contract baseline is implemented with explicit execution-site records, dedicated execution-site artifacts, and aligned visibility across state, events, summaries, resume notes, memory, inspect, review, and grouped artifact indexes
+  - `P7-02` attempt ownership baseline is implemented with explicit attempt owner, owner-kind, ownership status, assignment timing, and transfer-reason fields across run state, events, dispatch, handoff, memory, summary, resume, inspect, and review flows
+  - `P7-03` handoff-contract tightening is implemented with contract status, contract kind, contract reason, required-inputs, expected-outputs, and next-owner fields so handoff records act as execution contracts instead of only operator summaries
+  - `P7-04` local-detached execution baseline is implemented with a real child-process local execution boundary, detached route-mode selection, detached dispatch truth, and continued artifact-backed persistence without introducing hosted supervisors
+  - `P7-05` family-aware execution-fit policy tightening is implemented with route-versus-topology executor-family alignment checks, explicit support for current `cli` family behavior, explicit failure for unsupported future families, and detached-local transport acceptance in execution-fit findings
+  - `P7-06` inspection and closeout tightening is implemented with aligned operator-facing execution-site, ownership, and handoff-contract inspection plus a dedicated Phase 7 closeout note and synchronized status-entry documents
   - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
   - `P4-02` task inspect and overview baseline is implemented with `swl task inspect`, a compact per-task overview of the latest attempt, route/topology, policy status, retrieval/memory availability, operator guidance, and key artifact links
   - `P4-03` artifact index tightening is implemented with `swl task artifacts`, grouped artifact-path presentation by operator concern while preserving existing artifact paths and file layout
@@ -223,7 +233,8 @@ This file tracks the implementation status of the repository itself so work can 
 - The planned Phase 4 baseline is complete enough to stop open-ended Workbench / UX expansion by default.
 - The planned Phase 5 baseline is complete enough to stop open-ended `Capabilities` expansion by default.
 - The planned Phase 6 baseline is complete enough to stop open-ended `Retrieval / Memory Operationalization` expansion by default.
-- New work should now begin from a fresh planning note rather than assuming more Phase 6 work exists by default.
+- The planned Phase 7 baseline is complete enough to stop open-ended `Execution Topology` expansion by default.
+- New work should now begin from a fresh planning note rather than assuming more Phase 7 work exists by default.
 
 ## Known Issues
 
@@ -240,9 +251,10 @@ This file tracks the implementation status of the repository itself so work can 
 6. Use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference.
 7. Use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the current stop/go reference for the completed post-Phase-5 executor/external-input slice.
 8. Use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval/memory-next slice.
-9. Use `docs/phase6_kickoff_note.md` and `docs/phase6_task_breakdown.md` as the current fresh planning slice for `Retrieval / Memory Operationalization`, with `P6-02` as the next natural step.
-8. Verify the editable install exposes the `swl` entrypoint correctly.
-9. Update this file after each substantial code change.
+9. Use `docs/phase7_closeout_note.md` as the stop/go reference for the completed `Execution Topology` slice.
+10. Write a fresh kickoff note before starting the next primary track.
+11. Verify the editable install exposes the `swl` entrypoint correctly.
+12. Update this file after each substantial code change.
 
 ## Resume Command
 

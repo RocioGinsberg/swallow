@@ -69,4 +69,5 @@ When planning the next task:
 - use `docs/post_phase5_executor_and_external_input_closeout_note.md` before deciding whether to continue that completed slice
 - use `docs/post_phase5_retrieval_memory_next_closeout_note.md` before deciding whether to continue that completed `Retrieval / Memory` slice
 - use `docs/phase6_closeout_note.md` before deciding whether to continue the completed `Retrieval / Memory Operationalization` baseline
+- use `docs/phase7_closeout_note.md` before deciding whether to continue the completed `Execution Topology` slice
 - prefer a fresh planning note over open-ended continuation

@@ -28,7 +28,7 @@ The repository now includes:
 
 ## Current planning state
 
-Active phase: Phase 6 Retrieval / Memory Operationalization closeout checkpoint.
+Active phase: Phase 7 Execution-Site Boundary closeout checkpoint.
 
 Phase status:
 
@@ -40,6 +40,9 @@ Phase status:
 - Phase 4 baseline complete
 - Phase 5 baseline complete
 - post-Phase-5 executor / external-input slice complete
+- post-Phase-5 retrieval / memory-next slice complete
+- Phase 6 baseline complete
+- Phase 7 baseline complete
 
 ## Current references
 
@@ -59,3 +62,6 @@ Phase status:
 - `/home/rocio/projects/swallow/docs/phase6_kickoff_note.md`
 - `/home/rocio/projects/swallow/docs/phase6_task_breakdown.md`
 - `/home/rocio/projects/swallow/docs/phase6_closeout_note.md`
+- `/home/rocio/projects/swallow/docs/phase7_kickoff_note.md`
+- `/home/rocio/projects/swallow/docs/phase7_task_breakdown.md`
+- `/home/rocio/projects/swallow/docs/phase7_closeout_note.md`

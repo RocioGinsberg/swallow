@@ -82,6 +82,10 @@ def topology_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "topology.json"
 
 
+def execution_site_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "execution_site.json"
+
+
 def dispatch_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "dispatch.json"
 

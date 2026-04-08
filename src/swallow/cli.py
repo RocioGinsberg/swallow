@@ -13,6 +13,7 @@ from .paths import (
     capability_manifest_path,
     compatibility_path,
     dispatch_path,
+    execution_site_path,
     execution_fit_path,
     handoff_path,
     knowledge_index_path,
@@ -30,7 +31,7 @@ from .store import iter_task_states, load_state
 
 ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Core Run Record", ("task_semantics_report", "summary", "resume_note", "executor_output", "executor_prompt")),
-    ("Routing And Topology", ("route_report", "topology_report", "dispatch_report", "handoff_report")),
+    ("Routing And Topology", ("route_report", "topology_report", "execution_site_report", "dispatch_report", "handoff_report")),
     (
         "Retrieval And Grounding",
         (
@@ -64,6 +65,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_index_json",
             "route_json",
             "topology_json",
+            "execution_site_json",
             "dispatch_json",
             "handoff_json",
         ),
@@ -204,7 +206,7 @@ def build_parser() -> argparse.ArgumentParser:
     create_parser.add_argument(
         "--route-mode",
         default="auto",
-        choices=["auto", "live", "deterministic", "offline", "summary"],
+        choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Routing policy mode to persist for the task. Defaults to auto.",
     )
 
@@ -224,7 +226,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--route-mode",
         default=None,
-        choices=["auto", "live", "deterministic", "offline", "summary"],
+        choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Override the task routing policy mode for this run.",
     )
 
@@ -289,6 +291,11 @@ def build_parser() -> argparse.ArgumentParser:
     retrieval_parser.add_argument("task_id", help="Task identifier.")
     topology_parser = task_subparsers.add_parser("topology", help="Print the task topology report artifact.")
     topology_parser.add_argument("task_id", help="Task identifier.")
+    execution_site_parser = task_subparsers.add_parser(
+        "execution-site",
+        help="Print the task execution-site report artifact.",
+    )
+    execution_site_parser.add_argument("task_id", help="Task identifier.")
     dispatch_parser = task_subparsers.add_parser("dispatch", help="Print the task dispatch report artifact.")
     dispatch_parser.add_argument("task_id", help="Task identifier.")
     handoff_parser = task_subparsers.add_parser("handoff", help="Print the task handoff report artifact.")
@@ -311,6 +318,11 @@ def build_parser() -> argparse.ArgumentParser:
     route_json_parser.add_argument("task_id", help="Task identifier.")
     topology_json_parser = task_subparsers.add_parser("topology-json", help="Print the task topology record.")
     topology_json_parser.add_argument("task_id", help="Task identifier.")
+    execution_site_json_parser = task_subparsers.add_parser(
+        "execution-site-json",
+        help="Print the task execution-site record.",
+    )
+    execution_site_json_parser.add_argument("task_id", help="Task identifier.")
     dispatch_json_parser = task_subparsers.add_parser("dispatch-json", help="Print the task dispatch record.")
     dispatch_json_parser.add_argument("task_id", help="Task identifier.")
     handoff_json_parser = task_subparsers.add_parser("handoff-json", help="Print the task handoff record.")
@@ -431,6 +443,7 @@ def main(argv: list[str] | None = None) -> int:
 
         compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
         topology = load_json_if_exists(topology_path(base_dir, args.task_id))
+        execution_site = load_json_if_exists(execution_site_path(base_dir, args.task_id))
         dispatch = load_json_if_exists(dispatch_path(base_dir, args.task_id))
         handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
         execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
@@ -471,6 +484,9 @@ def main(argv: list[str] | None = None) -> int:
             f"updated_at: {state.updated_at}",
             f"attempt_id: {state.current_attempt_id or '-'}",
             f"attempt_number: {state.current_attempt_number or 0}",
+            f"attempt_owner_kind: {state.current_attempt_owner_kind}",
+            f"attempt_owner_ref: {state.current_attempt_owner_ref}",
+            f"attempt_ownership_status: {state.current_attempt_ownership_status}",
             f"execution_lifecycle: {state.execution_lifecycle}",
             f"task_semantics_source_kind: {task_semantics.get('source_kind', state.task_semantics.get('source_kind', 'none') if state.task_semantics else 'none')}",
             f"task_semantics_source_ref: {task_semantics.get('source_ref', state.task_semantics.get('source_ref', '') if state.task_semantics else '') or '-'}",
@@ -491,6 +507,10 @@ def main(argv: list[str] | None = None) -> int:
             f"route_backend: {state.route_backend}",
             f"route_executor_family: {state.route_executor_family}",
             f"route_execution_site: {state.route_execution_site}",
+            f"execution_site_contract_kind: {execution_site.get('contract_kind', state.execution_site_contract_kind)}",
+            f"execution_site_boundary: {execution_site.get('boundary', state.execution_site_boundary)}",
+            f"execution_site_contract_status: {execution_site.get('contract_status', state.execution_site_contract_status)}",
+            f"execution_site_handoff_required: {'yes' if execution_site.get('handoff_required', state.execution_site_handoff_required) else 'no'}",
             f"topology_executor_family: {topology.get('executor_family', state.topology_executor_family)}",
             f"topology_execution_site: {topology.get('execution_site', state.topology_execution_site)}",
             f"topology_transport_kind: {topology.get('transport_kind', state.topology_transport_kind)}",
@@ -514,6 +534,10 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "Operator Guidance",
             f"handoff_status: {handoff.get('status', 'pending')}",
+            f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
+            f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
+            f"handoff_next_owner_kind: {handoff.get('next_owner_kind', 'pending')}",
+            f"handoff_next_owner_ref: {handoff.get('next_owner_ref', 'pending')}",
             f"blocking_reason: {handoff.get('blocking_reason', '') or '-'}",
             f"next_operator_action: {handoff.get('next_operator_action', 'Inspect task artifacts.')}",
             "",
@@ -526,6 +550,7 @@ def main(argv: list[str] | None = None) -> int:
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"route_report: {state.artifact_paths.get('route_report', '-')}",
             f"topology_report: {state.artifact_paths.get('topology_report', '-')}",
+            f"execution_site_report: {state.artifact_paths.get('execution_site_report', '-')}",
             f"dispatch_report: {state.artifact_paths.get('dispatch_report', '-')}",
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
@@ -599,12 +624,19 @@ def main(argv: list[str] | None = None) -> int:
             "Latest Attempt",
             f"attempt_id: {state.current_attempt_id or '-'}",
             f"attempt_number: {state.current_attempt_number or 0}",
+            f"attempt_owner_kind: {state.current_attempt_owner_kind}",
+            f"attempt_owner_ref: {state.current_attempt_owner_ref}",
+            f"attempt_ownership_status: {state.current_attempt_ownership_status}",
             f"status: {state.status}",
             f"executor_status: {state.executor_status}",
             f"execution_lifecycle: {state.execution_lifecycle}",
             "",
             "Handoff",
             f"handoff_status: {handoff.get('status', 'pending')}",
+            f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
+            f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
+            f"handoff_next_owner_kind: {handoff.get('next_owner_kind', 'pending')}",
+            f"handoff_next_owner_ref: {handoff.get('next_owner_ref', 'pending')}",
             f"blocking_reason: {handoff.get('blocking_reason', '') or '-'}",
             f"next_operator_action: {handoff.get('next_operator_action', 'Review resume_note.md and summary.md.')}",
             "",
@@ -660,6 +692,7 @@ def main(argv: list[str] | None = None) -> int:
         "knowledge-policy",
         "retrieval",
         "topology",
+        "execution-site",
         "dispatch",
         "handoff",
         "execution-fit",
@@ -678,6 +711,7 @@ def main(argv: list[str] | None = None) -> int:
             "knowledge-policy": "knowledge_policy_report.md",
             "retrieval": "retrieval_report.md",
             "topology": "topology_report.md",
+            "execution-site": "execution_site_report.md",
             "dispatch": "dispatch_report.md",
             "handoff": "handoff_report.md",
             "execution-fit": "execution_fit_report.md",
@@ -700,6 +734,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "topology-json":
         print(json.dumps(json.loads(topology_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "execution-site-json":
+        print(json.dumps(json.loads(execution_site_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "dispatch-json":

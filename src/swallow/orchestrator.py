@@ -24,6 +24,7 @@ from .paths import (
     capability_manifest_path,
     compatibility_path,
     dispatch_path,
+    execution_site_path,
     execution_fit_path,
     handoff_path,
     knowledge_index_path,
@@ -68,10 +69,51 @@ def _apply_execution_topology(
     state.topology_dispatch_status = dispatch_status
 
 
+def _apply_execution_site_contract(state: TaskState) -> None:
+    if state.topology_execution_site == "local" and state.topology_transport_kind == "local_process":
+        state.execution_site_contract_kind = "local_inline"
+        state.execution_site_boundary = "same_process"
+        state.execution_site_contract_status = "active"
+        state.execution_site_handoff_required = False
+        state.execution_site_contract_reason = "Current route executes inline on the local machine."
+        return
+
+    if state.topology_execution_site == "local" and state.topology_transport_kind == "local_detached_process":
+        state.execution_site_contract_kind = "local_detached"
+        state.execution_site_boundary = "same_machine_detached"
+        state.execution_site_contract_status = "active"
+        state.execution_site_handoff_required = False
+        state.execution_site_contract_reason = "Current route executes through a detached child process on the local machine."
+        return
+
+    if state.topology_execution_site == "local":
+        state.execution_site_contract_kind = "local_detached"
+        state.execution_site_boundary = "same_machine_detached"
+        state.execution_site_contract_status = "planned"
+        state.execution_site_handoff_required = False
+        state.execution_site_contract_reason = (
+            "Execution remains local but expects a detached runtime boundary instead of the inline baseline."
+        )
+        return
+
+    state.execution_site_contract_kind = "remote_candidate"
+    state.execution_site_boundary = "cross_site_candidate"
+    state.execution_site_contract_status = "planned"
+    state.execution_site_handoff_required = True
+    state.execution_site_contract_reason = (
+        "Execution site is outside the current local inline baseline and would require an explicit handoff boundary."
+    )
+
+
 def _begin_execution_attempt(state: TaskState) -> None:
     state.run_attempt_count += 1
     state.current_attempt_number = state.run_attempt_count
     state.current_attempt_id = f"attempt-{state.current_attempt_number:04d}"
+    state.current_attempt_owner_kind = "local_orchestrator"
+    state.current_attempt_owner_ref = "swl_cli"
+    state.current_attempt_ownership_status = "owned"
+    state.current_attempt_owner_assigned_at = utc_now()
+    state.current_attempt_transfer_reason = ""
     state.dispatch_requested_at = utc_now()
     state.dispatch_started_at = ""
     state.execution_lifecycle = "prepared"
@@ -143,6 +185,7 @@ def create_task(
     state.route_reason = initial_route.reason
     state.route_capabilities = initial_route.route.capabilities.to_dict()
     _apply_execution_topology(state, dispatch_status="not_requested")
+    _apply_execution_site_contract(state)
     state.artifact_paths = {
         "task_semantics_json": str(task_semantics_path(base_dir, task_id).resolve()),
         "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
@@ -207,6 +250,11 @@ def create_task(
                 "topology_transport_kind": state.topology_transport_kind,
                 "topology_remote_capable_intent": state.topology_remote_capable_intent,
                 "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_site_contract_kind": state.execution_site_contract_kind,
+                "execution_site_boundary": state.execution_site_boundary,
+                "execution_site_contract_status": state.execution_site_contract_status,
+                "execution_site_handoff_required": state.execution_site_handoff_required,
+                "execution_site_contract_reason": state.execution_site_contract_reason,
                 "execution_lifecycle": state.execution_lifecycle,
             },
         ),
@@ -278,6 +326,7 @@ def run_task(
     state.route_capabilities = route_selection.route.capabilities.to_dict()
     _begin_execution_attempt(state)
     _apply_execution_topology(state, dispatch_status="planned")
+    _apply_execution_site_contract(state)
     state.executor_status = "running"
     state.status = "running"
     state.phase = "intake"
@@ -307,12 +356,22 @@ def run_task(
                 "route_capabilities": state.route_capabilities,
                 "attempt_id": state.current_attempt_id,
                 "attempt_number": state.current_attempt_number,
+                "attempt_owner_kind": state.current_attempt_owner_kind,
+                "attempt_owner_ref": state.current_attempt_owner_ref,
+                "attempt_ownership_status": state.current_attempt_ownership_status,
+                "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+                "attempt_transfer_reason": state.current_attempt_transfer_reason,
                 "topology_route_name": state.topology_route_name,
                 "topology_executor_family": state.topology_executor_family,
                 "topology_execution_site": state.topology_execution_site,
                 "topology_transport_kind": state.topology_transport_kind,
                 "topology_remote_capable_intent": state.topology_remote_capable_intent,
                 "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_site_contract_kind": state.execution_site_contract_kind,
+                "execution_site_boundary": state.execution_site_boundary,
+                "execution_site_contract_status": state.execution_site_contract_status,
+                "execution_site_handoff_required": state.execution_site_handoff_required,
+                "execution_site_contract_reason": state.execution_site_contract_reason,
                 "dispatch_requested_at": state.dispatch_requested_at,
                 "dispatch_started_at": state.dispatch_started_at,
                 "execution_lifecycle": state.execution_lifecycle,
@@ -327,7 +386,9 @@ def run_task(
     state.retrieval_count = len(retrieval_items)
 
     state.dispatch_started_at = utc_now()
-    state.topology_dispatch_status = "local_dispatched"
+    state.topology_dispatch_status = (
+        "detached_dispatched" if state.topology_transport_kind == "local_detached_process" else "local_dispatched"
+    )
     state.execution_lifecycle = "dispatched"
     _set_phase(base_dir, state, "executing")
     executor_result = run_execution(base_dir, state, retrieval_items)
@@ -367,6 +428,8 @@ def run_task(
         "route_json": str(route_path(base_dir, task_id).resolve()),
         "topology_report": str((artifacts_dir(base_dir, task_id) / "topology_report.md").resolve()),
         "topology_json": str(topology_path(base_dir, task_id).resolve()),
+        "execution_site_report": str((artifacts_dir(base_dir, task_id) / "execution_site_report.md").resolve()),
+        "execution_site_json": str(execution_site_path(base_dir, task_id).resolve()),
         "dispatch_report": str((artifacts_dir(base_dir, task_id) / "dispatch_report.md").resolve()),
         "dispatch_json": str(dispatch_path(base_dir, task_id).resolve()),
         "handoff_report": str((artifacts_dir(base_dir, task_id) / "handoff_report.md").resolve()),
@@ -411,12 +474,22 @@ def run_task(
                 "route_capabilities": state.route_capabilities,
                 "attempt_id": state.current_attempt_id,
                 "attempt_number": state.current_attempt_number,
+                "attempt_owner_kind": state.current_attempt_owner_kind,
+                "attempt_owner_ref": state.current_attempt_owner_ref,
+                "attempt_ownership_status": state.current_attempt_ownership_status,
+                "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+                "attempt_transfer_reason": state.current_attempt_transfer_reason,
                 "topology_route_name": state.topology_route_name,
                 "topology_executor_family": state.topology_executor_family,
                 "topology_execution_site": state.topology_execution_site,
                 "topology_transport_kind": state.topology_transport_kind,
                 "topology_remote_capable_intent": state.topology_remote_capable_intent,
                 "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_site_contract_kind": state.execution_site_contract_kind,
+                "execution_site_boundary": state.execution_site_boundary,
+                "execution_site_contract_status": state.execution_site_contract_status,
+                "execution_site_handoff_required": state.execution_site_handoff_required,
+                "execution_site_contract_reason": state.execution_site_contract_reason,
                 "dispatch_requested_at": state.dispatch_requested_at,
                 "dispatch_started_at": state.dispatch_started_at,
                 "execution_lifecycle": state.execution_lifecycle,

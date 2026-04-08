@@ -30,6 +30,7 @@ from .store import (
     append_event,
     save_compatibility,
     save_dispatch,
+    save_execution_site,
     save_execution_fit,
     save_handoff,
     save_knowledge_index,
@@ -99,12 +100,22 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                 "route_capabilities": state.route_capabilities,
                 "attempt_id": state.current_attempt_id,
                 "attempt_number": state.current_attempt_number,
+                "attempt_owner_kind": state.current_attempt_owner_kind,
+                "attempt_owner_ref": state.current_attempt_owner_ref,
+                "attempt_ownership_status": state.current_attempt_ownership_status,
+                "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+                "attempt_transfer_reason": state.current_attempt_transfer_reason,
                 "topology_route_name": state.topology_route_name,
                 "topology_executor_family": state.topology_executor_family,
                 "topology_execution_site": state.topology_execution_site,
                 "topology_transport_kind": state.topology_transport_kind,
                 "topology_remote_capable_intent": state.topology_remote_capable_intent,
                 "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_site_contract_kind": state.execution_site_contract_kind,
+                "execution_site_boundary": state.execution_site_boundary,
+                "execution_site_contract_status": state.execution_site_contract_status,
+                "execution_site_handoff_required": state.execution_site_handoff_required,
+                "execution_site_contract_reason": state.execution_site_contract_reason,
                 "dispatch_requested_at": state.dispatch_requested_at,
                 "dispatch_started_at": state.dispatch_started_at,
                 "execution_lifecycle": state.execution_lifecycle,
@@ -130,6 +141,7 @@ def write_task_artifacts(
     knowledge_index = build_knowledge_index(state.knowledge_objects)
     save_route(base_dir, state.task_id, build_route_record(state))
     save_topology(base_dir, state.task_id, build_topology_record(state))
+    save_execution_site(base_dir, state.task_id, build_execution_site_record(state))
     save_dispatch(base_dir, state.task_id, build_dispatch_record(state))
     write_artifact(
         base_dir,
@@ -142,6 +154,12 @@ def write_task_artifacts(
         state.task_id,
         "topology_report.md",
         build_topology_report(state),
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "execution_site_report.md",
+        build_execution_site_report(state),
     )
     write_artifact(
         base_dir,
@@ -350,6 +368,7 @@ def write_task_artifacts(
                     "resume_note": state.artifact_paths.get("resume_note", ""),
                     "route_report": state.artifact_paths.get("route_report", ""),
                     "topology_report": state.artifact_paths.get("topology_report", ""),
+                    "execution_site_report": state.artifact_paths.get("execution_site_report", ""),
                     "dispatch_report": state.artifact_paths.get("dispatch_report", ""),
                     "handoff_report": state.artifact_paths.get("handoff_report", ""),
                     "execution_fit_report": state.artifact_paths.get("execution_fit_report", ""),
@@ -512,6 +531,11 @@ def build_task_memory(
         "execution_attempt": {
             "attempt_id": state.current_attempt_id,
             "attempt_number": state.current_attempt_number,
+            "owner_kind": state.current_attempt_owner_kind,
+            "owner_ref": state.current_attempt_owner_ref,
+            "ownership_status": state.current_attempt_ownership_status,
+            "owner_assigned_at": state.current_attempt_owner_assigned_at,
+            "transfer_reason": state.current_attempt_transfer_reason,
             "dispatch_requested_at": state.dispatch_requested_at,
             "dispatch_started_at": state.dispatch_started_at,
             "execution_lifecycle": state.execution_lifecycle,
@@ -529,6 +553,7 @@ def build_task_memory(
             "capabilities": state.route_capabilities,
         },
         "topology": build_topology_record(state),
+        "execution_site": build_execution_site_record(state),
         "dispatch": build_dispatch_record(state),
         "handoff": handoff_record,
         "compatibility": compatibility_result.to_dict(),
@@ -574,6 +599,8 @@ def build_task_memory(
             "route_json": state.artifact_paths.get("route_json", ""),
             "topology_report": state.artifact_paths.get("topology_report", ""),
             "topology_json": state.artifact_paths.get("topology_json", ""),
+            "execution_site_report": state.artifact_paths.get("execution_site_report", ""),
+            "execution_site_json": state.artifact_paths.get("execution_site_json", ""),
             "dispatch_report": state.artifact_paths.get("dispatch_report", ""),
             "dispatch_json": state.artifact_paths.get("dispatch_json", ""),
             "handoff_report": state.artifact_paths.get("handoff_report", ""),
@@ -655,11 +682,54 @@ def build_topology_report(state: TaskState) -> str:
     )
 
 
+def build_execution_site_record(state: TaskState) -> dict[str, object]:
+    return {
+        "contract_kind": state.execution_site_contract_kind,
+        "boundary": state.execution_site_boundary,
+        "contract_status": state.execution_site_contract_status,
+        "handoff_required": state.execution_site_handoff_required,
+        "reason": state.execution_site_contract_reason,
+        "execution_site": state.topology_execution_site,
+        "executor_family": state.topology_executor_family,
+        "transport_kind": state.topology_transport_kind,
+        "remote_capable_intent": state.topology_remote_capable_intent,
+        "dispatch_status": state.topology_dispatch_status,
+        "execution_lifecycle": state.execution_lifecycle,
+    }
+
+
+def build_execution_site_report(state: TaskState) -> str:
+    return "\n".join(
+        [
+            "# Execution Site Report",
+            "",
+            f"- contract_kind: {state.execution_site_contract_kind}",
+            f"- boundary: {state.execution_site_boundary}",
+            f"- contract_status: {state.execution_site_contract_status}",
+            f"- handoff_required: {'yes' if state.execution_site_handoff_required else 'no'}",
+            f"- reason: {state.execution_site_contract_reason}",
+            f"- execution_site: {state.topology_execution_site}",
+            f"- executor_family: {state.topology_executor_family}",
+            f"- transport_kind: {state.topology_transport_kind}",
+            f"- remote_capable_intent: {'yes' if state.topology_remote_capable_intent else 'no'}",
+            f"- dispatch_status: {state.topology_dispatch_status}",
+            f"- execution_lifecycle: {state.execution_lifecycle}",
+        ]
+    )
+
+
 def build_dispatch_record(state: TaskState) -> dict[str, object]:
     return {
         "attempt_id": state.current_attempt_id,
         "attempt_number": state.current_attempt_number,
+        "attempt_owner_kind": state.current_attempt_owner_kind,
+        "attempt_owner_ref": state.current_attempt_owner_ref,
+        "attempt_ownership_status": state.current_attempt_ownership_status,
+        "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+        "attempt_transfer_reason": state.current_attempt_transfer_reason,
         "route_name": state.route_name,
+        "execution_site_contract_kind": state.execution_site_contract_kind,
+        "execution_site_boundary": state.execution_site_boundary,
         "executor_family": state.topology_executor_family,
         "execution_site": state.topology_execution_site,
         "transport_kind": state.topology_transport_kind,
@@ -677,7 +747,14 @@ def build_dispatch_report(state: TaskState) -> str:
             "",
             f"- attempt_id: {state.current_attempt_id or 'pending'}",
             f"- attempt_number: {state.current_attempt_number}",
+            f"- attempt_owner_kind: {state.current_attempt_owner_kind}",
+            f"- attempt_owner_ref: {state.current_attempt_owner_ref}",
+            f"- attempt_ownership_status: {state.current_attempt_ownership_status}",
+            f"- attempt_owner_assigned_at: {state.current_attempt_owner_assigned_at or 'pending'}",
+            f"- attempt_transfer_reason: {state.current_attempt_transfer_reason or 'none'}",
             f"- route_name: {state.route_name}",
+            f"- execution_site_contract_kind: {state.execution_site_contract_kind}",
+            f"- execution_site_boundary: {state.execution_site_boundary}",
             f"- executor_family: {state.topology_executor_family}",
             f"- execution_site: {state.topology_execution_site}",
             f"- transport_kind: {state.topology_transport_kind}",
@@ -697,6 +774,13 @@ def build_handoff_record(
     knowledge_policy_result: KnowledgePolicyResult,
     validation_result: ValidationResult,
 ) -> dict[str, object]:
+    required_inputs = [
+        state.artifact_paths.get("summary", ""),
+        state.artifact_paths.get("resume_note", ""),
+        state.artifact_paths.get("executor_output", ""),
+        state.artifact_paths.get("handoff_report", ""),
+    ]
+    required_inputs = [path for path in required_inputs if path]
     if (
         executor_result.status == "completed"
         and compatibility_result.status != "failed"
@@ -706,21 +790,55 @@ def build_handoff_record(
         handoff_status = "review_completed_run"
         blocking_reason = ""
         next_operator_action = "Review summary.md and executor_output.md before starting the next task iteration."
+        handoff_contract_status = "ready"
+        handoff_contract_kind = "operator_review"
+        handoff_contract_reason = "Completed run is ready for operator review and next-step selection."
+        next_owner_kind = "operator"
+        next_owner_ref = "swl_cli"
+        expected_outputs = [
+            "review decision recorded by the operator",
+            "next task iteration selection",
+        ]
     else:
         handoff_status = "resume_from_failure"
         blocking_reason = executor_result.failure_kind or executor_result.message
         failure_steps = build_failure_recommendations(executor_result.failure_kind)
         next_operator_action = failure_steps[0].lstrip("- ").strip() if failure_steps else "Resume from the latest failure context."
+        handoff_contract_status = "ready"
+        handoff_contract_kind = "failure_resume"
+        handoff_contract_reason = "Failure handoff is ready for operator-guided recovery from the latest attempt context."
+        next_owner_kind = "operator"
+        next_owner_ref = "swl_cli"
+        expected_outputs = [
+            "failure recovery decision",
+            "corrected rerun or route adjustment",
+        ]
 
     return {
         "status": handoff_status,
+        "contract_status": handoff_contract_status,
+        "contract_kind": handoff_contract_kind,
+        "contract_reason": handoff_contract_reason,
         "task_status": state.status,
         "attempt_id": state.current_attempt_id,
         "attempt_number": state.current_attempt_number,
+        "attempt_owner_kind": state.current_attempt_owner_kind,
+        "attempt_owner_ref": state.current_attempt_owner_ref,
+        "attempt_ownership_status": state.current_attempt_ownership_status,
+        "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+        "attempt_transfer_reason": state.current_attempt_transfer_reason,
+        "execution_site_contract_kind": state.execution_site_contract_kind,
+        "execution_site_boundary": state.execution_site_boundary,
+        "execution_site_contract_status": state.execution_site_contract_status,
+        "execution_site_handoff_required": state.execution_site_handoff_required,
         "execution_site": state.topology_execution_site,
         "executor_family": state.topology_executor_family,
         "dispatch_status": state.topology_dispatch_status,
         "execution_lifecycle": state.execution_lifecycle,
+        "required_inputs": required_inputs,
+        "expected_outputs": expected_outputs,
+        "next_owner_kind": next_owner_kind,
+        "next_owner_ref": next_owner_ref,
         "blocking_reason": blocking_reason,
         "next_operator_action": next_operator_action,
         "executor_status": executor_result.status,
@@ -733,28 +851,54 @@ def build_handoff_record(
 
 
 def build_handoff_report(handoff_record: dict[str, object]) -> str:
-    return "\n".join(
-        [
-            "# Handoff Report",
-            "",
-            f"- status: {handoff_record.get('status', 'pending')}",
-            f"- task_status: {handoff_record.get('task_status', 'pending')}",
-            f"- attempt_id: {handoff_record.get('attempt_id', 'pending')}",
-            f"- attempt_number: {handoff_record.get('attempt_number', 0)}",
-            f"- execution_site: {handoff_record.get('execution_site', 'pending')}",
-            f"- executor_family: {handoff_record.get('executor_family', 'pending')}",
-            f"- dispatch_status: {handoff_record.get('dispatch_status', 'pending')}",
-            f"- execution_lifecycle: {handoff_record.get('execution_lifecycle', 'pending')}",
-            f"- executor_status: {handoff_record.get('executor_status', 'pending')}",
-            f"- failure_kind: {handoff_record.get('failure_kind', '') or 'none'}",
-            f"- compatibility_status: {handoff_record.get('compatibility_status', 'pending')}",
-            f"- execution_fit_status: {handoff_record.get('execution_fit_status', 'pending')}",
-            f"- knowledge_policy_status: {handoff_record.get('knowledge_policy_status', 'pending')}",
-            f"- validation_status: {handoff_record.get('validation_status', 'pending')}",
-            f"- blocking_reason: {handoff_record.get('blocking_reason', '') or 'none'}",
-            f"- next_operator_action: {handoff_record.get('next_operator_action', 'pending')}",
-        ]
-    )
+    lines = [
+        "# Handoff Report",
+        "",
+        f"- status: {handoff_record.get('status', 'pending')}",
+        f"- contract_status: {handoff_record.get('contract_status', 'pending')}",
+        f"- contract_kind: {handoff_record.get('contract_kind', 'pending')}",
+        f"- contract_reason: {handoff_record.get('contract_reason', 'pending')}",
+        f"- task_status: {handoff_record.get('task_status', 'pending')}",
+        f"- attempt_id: {handoff_record.get('attempt_id', 'pending')}",
+        f"- attempt_number: {handoff_record.get('attempt_number', 0)}",
+        f"- attempt_owner_kind: {handoff_record.get('attempt_owner_kind', 'pending')}",
+        f"- attempt_owner_ref: {handoff_record.get('attempt_owner_ref', 'pending')}",
+        f"- attempt_ownership_status: {handoff_record.get('attempt_ownership_status', 'pending')}",
+        f"- attempt_owner_assigned_at: {handoff_record.get('attempt_owner_assigned_at', 'pending')}",
+        f"- attempt_transfer_reason: {handoff_record.get('attempt_transfer_reason', '') or 'none'}",
+        f"- execution_site_contract_kind: {handoff_record.get('execution_site_contract_kind', 'pending')}",
+        f"- execution_site_boundary: {handoff_record.get('execution_site_boundary', 'pending')}",
+        f"- execution_site_contract_status: {handoff_record.get('execution_site_contract_status', 'pending')}",
+        f"- execution_site_handoff_required: {'yes' if handoff_record.get('execution_site_handoff_required', False) else 'no'}",
+        f"- execution_site: {handoff_record.get('execution_site', 'pending')}",
+        f"- executor_family: {handoff_record.get('executor_family', 'pending')}",
+        f"- dispatch_status: {handoff_record.get('dispatch_status', 'pending')}",
+        f"- execution_lifecycle: {handoff_record.get('execution_lifecycle', 'pending')}",
+        f"- executor_status: {handoff_record.get('executor_status', 'pending')}",
+        f"- failure_kind: {handoff_record.get('failure_kind', '') or 'none'}",
+        f"- compatibility_status: {handoff_record.get('compatibility_status', 'pending')}",
+        f"- execution_fit_status: {handoff_record.get('execution_fit_status', 'pending')}",
+        f"- knowledge_policy_status: {handoff_record.get('knowledge_policy_status', 'pending')}",
+        f"- validation_status: {handoff_record.get('validation_status', 'pending')}",
+        f"- next_owner_kind: {handoff_record.get('next_owner_kind', 'pending')}",
+        f"- next_owner_ref: {handoff_record.get('next_owner_ref', 'pending')}",
+        f"- blocking_reason: {handoff_record.get('blocking_reason', '') or 'none'}",
+        f"- next_operator_action: {handoff_record.get('next_operator_action', 'pending')}",
+        "",
+        "## Required Inputs",
+    ]
+    required_inputs = handoff_record.get("required_inputs", [])
+    if isinstance(required_inputs, list) and required_inputs:
+        lines.extend([f"- {item}" for item in required_inputs])
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Expected Outputs"])
+    expected_outputs = handoff_record.get("expected_outputs", [])
+    if isinstance(expected_outputs, list) and expected_outputs:
+        lines.extend([f"- {item}" for item in expected_outputs])
+    else:
+        lines.append("- none")
+    return "\n".join(lines)
 
 
 def build_compatibility_record(
@@ -822,6 +966,11 @@ def build_summary(
         f"- execution_lifecycle: {state.execution_lifecycle}",
         f"- attempt_id: {state.current_attempt_id or 'pending'}",
         f"- attempt_number: {state.current_attempt_number}",
+        f"- attempt_owner_kind: {state.current_attempt_owner_kind}",
+        f"- attempt_owner_ref: {state.current_attempt_owner_ref}",
+        f"- attempt_ownership_status: {state.current_attempt_ownership_status}",
+        f"- attempt_owner_assigned_at: {state.current_attempt_owner_assigned_at or 'pending'}",
+        f"- attempt_transfer_reason: {state.current_attempt_transfer_reason or 'none'}",
         f"- route_mode: {state.route_mode}",
         f"- route_name: {state.route_name}",
         f"- route_backend: {state.route_backend}",
@@ -838,6 +987,11 @@ def build_summary(
         f"- topology_transport_kind: {state.topology_transport_kind}",
         f"- topology_dispatch_status: {state.topology_dispatch_status}",
         f"- topology_report_artifact: {state.artifact_paths.get('topology_report', '') or 'pending'}",
+        f"- execution_site_contract_kind: {state.execution_site_contract_kind}",
+        f"- execution_site_boundary: {state.execution_site_boundary}",
+        f"- execution_site_contract_status: {state.execution_site_contract_status}",
+        f"- execution_site_handoff_required: {state.execution_site_handoff_required}",
+        f"- execution_site_report_artifact: {state.artifact_paths.get('execution_site_report', '') or 'pending'}",
         f"- dispatch_requested_at: {state.dispatch_requested_at or 'pending'}",
         f"- dispatch_started_at: {state.dispatch_started_at or 'pending'}",
         f"- dispatch_report_artifact: {state.artifact_paths.get('dispatch_report', '') or 'pending'}",
@@ -1023,6 +1177,11 @@ def build_resume_note(
         f"- execution lifecycle: {state.execution_lifecycle}",
         f"- attempt id: {state.current_attempt_id or 'pending'}",
         f"- attempt number: {state.current_attempt_number}",
+        f"- attempt owner kind: {state.current_attempt_owner_kind}",
+        f"- attempt owner ref: {state.current_attempt_owner_ref}",
+        f"- attempt ownership status: {state.current_attempt_ownership_status}",
+        f"- attempt owner assigned at: {state.current_attempt_owner_assigned_at or 'pending'}",
+        f"- attempt transfer reason: {state.current_attempt_transfer_reason or 'none'}",
         f"- route mode: {state.route_mode}",
         f"- route name: {state.route_name}",
         f"- route backend: {state.route_backend}",
@@ -1037,6 +1196,11 @@ def build_resume_note(
         f"- topology transport kind: {state.topology_transport_kind}",
         f"- topology dispatch status: {state.topology_dispatch_status}",
         f"- topology report artifact: {state.artifact_paths.get('topology_report', '') or 'pending'}",
+        f"- execution-site contract kind: {state.execution_site_contract_kind}",
+        f"- execution-site boundary: {state.execution_site_boundary}",
+        f"- execution-site contract status: {state.execution_site_contract_status}",
+        f"- execution-site handoff required: {'yes' if state.execution_site_handoff_required else 'no'}",
+        f"- execution-site report artifact: {state.artifact_paths.get('execution_site_report', '') or 'pending'}",
         f"- dispatch requested at: {state.dispatch_requested_at or 'pending'}",
         f"- dispatch started at: {state.dispatch_started_at or 'pending'}",
         f"- dispatch report artifact: {state.artifact_paths.get('dispatch_report', '') or 'pending'}",

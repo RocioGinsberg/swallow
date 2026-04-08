@@ -86,9 +86,24 @@ ROUTE_MODE_ALIASES = {
     "auto": "auto",
     "live": "live",
     "deterministic": "deterministic",
+    "detached": "detached",
     "offline": "offline",
     "summary": "summary",
 }
+
+
+def build_detached_route(route: RouteSpec) -> RouteSpec:
+    return RouteSpec(
+        name=f"{route.name}-detached",
+        executor_name=route.executor_name,
+        backend_kind=f"{route.backend_kind}_detached",
+        model_hint=route.model_hint,
+        executor_family=route.executor_family,
+        execution_site="local",
+        remote_capable=False,
+        transport_kind="local_detached_process",
+        capabilities=route.capabilities,
+    )
 
 
 def normalize_route_mode(raw_mode: str | None) -> str:
@@ -134,6 +149,19 @@ def select_route(
         selected_executor = explicit_executor
         reason = "Selected the route from the run-time executor override."
     elif selected_mode != "auto":
+        if selected_mode == "detached":
+            route = build_detached_route(route_for_executor(selected_executor))
+            return RouteSelection(
+                route=route,
+                reason="Selected the detached local execution variant from the routing policy mode.",
+                policy_inputs={
+                    "executor_override": executor_override or "",
+                    "route_mode_override": route_mode_override or "",
+                    "task_executor": state.executor_name,
+                    "task_route_mode": state.route_mode,
+                    "legacy_executor_mode": os.environ.get("AIWF_EXECUTOR_MODE", ""),
+                },
+            )
         mode_route = route_for_mode(selected_mode)
         if mode_route is not None:
             return RouteSelection(

@@ -1,6 +1,6 @@
 # Active Phase
 
-Current active phase: Phase 6 Retrieval / Memory Operationalization closeout checkpoint.
+Current active phase: Phase 7 Execution-Site Boundary closeout checkpoint.
 
 ## Current status
 
@@ -12,6 +12,9 @@ Current active phase: Phase 6 Retrieval / Memory Operationalization closeout che
 - Phase 4 baseline complete
 - Phase 5 baseline complete
 - post-Phase-5 executor / external-input slice complete
+- post-Phase-5 retrieval / memory next slice complete
+- Phase 6 baseline complete
+- Phase 7 baseline complete
 
 ## Working references
 
@@ -33,8 +36,16 @@ Current active phase: Phase 6 Retrieval / Memory Operationalization closeout che
   - `/home/rocio/projects/swallow/docs/phase5_task_breakdown.md`
 - Phase 5 closeout:
   - `/home/rocio/projects/swallow/docs/phase5_closeout_note.md`
+- post-Phase-2 retrieval closeout:
+  - `/home/rocio/projects/swallow/docs/post_phase2_retrieval_closeout_note.md`
+- post-Phase-2 retrieval phase slice:
+  - `/home/rocio/projects/swallow/.codex/phases/post_phase2_retrieval.md`
+- post-Phase-5 executor / external-input phase slice:
+  - `/home/rocio/projects/swallow/.codex/phases/post_phase5_executor_external_input.md`
 - post-Phase-5 executor / external-input closeout:
   - `/home/rocio/projects/swallow/docs/post_phase5_executor_and_external_input_closeout_note.md`
+- post-Phase-5 retrieval / memory next phase slice:
+  - `/home/rocio/projects/swallow/.codex/phases/post_phase5_retrieval_memory_next.md`
 - post-Phase-5 retrieval / memory next kickoff:
   - `/home/rocio/projects/swallow/docs/post_phase5_retrieval_memory_next_kickoff_note.md`
 - post-Phase-5 retrieval / memory next breakdown:
@@ -47,8 +58,16 @@ Current active phase: Phase 6 Retrieval / Memory Operationalization closeout che
   - `/home/rocio/projects/swallow/docs/phase6_task_breakdown.md`
 - Phase 6 closeout:
   - `/home/rocio/projects/swallow/docs/phase6_closeout_note.md`
-- retrieval closeout:
-  - `/home/rocio/projects/swallow/docs/post_phase2_retrieval_closeout_note.md`
+- Phase 6 phase slice:
+  - `/home/rocio/projects/swallow/.codex/phases/phase6.md`
+- Phase 7 kickoff:
+  - `/home/rocio/projects/swallow/docs/phase7_kickoff_note.md`
+- Phase 7 breakdown:
+  - `/home/rocio/projects/swallow/docs/phase7_task_breakdown.md`
+- Phase 7 closeout:
+  - `/home/rocio/projects/swallow/docs/phase7_closeout_note.md`
+- Phase 7 phase slice:
+  - `/home/rocio/projects/swallow/.codex/phases/phase7.md`
 
 ## Current implementation baseline
 
@@ -75,6 +94,6 @@ The repository already has:
 
 ## Current rule
 
-New planning work should align with `docs/system_tracks.md` first and then the active Phase 6 references above.
+New planning work should align with `docs/system_tracks.md` first and then the active Phase 7 closeout references above.
 
-New implementation work should not fall back to a generic MVP framing or resume open-ended Phase 6 breadth by default.
+New implementation work should not fall back to a generic MVP framing, resume open-ended Phase 6 breadth, or resume open-ended Phase 7 execution-topology breadth by default.

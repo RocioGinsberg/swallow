@@ -896,6 +896,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("status: completed", output)
         self.assertIn("attempt_id: attempt-0002", output)
         self.assertIn("attempt_number: 2", output)
+        self.assertIn("attempt_owner_kind: local_orchestrator", output)
+        self.assertIn("attempt_owner_ref: swl_cli", output)
+        self.assertIn("attempt_ownership_status: owned", output)
         self.assertIn("task_semantics_source_kind: external_planning_handoff", output)
         self.assertIn("task_semantics_source_ref: chat://inspect-baseline", output)
         self.assertIn("task_semantics_constraints: 1", output)
@@ -907,6 +910,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_index: active_reusable=0 inactive_reusable=1", output)
         self.assertIn("knowledge_index_refreshed_at:", output)
         self.assertIn("route_name: local-mock", output)
+        self.assertIn("execution_site_contract_kind: local_inline", output)
+        self.assertIn("execution_site_boundary: same_process", output)
+        self.assertIn("execution_site_contract_status: active", output)
+        self.assertIn("execution_site_handoff_required: no", output)
         self.assertIn("topology_execution_site: local", output)
         self.assertIn("topology_dispatch_status: local_dispatched", output)
         self.assertIn("compatibility_status: passed", output)
@@ -919,12 +926,17 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("grounding_available: yes", output)
         self.assertIn("memory_available: yes", output)
         self.assertIn("handoff_status: review_completed_run", output)
+        self.assertIn("handoff_contract_status: ready", output)
+        self.assertIn("handoff_contract_kind: operator_review", output)
+        self.assertIn("handoff_next_owner_kind: operator", output)
+        self.assertIn("handoff_next_owner_ref: swl_cli", output)
         self.assertIn("next_operator_action: Review summary.md", output)
         self.assertIn("task_semantics_report:", output)
         self.assertIn("knowledge_objects_report:", output)
         self.assertIn("knowledge_partition_report:", output)
         self.assertIn("knowledge_index_report:", output)
         self.assertIn("summary:", output)
+        self.assertIn("execution_site_report:", output)
         self.assertIn("retrieval_report:", output)
 
     def test_task_artifacts_groups_paths_by_operator_concern(self) -> None:
@@ -968,6 +980,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("summary:", output)
         self.assertIn("resume_note:", output)
         self.assertIn("route_report:", output)
+        self.assertIn("execution_site_report:", output)
         self.assertIn("handoff_report:", output)
         self.assertIn("retrieval_report:", output)
         self.assertIn("validation_report:", output)
@@ -1015,6 +1028,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn(f"Task Review: {task_id}", output)
         self.assertIn("status: failed", output)
         self.assertIn("handoff_status: resume_from_failure", output)
+        self.assertIn("handoff_contract_status: ready", output)
+        self.assertIn("handoff_contract_kind: failure_resume", output)
+        self.assertIn("handoff_next_owner_kind: operator", output)
+        self.assertIn("handoff_next_owner_ref: swl_cli", output)
         self.assertIn("blocking_reason: launch_error", output)
         self.assertIn("knowledge_policy_status: passed", output)
         self.assertIn("knowledge_index_active_reusable: 0", output)
@@ -1046,6 +1063,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("inspect             Print a compact per-task overview.", output)
         self.assertIn("review              Print a review-focused task handoff summary.", output)
         self.assertIn("artifacts           Print grouped task artifact paths.", output)
+        self.assertIn("execution-site      Print the task execution-site report artifact.", output)
 
     def test_task_list_help_includes_focus_and_limit(self) -> None:
         stdout = StringIO()
@@ -1232,6 +1250,9 @@ class CliLifecycleTest(unittest.TestCase):
                 execution_fit_report = (tasks_dir / task_id / "artifacts" / "execution_fit_report.md").read_text(
                     encoding="utf-8"
                 )
+                execution_site_report = (tasks_dir / task_id / "artifacts" / "execution_site_report.md").read_text(
+                    encoding="utf-8"
+                )
                 knowledge_policy_report = (tasks_dir / task_id / "artifacts" / "knowledge_policy_report.md").read_text(
                     encoding="utf-8"
                 )
@@ -1263,6 +1284,7 @@ class CliLifecycleTest(unittest.TestCase):
                 validation = json.loads((tasks_dir / task_id / "validation.json").read_text(encoding="utf-8"))
                 memory = json.loads((tasks_dir / task_id / "memory.json").read_text(encoding="utf-8"))
                 route = json.loads((tasks_dir / task_id / "route.json").read_text(encoding="utf-8"))
+                execution_site = json.loads((tasks_dir / task_id / "execution_site.json").read_text(encoding="utf-8"))
                 topology = json.loads((tasks_dir / task_id / "topology.json").read_text(encoding="utf-8"))
                 dispatch = json.loads((tasks_dir / task_id / "dispatch.json").read_text(encoding="utf-8"))
                 handoff = json.loads((tasks_dir / task_id / "handoff.json").read_text(encoding="utf-8"))
@@ -1284,6 +1306,11 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("execution_lifecycle:", summary)
                 self.assertIn("attempt_id:", summary)
                 self.assertIn("attempt_number:", summary)
+                self.assertIn("attempt_owner_kind:", summary)
+                self.assertIn("attempt_owner_ref:", summary)
+                self.assertIn("attempt_ownership_status:", summary)
+                self.assertIn("attempt_owner_assigned_at:", summary)
+                self.assertIn("attempt_transfer_reason:", summary)
                 self.assertIn("route_capabilities:", summary)
                 self.assertIn("execution_kind=", summary)
                 self.assertIn("route_report_artifact:", summary)
@@ -1292,6 +1319,11 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("topology_transport_kind:", summary)
                 self.assertIn("topology_dispatch_status:", summary)
                 self.assertIn("topology_report_artifact:", summary)
+                self.assertIn("execution_site_contract_kind:", summary)
+                self.assertIn("execution_site_boundary:", summary)
+                self.assertIn("execution_site_contract_status:", summary)
+                self.assertIn("execution_site_handoff_required:", summary)
+                self.assertIn("execution_site_report_artifact:", summary)
                 self.assertIn("dispatch_requested_at:", summary)
                 self.assertIn("dispatch_started_at:", summary)
                 self.assertIn("dispatch_report_artifact:", summary)
@@ -1357,6 +1389,11 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("execution lifecycle:", resume_note)
                 self.assertIn("attempt id:", resume_note)
                 self.assertIn("attempt number:", resume_note)
+                self.assertIn("attempt owner kind:", resume_note)
+                self.assertIn("attempt owner ref:", resume_note)
+                self.assertIn("attempt ownership status:", resume_note)
+                self.assertIn("attempt owner assigned at:", resume_note)
+                self.assertIn("attempt transfer reason:", resume_note)
                 self.assertIn("route reason:", resume_note)
                 self.assertIn("route report artifact:", resume_note)
                 self.assertIn("topology execution site:", resume_note)
@@ -1364,6 +1401,11 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("topology transport kind:", resume_note)
                 self.assertIn("topology dispatch status:", resume_note)
                 self.assertIn("topology report artifact:", resume_note)
+                self.assertIn("execution-site contract kind:", resume_note)
+                self.assertIn("execution-site boundary:", resume_note)
+                self.assertIn("execution-site contract status:", resume_note)
+                self.assertIn("execution-site handoff required:", resume_note)
+                self.assertIn("execution-site report artifact:", resume_note)
                 self.assertIn("dispatch requested at:", resume_note)
                 self.assertIn("dispatch started at:", resume_note)
                 self.assertIn("dispatch report artifact:", resume_note)
@@ -1382,11 +1424,18 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("Validation Report", validation_report)
                 self.assertIn("Compatibility Report", compatibility_report)
                 self.assertIn("Execution Fit Report", execution_fit_report)
+                self.assertIn("Execution Site Report", execution_site_report)
                 self.assertIn("Knowledge Policy Report", knowledge_policy_report)
                 self.assertIn("Route Report", route_report)
                 self.assertIn("Topology Report", topology_report)
                 self.assertIn("Dispatch Report", dispatch_report)
                 self.assertIn("Handoff Report", handoff_report)
+                self.assertIn("contract_status: ready", handoff_report)
+                self.assertIn("contract_kind: operator_review", handoff_report)
+                self.assertIn("next_owner_kind: operator", handoff_report)
+                self.assertIn("next_owner_ref: swl_cli", handoff_report)
+                self.assertIn("## Required Inputs", handoff_report)
+                self.assertIn("## Expected Outputs", handoff_report)
                 self.assertIn("Retrieval Report", retrieval_report)
                 self.assertIn("reused_knowledge_count: 0", retrieval_report)
                 self.assertIn("Source Grounding", source_grounding)
@@ -1397,6 +1446,11 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(validation["status"], "passed")
                 self.assertEqual(route["name"], "local-mock")
                 self.assertEqual(route["executor_family"], "cli")
+                self.assertEqual(execution_site["contract_kind"], "local_inline")
+                self.assertEqual(execution_site["boundary"], "same_process")
+                self.assertEqual(execution_site["contract_status"], "active")
+                self.assertEqual(execution_site["handoff_required"], False)
+                self.assertEqual(execution_site["execution_site"], "local")
                 self.assertEqual(topology["route_name"], "local-mock")
                 self.assertEqual(topology["executor_family"], "cli")
                 self.assertEqual(topology["execution_site"], "local")
@@ -1406,7 +1460,14 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(topology["execution_lifecycle"], "dispatched")
                 self.assertEqual(dispatch["attempt_id"], "attempt-0001")
                 self.assertEqual(dispatch["attempt_number"], 1)
+                self.assertEqual(dispatch["attempt_owner_kind"], "local_orchestrator")
+                self.assertEqual(dispatch["attempt_owner_ref"], "swl_cli")
+                self.assertEqual(dispatch["attempt_ownership_status"], "owned")
+                self.assertTrue(bool(dispatch["attempt_owner_assigned_at"]))
+                self.assertEqual(dispatch["attempt_transfer_reason"], "")
                 self.assertEqual(dispatch["route_name"], "local-mock")
+                self.assertEqual(dispatch["execution_site_contract_kind"], "local_inline")
+                self.assertEqual(dispatch["execution_site_boundary"], "same_process")
                 self.assertEqual(dispatch["executor_family"], "cli")
                 self.assertEqual(dispatch["execution_site"], "local")
                 self.assertEqual(dispatch["transport_kind"], "local_process")
@@ -1415,9 +1476,24 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertTrue(bool(dispatch["dispatch_requested_at"]))
                 self.assertTrue(bool(dispatch["dispatch_started_at"]))
                 self.assertEqual(handoff["status"], "review_completed_run")
+                self.assertEqual(handoff["contract_status"], "ready")
+                self.assertEqual(handoff["contract_kind"], "operator_review")
+                self.assertEqual(handoff["next_owner_kind"], "operator")
+                self.assertEqual(handoff["next_owner_ref"], "swl_cli")
+                self.assertGreaterEqual(len(handoff["required_inputs"]), 3)
+                self.assertGreaterEqual(len(handoff["expected_outputs"]), 2)
                 self.assertEqual(handoff["task_status"], "completed")
                 self.assertEqual(handoff["attempt_id"], "attempt-0001")
                 self.assertEqual(handoff["attempt_number"], 1)
+                self.assertEqual(handoff["attempt_owner_kind"], "local_orchestrator")
+                self.assertEqual(handoff["attempt_owner_ref"], "swl_cli")
+                self.assertEqual(handoff["attempt_ownership_status"], "owned")
+                self.assertTrue(bool(handoff["attempt_owner_assigned_at"]))
+                self.assertEqual(handoff["attempt_transfer_reason"], "")
+                self.assertEqual(handoff["execution_site_contract_kind"], "local_inline")
+                self.assertEqual(handoff["execution_site_boundary"], "same_process")
+                self.assertEqual(handoff["execution_site_contract_status"], "active")
+                self.assertEqual(handoff["execution_site_handoff_required"], False)
                 self.assertEqual(handoff["execution_site"], "local")
                 self.assertEqual(handoff["executor_family"], "cli")
                 self.assertEqual(handoff["dispatch_status"], "local_dispatched")
@@ -1428,6 +1504,11 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(memory["executor"]["name"], "mock")
                 self.assertEqual(memory["execution_attempt"]["attempt_id"], "attempt-0001")
                 self.assertEqual(memory["execution_attempt"]["attempt_number"], 1)
+                self.assertEqual(memory["execution_attempt"]["owner_kind"], "local_orchestrator")
+                self.assertEqual(memory["execution_attempt"]["owner_ref"], "swl_cli")
+                self.assertEqual(memory["execution_attempt"]["ownership_status"], "owned")
+                self.assertTrue(bool(memory["execution_attempt"]["owner_assigned_at"]))
+                self.assertEqual(memory["execution_attempt"]["transfer_reason"], "")
                 self.assertTrue(bool(memory["execution_attempt"]["dispatch_requested_at"]))
                 self.assertTrue(bool(memory["execution_attempt"]["dispatch_started_at"]))
                 self.assertEqual(memory["execution_attempt"]["execution_lifecycle"], "completed")
@@ -1438,6 +1519,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(memory["route"]["remote_capable"], False)
                 self.assertEqual(memory["route"]["transport_kind"], "local_process")
                 self.assertEqual(memory["route"]["capabilities"]["deterministic"], True)
+                self.assertEqual(memory["execution_site"]["contract_kind"], "local_inline")
                 self.assertEqual(memory["topology"]["route_name"], "local-mock")
                 self.assertEqual(memory["topology"]["executor_family"], "cli")
                 self.assertEqual(memory["topology"]["execution_site"], "local")
@@ -2491,7 +2573,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[0]["payload"]["topology_transport_kind"], "local_process")
         self.assertEqual(events[0]["payload"]["topology_remote_capable_intent"], False)
         self.assertEqual(events[0]["payload"]["topology_dispatch_status"], "not_requested")
+        self.assertEqual(events[0]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[0]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[0]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[0]["payload"]["execution_site_handoff_required"], False)
         self.assertEqual(events[0]["payload"]["execution_lifecycle"], "idle")
+        self.assertNotIn("attempt_owner_kind", events[0]["payload"])
         self.assertEqual(events[1]["payload"]["previous_status"], "created")
         self.assertEqual(events[1]["payload"]["previous_phase"], "intake")
         self.assertEqual(events[1]["payload"]["status"], "running")
@@ -2504,12 +2591,21 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_process")
         self.assertEqual(events[1]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(events[1]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[1]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[1]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[1]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[1]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[1]["payload"]["attempt_transfer_reason"], "")
         self.assertEqual(events[1]["payload"]["topology_route_name"], "local-mock")
         self.assertEqual(events[1]["payload"]["topology_executor_family"], "cli")
         self.assertEqual(events[1]["payload"]["topology_execution_site"], "local")
         self.assertEqual(events[1]["payload"]["topology_transport_kind"], "local_process")
         self.assertEqual(events[1]["payload"]["topology_remote_capable_intent"], False)
         self.assertEqual(events[1]["payload"]["topology_dispatch_status"], "planned")
+        self.assertEqual(events[1]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[1]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[1]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[1]["payload"]["execution_site_handoff_required"], False)
         self.assertTrue(bool(events[1]["payload"]["dispatch_requested_at"]))
         self.assertEqual(events[1]["payload"]["dispatch_started_at"], "")
         self.assertEqual(events[1]["payload"]["execution_lifecycle"], "prepared")
@@ -2540,12 +2636,21 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[5]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
         self.assertEqual(events[5]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(events[5]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[5]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[5]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[5]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[5]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[5]["payload"]["attempt_transfer_reason"], "")
         self.assertEqual(events[5]["payload"]["topology_route_name"], "local-mock")
         self.assertEqual(events[5]["payload"]["topology_executor_family"], "cli")
         self.assertEqual(events[5]["payload"]["topology_execution_site"], "local")
         self.assertEqual(events[5]["payload"]["topology_transport_kind"], "local_process")
         self.assertEqual(events[5]["payload"]["topology_remote_capable_intent"], False)
         self.assertEqual(events[5]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[5]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[5]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[5]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[5]["payload"]["execution_site_handoff_required"], False)
         self.assertTrue(bool(events[5]["payload"]["dispatch_requested_at"]))
         self.assertTrue(bool(events[5]["payload"]["dispatch_started_at"]))
         self.assertEqual(events[5]["payload"]["execution_lifecycle"], "dispatched")
@@ -2563,7 +2668,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[7]["payload"]["status"], "passed")
         self.assertEqual(events[7]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[8]["payload"]["status"], "passed")
-        self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 5, "warn": 0, "fail": 0})
+        self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 7, "warn": 0, "fail": 0})
         self.assertEqual(events[9]["payload"]["status"], "passed")
         self.assertEqual(events[9]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
         self.assertEqual(events[10]["payload"]["status"], "passed")
@@ -2573,6 +2678,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertTrue(events[11]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
         self.assertTrue(events[11]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
         self.assertTrue(events[11]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
         self.assertTrue(events[11]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
         self.assertTrue(events[11]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
         self.assertTrue(events[11]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
@@ -2595,11 +2701,20 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[12]["payload"]["route_transport_kind"], "local_process")
         self.assertEqual(events[12]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(events[12]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[12]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[12]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[12]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[12]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[12]["payload"]["attempt_transfer_reason"], "")
         self.assertEqual(events[12]["payload"]["topology_route_name"], "local-mock")
         self.assertEqual(events[12]["payload"]["topology_execution_site"], "local")
         self.assertEqual(events[12]["payload"]["topology_transport_kind"], "local_process")
         self.assertEqual(events[12]["payload"]["topology_remote_capable_intent"], False)
         self.assertEqual(events[12]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[12]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[12]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[12]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[12]["payload"]["execution_site_handoff_required"], False)
         self.assertTrue(bool(events[12]["payload"]["dispatch_requested_at"]))
         self.assertTrue(bool(events[12]["payload"]["dispatch_started_at"]))
         self.assertEqual(events[12]["payload"]["execution_lifecycle"], "completed")
@@ -2932,6 +3047,25 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(selection.route.capabilities.execution_kind, "artifact_generation")
         self.assertIn("routing policy mode", selection.reason)
 
+    def test_select_route_builds_detached_local_variant_from_route_mode(self) -> None:
+        state = TaskState(
+            task_id="route126",
+            title="Detached route selection",
+            goal="Use detached local transport",
+            workspace_root="/tmp",
+            executor_name="local",
+            route_mode="detached",
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-summary-detached")
+        self.assertEqual(selection.route.executor_name, "local")
+        self.assertEqual(selection.route.execution_site, "local")
+        self.assertEqual(selection.route.transport_kind, "local_detached_process")
+        self.assertEqual(selection.route.backend_kind, "local_summary_detached")
+        self.assertIn("detached local execution variant", selection.reason)
+
     def test_compatibility_reports_warning_for_live_route_without_network(self) -> None:
         state = TaskState(
             task_id="compatwarn",
@@ -3003,9 +3137,11 @@ class CliLifecycleTest(unittest.TestCase):
             workspace_root="/tmp",
             executor_name="mock",
             route_name="local-mock",
+            route_executor_family="cli",
             route_execution_site="local",
             route_transport_kind="local_process",
             topology_route_name="local-mock",
+            topology_executor_family="cli",
             topology_execution_site="local",
             topology_transport_kind="local_process",
             topology_dispatch_status="local_dispatched",
@@ -3026,6 +3162,8 @@ class CliLifecycleTest(unittest.TestCase):
         report = build_execution_fit_report(result)
 
         self.assertEqual(result.status, "passed")
+        self.assertTrue(any(finding.code == "executor_family.route_topology_aligned" for finding in result.findings))
+        self.assertTrue(any(finding.code == "executor_family.cli_supported" for finding in result.findings))
         self.assertIn("Execution Fit Report", report)
 
     def test_execution_fit_reports_failure_for_inconsistent_local_dispatch(self) -> None:
@@ -3036,9 +3174,11 @@ class CliLifecycleTest(unittest.TestCase):
             workspace_root="/tmp",
             executor_name="mock",
             route_name="local-mock",
+            route_executor_family="cli",
             route_execution_site="local",
             route_transport_kind="local_process",
             topology_route_name="local-mock",
+            topology_executor_family="cli",
             topology_execution_site="local",
             topology_transport_kind="local_process",
             topology_dispatch_status="planned",
@@ -3058,6 +3198,40 @@ class CliLifecycleTest(unittest.TestCase):
         result = evaluate_execution_fit(state, executor_result)
 
         self.assertEqual(result.status, "failed")
+
+    def test_execution_fit_reports_failure_for_unsupported_api_executor_family(self) -> None:
+        state = TaskState(
+            task_id="fitfamilyfail",
+            title="Execution fit family failure",
+            goal="Reject unsupported executor family",
+            workspace_root="/tmp",
+            executor_name="mock",
+            route_name="api-simulated",
+            route_executor_family="api",
+            route_execution_site="local",
+            route_transport_kind="local_process",
+            topology_route_name="api-simulated",
+            topology_executor_family="api",
+            topology_execution_site="local",
+            topology_transport_kind="local_process",
+            topology_dispatch_status="local_dispatched",
+            current_attempt_id="attempt-0001",
+            current_attempt_number=1,
+            dispatch_requested_at="2026-04-08T00:00:00+00:00",
+            dispatch_started_at="2026-04-08T00:00:01+00:00",
+            execution_lifecycle="dispatched",
+        )
+        executor_result = ExecutorResult(
+            executor_name="mock",
+            status="completed",
+            message="Execution finished.",
+            output="done",
+        )
+
+        result = evaluate_execution_fit(state, executor_result)
+
+        self.assertEqual(result.status, "failed")
+        self.assertTrue(any(finding.code == "executor_family.unsupported" for finding in result.findings))
 
     def test_validator_reports_warning_when_retrieval_is_empty(self) -> None:
         state = TaskState(
@@ -3208,6 +3382,7 @@ class CliLifecycleTest(unittest.TestCase):
             route_stdout = StringIO()
             retrieval_stdout = StringIO()
             topology_stdout = StringIO()
+            execution_site_stdout = StringIO()
             dispatch_stdout = StringIO()
             handoff_stdout = StringIO()
             execution_fit_stdout = StringIO()
@@ -3219,6 +3394,7 @@ class CliLifecycleTest(unittest.TestCase):
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
             topology_json_stdout = StringIO()
+            execution_site_json_stdout = StringIO()
             dispatch_json_stdout = StringIO()
             handoff_json_stdout = StringIO()
             execution_fit_json_stdout = StringIO()
@@ -3251,6 +3427,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-policy", task_id]), 0)
             with redirect_stdout(topology_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "topology", task_id]), 0)
+            with redirect_stdout(execution_site_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "execution-site", task_id]), 0)
             with redirect_stdout(dispatch_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "dispatch", task_id]), 0)
             with redirect_stdout(handoff_stdout):
@@ -3263,6 +3441,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "route-json", task_id]), 0)
             with redirect_stdout(topology_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "topology-json", task_id]), 0)
+            with redirect_stdout(execution_site_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "execution-site-json", task_id]), 0)
             with redirect_stdout(dispatch_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "dispatch-json", task_id]), 0)
             with redirect_stdout(handoff_json_stdout):
@@ -3296,6 +3476,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Knowledge Index Report", knowledge_index_stdout.getvalue())
         self.assertIn("Knowledge Policy Report", knowledge_policy_stdout.getvalue())
         self.assertIn("Topology Report", topology_stdout.getvalue())
+        self.assertIn("Execution Site Report", execution_site_stdout.getvalue())
         self.assertIn("Dispatch Report", dispatch_stdout.getvalue())
         self.assertIn("Handoff Report", handoff_stdout.getvalue())
         self.assertIn("Execution Fit Report", execution_fit_stdout.getvalue())
@@ -3304,8 +3485,11 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"execution_site"', route_json_stdout.getvalue())
         self.assertIn('"remote_capable"', route_json_stdout.getvalue())
         self.assertIn('"dispatch_status"', topology_json_stdout.getvalue())
+        self.assertIn('"contract_kind"', execution_site_json_stdout.getvalue())
         self.assertIn('"attempt_id"', dispatch_json_stdout.getvalue())
         self.assertIn('"next_operator_action"', handoff_json_stdout.getvalue())
+        self.assertIn('"required_inputs"', handoff_json_stdout.getvalue())
+        self.assertIn('"expected_outputs"', handoff_json_stdout.getvalue())
         self.assertIn('"findings"', execution_fit_json_stdout.getvalue())
         self.assertIn('"source_kind"', semantics_json_stdout.getvalue())
         self.assertIn("[", knowledge_objects_json_stdout.getvalue())
@@ -3404,6 +3588,67 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(state["route_remote_capable"], False)
         self.assertEqual(events[1]["payload"]["route_mode"], "deterministic")
         self.assertEqual(events[1]["payload"]["route_name"], "local-mock")
+
+    def test_cli_detached_route_mode_runs_through_detached_local_transport(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\ndetached route mode policy\n", encoding="utf-8")
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Detached route mode",
+                        "--goal",
+                        "Pick a detached deterministic route policy",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--route-mode",
+                        "detached",
+                        "--executor",
+                        "mock",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            execution_site = json.loads((task_dir / "execution_site.json").read_text(encoding="utf-8"))
+            topology = json.loads((task_dir / "topology.json").read_text(encoding="utf-8"))
+            dispatch = json.loads((task_dir / "dispatch.json").read_text(encoding="utf-8"))
+            execution_fit = json.loads((task_dir / "execution_fit.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(state["route_mode"], "detached")
+        self.assertEqual(state["route_name"], "local-mock-detached")
+        self.assertEqual(state["route_transport_kind"], "local_detached_process")
+        self.assertEqual(state["execution_site_contract_kind"], "local_detached")
+        self.assertEqual(state["execution_site_boundary"], "same_machine_detached")
+        self.assertEqual(state["execution_site_contract_status"], "active")
+        self.assertEqual(state["topology_dispatch_status"], "detached_dispatched")
+        self.assertEqual(execution_site["contract_kind"], "local_detached")
+        self.assertEqual(execution_site["boundary"], "same_machine_detached")
+        self.assertEqual(execution_site["contract_status"], "active")
+        self.assertEqual(topology["transport_kind"], "local_detached_process")
+        self.assertEqual(dispatch["dispatch_status"], "detached_dispatched")
+        self.assertEqual(dispatch["transport_kind"], "local_detached_process")
+        self.assertEqual(execution_fit["status"], "passed")
+        self.assertEqual(events[1]["payload"]["route_mode"], "detached")
+        self.assertEqual(events[1]["payload"]["route_name"], "local-mock-detached")
+        self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_detached_process")
+        self.assertEqual(events[5]["payload"]["topology_dispatch_status"], "detached_dispatched")
 
     def test_run_task_route_mode_override_changes_selected_route(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
