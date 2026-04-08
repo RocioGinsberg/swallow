@@ -515,6 +515,9 @@ class CliLifecycleTest(unittest.TestCase):
                             ValidationResult(status="passed", message="Execution fit passed."),
                             ValidationResult(status="passed", message="Knowledge policy passed."),
                             ValidationResult(status="passed", message="Validation passed."),
+                            ValidationResult(status="passed", message="Retry policy passed."),
+                            ValidationResult(status="passed", message="Execution budget policy passed."),
+                            ValidationResult(status="warning", message="Stop policy warning."),
                         ),
                     ):
                         final_state = run_task(
@@ -918,6 +921,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("topology_dispatch_status: local_dispatched", output)
         self.assertIn("compatibility_status: passed", output)
         self.assertIn("execution_fit_status: passed", output)
+        self.assertIn("retry_policy_status: passed", output)
+        self.assertIn("execution_budget_policy_status: passed", output)
+        self.assertIn("stop_policy_status: warning", output)
         self.assertIn("knowledge_policy_status: warning", output)
         self.assertIn("validation_status: passed", output)
         self.assertIn("retrieval_record_available: yes", output)
@@ -928,6 +934,15 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("handoff_status: review_completed_run", output)
         self.assertIn("handoff_contract_status: ready", output)
         self.assertIn("handoff_contract_kind: operator_review", output)
+        self.assertIn("retryable: no", output)
+        self.assertIn("retry_decision: completed_no_retry", output)
+        self.assertIn("remaining_attempts: 0", output)
+        self.assertIn("timeout_seconds: 20", output)
+        self.assertIn("budget_state: exhausted", output)
+        self.assertIn("timeout_state: default", output)
+        self.assertIn("stop_required: yes", output)
+        self.assertIn("stop_decision: checkpoint_review", output)
+        self.assertIn("escalation_level: operator_review", output)
         self.assertIn("handoff_next_owner_kind: operator", output)
         self.assertIn("handoff_next_owner_ref: swl_cli", output)
         self.assertIn("next_operator_action: Review summary.md", output)
@@ -938,6 +953,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("summary:", output)
         self.assertIn("execution_site_report:", output)
         self.assertIn("retrieval_report:", output)
+        self.assertIn("retry_policy_report:", output)
+        self.assertIn("execution_budget_policy_report:", output)
+        self.assertIn("stop_policy_report:", output)
 
     def test_task_artifacts_groups_paths_by_operator_concern(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -975,7 +993,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Core Run Record", output)
         self.assertIn("Routing And Topology", output)
         self.assertIn("Retrieval And Grounding", output)
-        self.assertIn("Validation And Policy", output)
+        self.assertIn("Validation", output)
+        self.assertIn("Execution Control Policy", output)
         self.assertIn("Memory And Reuse", output)
         self.assertIn("summary:", output)
         self.assertIn("resume_note:", output)
@@ -986,8 +1005,55 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("validation_report:", output)
         self.assertIn("compatibility_report:", output)
         self.assertIn("execution_fit_report:", output)
+        self.assertIn("retry_policy_report:", output)
+        self.assertIn("execution_budget_policy_report:", output)
+        self.assertIn("stop_policy_report:", output)
         self.assertIn("knowledge_policy_report:", output)
         self.assertIn("task_memory:", output)
+
+    def test_task_policy_prints_compact_execution_control_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\npolicy summary\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Policy summary",
+                            "--goal",
+                            "Show execution control state compactly",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+                stdout = StringIO()
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "policy", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"Task Policy: {task_id}", output)
+        self.assertIn("Policy Controls", output)
+        self.assertIn("retry_policy_status: passed", output)
+        self.assertIn("execution_budget_policy_status: passed", output)
+        self.assertIn("stop_policy_status: warning", output)
+        self.assertIn("timeout_seconds: 20", output)
+        self.assertIn("checkpoint_kind: completed_run_review", output)
+        self.assertIn("Policy Artifacts", output)
+        self.assertIn("retry_policy_report:", output)
+        self.assertIn("execution_budget_policy_report:", output)
+        self.assertIn("stop_policy_report:", output)
 
     def test_task_review_surfaces_handoff_and_resume_guidance_after_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1032,6 +1098,13 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("handoff_contract_kind: failure_resume", output)
         self.assertIn("handoff_next_owner_kind: operator", output)
         self.assertIn("handoff_next_owner_ref: swl_cli", output)
+        self.assertIn("retry_policy_status: failed", output)
+        self.assertIn("execution_budget_policy_status: passed", output)
+        self.assertIn("retryable: no", output)
+        self.assertIn("retry_decision: non_retryable_failure", output)
+        self.assertIn("stop_policy_status: failed", output)
+        self.assertIn("stop_required: yes", output)
+        self.assertIn("stop_decision: stop_and_escalate", output)
         self.assertIn("blocking_reason: launch_error", output)
         self.assertIn("knowledge_policy_status: passed", output)
         self.assertIn("knowledge_index_active_reusable: 0", output)
@@ -1050,6 +1123,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("handoff_report:", output)
         self.assertIn("knowledge_policy_report:", output)
         self.assertIn("validation_report:", output)
+        self.assertIn("retry_policy_report:", output)
+        self.assertIn("execution_budget_policy_report:", output)
+        self.assertIn("stop_policy_report:", output)
 
     def test_task_help_includes_workbench_commands(self) -> None:
         stdout = StringIO()
@@ -1250,6 +1326,15 @@ class CliLifecycleTest(unittest.TestCase):
                 execution_fit_report = (tasks_dir / task_id / "artifacts" / "execution_fit_report.md").read_text(
                     encoding="utf-8"
                 )
+                retry_policy_report = (tasks_dir / task_id / "artifacts" / "retry_policy_report.md").read_text(
+                    encoding="utf-8"
+                )
+                execution_budget_policy_report = (
+                    tasks_dir / task_id / "artifacts" / "execution_budget_policy_report.md"
+                ).read_text(encoding="utf-8")
+                stop_policy_report = (tasks_dir / task_id / "artifacts" / "stop_policy_report.md").read_text(
+                    encoding="utf-8"
+                )
                 execution_site_report = (tasks_dir / task_id / "artifacts" / "execution_site_report.md").read_text(
                     encoding="utf-8"
                 )
@@ -1280,6 +1365,11 @@ class CliLifecycleTest(unittest.TestCase):
                 retrieval = json.loads((tasks_dir / task_id / "retrieval.json").read_text(encoding="utf-8"))
                 compatibility = json.loads((tasks_dir / task_id / "compatibility.json").read_text(encoding="utf-8"))
                 execution_fit = json.loads((tasks_dir / task_id / "execution_fit.json").read_text(encoding="utf-8"))
+                retry_policy = json.loads((tasks_dir / task_id / "retry_policy.json").read_text(encoding="utf-8"))
+                execution_budget_policy = json.loads(
+                    (tasks_dir / task_id / "execution_budget_policy.json").read_text(encoding="utf-8")
+                )
+                stop_policy = json.loads((tasks_dir / task_id / "stop_policy.json").read_text(encoding="utf-8"))
                 knowledge_policy = json.loads((tasks_dir / task_id / "knowledge_policy.json").read_text(encoding="utf-8"))
                 validation = json.loads((tasks_dir / task_id / "validation.json").read_text(encoding="utf-8"))
                 memory = json.loads((tasks_dir / task_id / "memory.json").read_text(encoding="utf-8"))
@@ -1330,8 +1420,14 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("handoff_report_artifact:", summary)
                 self.assertIn("compatibility_status:", summary)
                 self.assertIn("execution_fit_status:", summary)
+                self.assertIn("retry_policy_status:", summary)
+                self.assertIn("execution_budget_policy_status:", summary)
+                self.assertIn("stop_policy_status:", summary)
                 self.assertIn("knowledge_policy_status:", summary)
                 self.assertIn("execution_fit_report_artifact:", summary)
+                self.assertIn("retry_policy_report_artifact:", summary)
+                self.assertIn("execution_budget_policy_report_artifact:", summary)
+                self.assertIn("stop_policy_report_artifact:", summary)
                 self.assertIn("compatibility_report_artifact:", summary)
                 self.assertIn("knowledge_policy_report_artifact:", summary)
                 self.assertIn("source_grounding_artifact:", summary)
@@ -1354,6 +1450,9 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("## Task Semantics", summary)
                 self.assertIn("## Knowledge Objects", summary)
                 self.assertIn("## Compatibility", summary)
+                self.assertIn("## Retry Policy", summary)
+                self.assertIn("## Execution Budget Policy", summary)
+                self.assertIn("## Stop Policy", summary)
                 self.assertIn("## Knowledge Policy", summary)
                 self.assertIn("## Executor Output", summary)
                 self.assertNotIn("## Next Suggested Step", summary)
@@ -1412,8 +1511,14 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("handoff report artifact:", resume_note)
                 self.assertIn("compatibility status: passed", resume_note)
                 self.assertIn("execution fit status: passed", resume_note)
+                self.assertIn("retry policy status: passed", resume_note)
+                self.assertIn("execution budget policy status: passed", resume_note)
+                self.assertIn("stop policy status: warning", resume_note)
                 self.assertIn("knowledge policy status: passed", resume_note)
                 self.assertIn("execution fit report artifact:", resume_note)
+                self.assertIn("retry policy report artifact:", resume_note)
+                self.assertIn("execution budget policy report artifact:", resume_note)
+                self.assertIn("stop policy report artifact:", resume_note)
                 self.assertIn("compatibility report artifact:", resume_note)
                 self.assertIn("knowledge policy report artifact:", resume_note)
                 self.assertIn("source grounding artifact:", resume_note)
@@ -1424,6 +1529,9 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("Validation Report", validation_report)
                 self.assertIn("Compatibility Report", compatibility_report)
                 self.assertIn("Execution Fit Report", execution_fit_report)
+                self.assertIn("Retry Policy Report", retry_policy_report)
+                self.assertIn("Execution Budget Policy Report", execution_budget_policy_report)
+                self.assertIn("Stop Policy Report", stop_policy_report)
                 self.assertIn("Execution Site Report", execution_site_report)
                 self.assertIn("Knowledge Policy Report", knowledge_policy_report)
                 self.assertIn("Route Report", route_report)
@@ -1442,6 +1550,12 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("notes.md#L1-L3", source_grounding)
                 self.assertEqual(compatibility["status"], "passed")
                 self.assertEqual(execution_fit["status"], "passed")
+                self.assertEqual(retry_policy["status"], "passed")
+                self.assertEqual(retry_policy["retryable"], False)
+                self.assertEqual(execution_budget_policy["status"], "passed")
+                self.assertEqual(execution_budget_policy["timeout_seconds"], 20)
+                self.assertEqual(stop_policy["status"], "warning")
+                self.assertEqual(stop_policy["stop_decision"], "checkpoint_review")
                 self.assertEqual(knowledge_policy["status"], "passed")
                 self.assertEqual(validation["status"], "passed")
                 self.assertEqual(route["name"], "local-mock")
@@ -1544,6 +1658,9 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertTrue(bool(memory["knowledge_index"]["refreshed_at"]))
                 self.assertEqual(memory["compatibility"]["status"], "passed")
                 self.assertEqual(memory["execution_fit"]["status"], "passed")
+                self.assertEqual(memory["retry_policy"]["status"], "passed")
+                self.assertEqual(memory["execution_budget_policy"]["status"], "passed")
+                self.assertEqual(memory["stop_policy"]["status"], "warning")
                 self.assertEqual(memory["knowledge_policy"]["status"], "passed")
                 self.assertTrue(
                     memory["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
@@ -1569,6 +1686,20 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertTrue(memory["artifact_paths"]["handoff_json"].endswith("handoff.json"))
                 self.assertTrue(memory["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
                 self.assertTrue(memory["artifact_paths"]["execution_fit_json"].endswith("execution_fit.json"))
+                self.assertTrue(memory["artifact_paths"]["retry_policy_report"].endswith("retry_policy_report.md"))
+                self.assertTrue(memory["artifact_paths"]["retry_policy_json"].endswith("retry_policy.json"))
+                self.assertTrue(
+                    memory["artifact_paths"]["execution_budget_policy_report"].endswith(
+                        "execution_budget_policy_report.md"
+                    )
+                )
+                self.assertTrue(
+                    memory["artifact_paths"]["execution_budget_policy_json"].endswith(
+                        "execution_budget_policy.json"
+                    )
+                )
+                self.assertTrue(memory["artifact_paths"]["stop_policy_report"].endswith("stop_policy_report.md"))
+                self.assertTrue(memory["artifact_paths"]["stop_policy_json"].endswith("stop_policy.json"))
                 self.assertTrue(memory["artifact_paths"]["retrieval_json"].endswith("retrieval.json"))
                 self.assertTrue(memory["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
                 self.assertEqual(memory["artifact_paths"]["source_grounding"].endswith("source_grounding.md"), True)
@@ -2338,6 +2469,9 @@ class CliLifecycleTest(unittest.TestCase):
                                         ValidationResult(status="passed", message="Execution fit passed."),
                                         ValidationResult(status="passed", message="Knowledge policy passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
+                                        ValidationResult(status="passed", message="Retry policy passed."),
+                                        ValidationResult(status="passed", message="Execution budget policy passed."),
+                                        ValidationResult(status="warning", message="Stop policy warning."),
                                     ),
                                 ):
                                     run_task(base_dir, created.task_id)
@@ -2384,13 +2518,16 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
-            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
                 return (
                     ValidationResult(status="passed", message="Compatibility passed."),
                     ValidationResult(status="passed", message="Execution fit passed."),
                     ValidationResult(status="passed", message="Knowledge policy passed."),
                     ValidationResult(status="passed", message="Validation passed."),
+                    ValidationResult(status="passed", message="Retry policy passed."),
+                    ValidationResult(status="passed", message="Execution budget policy passed."),
+                    ValidationResult(status="warning", message="Stop policy warning."),
                 )
 
             with patch("swallow.orchestrator.load_state", return_value=created):
@@ -2462,13 +2599,16 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
-            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
                 return (
                     ValidationResult(status="passed", message="Compatibility passed."),
                     ValidationResult(status="passed", message="Execution fit passed."),
                     ValidationResult(status="passed", message="Knowledge policy passed."),
                     ValidationResult(status="passed", message="Validation passed."),
+                    ValidationResult(status="warning", message="Retry policy warning."),
+                    ValidationResult(status="warning", message="Execution budget policy warning."),
+                    ValidationResult(status="warning", message="Stop policy warning."),
                 )
 
             with patch("swallow.orchestrator.load_state", return_value=created):
@@ -2555,6 +2695,9 @@ class CliLifecycleTest(unittest.TestCase):
                 "execution_fit.completed",
                 "knowledge_policy.completed",
                 "validation.completed",
+                "retry_policy.completed",
+                "execution_budget_policy.completed",
+                "stop_policy.completed",
                 "artifacts.written",
                 "task.completed",
             ],
@@ -2673,56 +2816,62 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[9]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
         self.assertEqual(events[10]["payload"]["status"], "passed")
         self.assertEqual(events[10]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
-        self.assertEqual(events[11]["payload"]["status"], "completed")
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
+        self.assertEqual(events[11]["payload"]["status"], "passed")
+        self.assertEqual(events[12]["payload"]["status"], "passed")
+        self.assertEqual(events[13]["payload"]["status"], "warning")
+        self.assertEqual(events[14]["payload"]["status"], "completed")
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
         self.assertTrue(
-            events[11]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+            events[14]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
         )
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
-        self.assertEqual(events[12]["payload"]["status"], "completed")
-        self.assertEqual(events[12]["payload"]["phase"], "summarize")
-        self.assertEqual(events[12]["payload"]["retrieval_count"], 1)
-        self.assertEqual(events[12]["payload"]["executor_status"], "completed")
-        self.assertEqual(events[12]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[12]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[12]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[12]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[12]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[12]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[12]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[12]["payload"]["attempt_owner_kind"], "local_orchestrator")
-        self.assertEqual(events[12]["payload"]["attempt_owner_ref"], "swl_cli")
-        self.assertEqual(events[12]["payload"]["attempt_ownership_status"], "owned")
-        self.assertTrue(bool(events[12]["payload"]["attempt_owner_assigned_at"]))
-        self.assertEqual(events[12]["payload"]["attempt_transfer_reason"], "")
-        self.assertEqual(events[12]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[12]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[12]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[12]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[12]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertEqual(events[12]["payload"]["execution_site_contract_kind"], "local_inline")
-        self.assertEqual(events[12]["payload"]["execution_site_boundary"], "same_process")
-        self.assertEqual(events[12]["payload"]["execution_site_contract_status"], "active")
-        self.assertEqual(events[12]["payload"]["execution_site_handoff_required"], False)
-        self.assertTrue(bool(events[12]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[12]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[12]["payload"]["execution_lifecycle"], "completed")
-        self.assertEqual(events[12]["payload"]["compatibility_status"], "passed")
-        self.assertEqual(events[12]["payload"]["execution_fit_status"], "passed")
-        self.assertEqual(events[12]["payload"]["knowledge_policy_status"], "passed")
-        self.assertEqual(events[12]["payload"]["validation_status"], "passed")
-        self.assertTrue(events[12]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertTrue(events[14]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+        self.assertEqual(events[15]["payload"]["status"], "completed")
+        self.assertEqual(events[15]["payload"]["phase"], "summarize")
+        self.assertEqual(events[15]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[15]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[15]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[15]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[15]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[15]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[15]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[15]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[15]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[15]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[15]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[15]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[15]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[15]["payload"]["attempt_transfer_reason"], "")
+        self.assertEqual(events[15]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[15]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[15]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[15]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[15]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[15]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[15]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[15]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[15]["payload"]["execution_site_handoff_required"], False)
+        self.assertTrue(bool(events[15]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[15]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[15]["payload"]["execution_lifecycle"], "completed")
+        self.assertEqual(events[15]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[15]["payload"]["execution_fit_status"], "passed")
+        self.assertEqual(events[15]["payload"]["retry_policy_status"], "passed")
+        self.assertEqual(events[15]["payload"]["execution_budget_policy_status"], "passed")
+        self.assertEqual(events[15]["payload"]["stop_policy_status"], "warning")
+        self.assertEqual(events[15]["payload"]["knowledge_policy_status"], "passed")
+        self.assertEqual(events[15]["payload"]["validation_status"], "passed")
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
 
     def test_failed_task_events_include_failure_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2796,7 +2945,13 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[9]["payload"]["status"], "passed")
         self.assertEqual(events[10]["event_type"], "validation.completed")
         self.assertEqual(events[10]["payload"]["status"], "passed")
+        self.assertEqual(events[11]["event_type"], "retry_policy.completed")
         self.assertEqual(events[11]["payload"]["status"], "failed")
+        self.assertEqual(events[12]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[12]["payload"]["status"], "passed")
+        self.assertEqual(events[13]["event_type"], "stop_policy.completed")
+        self.assertEqual(events[13]["payload"]["status"], "failed")
+        self.assertEqual(events[14]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
@@ -2829,7 +2984,7 @@ class CliLifecycleTest(unittest.TestCase):
             failure_kind="launch_error",
         )
 
-        note = build_resume_note(state, retrieval_items, executor_result, None, None, None, None)
+        note = build_resume_note(state, retrieval_items, executor_result, None, None, None, None, None, None, None)
 
         self.assertIn("treat this run as incomplete", note)
         self.assertIn("Treat this run as a failed live execution attempt", note)
@@ -2901,6 +3056,9 @@ class CliLifecycleTest(unittest.TestCase):
                 "execution_fit.completed",
                 "knowledge_policy.completed",
                 "validation.completed",
+                "retry_policy.completed",
+                "execution_budget_policy.completed",
+                "stop_policy.completed",
                 "artifacts.written",
                 "task.failed",
             ],
@@ -2919,6 +3077,9 @@ class CliLifecycleTest(unittest.TestCase):
                 "execution_fit.completed",
                 "knowledge_policy.completed",
                 "validation.completed",
+                "retry_policy.completed",
+                "execution_budget_policy.completed",
+                "stop_policy.completed",
                 "artifacts.written",
                 "task.failed",
                 "task.run_started",
@@ -2931,20 +3092,23 @@ class CliLifecycleTest(unittest.TestCase):
                 "execution_fit.completed",
                 "knowledge_policy.completed",
                 "validation.completed",
+                "retry_policy.completed",
+                "execution_budget_policy.completed",
+                "stop_policy.completed",
                 "artifacts.written",
                 "task.failed",
             ],
         )
-        self.assertEqual(final_events[13]["payload"]["previous_status"], "failed")
-        self.assertEqual(final_events[13]["payload"]["previous_phase"], "summarize")
-        self.assertEqual(final_events[13]["payload"]["status"], "running")
-        self.assertEqual(final_events[13]["payload"]["phase"], "intake")
+        self.assertEqual(final_events[16]["payload"]["previous_status"], "failed")
+        self.assertEqual(final_events[16]["payload"]["previous_phase"], "summarize")
+        self.assertEqual(final_events[16]["payload"]["status"], "running")
+        self.assertEqual(final_events[16]["payload"]["phase"], "intake")
         self.assertEqual(first_events[1]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(first_events[1]["payload"]["attempt_number"], 1)
         self.assertEqual(first_events[1]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(final_events[13]["payload"]["attempt_id"], "attempt-0002")
-        self.assertEqual(final_events[13]["payload"]["attempt_number"], 2)
-        self.assertEqual(final_events[13]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(final_events[16]["payload"]["attempt_id"], "attempt-0002")
+        self.assertEqual(final_events[16]["payload"]["attempt_number"], 2)
+        self.assertEqual(final_events[16]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(final_state["run_attempt_count"], 2)
         self.assertEqual(final_state["current_attempt_id"], "attempt-0002")
         self.assertEqual(final_state["current_attempt_number"], 2)
@@ -3537,6 +3701,9 @@ class CliLifecycleTest(unittest.TestCase):
                                         ValidationResult(status="passed", message="Execution fit passed."),
                                         ValidationResult(status="passed", message="Knowledge policy passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
+                                        ValidationResult(status="passed", message="Retry policy passed."),
+                                        ValidationResult(status="passed", message="Execution budget policy passed."),
+                                        ValidationResult(status="warning", message="Stop policy warning."),
                                     ),
                                 ):
                                     final_state = run_task(base_dir, created.task_id, executor_name="local")
@@ -3625,6 +3792,8 @@ class CliLifecycleTest(unittest.TestCase):
             topology = json.loads((task_dir / "topology.json").read_text(encoding="utf-8"))
             dispatch = json.loads((task_dir / "dispatch.json").read_text(encoding="utf-8"))
             execution_fit = json.loads((task_dir / "execution_fit.json").read_text(encoding="utf-8"))
+            stop_policy = json.loads((task_dir / "stop_policy.json").read_text(encoding="utf-8"))
+            stop_policy_report = (task_dir / "artifacts" / "stop_policy_report.md").read_text(encoding="utf-8")
             events = [
                 json.loads(line)
                 for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
@@ -3645,6 +3814,11 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(dispatch["dispatch_status"], "detached_dispatched")
         self.assertEqual(dispatch["transport_kind"], "local_detached_process")
         self.assertEqual(execution_fit["status"], "passed")
+        self.assertEqual(stop_policy["status"], "warning")
+        self.assertEqual(stop_policy["stop_decision"], "detached_checkpoint_review")
+        self.assertEqual(stop_policy["checkpoint_kind"], "detached_completed_run_review")
+        self.assertEqual(stop_policy["escalation_level"], "operator_detached_review")
+        self.assertIn("detached_completed_run_review", stop_policy_report)
         self.assertEqual(events[1]["payload"]["route_mode"], "detached")
         self.assertEqual(events[1]["payload"]["route_name"], "local-mock-detached")
         self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_detached_process")
@@ -3684,6 +3858,9 @@ class CliLifecycleTest(unittest.TestCase):
                                         ValidationResult(status="passed", message="Execution fit passed."),
                                         ValidationResult(status="passed", message="Knowledge policy passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
+                                        ValidationResult(status="passed", message="Retry policy passed."),
+                                        ValidationResult(status="passed", message="Execution budget policy passed."),
+                                        ValidationResult(status="warning", message="Stop policy warning."),
                                     ),
                                 ):
                                     final_state = run_task(base_dir, created.task_id, route_mode="offline")

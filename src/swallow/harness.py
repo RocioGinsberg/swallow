@@ -4,6 +4,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
+from .execution_budget_policy import build_execution_budget_policy_report, evaluate_execution_budget_policy
 from .execution_fit import build_execution_fit_report, evaluate_execution_fit
 from .executor import build_failure_recommendations, run_executor
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
@@ -18,18 +19,24 @@ from .models import (
     CompatibilityResult,
     ExecutionFitResult,
     Event,
+    ExecutionBudgetPolicyResult,
     ExecutorResult,
     KnowledgePolicyResult,
     RetrievalItem,
     RetrievalRequest,
+    RetryPolicyResult,
+    StopPolicyResult,
     TaskState,
     ValidationResult,
 )
 from .retrieval import retrieve_context, summarize_reused_knowledge
+from .retry_policy import build_retry_policy_report, evaluate_retry_policy
+from .stop_policy import build_stop_policy_report, evaluate_stop_policy
 from .store import (
     append_event,
     save_compatibility,
     save_dispatch,
+    save_execution_budget_policy,
     save_execution_site,
     save_execution_fit,
     save_handoff,
@@ -37,7 +44,9 @@ from .store import (
     save_knowledge_policy,
     save_memory,
     save_retrieval,
+    save_retry_policy,
     save_route,
+    save_stop_policy,
     save_topology,
     save_validation,
     write_artifact,
@@ -137,7 +146,16 @@ def write_task_artifacts(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
-) -> tuple[CompatibilityResult, ExecutionFitResult, KnowledgePolicyResult, ValidationResult]:
+) -> tuple[
+    CompatibilityResult,
+    ExecutionFitResult,
+    KnowledgePolicyResult,
+    ValidationResult,
+    RetryPolicyResult,
+    StopPolicyResult,
+    ExecutionBudgetPolicyResult,
+]:
+    # Persist policy records separately so operators can inspect execution control without reading raw handoff text.
     knowledge_index = build_knowledge_index(state.knowledge_objects)
     save_route(base_dir, state.task_id, build_route_record(state))
     save_topology(base_dir, state.task_id, build_topology_record(state))
@@ -191,13 +209,13 @@ def write_task_artifacts(
         base_dir,
         state.task_id,
         "summary.md",
-        build_summary(provisional_state, retrieval_items, executor_result, None, None, None, None),
+        build_summary(provisional_state, retrieval_items, executor_result, None, None, None, None, None, None, None),
     )
     write_artifact(
         base_dir,
         state.task_id,
         "resume_note.md",
-        build_resume_note(provisional_state, retrieval_items, executor_result, None, None, None, None),
+        build_resume_note(provisional_state, retrieval_items, executor_result, None, None, None, None, None, None, None),
     )
 
     compatibility_result = evaluate_route_compatibility(state, executor_result)
@@ -279,6 +297,86 @@ def write_task_artifacts(
         ),
     )
 
+    retry_policy_result = evaluate_retry_policy(
+        state,
+        executor_result,
+        compatibility_result,
+        execution_fit_result,
+        knowledge_policy_result,
+        validation_result,
+    )
+    save_retry_policy(base_dir, state.task_id, retry_policy_result.to_dict())
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "retry_policy_report.md",
+        build_retry_policy_report(retry_policy_result),
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="retry_policy.completed",
+            message=retry_policy_result.message,
+            payload={
+                "status": retry_policy_result.status,
+                "retryable": retry_policy_result.retryable,
+                "retry_decision": retry_policy_result.retry_decision,
+                "remaining_attempts": retry_policy_result.remaining_attempts,
+                "checkpoint_required": retry_policy_result.checkpoint_required,
+            },
+        ),
+    )
+
+    execution_budget_policy_result = evaluate_execution_budget_policy(retry_policy_result)
+    save_execution_budget_policy(base_dir, state.task_id, execution_budget_policy_result.to_dict())
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "execution_budget_policy_report.md",
+        build_execution_budget_policy_report(execution_budget_policy_result),
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="execution_budget_policy.completed",
+            message=execution_budget_policy_result.message,
+            payload={
+                "status": execution_budget_policy_result.status,
+                "timeout_seconds": execution_budget_policy_result.timeout_seconds,
+                "budget_state": execution_budget_policy_result.budget_state,
+                "timeout_state": execution_budget_policy_result.timeout_state,
+                "remaining_attempts": execution_budget_policy_result.remaining_attempts,
+            },
+        ),
+    )
+
+    stop_policy_result = evaluate_stop_policy(state, executor_result, retry_policy_result)
+    save_stop_policy(base_dir, state.task_id, stop_policy_result.to_dict())
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "stop_policy_report.md",
+        build_stop_policy_report(stop_policy_result),
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="stop_policy.completed",
+            message=stop_policy_result.message,
+            payload={
+                "status": stop_policy_result.status,
+                "stop_required": stop_policy_result.stop_required,
+                "continue_allowed": stop_policy_result.continue_allowed,
+                "stop_decision": stop_policy_result.stop_decision,
+                "escalation_level": stop_policy_result.escalation_level,
+                "checkpoint_kind": stop_policy_result.checkpoint_kind,
+            },
+        ),
+    )
+
     final_status = (
         "completed"
         if executor_result.status == "completed"
@@ -300,6 +398,9 @@ def write_task_artifacts(
         execution_fit_result,
         knowledge_policy_result,
         validation_result,
+        retry_policy_result,
+        stop_policy_result,
+        execution_budget_policy_result,
     )
     save_handoff(base_dir, state.task_id, handoff_record)
     write_artifact(
@@ -319,6 +420,9 @@ def write_task_artifacts(
             execution_fit_result,
             knowledge_policy_result,
             validation_result,
+            retry_policy_result,
+            stop_policy_result,
+            execution_budget_policy_result,
             handoff_record,
         ),
     )
@@ -334,6 +438,9 @@ def write_task_artifacts(
             execution_fit_result,
             knowledge_policy_result,
             validation_result,
+            retry_policy_result,
+            stop_policy_result,
+            execution_budget_policy_result,
         ),
     )
     write_artifact(
@@ -348,6 +455,9 @@ def write_task_artifacts(
             execution_fit_result,
             knowledge_policy_result,
             validation_result,
+            retry_policy_result,
+            stop_policy_result,
+            execution_budget_policy_result,
         ),
     )
     append_event(
@@ -372,6 +482,9 @@ def write_task_artifacts(
                     "dispatch_report": state.artifact_paths.get("dispatch_report", ""),
                     "handoff_report": state.artifact_paths.get("handoff_report", ""),
                     "execution_fit_report": state.artifact_paths.get("execution_fit_report", ""),
+                    "retry_policy_report": state.artifact_paths.get("retry_policy_report", ""),
+                    "execution_budget_policy_report": state.artifact_paths.get("execution_budget_policy_report", ""),
+                    "stop_policy_report": state.artifact_paths.get("stop_policy_report", ""),
                     "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
                     "knowledge_policy_report": state.artifact_paths.get("knowledge_policy_report", ""),
                     "source_grounding": state.artifact_paths.get("source_grounding", ""),
@@ -382,7 +495,15 @@ def write_task_artifacts(
             },
         ),
     )
-    return compatibility_result, execution_fit_result, knowledge_policy_result, validation_result
+    return (
+        compatibility_result,
+        execution_fit_result,
+        knowledge_policy_result,
+        validation_result,
+        retry_policy_result,
+        stop_policy_result,
+        execution_budget_policy_result,
+    )
 
 
 def validation_counts(result: ValidationResult) -> dict[str, int]:
@@ -490,6 +611,9 @@ def build_task_memory(
     execution_fit_result: ExecutionFitResult,
     knowledge_policy_result: KnowledgePolicyResult,
     validation_result: ValidationResult,
+    retry_policy_result: RetryPolicyResult,
+    stop_policy_result: StopPolicyResult,
+    execution_budget_policy_result: ExecutionBudgetPolicyResult,
     handoff_record: dict[str, object],
 ) -> dict[str, object]:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
@@ -558,6 +682,9 @@ def build_task_memory(
         "handoff": handoff_record,
         "compatibility": compatibility_result.to_dict(),
         "execution_fit": execution_fit_result.to_dict(),
+        "retry_policy": retry_policy_result.to_dict(),
+        "execution_budget_policy": execution_budget_policy_result.to_dict(),
+        "stop_policy": stop_policy_result.to_dict(),
         "knowledge_policy": knowledge_policy_result.to_dict(),
         "validation": validation_result.to_dict(),
         "retrieval": {
@@ -607,6 +734,12 @@ def build_task_memory(
             "handoff_json": state.artifact_paths.get("handoff_json", ""),
             "execution_fit_report": state.artifact_paths.get("execution_fit_report", ""),
             "execution_fit_json": state.artifact_paths.get("execution_fit_json", ""),
+            "retry_policy_report": state.artifact_paths.get("retry_policy_report", ""),
+            "retry_policy_json": state.artifact_paths.get("retry_policy_json", ""),
+            "execution_budget_policy_report": state.artifact_paths.get("execution_budget_policy_report", ""),
+            "execution_budget_policy_json": state.artifact_paths.get("execution_budget_policy_json", ""),
+            "stop_policy_report": state.artifact_paths.get("stop_policy_report", ""),
+            "stop_policy_json": state.artifact_paths.get("stop_policy_json", ""),
             "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
             "compatibility_json": state.artifact_paths.get("compatibility_json", ""),
             "knowledge_policy_report": state.artifact_paths.get("knowledge_policy_report", ""),
@@ -773,6 +906,9 @@ def build_handoff_record(
     execution_fit_result: ExecutionFitResult,
     knowledge_policy_result: KnowledgePolicyResult,
     validation_result: ValidationResult,
+    retry_policy_result: RetryPolicyResult,
+    stop_policy_result: StopPolicyResult,
+    execution_budget_policy_result: ExecutionBudgetPolicyResult,
 ) -> dict[str, object]:
     required_inputs = [
         state.artifact_paths.get("summary", ""),
@@ -845,6 +981,24 @@ def build_handoff_record(
         "failure_kind": executor_result.failure_kind,
         "compatibility_status": compatibility_result.status,
         "execution_fit_status": execution_fit_result.status,
+        "retry_policy_status": retry_policy_result.status,
+        "retryable": retry_policy_result.retryable,
+        "retry_decision": retry_policy_result.retry_decision,
+        "remaining_attempts": retry_policy_result.remaining_attempts,
+        "checkpoint_required": retry_policy_result.checkpoint_required,
+        "retry_recommended_action": retry_policy_result.recommended_action,
+        "execution_budget_policy_status": execution_budget_policy_result.status,
+        "timeout_seconds": execution_budget_policy_result.timeout_seconds,
+        "budget_state": execution_budget_policy_result.budget_state,
+        "timeout_state": execution_budget_policy_result.timeout_state,
+        "budget_recommended_action": execution_budget_policy_result.recommended_action,
+        "stop_policy_status": stop_policy_result.status,
+        "stop_required": stop_policy_result.stop_required,
+        "continue_allowed": stop_policy_result.continue_allowed,
+        "stop_decision": stop_policy_result.stop_decision,
+        "escalation_level": stop_policy_result.escalation_level,
+        "checkpoint_kind": stop_policy_result.checkpoint_kind,
+        "stop_recommended_action": stop_policy_result.recommended_action,
         "knowledge_policy_status": knowledge_policy_result.status,
         "validation_status": validation_result.status,
     }
@@ -878,6 +1032,24 @@ def build_handoff_report(handoff_record: dict[str, object]) -> str:
         f"- failure_kind: {handoff_record.get('failure_kind', '') or 'none'}",
         f"- compatibility_status: {handoff_record.get('compatibility_status', 'pending')}",
         f"- execution_fit_status: {handoff_record.get('execution_fit_status', 'pending')}",
+        f"- retry_policy_status: {handoff_record.get('retry_policy_status', 'pending')}",
+        f"- retryable: {'yes' if handoff_record.get('retryable', False) else 'no'}",
+        f"- retry_decision: {handoff_record.get('retry_decision', 'pending')}",
+        f"- remaining_attempts: {handoff_record.get('remaining_attempts', 0)}",
+        f"- checkpoint_required: {'yes' if handoff_record.get('checkpoint_required', False) else 'no'}",
+        f"- retry_recommended_action: {handoff_record.get('retry_recommended_action', 'pending')}",
+        f"- execution_budget_policy_status: {handoff_record.get('execution_budget_policy_status', 'pending')}",
+        f"- timeout_seconds: {handoff_record.get('timeout_seconds', 0)}",
+        f"- budget_state: {handoff_record.get('budget_state', 'pending')}",
+        f"- timeout_state: {handoff_record.get('timeout_state', 'pending')}",
+        f"- budget_recommended_action: {handoff_record.get('budget_recommended_action', 'pending')}",
+        f"- stop_policy_status: {handoff_record.get('stop_policy_status', 'pending')}",
+        f"- stop_required: {'yes' if handoff_record.get('stop_required', False) else 'no'}",
+        f"- continue_allowed: {'yes' if handoff_record.get('continue_allowed', False) else 'no'}",
+        f"- stop_decision: {handoff_record.get('stop_decision', 'pending')}",
+        f"- escalation_level: {handoff_record.get('escalation_level', 'pending')}",
+        f"- checkpoint_kind: {handoff_record.get('checkpoint_kind', 'pending')}",
+        f"- stop_recommended_action: {handoff_record.get('stop_recommended_action', 'pending')}",
         f"- knowledge_policy_status: {handoff_record.get('knowledge_policy_status', 'pending')}",
         f"- validation_status: {handoff_record.get('validation_status', 'pending')}",
         f"- next_owner_kind: {handoff_record.get('next_owner_kind', 'pending')}",
@@ -927,6 +1099,9 @@ def build_summary(
     execution_fit_result: ExecutionFitResult | None,
     knowledge_policy_result: KnowledgePolicyResult | None,
     validation_result: ValidationResult | None,
+    retry_policy_result: RetryPolicyResult | None,
+    stop_policy_result: StopPolicyResult | None,
+    execution_budget_policy_result: ExecutionBudgetPolicyResult | None,
 ) -> str:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
@@ -998,8 +1173,14 @@ def build_summary(
         f"- handoff_report_artifact: {state.artifact_paths.get('handoff_report', '') or 'pending'}",
         f"- compatibility_status: {compatibility_result.status if compatibility_result else 'pending'}",
         f"- execution_fit_status: {execution_fit_result.status if execution_fit_result else 'pending'}",
+        f"- retry_policy_status: {retry_policy_result.status if retry_policy_result else 'pending'}",
+        f"- execution_budget_policy_status: {execution_budget_policy_result.status if execution_budget_policy_result else 'pending'}",
+        f"- stop_policy_status: {stop_policy_result.status if stop_policy_result else 'pending'}",
         f"- knowledge_policy_status: {knowledge_policy_result.status if knowledge_policy_result else 'pending'}",
         f"- execution_fit_report_artifact: {state.artifact_paths.get('execution_fit_report', '') or 'pending'}",
+        f"- retry_policy_report_artifact: {state.artifact_paths.get('retry_policy_report', '') or 'pending'}",
+        f"- execution_budget_policy_report_artifact: {state.artifact_paths.get('execution_budget_policy_report', '') or 'pending'}",
+        f"- stop_policy_report_artifact: {state.artifact_paths.get('stop_policy_report', '') or 'pending'}",
         f"- compatibility_report_artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
         f"- knowledge_policy_report_artifact: {state.artifact_paths.get('knowledge_policy_report', '') or 'pending'}",
         f"- source_grounding_artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
@@ -1106,6 +1287,56 @@ def build_summary(
         )
         for finding in execution_fit_result.findings:
             lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
+    if retry_policy_result is not None:
+        lines.extend(
+            [
+                "",
+                "## Retry Policy",
+                f"- status: {retry_policy_result.status}",
+                f"- message: {retry_policy_result.message}",
+                f"- retryable: {'yes' if retry_policy_result.retryable else 'no'}",
+                f"- retry_decision: {retry_policy_result.retry_decision}",
+                f"- remaining_attempts: {retry_policy_result.remaining_attempts}",
+                f"- checkpoint_required: {'yes' if retry_policy_result.checkpoint_required else 'no'}",
+                f"- recommended_action: {retry_policy_result.recommended_action}",
+            ]
+        )
+        for finding in retry_policy_result.findings:
+            lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
+    if stop_policy_result is not None:
+        lines.extend(
+            [
+                "",
+                "## Stop Policy",
+                f"- status: {stop_policy_result.status}",
+                f"- message: {stop_policy_result.message}",
+                f"- stop_required: {'yes' if stop_policy_result.stop_required else 'no'}",
+                f"- continue_allowed: {'yes' if stop_policy_result.continue_allowed else 'no'}",
+                f"- stop_decision: {stop_policy_result.stop_decision}",
+                f"- escalation_level: {stop_policy_result.escalation_level}",
+                f"- checkpoint_kind: {stop_policy_result.checkpoint_kind}",
+                f"- recommended_action: {stop_policy_result.recommended_action}",
+            ]
+        )
+        for finding in stop_policy_result.findings:
+            lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
+    if execution_budget_policy_result is not None:
+        lines.extend(
+            [
+                "",
+                "## Execution Budget Policy",
+                f"- status: {execution_budget_policy_result.status}",
+                f"- message: {execution_budget_policy_result.message}",
+                f"- timeout_seconds: {execution_budget_policy_result.timeout_seconds}",
+                f"- timeout_state: {execution_budget_policy_result.timeout_state}",
+                f"- max_attempts: {execution_budget_policy_result.max_attempts}",
+                f"- remaining_attempts: {execution_budget_policy_result.remaining_attempts}",
+                f"- budget_state: {execution_budget_policy_result.budget_state}",
+                f"- recommended_action: {execution_budget_policy_result.recommended_action}",
+            ]
+        )
+        for finding in execution_budget_policy_result.findings:
+            lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
     if knowledge_policy_result is not None:
         lines.extend(
             [
@@ -1140,6 +1371,9 @@ def build_resume_note(
     execution_fit_result: ExecutionFitResult | None,
     knowledge_policy_result: KnowledgePolicyResult | None,
     validation_result: ValidationResult | None,
+    retry_policy_result: RetryPolicyResult | None,
+    stop_policy_result: StopPolicyResult | None,
+    execution_budget_policy_result: ExecutionBudgetPolicyResult | None,
 ) -> str:
     top_references = ", ".join(item.reference() for item in retrieval_items[:3]) or "none"
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
@@ -1208,8 +1442,14 @@ def build_resume_note(
         f"- failure kind: {executor_result.failure_kind or 'none'}",
         f"- compatibility status: {compatibility_result.status if compatibility_result else 'pending'}",
         f"- execution fit status: {execution_fit_result.status if execution_fit_result else 'pending'}",
+        f"- retry policy status: {retry_policy_result.status if retry_policy_result else 'pending'}",
+        f"- execution budget policy status: {execution_budget_policy_result.status if execution_budget_policy_result else 'pending'}",
+        f"- stop policy status: {stop_policy_result.status if stop_policy_result else 'pending'}",
         f"- knowledge policy status: {knowledge_policy_result.status if knowledge_policy_result else 'pending'}",
         f"- execution fit report artifact: {state.artifact_paths.get('execution_fit_report', '') or 'pending'}",
+        f"- retry policy report artifact: {state.artifact_paths.get('retry_policy_report', '') or 'pending'}",
+        f"- execution budget policy report artifact: {state.artifact_paths.get('execution_budget_policy_report', '') or 'pending'}",
+        f"- stop policy report artifact: {state.artifact_paths.get('stop_policy_report', '') or 'pending'}",
         f"- compatibility report artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
         f"- knowledge policy report artifact: {state.artifact_paths.get('knowledge_policy_report', '') or 'pending'}",
         f"- validation status: {validation_result.status if validation_result else 'pending'}",
@@ -1263,6 +1503,31 @@ def build_resume_note(
         next_steps.insert(0, "- Review validation_report.md before trusting this run because the validator recorded warnings.")
     if validation_result is not None and validation_result.status == "failed":
         next_steps.insert(0, "- Treat the validation report as blocking and fix the recorded failures before continuing from this run.")
+    if retry_policy_result is not None and retry_policy_result.status == "warning":
+        next_steps.insert(
+            0,
+            "- Review retry_policy_report.md and treat the next attempt as an operator-gated retry rather than an automatic rerun.",
+        )
+    if retry_policy_result is not None and retry_policy_result.status == "failed":
+        next_steps.insert(
+            0,
+            "- Treat the retry policy as blocking and change the route, environment, or task inputs before trying again.",
+        )
+    if stop_policy_result is not None and stop_policy_result.status == "warning":
+        next_steps.insert(
+            0,
+            "- Treat the stop policy as a checkpoint boundary and do not continue until the operator reviews the current run state.",
+        )
+    if stop_policy_result is not None and stop_policy_result.status == "failed":
+        next_steps.insert(
+            0,
+            "- Treat the stop policy as blocking and stop the run sequence until the operator changes the failing conditions.",
+        )
+    if execution_budget_policy_result is not None and execution_budget_policy_result.status == "warning":
+        next_steps.insert(
+            0,
+            "- Review execution_budget_policy_report.md before continuing so timeout or attempt-budget assumptions stay explicit.",
+        )
 
     lines.extend(
         [
@@ -1272,6 +1537,9 @@ def build_resume_note(
             "- Review summary.md before restarting work so the prior run is not reinterpreted from scratch.",
             "- Use retrieval_report.md to review the latest retrieval set before opening raw retrieval.json.",
             "- Use compatibility_report.md when checking whether the selected route actually matched the requested policy.",
+            "- Use retry_policy_report.md when deciding whether another attempt is actually justified.",
+            "- Use execution_budget_policy_report.md when deciding whether timeout or attempt budget changes are warranted.",
+            "- Use stop_policy_report.md when deciding whether the system should stop here or escalate before continuing.",
             "- Use knowledge_policy_report.md when deciding whether imported knowledge is safe to promote or reuse.",
             "- Use validation_report.md when deciding whether to reuse the current run outputs.",
             "- Expand retrieval scoring when the source set grows.",

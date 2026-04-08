@@ -20,6 +20,9 @@ from .paths import (
     knowledge_partition_path,
     knowledge_policy_path,
     memory_path,
+    retry_policy_path,
+    execution_budget_policy_path,
+    stop_policy_path,
     task_semantics_path,
     retrieval_path,
     route_path,
@@ -206,6 +209,30 @@ def save_handoff(base_dir: Path, task_id: str, payload: dict[str, object]) -> No
 def save_execution_fit(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
     ensure_task_layout(base_dir, task_id)
     execution_fit_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_retry_policy(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    retry_policy_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_stop_policy(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    stop_policy_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_execution_budget_policy(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    execution_budget_policy_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )

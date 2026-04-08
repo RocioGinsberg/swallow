@@ -1,6 +1,6 @@
 # Active Phase
 
-Current active phase: Phase 7 Execution-Site Boundary closeout checkpoint.
+Current active phase: Phase 8 Execution Control Policy closeout checkpoint.
 
 ## Current status
 
@@ -15,6 +15,7 @@ Current active phase: Phase 7 Execution-Site Boundary closeout checkpoint.
 - post-Phase-5 retrieval / memory next slice complete
 - Phase 6 baseline complete
 - Phase 7 baseline complete
+- Phase 8 baseline complete
 
 ## Working references
 
@@ -68,6 +69,14 @@ Current active phase: Phase 7 Execution-Site Boundary closeout checkpoint.
   - `/home/rocio/projects/swallow/docs/phase7_closeout_note.md`
 - Phase 7 phase slice:
   - `/home/rocio/projects/swallow/.codex/phases/phase7.md`
+- Phase 8 kickoff:
+  - `/home/rocio/projects/swallow/docs/phase8_kickoff_note.md`
+- Phase 8 breakdown:
+  - `/home/rocio/projects/swallow/docs/phase8_task_breakdown.md`
+- Phase 8 closeout:
+  - `/home/rocio/projects/swallow/docs/phase8_closeout_note.md`
+- Phase 8 phase slice:
+  - `/home/rocio/projects/swallow/.codex/phases/phase8.md`
 
 ## Current implementation baseline
 
@@ -94,6 +103,6 @@ The repository already has:
 
 ## Current rule
 
-New planning work should align with `docs/system_tracks.md` first and then the active Phase 7 closeout references above.
+New planning work should align with `docs/system_tracks.md` first and then the active closeout references above.
 
-New implementation work should not fall back to a generic MVP framing, resume open-ended Phase 6 breadth, or resume open-ended Phase 7 execution-topology breadth by default.
+New implementation work should not fall back to a generic MVP framing, resume open-ended Phase 7 execution-topology breadth, or resume open-ended Phase 8 evaluation/policy breadth by default.

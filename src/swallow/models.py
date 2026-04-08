@@ -251,6 +251,117 @@ class ValidationResult:
 
 
 @dataclass(slots=True)
+class RetryPolicyFinding:
+    code: str
+    level: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class RetryPolicyResult:
+    status: str
+    message: str
+    retryable: bool
+    retry_decision: str
+    max_attempts: int
+    remaining_attempts: int
+    checkpoint_required: bool
+    recommended_action: str
+    findings: list[RetryPolicyFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "message": self.message,
+            "retryable": self.retryable,
+            "retry_decision": self.retry_decision,
+            "max_attempts": self.max_attempts,
+            "remaining_attempts": self.remaining_attempts,
+            "checkpoint_required": self.checkpoint_required,
+            "recommended_action": self.recommended_action,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }
+
+
+@dataclass(slots=True)
+class StopPolicyFinding:
+    code: str
+    level: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class StopPolicyResult:
+    status: str
+    message: str
+    stop_required: bool
+    continue_allowed: bool
+    stop_decision: str
+    escalation_level: str
+    checkpoint_kind: str
+    recommended_action: str
+    findings: list[StopPolicyFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "message": self.message,
+            "stop_required": self.stop_required,
+            "continue_allowed": self.continue_allowed,
+            "stop_decision": self.stop_decision,
+            "escalation_level": self.escalation_level,
+            "checkpoint_kind": self.checkpoint_kind,
+            "recommended_action": self.recommended_action,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }
+
+
+@dataclass(slots=True)
+class ExecutionBudgetPolicyFinding:
+    code: str
+    level: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class ExecutionBudgetPolicyResult:
+    status: str
+    message: str
+    timeout_seconds: int
+    max_attempts: int
+    remaining_attempts: int
+    budget_state: str
+    timeout_state: str
+    recommended_action: str
+    findings: list[ExecutionBudgetPolicyFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "message": self.message,
+            "timeout_seconds": self.timeout_seconds,
+            "max_attempts": self.max_attempts,
+            "remaining_attempts": self.remaining_attempts,
+            "budget_state": self.budget_state,
+            "timeout_state": self.timeout_state,
+            "recommended_action": self.recommended_action,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }
+
+
+@dataclass(slots=True)
 class CompatibilityFinding:
     code: str
     level: str

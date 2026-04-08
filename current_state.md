@@ -6,8 +6,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; Phase 6 baseline complete; Phase 7 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 7 Execution-Site Boundary closeout checkpoint
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; Phase 6 baseline complete; Phase 7 baseline complete; Phase 8 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 8 Execution Control Policy closeout checkpoint
 - last checked: 2026-04-09
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -38,6 +38,10 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase7_kickoff_note.md`
   - `docs/phase7_task_breakdown.md`
   - `docs/phase7_closeout_note.md`
+- phase 8 planning reference:
+  - `docs/phase8_kickoff_note.md`
+  - `docs/phase8_task_breakdown.md`
+  - `docs/phase8_closeout_note.md`
 - post-Phase-5 planning reference:
   - `docs/post_phase5_executor_and_external_input_kickoff_note.md`
   - `docs/post_phase5_executor_and_external_input_task_breakdown.md`
@@ -197,6 +201,12 @@ This file tracks the implementation status of the repository itself so work can 
   - `P7-04` local-detached execution baseline is implemented with a real child-process local execution boundary, detached route-mode selection, detached dispatch truth, and continued artifact-backed persistence without introducing hosted supervisors
   - `P7-05` family-aware execution-fit policy tightening is implemented with route-versus-topology executor-family alignment checks, explicit support for current `cli` family behavior, explicit failure for unsupported future families, and detached-local transport acceptance in execution-fit findings
   - `P7-06` inspection and closeout tightening is implemented with aligned operator-facing execution-site, ownership, and handoff-contract inspection plus a dedicated Phase 7 closeout note and synchronized status-entry documents
+  - `P8-01` retry-policy baseline is implemented with explicit retry-policy records, human-readable retry policy reports, operator-gated retry eligibility findings, and aligned visibility across handoff, memory, summary, resume, inspect, review, and dedicated CLI inspection commands
+  - `P8-02` stop and escalation policy baseline is implemented with explicit stop-policy records, clear checkpoint-versus-stop decisions, and operator-facing escalation visibility across execution artifacts, summaries, reviews, and CLI inspection commands
+  - `P8-03` detached-execution checkpoint baseline is implemented with detached-specific stop-policy decisions, checkpoint kinds, and escalation levels that keep `local_detached` distinct from inline execution during review and recovery flows
+  - `P8-04` execution budget and timeout policy baseline is implemented with explicit timeout and attempt-budget records, dedicated budget-policy artifacts, and operator-facing budget visibility without changing the current executor lifecycle
+  - `P8-05` policy inspection and review tightening is implemented with a unified `Policy Controls` inspection view, grouped execution-control artifacts, and a compact `swl task policy` command for operator-facing policy review
+  - `P8-06` closeout and status alignment is implemented with a dedicated Phase 8 closeout note and synchronized status-entry documents that now treat Phase 8 as a completed baseline rather than an active planning checkpoint
   - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
   - `P4-02` task inspect and overview baseline is implemented with `swl task inspect`, a compact per-task overview of the latest attempt, route/topology, policy status, retrieval/memory availability, operator guidance, and key artifact links
   - `P4-03` artifact index tightening is implemented with `swl task artifacts`, grouped artifact-path presentation by operator concern while preserving existing artifact paths and file layout
@@ -234,7 +244,8 @@ This file tracks the implementation status of the repository itself so work can 
 - The planned Phase 5 baseline is complete enough to stop open-ended `Capabilities` expansion by default.
 - The planned Phase 6 baseline is complete enough to stop open-ended `Retrieval / Memory Operationalization` expansion by default.
 - The planned Phase 7 baseline is complete enough to stop open-ended `Execution Topology` expansion by default.
-- New work should now begin from a fresh planning note rather than assuming more Phase 7 work exists by default.
+- The planned Phase 8 baseline is complete enough to stop open-ended `Evaluation / Policy` expansion by default.
+- New work should now begin from a fresh planning note rather than assuming more Phase 8 work exists by default.
 
 ## Known Issues
 
@@ -252,9 +263,10 @@ This file tracks the implementation status of the repository itself so work can 
 7. Use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the current stop/go reference for the completed post-Phase-5 executor/external-input slice.
 8. Use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval/memory-next slice.
 9. Use `docs/phase7_closeout_note.md` as the stop/go reference for the completed `Execution Topology` slice.
-10. Write a fresh kickoff note before starting the next primary track.
-11. Verify the editable install exposes the `swl` entrypoint correctly.
-12. Update this file after each substantial code change.
+10. Use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice.
+11. Write a fresh kickoff note before opening the next primary track.
+12. Verify the editable install exposes the `swl` entrypoint correctly.
+13. Update this file after each substantial code change.
 
 ## Resume Command
 

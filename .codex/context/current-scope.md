@@ -47,6 +47,13 @@ The completed post-Phase-5 retrieval / memory-next slice established:
 - a tighter reuse gate for artifact-backed verified knowledge
 - CLI inspection visibility for reused knowledge inside retrieval and review flows
 
+The completed Phase 8 baseline established:
+
+- explicit retry, stop, escalation, and execution-budget policy artifacts
+- detached-specific checkpoint policy for `local_detached` execution
+- policy-state visibility across handoff, memory, summary, resume, inspect, review, and grouped artifact lists
+- a compact operator-facing `swl task policy` inspection path
+
 ## Explicit non-goals right now
 
 Do not treat these as current-slice requirements:
@@ -70,4 +77,5 @@ When planning the next task:
 - use `docs/post_phase5_retrieval_memory_next_closeout_note.md` before deciding whether to continue that completed `Retrieval / Memory` slice
 - use `docs/phase6_closeout_note.md` before deciding whether to continue the completed `Retrieval / Memory Operationalization` baseline
 - use `docs/phase7_closeout_note.md` before deciding whether to continue the completed `Execution Topology` slice
+- use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice
 - prefer a fresh planning note over open-ended continuation

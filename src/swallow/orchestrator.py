@@ -26,12 +26,15 @@ from .paths import (
     dispatch_path,
     execution_site_path,
     execution_fit_path,
+    execution_budget_policy_path,
     handoff_path,
     knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
     knowledge_policy_path,
     memory_path,
+    retry_policy_path,
+    stop_policy_path,
     task_semantics_path,
     retrieval_path,
     route_path,
@@ -436,8 +439,22 @@ def run_task(
         "handoff_json": str(handoff_path(base_dir, task_id).resolve()),
         "execution_fit_report": str((artifacts_dir(base_dir, task_id) / "execution_fit_report.md").resolve()),
         "execution_fit_json": str(execution_fit_path(base_dir, task_id).resolve()),
+        "retry_policy_report": str((artifacts_dir(base_dir, task_id) / "retry_policy_report.md").resolve()),
+        "retry_policy_json": str(retry_policy_path(base_dir, task_id).resolve()),
+        "execution_budget_policy_report": str((artifacts_dir(base_dir, task_id) / "execution_budget_policy_report.md").resolve()),
+        "execution_budget_policy_json": str(execution_budget_policy_path(base_dir, task_id).resolve()),
+        "stop_policy_report": str((artifacts_dir(base_dir, task_id) / "stop_policy_report.md").resolve()),
+        "stop_policy_json": str(stop_policy_path(base_dir, task_id).resolve()),
     }
-    compatibility_result, execution_fit_result, knowledge_policy_result, validation_result = write_task_artifacts(
+    (
+        compatibility_result,
+        execution_fit_result,
+        knowledge_policy_result,
+        validation_result,
+        retry_policy_result,
+        stop_policy_result,
+        execution_budget_policy_result,
+    ) = write_task_artifacts(
         base_dir, replace(state), retrieval_items, executor_result
     )
 
@@ -496,6 +513,9 @@ def run_task(
                 "executor_status": state.executor_status,
                 "compatibility_status": compatibility_result.status,
                 "execution_fit_status": execution_fit_result.status,
+                "retry_policy_status": retry_policy_result.status,
+                "execution_budget_policy_status": execution_budget_policy_result.status,
+                "stop_policy_status": stop_policy_result.status,
                 "knowledge_policy_status": knowledge_policy_result.status,
                 "validation_status": validation_result.status,
                 "artifact_paths": state.artifact_paths,

@@ -13,6 +13,7 @@ from .paths import (
     capability_manifest_path,
     compatibility_path,
     dispatch_path,
+    execution_budget_policy_path,
     execution_site_path,
     execution_fit_path,
     handoff_path,
@@ -21,6 +22,8 @@ from .paths import (
     knowledge_partition_path,
     knowledge_policy_path,
     memory_path,
+    retry_policy_path,
+    stop_policy_path,
     task_semantics_path,
     retrieval_path,
     route_path,
@@ -44,7 +47,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
     (
-        "Validation And Policy",
+        "Validation",
         (
             "validation_report",
             "validation_json",
@@ -54,6 +57,17 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "execution_fit_json",
             "knowledge_policy_report",
             "knowledge_policy_json",
+        ),
+    ),
+    (
+        "Execution Control Policy",
+        (
+            "retry_policy_report",
+            "retry_policy_json",
+            "execution_budget_policy_report",
+            "execution_budget_policy_json",
+            "stop_policy_report",
+            "stop_policy_json",
         ),
     ),
     (
@@ -68,6 +82,9 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "execution_site_json",
             "dispatch_json",
             "handoff_json",
+            "retry_policy_json",
+            "execution_budget_policy_json",
+            "stop_policy_json",
         ),
     ),
 )
@@ -83,6 +100,30 @@ def build_grouped_artifact_index(artifact_paths: dict[str, str]) -> str:
                 lines.append(f"{key}: {path}")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"
+
+
+def build_policy_snapshot(
+    retry_policy: dict[str, object],
+    execution_budget_policy: dict[str, object],
+    stop_policy: dict[str, object],
+) -> list[str]:
+    return [
+        "Policy Controls",
+        f"retry_policy_status: {retry_policy.get('status', 'pending')}",
+        f"retryable: {'yes' if retry_policy.get('retryable', False) else 'no'}",
+        f"retry_decision: {retry_policy.get('retry_decision', 'pending')}",
+        f"remaining_attempts: {retry_policy.get('remaining_attempts', 0)}",
+        f"execution_budget_policy_status: {execution_budget_policy.get('status', 'pending')}",
+        f"timeout_seconds: {execution_budget_policy.get('timeout_seconds', 0)}",
+        f"budget_state: {execution_budget_policy.get('budget_state', 'pending')}",
+        f"timeout_state: {execution_budget_policy.get('timeout_state', 'pending')}",
+        f"stop_policy_status: {stop_policy.get('status', 'pending')}",
+        f"stop_required: {'yes' if stop_policy.get('stop_required', False) else 'no'}",
+        f"continue_allowed: {'yes' if stop_policy.get('continue_allowed', False) else 'no'}",
+        f"stop_decision: {stop_policy.get('stop_decision', 'pending')}",
+        f"checkpoint_kind: {stop_policy.get('checkpoint_kind', 'pending')}",
+        f"escalation_level: {stop_policy.get('escalation_level', 'pending')}",
+    ]
 
 
 def filter_task_states(states: list[object], focus: str) -> list[object]:
@@ -267,6 +308,8 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge_policy_parser.add_argument("task_id", help="Task identifier.")
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
+    policy_parser = task_subparsers.add_parser("policy", help="Print a compact execution-control policy summary.")
+    policy_parser.add_argument("task_id", help="Task identifier.")
     artifacts_parser = task_subparsers.add_parser("artifacts", help="Print grouped task artifact paths.")
     artifacts_parser.add_argument("task_id", help="Task identifier.")
 
@@ -305,6 +348,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task execution-fit report artifact.",
     )
     execution_fit_parser.add_argument("task_id", help="Task identifier.")
+    retry_policy_parser = task_subparsers.add_parser(
+        "retry-policy",
+        help="Print the task retry-policy report artifact.",
+    )
+    retry_policy_parser.add_argument("task_id", help="Task identifier.")
+    execution_budget_policy_parser = task_subparsers.add_parser(
+        "execution-budget-policy",
+        help="Print the task execution-budget-policy report artifact.",
+    )
+    execution_budget_policy_parser.add_argument("task_id", help="Task identifier.")
+    stop_policy_parser = task_subparsers.add_parser(
+        "stop-policy",
+        help="Print the task stop-policy report artifact.",
+    )
+    stop_policy_parser.add_argument("task_id", help="Task identifier.")
     memory_parser = task_subparsers.add_parser("memory", help="Print the task memory record.")
     memory_parser.add_argument("task_id", help="Task identifier.")
     route_parser = task_subparsers.add_parser("route", help="Print the task route report artifact.")
@@ -332,6 +390,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task execution-fit record.",
     )
     execution_fit_json_parser.add_argument("task_id", help="Task identifier.")
+    retry_policy_json_parser = task_subparsers.add_parser(
+        "retry-policy-json",
+        help="Print the task retry-policy record.",
+    )
+    retry_policy_json_parser.add_argument("task_id", help="Task identifier.")
+    execution_budget_policy_json_parser = task_subparsers.add_parser(
+        "execution-budget-policy-json",
+        help="Print the task execution-budget-policy record.",
+    )
+    execution_budget_policy_json_parser.add_argument("task_id", help="Task identifier.")
+    stop_policy_json_parser = task_subparsers.add_parser(
+        "stop-policy-json",
+        help="Print the task stop-policy record.",
+    )
+    stop_policy_json_parser.add_argument("task_id", help="Task identifier.")
     capabilities_json_parser = task_subparsers.add_parser(
         "capabilities-json",
         help="Print the task capability assembly record.",
@@ -447,6 +520,9 @@ def main(argv: list[str] | None = None) -> int:
         dispatch = load_json_if_exists(dispatch_path(base_dir, args.task_id))
         handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
         execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
+        retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
+        execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))
+        stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         knowledge_partition = load_json_if_exists(knowledge_partition_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
@@ -522,6 +598,8 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_policy_status: {knowledge_policy.get('status', 'pending')}",
             f"validation_status: {load_json_if_exists(Path(state.artifact_paths.get('validation_json', ''))).get('status', 'pending') if state.artifact_paths.get('validation_json') else 'pending'}",
             "",
+            *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
+            "",
             "Retrieval And Memory",
             f"retrieval_count: {state.retrieval_count}",
             f"retrieval_record_available: {'yes' if isinstance(retrieval, list) and bool(retrieval) else 'no'}",
@@ -554,6 +632,9 @@ def main(argv: list[str] | None = None) -> int:
             f"dispatch_report: {state.artifact_paths.get('dispatch_report', '-')}",
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
+            f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
+            f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
+            f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
             f"knowledge_policy_report: {state.artifact_paths.get('knowledge_policy_report', '-')}",
             f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
         ]
@@ -596,6 +677,9 @@ def main(argv: list[str] | None = None) -> int:
         handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
         compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
         execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
+        retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
+        execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))
+        stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
@@ -656,6 +740,8 @@ def main(argv: list[str] | None = None) -> int:
             f"reused_cross_task_knowledge: {reused_cross_task}",
             f"reused_knowledge_references: {', '.join(reused_knowledge_references) or '-'}",
             "",
+            *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
+            "",
             "Review Artifacts",
             f"task_semantics_report: {state.artifact_paths.get('task_semantics_report', '-')}",
             f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
@@ -669,8 +755,36 @@ def main(argv: list[str] | None = None) -> int:
             f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
             f"compatibility_report: {state.artifact_paths.get('compatibility_report', '-')}",
             f"execution_fit_report: {state.artifact_paths.get('execution_fit_report', '-')}",
+            f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
+            f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
+            f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
             f"knowledge_policy_report: {state.artifact_paths.get('knowledge_policy_report', '-')}",
         ]
+        print("\n".join(lines))
+        return 0
+
+    if args.command == "task" and args.task_command == "policy":
+        state = load_state(base_dir, args.task_id)
+
+        def load_json_if_exists(path: Path) -> dict[str, object]:
+            if not path.exists():
+                return {}
+            return json.loads(path.read_text(encoding="utf-8"))
+
+        retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
+        execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))
+        stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        lines = [f"Task Policy: {state.task_id}", f"title: {state.title}", ""]
+        lines.extend(build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy))
+        lines.extend(
+            [
+                "",
+                "Policy Artifacts",
+                f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
+                f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
+                f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
+            ]
+        )
         print("\n".join(lines))
         return 0
 
@@ -696,6 +810,9 @@ def main(argv: list[str] | None = None) -> int:
         "dispatch",
         "handoff",
         "execution-fit",
+        "retry-policy",
+        "execution-budget-policy",
+        "stop-policy",
         "route",
     }:
         artifact_name = {
@@ -715,6 +832,9 @@ def main(argv: list[str] | None = None) -> int:
             "dispatch": "dispatch_report.md",
             "handoff": "handoff_report.md",
             "execution-fit": "execution_fit_report.md",
+            "retry-policy": "retry_policy_report.md",
+            "execution-budget-policy": "execution_budget_policy_report.md",
+            "stop-policy": "stop_policy_report.md",
             "route": "route_report.md",
         }[args.task_command]
         print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
@@ -750,6 +870,23 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "execution-fit-json":
         print(json.dumps(json.loads(execution_fit_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "retry-policy-json":
+        print(json.dumps(json.loads(retry_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "execution-budget-policy-json":
+        print(
+            json.dumps(
+                json.loads(execution_budget_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")),
+                indent=2,
+            )
+        )
+        return 0
+
+    if args.command == "task" and args.task_command == "stop-policy-json":
+        print(json.dumps(json.loads(stop_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "capabilities-json":

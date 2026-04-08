@@ -96,3 +96,15 @@ def handoff_path(base_dir: Path, task_id: str) -> Path:
 
 def execution_fit_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "execution_fit.json"
+
+
+def retry_policy_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "retry_policy.json"
+
+
+def stop_policy_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "stop_policy.json"
+
+
+def execution_budget_policy_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "execution_budget_policy.json"
