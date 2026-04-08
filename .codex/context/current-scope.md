@@ -13,12 +13,14 @@ The current repository can:
 
 ## What the current phase has established
 
-The completed Phase 3 baseline established:
+The completed Phase 3 and Phase 4 baselines established:
 
 - execution-topology clarity
 - execution-site and dispatch truthfulness
 - handoff and attempt-ownership semantics
 - operator inspection of topology-specific artifacts
+- task-list and task-overview workbench entrypoints
+- grouped artifact review and operator attention views
 
 ## Explicit non-goals right now
 
@@ -37,4 +39,5 @@ When planning the next task:
 
 - prefer `docs/system_tracks.md` before phase-local planning
 - use `docs/phase3_closeout_note.md` before deciding whether to continue execution-topology work
+- use `docs/phase4_closeout_note.md` before deciding whether to continue Workbench / UX work
 - prefer a fresh planning note over open-ended continuation

@@ -28,7 +28,7 @@ The repository now includes:
 
 ## Current planning state
 
-Active phase: Phase 3 closeout checkpoint.
+Active phase: Phase 4 closeout checkpoint.
 
 Phase status:
 
@@ -37,11 +37,13 @@ Phase status:
 - Phase 2 baseline complete
 - post-Phase-2 retrieval baseline complete
 - Phase 3 baseline complete
+- Phase 4 baseline complete
 
 ## Current references
 
 - `/home/rocio/projects/swallow/current_state.md`
 - `/home/rocio/projects/swallow/docs/system_tracks.md`
-- `/home/rocio/projects/swallow/docs/phase3_kickoff_note.md`
-- `/home/rocio/projects/swallow/docs/phase3_task_breakdown.md`
 - `/home/rocio/projects/swallow/docs/phase3_closeout_note.md`
+- `/home/rocio/projects/swallow/docs/phase4_kickoff_note.md`
+- `/home/rocio/projects/swallow/docs/phase4_task_breakdown.md`
+- `/home/rocio/projects/swallow/docs/phase4_closeout_note.md`

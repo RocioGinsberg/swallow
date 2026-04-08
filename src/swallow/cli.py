@@ -17,6 +17,46 @@ from .paths import (
     route_path,
     topology_path,
 )
+from .store import iter_task_states, load_state
+
+
+ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("Core Run Record", ("summary", "resume_note", "executor_output", "executor_prompt")),
+    ("Routing And Topology", ("route_report", "topology_report", "dispatch_report", "handoff_report")),
+    ("Retrieval And Grounding", ("retrieval_report", "retrieval_json", "source_grounding")),
+    ("Validation And Policy", ("validation_report", "validation_json", "compatibility_report", "compatibility_json", "execution_fit_report", "execution_fit_json")),
+    ("Memory And Reuse", ("task_memory", "route_json", "topology_json", "dispatch_json", "handoff_json")),
+)
+
+
+def build_grouped_artifact_index(artifact_paths: dict[str, str]) -> str:
+    lines = ["Task Artifact Index", ""]
+    for heading, keys in ARTIFACT_GROUPS:
+        lines.append(heading)
+        for key in keys:
+            path = artifact_paths.get(key)
+            if path:
+                lines.append(f"{key}: {path}")
+        lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def filter_task_states(states: list[object], focus: str) -> list[object]:
+    if focus == "all":
+        return states
+    if focus == "active":
+        return [state for state in states if state.status in {"created", "running"}]
+    if focus == "failed":
+        return [state for state in states if state.status == "failed"]
+    if focus == "needs-review":
+        return [
+            state
+            for state in states
+            if state.status == "failed" or state.phase == "summarize" or state.executor_status != "completed"
+        ]
+    if focus == "recent":
+        return states
+    return states
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -32,7 +72,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    task_parser = subparsers.add_parser("task", help="Task lifecycle commands.")
+    task_parser = subparsers.add_parser("task", help="Task workbench and lifecycle commands.")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostic commands.")
     doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=True)
@@ -70,6 +110,26 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "live", "deterministic", "offline", "summary"],
         help="Override the task routing policy mode for this run.",
     )
+
+    list_parser = task_subparsers.add_parser("list", help="List tasks with compact status summaries.")
+    list_parser.add_argument(
+        "--focus",
+        default="all",
+        choices=["all", "active", "failed", "needs-review", "recent"],
+        help="Restrict the list to a simple operator attention view. Defaults to all.",
+    )
+    list_parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of tasks to print after filtering.",
+    )
+    inspect_parser = task_subparsers.add_parser("inspect", help="Print a compact per-task overview.")
+    inspect_parser.add_argument("task_id", help="Task identifier.")
+    review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
+    review_parser.add_argument("task_id", help="Task identifier.")
+    artifacts_parser = task_subparsers.add_parser("artifacts", help="Print grouped task artifact paths.")
+    artifacts_parser.add_argument("task_id", help="Task identifier.")
 
     summarize_parser = task_subparsers.add_parser("summarize", help="Print the task summary artifact.")
     summarize_parser.add_argument("task_id", help="Task identifier.")
@@ -151,6 +211,147 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "run":
         state = run_task(base_dir=base_dir, task_id=args.task_id, executor_name=args.executor, route_mode=args.route_mode)
         print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
+        return 0
+
+    if args.command == "task" and args.task_command == "list":
+        states = sorted(
+            iter_task_states(base_dir),
+            key=lambda state: (state.updated_at, state.task_id),
+            reverse=True,
+        )
+        states = filter_task_states(states, args.focus)
+        if args.limit is not None:
+            states = states[: max(args.limit, 0)]
+        print(f"task_id\tstatus\tphase\tattempt\tupdated_at\ttitle\tfocus={args.focus}")
+        for state in states:
+            attempt_label = state.current_attempt_id or "-"
+            print(
+                "\t".join(
+                    [
+                        state.task_id,
+                        state.status,
+                        state.phase,
+                        attempt_label,
+                        state.updated_at,
+                        state.title,
+                    ]
+                )
+            )
+        return 0
+
+    if args.command == "task" and args.task_command == "inspect":
+        state = load_state(base_dir, args.task_id)
+
+        def load_json_if_exists(path: Path) -> dict[str, object]:
+            if not path.exists():
+                return {}
+            return json.loads(path.read_text(encoding="utf-8"))
+
+        compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
+        topology = load_json_if_exists(topology_path(base_dir, args.task_id))
+        dispatch = load_json_if_exists(dispatch_path(base_dir, args.task_id))
+        handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
+        execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
+        retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
+
+        lines = [
+            f"Task Overview: {state.task_id}",
+            f"title: {state.title}",
+            f"goal: {state.goal}",
+            "",
+            "State",
+            f"status: {state.status}",
+            f"phase: {state.phase}",
+            f"updated_at: {state.updated_at}",
+            f"attempt_id: {state.current_attempt_id or '-'}",
+            f"attempt_number: {state.current_attempt_number or 0}",
+            f"execution_lifecycle: {state.execution_lifecycle}",
+            "",
+            "Route And Topology",
+            f"route_mode: {state.route_mode}",
+            f"route_name: {state.route_name}",
+            f"route_backend: {state.route_backend}",
+            f"route_execution_site: {state.route_execution_site}",
+            f"topology_execution_site: {topology.get('execution_site', state.topology_execution_site)}",
+            f"topology_transport_kind: {topology.get('transport_kind', state.topology_transport_kind)}",
+            f"topology_dispatch_status: {topology.get('dispatch_status', state.topology_dispatch_status)}",
+            "",
+            "Checks",
+            f"compatibility_status: {compatibility.get('status', 'pending')}",
+            f"execution_fit_status: {execution_fit.get('status', 'pending')}",
+            f"validation_status: {load_json_if_exists(Path(state.artifact_paths.get('validation_json', ''))).get('status', 'pending') if state.artifact_paths.get('validation_json') else 'pending'}",
+            "",
+            "Retrieval And Memory",
+            f"retrieval_count: {state.retrieval_count}",
+            f"retrieval_record_available: {'yes' if isinstance(retrieval, list) and bool(retrieval) else 'no'}",
+            f"grounding_available: {'yes' if state.artifact_paths.get('source_grounding') else 'no'}",
+            f"memory_available: {'yes' if memory_path(base_dir, args.task_id).exists() else 'no'}",
+            "",
+            "Operator Guidance",
+            f"handoff_status: {handoff.get('status', 'pending')}",
+            f"blocking_reason: {handoff.get('blocking_reason', '') or '-'}",
+            f"next_operator_action: {handoff.get('next_operator_action', 'Inspect task artifacts.')}",
+            "",
+            "Artifacts",
+            f"summary: {state.artifact_paths.get('summary', '-')}",
+            f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
+            f"route_report: {state.artifact_paths.get('route_report', '-')}",
+            f"topology_report: {state.artifact_paths.get('topology_report', '-')}",
+            f"dispatch_report: {state.artifact_paths.get('dispatch_report', '-')}",
+            f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
+            f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
+            f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
+        ]
+        print("\n".join(lines))
+        return 0
+
+    if args.command == "task" and args.task_command == "review":
+        state = load_state(base_dir, args.task_id)
+
+        def load_json_if_exists(path: Path) -> dict[str, object]:
+            if not path.exists():
+                return {}
+            return json.loads(path.read_text(encoding="utf-8"))
+
+        handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
+        compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
+        execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
+        validation = load_json_if_exists(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
+        lines = [
+            f"Task Review: {state.task_id}",
+            f"title: {state.title}",
+            "",
+            "Latest Attempt",
+            f"attempt_id: {state.current_attempt_id or '-'}",
+            f"attempt_number: {state.current_attempt_number or 0}",
+            f"status: {state.status}",
+            f"executor_status: {state.executor_status}",
+            f"execution_lifecycle: {state.execution_lifecycle}",
+            "",
+            "Handoff",
+            f"handoff_status: {handoff.get('status', 'pending')}",
+            f"blocking_reason: {handoff.get('blocking_reason', '') or '-'}",
+            f"next_operator_action: {handoff.get('next_operator_action', 'Review resume_note.md and summary.md.')}",
+            "",
+            "Checks",
+            f"compatibility_status: {compatibility.get('status', 'pending')}",
+            f"execution_fit_status: {execution_fit.get('status', 'pending')}",
+            f"validation_status: {validation.get('status', 'pending')}",
+            "",
+            "Review Artifacts",
+            f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
+            f"summary: {state.artifact_paths.get('summary', '-')}",
+            f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
+            f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
+            f"compatibility_report: {state.artifact_paths.get('compatibility_report', '-')}",
+            f"execution_fit_report: {state.artifact_paths.get('execution_fit_report', '-')}",
+        ]
+        print("\n".join(lines))
+        return 0
+
+    if args.command == "task" and args.task_command == "artifacts":
+        state = load_state(base_dir, args.task_id)
+        print(build_grouped_artifact_index(state.artifact_paths), end="")
         return 0
 
     if args.command == "task" and args.task_command in {

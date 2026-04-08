@@ -1,6 +1,6 @@
 # Active Phase
 
-Current active phase: Phase 3 closeout checkpoint.
+Current active phase: Phase 4 closeout checkpoint.
 
 ## Current status
 
@@ -9,6 +9,7 @@ Current active phase: Phase 3 closeout checkpoint.
 - Phase 2 baseline complete
 - post-Phase-2 retrieval baseline complete
 - Phase 3 baseline complete
+- Phase 4 baseline complete
 
 ## Working references
 
@@ -16,12 +17,14 @@ Current active phase: Phase 3 closeout checkpoint.
   - `/home/rocio/projects/swallow/current_state.md`
 - system tracks:
   - `/home/rocio/projects/swallow/docs/system_tracks.md`
-- Phase 3 kickoff:
-  - `/home/rocio/projects/swallow/docs/phase3_kickoff_note.md`
-- Phase 3 task breakdown:
-  - `/home/rocio/projects/swallow/docs/phase3_task_breakdown.md`
 - Phase 3 closeout:
   - `/home/rocio/projects/swallow/docs/phase3_closeout_note.md`
+- Phase 4 kickoff:
+  - `/home/rocio/projects/swallow/docs/phase4_kickoff_note.md`
+- Phase 4 task breakdown:
+  - `/home/rocio/projects/swallow/docs/phase4_task_breakdown.md`
+- Phase 4 closeout:
+  - `/home/rocio/projects/swallow/docs/phase4_closeout_note.md`
 - retrieval closeout:
   - `/home/rocio/projects/swallow/docs/post_phase2_retrieval_closeout_note.md`
 
@@ -50,6 +53,6 @@ The repository already has:
 
 ## Current rule
 
-New planning work should align with `docs/system_tracks.md` first and then the closeout references above.
+New planning work should align with `docs/system_tracks.md` first and then the active closeout references above.
 
-New implementation work should not fall back to a generic MVP framing or resume open-ended Phase 3 breadth by default without a fresh planning note.
+New implementation work should not fall back to a generic MVP framing or resume open-ended Phase 4 breadth by default.

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Iterable
 
 from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
 from .paths import (
@@ -40,6 +41,23 @@ def save_state(base_dir: Path, state: TaskState) -> None:
 def load_state(base_dir: Path, task_id: str) -> TaskState:
     data = json.loads(state_path(base_dir, task_id).read_text(encoding="utf-8"))
     return TaskState.from_dict(data)
+
+
+def iter_task_states(base_dir: Path) -> Iterable[TaskState]:
+    root = tasks_root(base_dir)
+    if not root.exists():
+        return []
+
+    states: list[TaskState] = []
+    for entry in root.iterdir():
+        if not entry.is_dir():
+            continue
+        state_file = entry / "state.json"
+        if not state_file.exists():
+            continue
+        data = json.loads(state_file.read_text(encoding="utf-8"))
+        states.append(TaskState.from_dict(data))
+    return states
 
 
 def append_event(base_dir: Path, event: Event) -> None:

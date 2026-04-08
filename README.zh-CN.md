@@ -106,7 +106,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 ## 当前阶段
 
-当前仓库处于 **Phase 3 收口检查点**。
+当前仓库处于 **Phase 4 收口检查点**。
 
 当前已经实现的基线包括：
 
@@ -117,7 +117,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - 明确的本地优先执行路径，以及 route、topology、dispatch、handoff、execution-fit 产物
 - Git 项目文件与 Markdown / Obsidian 笔记检索
 
-当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在写下一份新规划说明之前，先保持一个干净、可检查、可恢复的基线。
+当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在写下一份新规划说明之前，先保持一个干净、可检查、可恢复的本地工作台基线，并在此处停下来做新规划。
 
 ## 长期方向
 
@@ -225,10 +225,12 @@ backend 不等于模型，也不等于 executor。
 
 ## 当前状态
 
-Phase 0 已验收，Phase 1 已完成，计划中的 Phase 2 baseline 也已完成。
+Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-2 retrieval baseline 已完成，Phase 3 baseline 也已完成。
 
 - [current_state.md](./current_state.md)
-- [docs/phase2_closeout_note.md](./docs/phase2_closeout_note.md)
+- [docs/phase3_closeout_note.md](./docs/phase3_closeout_note.md)
+- [docs/phase4_task_breakdown.md](./docs/phase4_task_breakdown.md)
+- [docs/phase4_closeout_note.md](./docs/phase4_closeout_note.md)
 - [CHANGELOG.md](./CHANGELOG.md)
 
 ## 术语说明
@@ -279,6 +281,16 @@ swl task memory <task-id>
 swl task route <task-id>
 ```
 
+使用当前 workbench 风格的审阅流程：
+
+```bash
+swl task list
+swl task list --focus needs-review
+swl task inspect <task-id>
+swl task review <task-id>
+swl task artifacts <task-id>
+```
+
 运行测试：
 
 ```bash
@@ -297,11 +309,16 @@ python3 -m unittest discover -s tests
 
 - `swl task create`
 - `swl task run`
+- `swl task list`
+- `swl task inspect`
+- `swl task review`
+- `swl task artifacts`
 - `swl task summarize`
 - `swl task resume-note`
 - `swl task compatibility`
 - `swl task validation`
 - `swl task grounding`
+- `swl task retrieval`
 - `swl task topology`
 - `swl task dispatch`
 - `swl task handoff`

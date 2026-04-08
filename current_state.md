@@ -6,8 +6,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 3 closeout checkpoint
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 4 closeout checkpoint
 - last checked: 2026-04-08
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -22,6 +22,10 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase3_kickoff_note.md`
   - `docs/phase3_task_breakdown.md`
   - `docs/phase3_closeout_note.md`
+- phase 4 planning reference:
+  - `docs/phase4_kickoff_note.md`
+  - `docs/phase4_task_breakdown.md`
+  - `docs/phase4_closeout_note.md`
 - system planning reference:
   - `docs/system_tracks.md`
 - post-Phase-2 retrieval planning reference:
@@ -39,6 +43,10 @@ This file tracks the implementation status of the repository itself so work can 
 - Added a minimal CLI with:
   - `swl task create`
   - `swl task run`
+  - `swl task list`
+  - `swl task inspect`
+  - `swl task artifacts`
+  - `swl task review`
   - `swl task summarize`
   - `swl task resume-note`
   - `swl task compatibility`
@@ -131,6 +139,15 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase3_kickoff_note.md` defines the next planned primary slice on the `Execution Topology` track
   - `docs/phase3_task_breakdown.md` breaks that direction into `P3-01` through `P3-06`
   - `docs/phase3_closeout_note.md` records the stop/go judgment for the completed Phase 3 baseline
+  - `docs/phase4_kickoff_note.md` defines the next planned primary slice on the `Workbench / UX` track
+  - `docs/phase4_task_breakdown.md` breaks that direction into `P4-01` through `P4-06`
+  - `docs/phase4_closeout_note.md` records the stop/go judgment for the completed Phase 4 baseline
+  - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
+  - `P4-02` task inspect and overview baseline is implemented with `swl task inspect`, a compact per-task overview of the latest attempt, route/topology, policy status, retrieval/memory availability, operator guidance, and key artifact links
+  - `P4-03` artifact index tightening is implemented with `swl task artifacts`, grouped artifact-path presentation by operator concern while preserving existing artifact paths and file layout
+  - `P4-04` review-focused resume path tightening is implemented with `swl task review`, a compact handoff-oriented summary of latest attempt outcome, blocking reason, next operator action, and canonical review artifacts without replacing `resume_note.md`
+  - `P4-05` operator filter and attention baseline is implemented through `swl task list --focus ... [--limit N]`, with explicit state-driven views for `all`, `active`, `failed`, `needs-review`, and `recent`
+  - `P4-06` CLI workbench closeout tightening is implemented with clearer help text, README quickstart alignment for the workbench commands, and test coverage for help output and list filters
   - `P3-01` execution-topology contract baseline is implemented with explicit topology fields in task state, persisted `topology.json`, readable `topology_report.md`, topology-aware event payloads, and separate route-versus-topology provenance in summaries, resume notes, and task memory
   - `P3-02` dispatch record and attempt identity baseline is implemented with stable per-run `attempt_id` sequencing, persisted `dispatch.json`, readable `dispatch_report.md`, dispatch timestamps, and attempt-aware event, summary, resume-note, state, and memory records
   - `P3-03` handoff artifact baseline is implemented with persisted `handoff.json`, readable `handoff_report.md`, explicit blocking reason and next-operator-action fields, and handoff links carried through summary, resume note, artifact paths, and task memory
@@ -158,7 +175,8 @@ This file tracks the implementation status of the repository itself so work can 
 - Phase 1 is complete enough to stop Phase 1-only expansion work by default.
 - The planned Phase 2 baseline is complete enough to stop open-ended Phase 2 backend expansion by default.
 - The planned Phase 3 baseline is complete enough to stop open-ended execution-topology expansion by default.
-- New work should now begin from a fresh planning note rather than assuming more Phase 3 implementation slices exist.
+- The planned Phase 4 baseline is complete enough to stop open-ended Workbench / UX expansion by default.
+- New work should now begin from a fresh planning note rather than assuming more Phase 4 implementation slices exist.
 
 ## Known Issues
 
@@ -169,11 +187,12 @@ This file tracks the implementation status of the repository itself so work can 
 
 1. Re-run the test suite.
 2. Use `docs/system_tracks.md` as the system-map reference before starting new implementation.
-3. Use `docs/phase3_closeout_note.md` as the current stop/go decision reference.
-4. Use `docs/system_tracks.md` before writing any new phase note so the next slice is anchored to a primary track.
+3. Use `docs/phase3_closeout_note.md` as the execution-topology stop/go reference.
+4. Use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference.
 5. Use `docs/post_phase2_retrieval_closeout_note.md` as the current retrieval stop/go decision reference.
-6. Verify the editable install exposes the `swl` entrypoint correctly.
-7. Update this file after each substantial code change.
+6. Use `docs/system_tracks.md` before writing the next planning note so the next slice is anchored to a primary track.
+7. Verify the editable install exposes the `swl` entrypoint correctly.
+8. Update this file after each substantial code change.
 
 ## Resume Command
 

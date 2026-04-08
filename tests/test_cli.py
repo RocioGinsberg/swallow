@@ -33,6 +33,356 @@ from swallow.validator import build_validation_report, validate_run_outputs
 
 
 class CliLifecycleTest(unittest.TestCase):
+    def test_task_list_prints_header_when_no_tasks_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "list"]), 0)
+
+        self.assertEqual(stdout.getvalue(), "task_id\tstatus\tphase\tattempt\tupdated_at\ttitle\tfocus=all\n")
+
+    def test_task_list_shows_stable_recent_first_summaries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            alpha_root = tmp_path / ".swl" / "tasks" / "task-alpha"
+            beta_root = tmp_path / ".swl" / "tasks" / "task-beta"
+            alpha_root.mkdir(parents=True, exist_ok=True)
+            beta_root.mkdir(parents=True, exist_ok=True)
+
+            alpha_state = TaskState(
+                task_id="task-alpha",
+                title="Alpha task",
+                goal="Older task",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="summarize",
+                updated_at="2026-04-08T09:00:00+00:00",
+                current_attempt_id="attempt-0001",
+            )
+            beta_state = TaskState(
+                task_id="task-beta",
+                title="Beta task",
+                goal="Newer task",
+                workspace_root=str(tmp_path),
+                status="failed",
+                phase="execute",
+                updated_at="2026-04-08T10:00:00+00:00",
+                current_attempt_id="attempt-0002",
+            )
+            (alpha_root / "state.json").write_text(json.dumps(alpha_state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (beta_root / "state.json").write_text(json.dumps(beta_state.to_dict(), indent=2) + "\n", encoding="utf-8")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "list"]), 0)
+
+        lines = stdout.getvalue().splitlines()
+        self.assertEqual(lines[0], "task_id\tstatus\tphase\tattempt\tupdated_at\ttitle\tfocus=all")
+        self.assertEqual(
+            lines[1],
+            "task-beta\tfailed\texecute\tattempt-0002\t2026-04-08T10:00:00+00:00\tBeta task",
+        )
+        self.assertEqual(
+            lines[2],
+            "task-alpha\tcompleted\tsummarize\tattempt-0001\t2026-04-08T09:00:00+00:00\tAlpha task",
+        )
+
+    def test_task_list_failed_focus_only_shows_failed_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            failed_root = tmp_path / ".swl" / "tasks" / "task-failed"
+            completed_root = tmp_path / ".swl" / "tasks" / "task-done"
+            failed_root.mkdir(parents=True, exist_ok=True)
+            completed_root.mkdir(parents=True, exist_ok=True)
+
+            failed_state = TaskState(
+                task_id="task-failed",
+                title="Failed task",
+                goal="Needs attention",
+                workspace_root=str(tmp_path),
+                status="failed",
+                phase="summarize",
+                updated_at="2026-04-08T10:00:00+00:00",
+                current_attempt_id="attempt-0001",
+            )
+            completed_state = TaskState(
+                task_id="task-done",
+                title="Done task",
+                goal="No attention needed",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="summarize",
+                updated_at="2026-04-08T09:00:00+00:00",
+                current_attempt_id="attempt-0001",
+            )
+            (failed_root / "state.json").write_text(json.dumps(failed_state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (completed_root / "state.json").write_text(
+                json.dumps(completed_state.to_dict(), indent=2) + "\n", encoding="utf-8"
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "list", "--focus", "failed"]), 0)
+
+        lines = stdout.getvalue().splitlines()
+        self.assertEqual(lines[0], "task_id\tstatus\tphase\tattempt\tupdated_at\ttitle\tfocus=failed")
+        self.assertEqual(len(lines), 2)
+        self.assertIn("task-failed\tfailed", lines[1])
+
+    def test_task_list_needs_review_focus_and_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            entries = [
+                (
+                    "task-review-1",
+                    TaskState(
+                        task_id="task-review-1",
+                        title="Review one",
+                        goal="Summarize pending review",
+                        workspace_root=str(tmp_path),
+                        status="completed",
+                        phase="summarize",
+                        updated_at="2026-04-08T11:00:00+00:00",
+                        current_attempt_id="attempt-0001",
+                    ),
+                ),
+                (
+                    "task-review-2",
+                    TaskState(
+                        task_id="task-review-2",
+                        title="Review two",
+                        goal="Executor still running",
+                        workspace_root=str(tmp_path),
+                        status="running",
+                        phase="executing",
+                        updated_at="2026-04-08T10:00:00+00:00",
+                        current_attempt_id="attempt-0002",
+                        executor_status="running",
+                    ),
+                ),
+                (
+                    "task-ignore",
+                    TaskState(
+                        task_id="task-ignore",
+                        title="Ignore me",
+                        goal="Already done",
+                        workspace_root=str(tmp_path),
+                        status="completed",
+                        phase="done",
+                        updated_at="2026-04-08T09:00:00+00:00",
+                        current_attempt_id="attempt-0001",
+                        executor_status="completed",
+                    ),
+                ),
+            ]
+            for task_id, state in entries:
+                task_root = tmp_path / ".swl" / "tasks" / task_id
+                task_root.mkdir(parents=True, exist_ok=True)
+                (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "list",
+                            "--focus",
+                            "needs-review",
+                            "--limit",
+                            "1",
+                        ]
+                    ),
+                    0,
+                )
+
+        lines = stdout.getvalue().splitlines()
+        self.assertEqual(lines[0], "task_id\tstatus\tphase\tattempt\tupdated_at\ttitle\tfocus=needs-review")
+        self.assertEqual(len(lines), 2)
+        self.assertIn("task-review-1\tcompleted\tsummarize", lines[1])
+
+    def test_task_inspect_shows_compact_overview_for_latest_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\ninspect overview baseline\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Inspect task",
+                            "--goal",
+                            "Surface compact overview",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+                stdout = StringIO()
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"Task Overview: {task_id}", output)
+        self.assertIn("title: Inspect task", output)
+        self.assertIn("status: completed", output)
+        self.assertIn("attempt_id: attempt-0002", output)
+        self.assertIn("attempt_number: 2", output)
+        self.assertIn("route_name: local-mock", output)
+        self.assertIn("topology_execution_site: local", output)
+        self.assertIn("topology_dispatch_status: local_dispatched", output)
+        self.assertIn("compatibility_status: passed", output)
+        self.assertIn("execution_fit_status: passed", output)
+        self.assertIn("validation_status: passed", output)
+        self.assertIn("retrieval_record_available: yes", output)
+        self.assertIn("grounding_available: yes", output)
+        self.assertIn("memory_available: yes", output)
+        self.assertIn("handoff_status: review_completed_run", output)
+        self.assertIn("next_operator_action: Review summary.md", output)
+        self.assertIn("summary:", output)
+        self.assertIn("retrieval_report:", output)
+
+    def test_task_artifacts_groups_paths_by_operator_concern(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\nartifact index grouping\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Artifact index",
+                            "--goal",
+                            "Group artifact paths for review",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+                stdout = StringIO()
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "artifacts", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("Task Artifact Index", output)
+        self.assertIn("Core Run Record", output)
+        self.assertIn("Routing And Topology", output)
+        self.assertIn("Retrieval And Grounding", output)
+        self.assertIn("Validation And Policy", output)
+        self.assertIn("Memory And Reuse", output)
+        self.assertIn("summary:", output)
+        self.assertIn("resume_note:", output)
+        self.assertIn("route_report:", output)
+        self.assertIn("handoff_report:", output)
+        self.assertIn("retrieval_report:", output)
+        self.assertIn("validation_report:", output)
+        self.assertIn("compatibility_report:", output)
+        self.assertIn("execution_fit_report:", output)
+        self.assertIn("task_memory:", output)
+
+    def test_task_review_surfaces_handoff_and_resume_guidance_after_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\nreview handoff guidance\n", encoding="utf-8")
+
+            with patch.dict(
+                "os.environ",
+                {"AIWF_CODEX_BIN": "definitely-not-a-real-codex-binary", "AIWF_EXECUTOR_MODE": "codex"},
+                clear=False,
+            ):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Review failure",
+                            "--goal",
+                            "Surface handoff review guidance",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+                stdout = StringIO()
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"Task Review: {task_id}", output)
+        self.assertIn("status: failed", output)
+        self.assertIn("handoff_status: resume_from_failure", output)
+        self.assertIn("blocking_reason: launch_error", output)
+        self.assertIn("next_operator_action:", output)
+        self.assertIn("resume_note:", output)
+        self.assertIn("handoff_report:", output)
+        self.assertIn("validation_report:", output)
+
+    def test_task_help_includes_workbench_commands(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["task", "--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        output = stdout.getvalue()
+        self.assertIn("list                List tasks with compact status summaries.", output)
+        self.assertIn("inspect             Print a compact per-task overview.", output)
+        self.assertIn("review              Print a review-focused task handoff summary.", output)
+        self.assertIn("artifacts           Print grouped task artifact paths.", output)
+
+    def test_task_list_help_includes_focus_and_limit(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["task", "list", "--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        output = stdout.getvalue()
+        self.assertIn("--focus {all,active,failed,needs-review,recent}", output)
+        self.assertIn("--limit LIMIT", output)
+
+    def test_top_level_help_includes_task_workbench_wording(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        self.assertIn("task               Task workbench and lifecycle commands.", stdout.getvalue())
+
     def test_retrieval_evaluation_fixtures_cover_notes_repo_and_artifacts(self) -> None:
         fixture_root = Path(__file__).resolve().parent / "fixtures" / "retrieval_eval"
         cases = [

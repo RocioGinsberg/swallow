@@ -101,7 +101,7 @@ Domain-specific behavior should live in domain packs or capability packs rather 
 
 ## Current focus
 
-The repository is currently at a **Phase 3 closeout checkpoint**.
+The repository is currently at a **Phase 4 closeout checkpoint**.
 
 The implemented baseline now includes:
 
@@ -112,7 +112,7 @@ The implemented baseline now includes:
 - explicit local-first execution with route, topology, dispatch, handoff, and execution-fit artifacts
 - Git project files and Markdown / Obsidian notes as retrieval sources
 
-The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve a clean, inspectable baseline before writing the next planning note.
+The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve a clean, inspectable local workbench baseline and then stop for a fresh planning note.
 
 ## Long-term direction
 
@@ -218,12 +218,14 @@ A practical interpretation is:
 
 ## Status
 
-Phase 0 accepted, Phase 1 complete, and the planned Phase 2 baseline complete.
+Phase 0 accepted, Phase 1 complete, Phase 2 baseline complete, post-Phase-2 retrieval baseline complete, and Phase 3 baseline complete.
 
 Implementation checkpoint for interrupted sessions:
 
 - [current_state.md](./current_state.md)
-- [docs/phase2_closeout_note.md](./docs/phase2_closeout_note.md)
+- [docs/phase3_closeout_note.md](./docs/phase3_closeout_note.md)
+- [docs/phase4_task_breakdown.md](./docs/phase4_task_breakdown.md)
+- [docs/phase4_closeout_note.md](./docs/phase4_closeout_note.md)
 - [CHANGELOG.md](./CHANGELOG.md)
 
 ## Terminology
@@ -274,6 +276,16 @@ swl task memory <task-id>
 swl task route <task-id>
 ```
 
+Use the current workbench-style review flow:
+
+```bash
+swl task list
+swl task list --focus needs-review
+swl task inspect <task-id>
+swl task review <task-id>
+swl task artifacts <task-id>
+```
+
 Run a minimal Codex preflight:
 
 ```bash
@@ -292,11 +304,16 @@ The current CLI implements:
 
 - `swl task create`
 - `swl task run`
+- `swl task list`
+- `swl task inspect`
+- `swl task review`
+- `swl task artifacts`
 - `swl task summarize`
 - `swl task resume-note`
 - `swl task compatibility`
 - `swl task validation`
 - `swl task grounding`
+- `swl task retrieval`
 - `swl task topology`
 - `swl task dispatch`
 - `swl task handoff`
