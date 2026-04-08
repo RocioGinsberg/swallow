@@ -6,8 +6,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 4 closeout checkpoint
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 5 closeout checkpoint
 - last checked: 2026-04-08
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -26,6 +26,10 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase4_kickoff_note.md`
   - `docs/phase4_task_breakdown.md`
   - `docs/phase4_closeout_note.md`
+- phase 5 planning reference:
+  - `docs/phase5_kickoff_note.md`
+  - `docs/phase5_task_breakdown.md`
+  - `docs/phase5_closeout_note.md`
 - system planning reference:
   - `docs/system_tracks.md`
 - post-Phase-2 retrieval planning reference:
@@ -142,6 +146,15 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase4_kickoff_note.md` defines the next planned primary slice on the `Workbench / UX` track
   - `docs/phase4_task_breakdown.md` breaks that direction into `P4-01` through `P4-06`
   - `docs/phase4_closeout_note.md` records the stop/go judgment for the completed Phase 4 baseline
+  - `docs/phase5_kickoff_note.md` defines the next planned primary slice on the `Capabilities` track
+  - `docs/phase5_task_breakdown.md` breaks that direction into `P5-01` through `P5-06`
+  - `P5-01` capability manifest baseline is implemented with a small `CapabilityManifest` shape, a local-first default manifest, repeatable `--capability kind:ref` task-create inputs, and persisted capability manifest fields in task state and `task.created` events
+  - `P5-02` capability assembly record baseline is implemented with deterministic local-first assembly, persisted `capability_assembly.json`, and explicit separation between requested manifest and effective assembly in task state and `task.created` events
+  - `P5-03` task-level capability selection baseline is implemented with repeatable `swl task run --capability kind:ref` overrides that update persisted capability manifest and capability assembly before `task.run_started`
+  - `P5-04` capability inspection path baseline is implemented with `swl task capabilities` and `swl task capabilities-json`, separating requested capability manifest from effective assembly in operator-facing inspection flows
+  - `P5-05` capability validation baseline is implemented with a small local-first known-capability allowlist; unknown capability refs now fail clearly during task creation or run-time override
+  - `P5-06` capability closeout tightening is implemented with capability-aware CLI help, README quickstart alignment for create/run/inspect flows, and test coverage for capability help text
+  - `docs/phase5_closeout_note.md` records the stop/go judgment for the completed Phase 5 baseline
   - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
   - `P4-02` task inspect and overview baseline is implemented with `swl task inspect`, a compact per-task overview of the latest attempt, route/topology, policy status, retrieval/memory availability, operator guidance, and key artifact links
   - `P4-03` artifact index tightening is implemented with `swl task artifacts`, grouped artifact-path presentation by operator concern while preserving existing artifact paths and file layout
@@ -176,7 +189,8 @@ This file tracks the implementation status of the repository itself so work can 
 - The planned Phase 2 baseline is complete enough to stop open-ended Phase 2 backend expansion by default.
 - The planned Phase 3 baseline is complete enough to stop open-ended execution-topology expansion by default.
 - The planned Phase 4 baseline is complete enough to stop open-ended Workbench / UX expansion by default.
-- New work should now begin from a fresh planning note rather than assuming more Phase 4 implementation slices exist.
+- The planned Phase 5 baseline is complete enough to stop open-ended `Capabilities` expansion by default.
+- New work should now begin from a fresh post-Phase-5 planning note rather than assuming more Phase 5 implementation slices exist.
 
 ## Known Issues
 
@@ -190,9 +204,10 @@ This file tracks the implementation status of the repository itself so work can 
 3. Use `docs/phase3_closeout_note.md` as the execution-topology stop/go reference.
 4. Use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference.
 5. Use `docs/post_phase2_retrieval_closeout_note.md` as the current retrieval stop/go decision reference.
-6. Use `docs/system_tracks.md` before writing the next planning note so the next slice is anchored to a primary track.
-7. Verify the editable install exposes the `swl` entrypoint correctly.
-8. Update this file after each substantial code change.
+6. Use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference.
+7. Write or consult a fresh planning note before resuming implementation after Phase 5.
+8. Verify the editable install exposes the `swl` entrypoint correctly.
+9. Update this file after each substantial code change.
 
 ## Resume Command
 

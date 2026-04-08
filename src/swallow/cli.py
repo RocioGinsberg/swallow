@@ -8,6 +8,8 @@ from .doctor import diagnose_codex, format_codex_doctor_result
 from .orchestrator import create_task, run_task
 from .paths import (
     artifacts_dir,
+    capability_assembly_path,
+    capability_manifest_path,
     compatibility_path,
     dispatch_path,
     execution_fit_path,
@@ -91,6 +93,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Executor to persist for the task. Defaults to codex.",
     )
     create_parser.add_argument(
+        "--capability",
+        action="append",
+        default=[],
+        help="Capability reference to persist with the task, for example profile:baseline_local or validator:run_output_validation. Repeatable.",
+    )
+    create_parser.add_argument(
         "--route-mode",
         default="auto",
         choices=["auto", "live", "deterministic", "offline", "summary"],
@@ -103,6 +111,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--executor",
         default=None,
         help="Override the task executor for this run.",
+    )
+    run_parser.add_argument(
+        "--capability",
+        action="append",
+        default=[],
+        help="Override the task capability manifest for this run with repeatable kind:ref entries.",
     )
     run_parser.add_argument(
         "--route-mode",
@@ -126,6 +140,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inspect_parser = task_subparsers.add_parser("inspect", help="Print a compact per-task overview.")
     inspect_parser.add_argument("task_id", help="Task identifier.")
+    capabilities_parser = task_subparsers.add_parser("capabilities", help="Print the task capability assembly summary.")
+    capabilities_parser.add_argument("task_id", help="Task identifier.")
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
     artifacts_parser = task_subparsers.add_parser("artifacts", help="Print grouped task artifact paths.")
@@ -183,6 +199,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task execution-fit record.",
     )
     execution_fit_json_parser.add_argument("task_id", help="Task identifier.")
+    capabilities_json_parser = task_subparsers.add_parser(
+        "capabilities-json",
+        help="Print the task capability assembly record.",
+    )
+    capabilities_json_parser.add_argument("task_id", help="Task identifier.")
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
@@ -203,13 +224,20 @@ def main(argv: list[str] | None = None) -> int:
             goal=args.goal.strip(),
             workspace_root=Path(args.workspace_root).resolve(),
             executor_name=args.executor.strip(),
+            capability_refs=args.capability,
             route_mode=args.route_mode,
         )
         print(state.task_id)
         return 0
 
     if args.command == "task" and args.task_command == "run":
-        state = run_task(base_dir=base_dir, task_id=args.task_id, executor_name=args.executor, route_mode=args.route_mode)
+        state = run_task(
+            base_dir=base_dir,
+            task_id=args.task_id,
+            executor_name=args.executor,
+            capability_refs=args.capability,
+            route_mode=args.route_mode,
+        )
         print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
         return 0
 
@@ -301,6 +329,31 @@ def main(argv: list[str] | None = None) -> int:
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
+        ]
+        print("\n".join(lines))
+        return 0
+
+    if args.command == "task" and args.task_command == "capabilities":
+        state = load_state(base_dir, args.task_id)
+        manifest = json.loads(capability_manifest_path(base_dir, args.task_id).read_text(encoding="utf-8"))
+        assembly = json.loads(capability_assembly_path(base_dir, args.task_id).read_text(encoding="utf-8"))
+        lines = [
+            f"Task Capabilities: {state.task_id}",
+            "",
+            "Requested Manifest",
+            f"profile_refs: {', '.join(manifest.get('profile_refs', [])) or '-'}",
+            f"workflow_refs: {', '.join(manifest.get('workflow_refs', [])) or '-'}",
+            f"validator_refs: {', '.join(manifest.get('validator_refs', [])) or '-'}",
+            f"skill_refs: {', '.join(manifest.get('skill_refs', [])) or '-'}",
+            f"tool_refs: {', '.join(manifest.get('tool_refs', [])) or '-'}",
+            "",
+            "Effective Assembly",
+            f"assembly_status: {assembly.get('assembly_status', 'pending')}",
+            f"resolver: {assembly.get('resolver', 'unknown')}",
+            f"effective_profiles: {', '.join(assembly.get('effective', {}).get('profile_refs', [])) or '-'}",
+            f"effective_workflows: {', '.join(assembly.get('effective', {}).get('workflow_refs', [])) or '-'}",
+            f"effective_validators: {', '.join(assembly.get('effective', {}).get('validator_refs', [])) or '-'}",
+            f"notes: {'; '.join(assembly.get('notes', [])) or '-'}",
         ]
         print("\n".join(lines))
         return 0
@@ -409,6 +462,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "execution-fit-json":
         print(json.dumps(json.loads(execution_fit_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "capabilities-json":
+        print(json.dumps(json.loads(capability_assembly_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":

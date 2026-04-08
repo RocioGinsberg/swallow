@@ -22,6 +22,14 @@ The completed Phase 3 and Phase 4 baselines established:
 - task-list and task-overview workbench entrypoints
 - grouped artifact review and operator attention views
 
+The completed Phase 5 baseline established:
+
+- explicit requested capability manifests
+- explicit effective capability assembly records
+- task-level capability selection during create and run
+- operator-facing capability inspection
+- clear failure for unknown capability references
+
 ## Explicit non-goals right now
 
 Do not treat these as current-slice requirements:
@@ -40,4 +48,5 @@ When planning the next task:
 - prefer `docs/system_tracks.md` before phase-local planning
 - use `docs/phase3_closeout_note.md` before deciding whether to continue execution-topology work
 - use `docs/phase4_closeout_note.md` before deciding whether to continue Workbench / UX work
+- use `docs/phase5_closeout_note.md` before deciding whether to continue `Capabilities` work
 - prefer a fresh planning note over open-ended continuation

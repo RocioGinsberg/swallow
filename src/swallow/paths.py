@@ -46,6 +46,14 @@ def memory_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "memory.json"
 
 
+def capability_assembly_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "capability_assembly.json"
+
+
+def capability_manifest_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "capability_manifest.json"
+
+
 def route_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "route.json"
 

@@ -7,6 +7,8 @@ from typing import Iterable
 from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
 from .paths import (
     artifacts_dir,
+    capability_assembly_path,
+    capability_manifest_path,
     compatibility_path,
     dispatch_path,
     execution_fit_path,
@@ -94,6 +96,22 @@ def save_compatibility(base_dir: Path, task_id: str, payload: dict[str, object])
 def save_memory(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
     ensure_task_layout(base_dir, task_id)
     memory_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_capability_assembly(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    capability_assembly_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_capability_manifest(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    capability_manifest_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )

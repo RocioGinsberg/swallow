@@ -15,6 +15,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.cli import main
 from swallow.compatibility import build_compatibility_report, evaluate_route_compatibility
+from swallow.capabilities import (
+    DEFAULT_CAPABILITY_MANIFEST,
+    build_capability_assembly,
+    parse_capability_refs,
+    validate_capability_manifest,
+)
 from swallow.execution_fit import build_execution_fit_report, evaluate_execution_fit
 from swallow.executor import (
     build_fallback_output,
@@ -33,6 +39,241 @@ from swallow.validator import build_validation_report, validate_run_outputs
 
 
 class CliLifecycleTest(unittest.TestCase):
+    def test_parse_capability_refs_returns_default_manifest_when_not_provided(self) -> None:
+        manifest = parse_capability_refs(None)
+
+        self.assertEqual(manifest.to_dict(), DEFAULT_CAPABILITY_MANIFEST.to_dict())
+
+    def test_parse_capability_refs_builds_manifest_from_explicit_refs(self) -> None:
+        manifest = parse_capability_refs(
+            [
+                "profile:baseline_local",
+                "workflow:task_loop",
+                "validator:run_output_validation",
+                "skill:plan-task",
+                "tool:doctor.codex",
+            ]
+        )
+
+        self.assertEqual(manifest.profile_refs, ["baseline_local"])
+        self.assertEqual(manifest.workflow_refs, ["task_loop"])
+        self.assertEqual(manifest.validator_refs, ["run_output_validation"])
+        self.assertEqual(manifest.skill_refs, ["plan-task"])
+        self.assertEqual(manifest.tool_refs, ["doctor.codex"])
+
+    def test_validate_capability_manifest_reports_unknown_refs(self) -> None:
+        manifest = parse_capability_refs(
+            [
+                "profile:missing_profile",
+                "validator:missing_validator",
+            ]
+        )
+
+        errors = validate_capability_manifest(manifest)
+
+        self.assertIn("Unknown profile capability: missing_profile", errors)
+        self.assertIn("Unknown validator capability: missing_validator", errors)
+
+    def test_create_task_persists_default_capability_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Default capability manifest",
+                goal="Persist baseline capability selection",
+                workspace_root=tmp_path,
+            )
+            persisted = json.loads((tmp_path / ".swl" / "tasks" / state.task_id / "state.json").read_text(encoding="utf-8"))
+            capability_assembly = json.loads(
+                (tmp_path / ".swl" / "tasks" / state.task_id / "capability_assembly.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(state.capability_manifest, DEFAULT_CAPABILITY_MANIFEST.to_dict())
+        self.assertEqual(state.capability_assembly, build_capability_assembly(DEFAULT_CAPABILITY_MANIFEST).to_dict())
+        self.assertEqual(persisted["capability_manifest"], DEFAULT_CAPABILITY_MANIFEST.to_dict())
+        self.assertEqual(capability_assembly["effective"], DEFAULT_CAPABILITY_MANIFEST.to_dict())
+
+    def test_cli_create_persists_explicit_capability_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Capability manifest",
+                        "--goal",
+                        "Persist explicit capability refs",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--capability",
+                        "profile:baseline_local",
+                        "--capability",
+                        "workflow:task_loop",
+                        "--capability",
+                        "validator:run_output_validation",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            state = json.loads((tmp_path / ".swl" / "tasks" / task_id / "state.json").read_text(encoding="utf-8"))
+            capability_assembly = json.loads(
+                (tmp_path / ".swl" / "tasks" / task_id / "capability_assembly.json").read_text(encoding="utf-8")
+            )
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(state["capability_manifest"]["profile_refs"], ["baseline_local"])
+        self.assertEqual(state["capability_manifest"]["workflow_refs"], ["task_loop"])
+        self.assertEqual(state["capability_manifest"]["validator_refs"], ["run_output_validation"])
+        self.assertEqual(capability_assembly["requested"]["profile_refs"], ["baseline_local"])
+        self.assertEqual(capability_assembly["effective"]["workflow_refs"], ["task_loop"])
+        self.assertEqual(capability_assembly["assembly_status"], "assembled")
+        self.assertEqual(events[0]["payload"]["capability_manifest"]["profile_refs"], ["baseline_local"])
+        self.assertEqual(events[0]["payload"]["capability_assembly"]["resolver"], "local_baseline")
+
+    def test_run_task_capability_override_updates_manifest_and_assembly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Capability override",
+                goal="Override capability manifest at run time",
+                workspace_root=tmp_path,
+            )
+
+            retrieval_items = [RetrievalItem(path="notes.md", source_type="notes", score=1, preview="context")]
+            executor_result = ExecutorResult(
+                executor_name="mock",
+                status="completed",
+                message="Execution finished.",
+                output="done",
+            )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
+                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                    with patch(
+                        "swallow.orchestrator.write_task_artifacts",
+                        return_value=(
+                            ValidationResult(status="passed", message="Compatibility passed."),
+                            ValidationResult(status="passed", message="Execution fit passed."),
+                            ValidationResult(status="passed", message="Validation passed."),
+                        ),
+                    ):
+                        final_state = run_task(
+                            tmp_path,
+                            state.task_id,
+                            capability_refs=["profile:research_local", "validator:strict_validation"],
+                        )
+
+            persisted = json.loads((tmp_path / ".swl" / "tasks" / state.task_id / "state.json").read_text(encoding="utf-8"))
+            capability_assembly = json.loads(
+                (tmp_path / ".swl" / "tasks" / state.task_id / "capability_assembly.json").read_text(encoding="utf-8")
+            )
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / state.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(final_state.capability_manifest["profile_refs"], ["research_local"])
+        self.assertEqual(final_state.capability_manifest["validator_refs"], ["strict_validation"])
+        self.assertEqual(persisted["capability_manifest"]["profile_refs"], ["research_local"])
+        self.assertEqual(capability_assembly["effective"]["validator_refs"], ["strict_validation"])
+        self.assertEqual(events[1]["event_type"], "task.run_started")
+        self.assertEqual(events[1]["payload"]["capability_manifest"]["profile_refs"], ["research_local"])
+        self.assertEqual(events[1]["payload"]["capability_assembly"]["assembly_status"], "assembled")
+
+    def test_cli_capabilities_commands_show_requested_and_effective_capability_state(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Capability inspect",
+                        "--goal",
+                        "Inspect capability assembly",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--capability",
+                        "profile:baseline_local",
+                        "--capability",
+                        "validator:run_output_validation",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+
+            summary_stdout = StringIO()
+            json_stdout = StringIO()
+            with redirect_stdout(summary_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "capabilities", task_id]), 0)
+            with redirect_stdout(json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "capabilities-json", task_id]), 0)
+
+        summary_output = summary_stdout.getvalue()
+        self.assertIn(f"Task Capabilities: {task_id}", summary_output)
+        self.assertIn("Requested Manifest", summary_output)
+        self.assertIn("profile_refs: baseline_local", summary_output)
+        self.assertIn("validator_refs: run_output_validation", summary_output)
+        self.assertIn("Effective Assembly", summary_output)
+        self.assertIn("assembly_status: assembled", summary_output)
+        self.assertIn("resolver: local_baseline", summary_output)
+        self.assertIn("effective_profiles: baseline_local", summary_output)
+
+        json_output = json_stdout.getvalue()
+        self.assertIn('"requested"', json_output)
+        self.assertIn('"effective"', json_output)
+        self.assertIn('"assembly_status"', json_output)
+
+    def test_create_task_rejects_unknown_capability_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            with self.assertRaises(ValueError) as raised:
+                create_task(
+                    base_dir=tmp_path,
+                    title="Invalid capability",
+                    goal="Reject unknown capability refs",
+                    workspace_root=tmp_path,
+                    capability_refs=["profile:missing_profile"],
+                )
+
+        self.assertIn("Unknown profile capability: missing_profile", str(raised.exception))
+
+    def test_run_task_rejects_unknown_capability_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Capability validation",
+                goal="Reject invalid run-time capability override",
+                workspace_root=tmp_path,
+            )
+
+            with self.assertRaises(ValueError) as raised:
+                run_task(
+                    tmp_path,
+                    state.task_id,
+                    capability_refs=["validator:missing_validator"],
+                )
+
+        self.assertIn("Unknown validator capability: missing_validator", str(raised.exception))
+
     def test_task_list_prints_header_when_no_tasks_exist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -382,6 +623,35 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 0)
         self.assertIn("task               Task workbench and lifecycle commands.", stdout.getvalue())
+
+    def test_task_help_includes_capability_commands(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["task", "--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        output = stdout.getvalue()
+        self.assertIn("capabilities        Print the task capability assembly summary.", output)
+        self.assertIn("capabilities-json   Print the task capability assembly record.", output)
+
+    def test_task_create_help_includes_capability_flag(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["task", "create", "--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        self.assertIn("--capability CAPABILITY", stdout.getvalue())
+
+    def test_task_run_help_includes_capability_flag(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["task", "run", "--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        self.assertIn("--capability CAPABILITY", stdout.getvalue())
 
     def test_retrieval_evaluation_fixtures_cover_notes_repo_and_artifacts(self) -> None:
         fixture_root = Path(__file__).resolve().parent / "fixtures" / "retrieval_eval"

@@ -106,7 +106,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 ## 当前阶段
 
-当前仓库处于 **Phase 4 收口检查点**。
+当前仓库处于 **Phase 5 收口检查点**。
 
 当前已经实现的基线包括：
 
@@ -117,7 +117,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - 明确的本地优先执行路径，以及 route、topology、dispatch、handoff、execution-fit 产物
 - Git 项目文件与 Markdown / Obsidian 笔记检索
 
-当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在写下一份新规划说明之前，先保持一个干净、可检查、可恢复的本地工作台基线，并在此处停下来做新规划。
+当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把 `Capabilities` 基线视为已完成，并通过新的规划说明决定下一轮实现，而不是继续无边界扩展。
 
 ## 长期方向
 
@@ -225,12 +225,13 @@ backend 不等于模型，也不等于 executor。
 
 ## 当前状态
 
-Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-2 retrieval baseline 已完成，Phase 3 baseline 也已完成。
+Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-2 retrieval baseline 已完成，Phase 3 baseline 已完成，Phase 4 baseline 已完成，Phase 5 baseline 也已完成。
 
 - [current_state.md](./current_state.md)
 - [docs/phase3_closeout_note.md](./docs/phase3_closeout_note.md)
-- [docs/phase4_task_breakdown.md](./docs/phase4_task_breakdown.md)
 - [docs/phase4_closeout_note.md](./docs/phase4_closeout_note.md)
+- [docs/phase5_task_breakdown.md](./docs/phase5_task_breakdown.md)
+- [docs/phase5_closeout_note.md](./docs/phase5_closeout_note.md)
 - [CHANGELOG.md](./CHANGELOG.md)
 
 ## 术语说明
@@ -255,6 +256,8 @@ swl task create \
   --title "Design orchestrator" \
   --goal "Tighten the harness runtime boundary" \
   --workspace-root . \
+  --capability profile:baseline_local \
+  --capability workflow:task_loop \
   --executor local
 ```
 
@@ -262,6 +265,7 @@ swl task create \
 
 ```bash
 swl task run <task-id>
+swl task run <task-id> --capability validator:strict_validation
 swl task run <task-id> --executor codex
 ```
 
@@ -287,6 +291,7 @@ swl task route <task-id>
 swl task list
 swl task list --focus needs-review
 swl task inspect <task-id>
+swl task capabilities <task-id>
 swl task review <task-id>
 swl task artifacts <task-id>
 ```
@@ -311,6 +316,7 @@ python3 -m unittest discover -s tests
 - `swl task run`
 - `swl task list`
 - `swl task inspect`
+- `swl task capabilities`
 - `swl task review`
 - `swl task artifacts`
 - `swl task summarize`
@@ -331,6 +337,7 @@ python3 -m unittest discover -s tests
 - `swl task dispatch-json`
 - `swl task handoff-json`
 - `swl task execution-fit-json`
+- `swl task capabilities-json`
 - `swl task retrieval-json`
 - `swl doctor codex`
 

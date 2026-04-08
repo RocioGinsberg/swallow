@@ -35,6 +35,41 @@ def utc_now() -> str:
 
 
 @dataclass(slots=True)
+class CapabilityManifest:
+    profile_refs: list[str] = field(default_factory=list)
+    workflow_refs: list[str] = field(default_factory=list)
+    validator_refs: list[str] = field(default_factory=list)
+    skill_refs: list[str] = field(default_factory=list)
+    tool_refs: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    def has_entries(self) -> bool:
+        return any(
+            [
+                self.profile_refs,
+                self.workflow_refs,
+                self.validator_refs,
+                self.skill_refs,
+                self.tool_refs,
+            ]
+        )
+
+
+@dataclass(slots=True)
+class CapabilityAssembly:
+    requested: dict[str, Any] = field(default_factory=dict)
+    effective: dict[str, Any] = field(default_factory=dict)
+    assembly_status: str = "assembled"
+    resolver: str = "local_baseline"
+    notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class TaskState:
     task_id: str
     title: str
@@ -46,6 +81,8 @@ class TaskState:
     updated_at: str = field(default_factory=utc_now)
     retrieval_count: int = 0
     executor_name: str = "codex"
+    capability_manifest: dict[str, Any] = field(default_factory=dict)
+    capability_assembly: dict[str, Any] = field(default_factory=dict)
     route_mode: str = "auto"
     route_name: str = "local-codex"
     route_backend: str = "local_cli"

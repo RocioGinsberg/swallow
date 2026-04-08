@@ -4,11 +4,14 @@ from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
 
+from .capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
 from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
 from .models import Event, RetrievalRequest, TaskState
 from .paths import (
     artifacts_dir,
+    capability_assembly_path,
+    capability_manifest_path,
     compatibility_path,
     dispatch_path,
     execution_fit_path,
@@ -21,7 +24,7 @@ from .paths import (
 )
 from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
-from .store import append_event, load_state, save_state
+from .store import append_event, load_state, save_capability_assembly, save_capability_manifest, save_state
 from .models import utc_now
 
 
@@ -52,15 +55,23 @@ def create_task(
     goal: str,
     workspace_root: Path,
     executor_name: str = "codex",
+    capability_refs: list[str] | None = None,
     route_mode: str = "auto",
 ) -> TaskState:
     task_id = uuid4().hex[:12]
+    capability_manifest = parse_capability_refs(capability_refs)
+    capability_errors = validate_capability_manifest(capability_manifest)
+    if capability_errors:
+        raise ValueError("; ".join(capability_errors))
+    capability_assembly = build_capability_assembly(capability_manifest)
     state = TaskState(
         task_id=task_id,
         title=title,
         goal=goal,
         workspace_root=str(workspace_root.resolve()),
         executor_name=normalize_executor_name(executor_name),
+        capability_manifest=capability_manifest.to_dict(),
+        capability_assembly=capability_assembly.to_dict(),
         route_mode=normalize_route_mode(route_mode),
     )
     initial_route = select_route(state, route_mode_override=state.route_mode)
@@ -74,6 +85,8 @@ def create_task(
     state.route_capabilities = initial_route.route.capabilities.to_dict()
     _apply_execution_topology(state, dispatch_status="not_requested")
     save_state(base_dir, state)
+    save_capability_manifest(base_dir, task_id, state.capability_manifest)
+    save_capability_assembly(base_dir, task_id, state.capability_assembly)
     append_event(
         base_dir,
         Event(
@@ -85,6 +98,8 @@ def create_task(
                 "phase": state.phase,
                 "workspace_root": state.workspace_root,
                 "executor_name": state.executor_name,
+                "capability_manifest": state.capability_manifest,
+                "capability_assembly": state.capability_assembly,
                 "route_mode": state.route_mode,
                 "route_name": state.route_name,
                 "route_backend": state.route_backend,
@@ -136,11 +151,22 @@ def run_task(
     base_dir: Path,
     task_id: str,
     executor_name: str | None = None,
+    capability_refs: list[str] | None = None,
     route_mode: str | None = None,
 ) -> TaskState:
     state = load_state(base_dir, task_id)
     previous_status = state.status
     previous_phase = state.phase
+    if capability_refs:
+        capability_manifest = parse_capability_refs(capability_refs)
+        capability_errors = validate_capability_manifest(capability_manifest)
+        if capability_errors:
+            raise ValueError("; ".join(capability_errors))
+        capability_assembly = build_capability_assembly(capability_manifest)
+        state.capability_manifest = capability_manifest.to_dict()
+        state.capability_assembly = capability_assembly.to_dict()
+        save_capability_manifest(base_dir, task_id, state.capability_manifest)
+        save_capability_assembly(base_dir, task_id, state.capability_assembly)
     state.route_mode = normalize_route_mode(route_mode or state.route_mode)
     route_selection = select_route(state, executor_name, route_mode)
     state.executor_name = route_selection.route.executor_name
@@ -170,6 +196,8 @@ def run_task(
                 "status": state.status,
                 "phase": state.phase,
                 "executor_name": state.executor_name,
+                "capability_manifest": state.capability_manifest,
+                "capability_assembly": state.capability_assembly,
                 "route_mode": state.route_mode,
                 "route_name": state.route_name,
                 "route_backend": state.route_backend,
@@ -224,6 +252,8 @@ def run_task(
         "compatibility_json": str(compatibility_path(base_dir, task_id).resolve()),
         "validation_json": str(validation_path(base_dir, task_id).resolve()),
         "task_memory": str(memory_path(base_dir, task_id).resolve()),
+        "capability_manifest_json": str(capability_manifest_path(base_dir, task_id).resolve()),
+        "capability_assembly_json": str(capability_assembly_path(base_dir, task_id).resolve()),
         "route_json": str(route_path(base_dir, task_id).resolve()),
         "topology_report": str((artifacts_dir(base_dir, task_id) / "topology_report.md").resolve()),
         "topology_json": str(topology_path(base_dir, task_id).resolve()),

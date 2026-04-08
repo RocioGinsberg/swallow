@@ -50,7 +50,7 @@ Use `docs/system_tracks.md` as the top-level planning map before defining or exe
 
 ## Current planning state
 
-Current planning checkpoint: Phase 4 closeout.
+Current planning checkpoint: Phase 5 closeout.
 
 Current implementation status:
 1. Phase 0 accepted
@@ -59,12 +59,15 @@ Current implementation status:
 4. post-Phase-2 retrieval baseline complete
 5. Phase 3 baseline complete
 6. Phase 4 baseline complete
+7. Phase 5 baseline complete
 
 Current planning direction:
 1. anchor new work in `docs/system_tracks.md`
-2. use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference
+2. treat `Capabilities` as the current primary planning track
 3. use `docs/phase3_closeout_note.md` as the execution-topology stop/go reference
-4. write a fresh planning note before expanding beyond the completed Phase 4 baseline
+4. use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference
+5. use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference
+6. write a fresh planning note before expanding beyond the completed Phase 5 baseline
 
 Do not default new work back to a generic MVP feature bundle. Start from the current system map and current closeout checkpoint.
 
@@ -73,8 +76,9 @@ Do not default new work back to a generic MVP feature bundle. Start from the cur
 Current planning should focus on:
 - preserving the accepted local task loop and artifact semantics
 - treating the completed Phase 3 and Phase 4 baselines as stable checkpoints
+- treating the completed Phase 5 baseline as a stable checkpoint
 - planning the next slice against the repository’s current system tracks
-- avoiding accidental open-ended continuation of execution-topology or Workbench / UX work
+- avoiding accidental open-ended continuation of `Capabilities`, execution-topology, or Workbench / UX work
 - keeping retrieval, routing, validation, memory, and artifact semantics inspectable
 
 ## Current non-goals

@@ -101,7 +101,7 @@ Domain-specific behavior should live in domain packs or capability packs rather 
 
 ## Current focus
 
-The repository is currently at a **Phase 4 closeout checkpoint**.
+The repository is currently at a **Phase 5 closeout checkpoint**.
 
 The implemented baseline now includes:
 
@@ -112,7 +112,7 @@ The implemented baseline now includes:
 - explicit local-first execution with route, topology, dispatch, handoff, and execution-fit artifacts
 - Git project files and Markdown / Obsidian notes as retrieval sources
 
-The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve a clean, inspectable local workbench baseline and then stop for a fresh planning note.
+The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve the accepted local baselines, treat the `Capabilities` baseline as complete, and choose the next slice through a fresh planning note instead of open-ended continuation.
 
 ## Long-term direction
 
@@ -218,14 +218,15 @@ A practical interpretation is:
 
 ## Status
 
-Phase 0 accepted, Phase 1 complete, Phase 2 baseline complete, post-Phase-2 retrieval baseline complete, and Phase 3 baseline complete.
+Phase 0 accepted, Phase 1 complete, Phase 2 baseline complete, post-Phase-2 retrieval baseline complete, Phase 3 baseline complete, Phase 4 baseline complete, and Phase 5 baseline complete.
 
 Implementation checkpoint for interrupted sessions:
 
 - [current_state.md](./current_state.md)
 - [docs/phase3_closeout_note.md](./docs/phase3_closeout_note.md)
-- [docs/phase4_task_breakdown.md](./docs/phase4_task_breakdown.md)
 - [docs/phase4_closeout_note.md](./docs/phase4_closeout_note.md)
+- [docs/phase5_task_breakdown.md](./docs/phase5_task_breakdown.md)
+- [docs/phase5_closeout_note.md](./docs/phase5_closeout_note.md)
 - [CHANGELOG.md](./CHANGELOG.md)
 
 ## Terminology
@@ -250,6 +251,8 @@ swl task create \
   --title "Design orchestrator" \
   --goal "Tighten the harness runtime boundary" \
   --workspace-root . \
+  --capability profile:baseline_local \
+  --capability workflow:task_loop \
   --executor local
 ```
 
@@ -257,6 +260,7 @@ Run the task:
 
 ```bash
 swl task run <task-id>
+swl task run <task-id> --capability validator:strict_validation
 swl task run <task-id> --executor codex
 ```
 
@@ -282,6 +286,7 @@ Use the current workbench-style review flow:
 swl task list
 swl task list --focus needs-review
 swl task inspect <task-id>
+swl task capabilities <task-id>
 swl task review <task-id>
 swl task artifacts <task-id>
 ```
@@ -306,6 +311,7 @@ The current CLI implements:
 - `swl task run`
 - `swl task list`
 - `swl task inspect`
+- `swl task capabilities`
 - `swl task review`
 - `swl task artifacts`
 - `swl task summarize`
@@ -326,6 +332,7 @@ The current CLI implements:
 - `swl task dispatch-json`
 - `swl task handoff-json`
 - `swl task execution-fit-json`
+- `swl task capabilities-json`
 - `swl task retrieval-json`
 - `swl doctor codex`
 
