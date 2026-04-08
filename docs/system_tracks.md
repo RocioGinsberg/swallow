@@ -61,6 +61,11 @@ Owns:
 - retrieval artifact indexing
 - memory reuse around retrieved context
 - retrieval evaluation fixtures
+- external planning ingestion and handoff normalization
+- external knowledge capture
+- staged knowledge promotion
+- task-linked and artifact-linked knowledge reuse
+- noise control, verification, and canonicalization
 
 Current status:
 
@@ -79,6 +84,9 @@ Still needed for a fuller system:
 - more deliberate indexing/update policy
 - broader source coverage where justified
 - stronger retrieval evaluation depth
+- clearer external-input ingestion policy
+- explicit distinction between task objects and knowledge objects
+- staged `raw` / `candidate` / `verified` / `canonical` promotion semantics
 
 ### 3. Execution Topology
 
@@ -89,6 +97,9 @@ Owns:
 - backend and executor capability fit
 - local versus remote execution-site boundaries
 - transport and handoff readiness
+- executor family distinction
+- API-executor versus CLI-executor routing boundaries
+- family-specific capability and integration contracts
 
 Current status:
 
@@ -100,6 +111,8 @@ Still needed for a fuller system:
 - real local/remote execution boundary
 - transport or job handoff semantics
 - longer-running or resumable execution-site behavior
+- clearer family-aware routing between API executors and CLI executors
+- explicit integration rules for hosted API execution versus local or semi-local CLI shells
 
 ### 4. Capabilities
 
@@ -132,6 +145,7 @@ Owns:
 - artifact inspection paths
 - review and hand-off usability
 - future TUI/UI surfaces
+- input entrypoints for planning handoff and knowledge capture
 
 Current status:
 
@@ -143,6 +157,7 @@ Still needed for a fuller system:
 - better task browsing and review workflows
 - more operator-friendly artifact navigation
 - future workbench interface beyond raw CLI
+- clearer operator-facing entrypoints for external planning and external knowledge capture without collapsing those concerns into chat history
 
 ### 6. Evaluation / Policy
 
@@ -201,6 +216,39 @@ Secondary effect:
 
 - Core Loop preserved while routing became explicit
 
+### Phase 3
+
+Primary tracks:
+
+- Execution Topology
+
+Secondary effect:
+
+- Evaluation / Policy around dispatch and execution-fit truth
+- Workbench / UX improvements through inspection of topology-specific artifacts
+
+### Phase 4
+
+Primary tracks:
+
+- Workbench / UX
+
+Secondary effect:
+
+- Core Loop preserved while operator inspection paths expanded
+- Retrieval / Memory and Execution Topology became easier to inspect through CLI workbench commands
+
+### Phase 5
+
+Primary tracks:
+
+- Capabilities
+
+Secondary effect:
+
+- Workbench / UX improvements through capability inspection paths
+- Core Loop preserved while capability declaration and assembly became explicit task truth
+
 ### Post-Phase-2 Retrieval Baseline
 
 Primary tracks:
@@ -231,9 +279,26 @@ The repository is now at a planning checkpoint with:
 
 - Phase 2 baseline complete
 - post-Phase-2 retrieval baseline complete
+- Phase 3 baseline complete
+- Phase 4 baseline complete
+- Phase 5 baseline complete
 
-The next step should be to define a new planning note against one primary track, most likely:
+The next step should be to define a fresh planning note against one or two primary tracks, most likely:
 
+- Retrieval / Memory
 - Execution Topology
+
+That next slice may also have secondary effects on:
+
 - Workbench / UX
-- a narrower next Retrieval / Memory direction
+- Capabilities
+
+Current likely planning directions include:
+
+- executor family refinement between API executors and CLI executors
+- external planning ingestion and handoff normalization
+- external knowledge capture with staged promotion into reusable knowledge records
+
+Current fresh planning reference:
+
+- `docs/post_phase5_executor_and_external_input_kickoff_note.md`

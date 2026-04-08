@@ -14,7 +14,10 @@ from .paths import (
     dispatch_path,
     execution_fit_path,
     handoff_path,
+    knowledge_objects_path,
+    knowledge_policy_path,
     memory_path,
+    task_semantics_path,
     retrieval_path,
     route_path,
     topology_path,
@@ -23,11 +26,23 @@ from .store import iter_task_states, load_state
 
 
 ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("Core Run Record", ("summary", "resume_note", "executor_output", "executor_prompt")),
+    ("Core Run Record", ("task_semantics_report", "summary", "resume_note", "executor_output", "executor_prompt")),
     ("Routing And Topology", ("route_report", "topology_report", "dispatch_report", "handoff_report")),
-    ("Retrieval And Grounding", ("retrieval_report", "retrieval_json", "source_grounding")),
-    ("Validation And Policy", ("validation_report", "validation_json", "compatibility_report", "compatibility_json", "execution_fit_report", "execution_fit_json")),
-    ("Memory And Reuse", ("task_memory", "route_json", "topology_json", "dispatch_json", "handoff_json")),
+    ("Retrieval And Grounding", ("knowledge_objects_report", "retrieval_report", "retrieval_json", "source_grounding")),
+    (
+        "Validation And Policy",
+        (
+            "validation_report",
+            "validation_json",
+            "compatibility_report",
+            "compatibility_json",
+            "execution_fit_report",
+            "execution_fit_json",
+            "knowledge_policy_report",
+            "knowledge_policy_json",
+        ),
+    ),
+    ("Memory And Reuse", ("task_memory", "knowledge_objects_json", "route_json", "topology_json", "dispatch_json", "handoff_json")),
 )
 
 
@@ -93,6 +108,58 @@ def build_parser() -> argparse.ArgumentParser:
         help="Executor to persist for the task. Defaults to codex.",
     )
     create_parser.add_argument(
+        "--constraint",
+        action="append",
+        default=[],
+        help="Imported planning constraint to attach to task semantics. Repeatable.",
+    )
+    create_parser.add_argument(
+        "--acceptance-criterion",
+        action="append",
+        default=[],
+        help="Imported acceptance criterion to attach to task semantics. Repeatable.",
+    )
+    create_parser.add_argument(
+        "--priority-hint",
+        action="append",
+        default=[],
+        help="Imported priority hint to attach to task semantics. Repeatable.",
+    )
+    create_parser.add_argument(
+        "--next-action-proposal",
+        action="append",
+        default=[],
+        help="Imported next action proposal to attach to task semantics. Repeatable.",
+    )
+    create_parser.add_argument(
+        "--planning-source",
+        default="",
+        help="Optional external planning source reference for task semantics.",
+    )
+    create_parser.add_argument(
+        "--knowledge-item",
+        action="append",
+        default=[],
+        help="External knowledge fragment to attach as a staged knowledge object. Repeatable.",
+    )
+    create_parser.add_argument(
+        "--knowledge-stage",
+        default="raw",
+        choices=["raw", "candidate", "verified", "canonical"],
+        help="Initial stage for imported knowledge objects. Defaults to raw.",
+    )
+    create_parser.add_argument(
+        "--knowledge-source",
+        default="",
+        help="Optional external source reference for imported knowledge objects.",
+    )
+    create_parser.add_argument(
+        "--knowledge-artifact-ref",
+        action="append",
+        default=[],
+        help="Optional artifact-backed evidence reference for each imported knowledge object. Repeatable and aligned by order.",
+    )
+    create_parser.add_argument(
         "--capability",
         action="append",
         default=[],
@@ -140,8 +207,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     inspect_parser = task_subparsers.add_parser("inspect", help="Print a compact per-task overview.")
     inspect_parser.add_argument("task_id", help="Task identifier.")
+    semantics_parser = task_subparsers.add_parser("semantics", help="Print the task semantics report artifact.")
+    semantics_parser.add_argument("task_id", help="Task identifier.")
     capabilities_parser = task_subparsers.add_parser("capabilities", help="Print the task capability assembly summary.")
     capabilities_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_objects_parser = task_subparsers.add_parser(
+        "knowledge-objects", help="Print the task knowledge-objects report artifact."
+    )
+    knowledge_objects_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_policy_parser = task_subparsers.add_parser(
+        "knowledge-policy", help="Print the task knowledge-policy report artifact."
+    )
+    knowledge_policy_parser.add_argument("task_id", help="Task identifier.")
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
     artifacts_parser = task_subparsers.add_parser("artifacts", help="Print grouped task artifact paths.")
@@ -204,6 +281,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task capability assembly record.",
     )
     capabilities_json_parser.add_argument("task_id", help="Task identifier.")
+    semantics_json_parser = task_subparsers.add_parser("semantics-json", help="Print the task semantics record.")
+    semantics_json_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_objects_json_parser = task_subparsers.add_parser(
+        "knowledge-objects-json",
+        help="Print the task knowledge-objects record.",
+    )
+    knowledge_objects_json_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_policy_json_parser = task_subparsers.add_parser(
+        "knowledge-policy-json",
+        help="Print the task knowledge-policy record.",
+    )
+    knowledge_policy_json_parser.add_argument("task_id", help="Task identifier.")
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
@@ -224,6 +313,15 @@ def main(argv: list[str] | None = None) -> int:
             goal=args.goal.strip(),
             workspace_root=Path(args.workspace_root).resolve(),
             executor_name=args.executor.strip(),
+            constraints=args.constraint,
+            acceptance_criteria=args.acceptance_criterion,
+            priority_hints=args.priority_hint,
+            next_action_proposals=args.next_action_proposal,
+            planning_source=args.planning_source,
+            knowledge_items=args.knowledge_item,
+            knowledge_stage=args.knowledge_stage,
+            knowledge_source=args.knowledge_source,
+            knowledge_artifact_refs=args.knowledge_artifact_ref,
             capability_refs=args.capability,
             route_mode=args.route_mode,
         )
@@ -280,7 +378,19 @@ def main(argv: list[str] | None = None) -> int:
         dispatch = load_json_if_exists(dispatch_path(base_dir, args.task_id))
         handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
         execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
+        knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
+        task_semantics = load_json_if_exists(task_semantics_path(base_dir, args.task_id))
+        knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
+        if not isinstance(knowledge_objects, list):
+            knowledge_objects = []
+        knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
+        knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
+        for item in knowledge_objects:
+            stage = str(item.get("stage", "raw"))
+            knowledge_stage_counts[stage] = knowledge_stage_counts.get(stage, 0) + 1
+            evidence_status = str(item.get("evidence_status", "unbacked"))
+            knowledge_evidence_counts[evidence_status] = knowledge_evidence_counts.get(evidence_status, 0) + 1
 
         lines = [
             f"Task Overview: {state.task_id}",
@@ -294,12 +404,21 @@ def main(argv: list[str] | None = None) -> int:
             f"attempt_id: {state.current_attempt_id or '-'}",
             f"attempt_number: {state.current_attempt_number or 0}",
             f"execution_lifecycle: {state.execution_lifecycle}",
+            f"task_semantics_source_kind: {task_semantics.get('source_kind', state.task_semantics.get('source_kind', 'none') if state.task_semantics else 'none')}",
+            f"task_semantics_source_ref: {task_semantics.get('source_ref', state.task_semantics.get('source_ref', '') if state.task_semantics else '') or '-'}",
+            f"task_semantics_constraints: {len(task_semantics.get('constraints', state.task_semantics.get('constraints', []) if state.task_semantics else []))}",
+            f"task_semantics_acceptance_criteria: {len(task_semantics.get('acceptance_criteria', state.task_semantics.get('acceptance_criteria', []) if state.task_semantics else []))}",
+            f"knowledge_objects_count: {len(knowledge_objects)}",
+            f"knowledge_object_stages: raw={knowledge_stage_counts.get('raw', 0)} candidate={knowledge_stage_counts.get('candidate', 0)} verified={knowledge_stage_counts.get('verified', 0)} canonical={knowledge_stage_counts.get('canonical', 0)}",
+            f"knowledge_object_evidence: artifact_backed={knowledge_evidence_counts.get('artifact_backed', 0)} source_only={knowledge_evidence_counts.get('source_only', 0)} unbacked={knowledge_evidence_counts.get('unbacked', 0)}",
             "",
             "Route And Topology",
             f"route_mode: {state.route_mode}",
             f"route_name: {state.route_name}",
             f"route_backend: {state.route_backend}",
+            f"route_executor_family: {state.route_executor_family}",
             f"route_execution_site: {state.route_execution_site}",
+            f"topology_executor_family: {topology.get('executor_family', state.topology_executor_family)}",
             f"topology_execution_site: {topology.get('execution_site', state.topology_execution_site)}",
             f"topology_transport_kind: {topology.get('transport_kind', state.topology_transport_kind)}",
             f"topology_dispatch_status: {topology.get('dispatch_status', state.topology_dispatch_status)}",
@@ -307,6 +426,7 @@ def main(argv: list[str] | None = None) -> int:
             "Checks",
             f"compatibility_status: {compatibility.get('status', 'pending')}",
             f"execution_fit_status: {execution_fit.get('status', 'pending')}",
+            f"knowledge_policy_status: {knowledge_policy.get('status', 'pending')}",
             f"validation_status: {load_json_if_exists(Path(state.artifact_paths.get('validation_json', ''))).get('status', 'pending') if state.artifact_paths.get('validation_json') else 'pending'}",
             "",
             "Retrieval And Memory",
@@ -321,6 +441,8 @@ def main(argv: list[str] | None = None) -> int:
             f"next_operator_action: {handoff.get('next_operator_action', 'Inspect task artifacts.')}",
             "",
             "Artifacts",
+            f"task_semantics_report: {state.artifact_paths.get('task_semantics_report', '-')}",
+            f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"route_report: {state.artifact_paths.get('route_report', '-')}",
@@ -328,6 +450,7 @@ def main(argv: list[str] | None = None) -> int:
             f"dispatch_report: {state.artifact_paths.get('dispatch_report', '-')}",
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
+            f"knowledge_policy_report: {state.artifact_paths.get('knowledge_policy_report', '-')}",
             f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
         ]
         print("\n".join(lines))
@@ -369,6 +492,7 @@ def main(argv: list[str] | None = None) -> int:
         handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
         compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
         execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
+        knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         validation = load_json_if_exists(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
         lines = [
             f"Task Review: {state.task_id}",
@@ -389,15 +513,19 @@ def main(argv: list[str] | None = None) -> int:
             "Checks",
             f"compatibility_status: {compatibility.get('status', 'pending')}",
             f"execution_fit_status: {execution_fit.get('status', 'pending')}",
+            f"knowledge_policy_status: {knowledge_policy.get('status', 'pending')}",
             f"validation_status: {validation.get('status', 'pending')}",
             "",
             "Review Artifacts",
+            f"task_semantics_report: {state.artifact_paths.get('task_semantics_report', '-')}",
+            f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
             f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
             f"compatibility_report: {state.artifact_paths.get('compatibility_report', '-')}",
             f"execution_fit_report: {state.artifact_paths.get('execution_fit_report', '-')}",
+            f"knowledge_policy_report: {state.artifact_paths.get('knowledge_policy_report', '-')}",
         ]
         print("\n".join(lines))
         return 0
@@ -409,10 +537,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command in {
         "summarize",
+        "semantics",
         "resume-note",
         "validation",
         "compatibility",
         "grounding",
+        "knowledge-objects",
+        "knowledge-policy",
         "retrieval",
         "topology",
         "dispatch",
@@ -422,10 +553,13 @@ def main(argv: list[str] | None = None) -> int:
     }:
         artifact_name = {
             "summarize": "summary.md",
+            "semantics": "task_semantics_report.md",
             "resume-note": "resume_note.md",
             "validation": "validation_report.md",
             "compatibility": "compatibility_report.md",
             "grounding": "source_grounding.md",
+            "knowledge-objects": "knowledge_objects_report.md",
+            "knowledge-policy": "knowledge_policy_report.md",
             "retrieval": "retrieval_report.md",
             "topology": "topology_report.md",
             "dispatch": "dispatch_report.md",
@@ -466,6 +600,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "capabilities-json":
         print(json.dumps(json.loads(capability_assembly_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "semantics-json":
+        print(json.dumps(json.loads(task_semantics_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "knowledge-objects-json":
+        print(json.dumps(json.loads(knowledge_objects_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "knowledge-policy-json":
+        print(json.dumps(json.loads(knowledge_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":

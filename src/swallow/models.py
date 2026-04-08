@@ -70,6 +70,37 @@ class CapabilityAssembly:
 
 
 @dataclass(slots=True)
+class TaskSemantics:
+    title: str
+    goal: str
+    constraints: list[str] = field(default_factory=list)
+    acceptance_criteria: list[str] = field(default_factory=list)
+    priority_hints: list[str] = field(default_factory=list)
+    next_action_proposals: list[str] = field(default_factory=list)
+    source_kind: str = "operator_entry"
+    source_ref: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class KnowledgeObject:
+    object_id: str
+    text: str
+    stage: str = "raw"
+    source_kind: str = "operator_capture"
+    source_ref: str = ""
+    task_linked: bool = True
+    captured_at: str = field(default_factory=utc_now)
+    evidence_status: str = "unbacked"
+    artifact_ref: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class TaskState:
     task_id: str
     title: str
@@ -81,11 +112,14 @@ class TaskState:
     updated_at: str = field(default_factory=utc_now)
     retrieval_count: int = 0
     executor_name: str = "codex"
+    task_semantics: dict[str, Any] = field(default_factory=dict)
+    knowledge_objects: list[dict[str, Any]] = field(default_factory=list)
     capability_manifest: dict[str, Any] = field(default_factory=dict)
     capability_assembly: dict[str, Any] = field(default_factory=dict)
     route_mode: str = "auto"
     route_name: str = "local-codex"
     route_backend: str = "local_cli"
+    route_executor_family: str = "cli"
     route_execution_site: str = "local"
     route_remote_capable: bool = False
     route_transport_kind: str = "local_process"
@@ -93,6 +127,7 @@ class TaskState:
     route_reason: str = "Default local Codex route."
     route_capabilities: dict[str, Any] = field(default_factory=dict)
     topology_route_name: str = "local-codex"
+    topology_executor_family: str = "cli"
     topology_execution_site: str = "local"
     topology_transport_kind: str = "local_process"
     topology_remote_capable_intent: bool = False
@@ -252,11 +287,37 @@ class ExecutionFitResult:
 
 
 @dataclass(slots=True)
+class KnowledgePolicyFinding:
+    code: str
+    level: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class KnowledgePolicyResult:
+    status: str
+    message: str
+    findings: list[KnowledgePolicyFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "message": self.message,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }
+
+
+@dataclass(slots=True)
 class RouteSpec:
     name: str
     executor_name: str
     backend_kind: str
     model_hint: str
+    executor_family: str = "cli"
     execution_site: str = "local"
     remote_capable: bool = False
     transport_kind: str = "local_process"

@@ -79,6 +79,17 @@ So it is not just a chatbot, not just a RAG project, and not just a multi-agent 
 
 It is closer to an **AI workbench / AI workflow operating system** for real project work.
 
+Within that system shape, an executor is not a single fixed category. The current architecture already distinguishes model, runtime backend, and executor, and the next planning direction further refines executor families:
+
+- **API executor**: intended for cognitive work such as discussion, planning, summarization, route judgment, retrieval-backed synthesis, and structured output generation
+- **CLI executor**: intended for operational work such as repository reading, file editing, command execution, local tool use, and environment-bound actions
+
+Both executor families should remain routable parts of the system. The intended direction is that:
+
+- API executors integrate more naturally with official model APIs or deeper hosted interfaces
+- CLI executors integrate more naturally with local or semi-local code-agent shells
+- future routing should target executor family and declared capability, not only vendor or tool name
+
 ## Core principles
 
 This system is built around five core capabilities:
@@ -99,9 +110,23 @@ This also means context should not be reduced to only the current prompt. The sy
 
 Domain-specific behavior should live in domain packs or capability packs rather than being hard-coded into one-off prompts. That applies to retrieval behavior as much as to tools, workflows, or validators.
 
+The same principle applies to external AI input. External planning, discussion, and knowledge capture are valid inputs to the system, but chat history should not become the system of record. The intended direction is to normalize outside inputs into explicit system objects:
+
+- **task objects** for external planning handoff, task intent, and executable task semantics
+- **knowledge objects** for captured notes, research fragments, summaries, evidence bundles, and later retrieval reuse
+
+Those objects should remain traceable, task-linked where appropriate, and backed by artifacts or source references. The long-term goal is not to archive raw conversation indiscriminately. The long-term goal is staged distillation:
+
+- `raw`
+- `candidate`
+- `verified`
+- `canonical`
+
+That staged promotion model is intended to preserve evidence while avoiding pollution of the long-term knowledge layer.
+
 ## Current focus
 
-The repository is currently at a **Phase 5 closeout checkpoint**.
+The repository is currently at a **post-Phase-5 executor/external-input closeout checkpoint**.
 
 The implemented baseline now includes:
 
@@ -125,6 +150,13 @@ The longer-term system is expected to evolve toward:
 - reusable capability packs for coding and research work
 - optional provider routing and cost-aware execution policies
 - broader source adapters and a more complete workbench interface
+
+That direction also includes:
+
+- clearer API-executor versus CLI-executor routing
+- external planning handoff that becomes task semantics instead of loose chat residue
+- external knowledge capture that becomes staged, citable knowledge objects
+- stronger separation between short-lived interaction history and long-lived system records
 
 
 ## Runtime Shape
@@ -175,12 +207,18 @@ The system should distinguish between three layers:
 * **Runtime backend**: the agent or workflow runtime used inside the harness
 * **Executor**: the concrete execution unit used for code, commands, or other task actions
 
+Within the executor layer, the next planning direction should also distinguish between:
+
+* **API executors** for cognitive work, synthesis, planning, and structured output
+* **CLI executors** for repository, filesystem, command, and tool-loop execution inside an environment
+
 Because of that, the project should not assume that:
 
 * every model supports the same agent capabilities
 * every runtime backend supports the same handoff semantics
 * every executor can participate in every workflow step
 * every backend can support code execution, tool loops, structured handoff, or resumable runs equally
+* every executor family should be used for both discussion-heavy and environment-heavy work equally
 
 Instead, the system should follow this rule:
 
@@ -202,7 +240,7 @@ In practice:
 * the **Orchestrator** chooses a backend or executor according to task needs
 * the **Harness Runtime** provides a stable integration boundary
 * each backend declares what it can actually do
-* workflow design should target role and capability, not hard-code specific model vendors
+* workflow design should target role, executor family, and capability, not hard-code specific model vendors
 
 This principle matters because the project is not trying to become a thin wrapper around a single agent framework. Its core value lies in its own orchestration, retrieval, state, artifact, and execution design 
 
@@ -227,6 +265,8 @@ Implementation checkpoint for interrupted sessions:
 - [docs/phase4_closeout_note.md](./docs/phase4_closeout_note.md)
 - [docs/phase5_task_breakdown.md](./docs/phase5_task_breakdown.md)
 - [docs/phase5_closeout_note.md](./docs/phase5_closeout_note.md)
+- [docs/post_phase5_executor_and_external_input_kickoff_note.md](./docs/post_phase5_executor_and_external_input_kickoff_note.md)
+- [docs/post_phase5_executor_and_external_input_task_breakdown.md](./docs/post_phase5_executor_and_external_input_task_breakdown.md)
 - [CHANGELOG.md](./CHANGELOG.md)
 
 ## Terminology
@@ -311,7 +351,10 @@ The current CLI implements:
 - `swl task run`
 - `swl task list`
 - `swl task inspect`
+- `swl task semantics`
 - `swl task capabilities`
+- `swl task knowledge-objects`
+- `swl task knowledge-policy`
 - `swl task review`
 - `swl task artifacts`
 - `swl task summarize`
@@ -333,6 +376,9 @@ The current CLI implements:
 - `swl task handoff-json`
 - `swl task execution-fit-json`
 - `swl task capabilities-json`
+- `swl task semantics-json`
+- `swl task knowledge-objects-json`
+- `swl task knowledge-policy-json`
 - `swl task retrieval-json`
 - `swl doctor codex`
 
@@ -345,6 +391,9 @@ Task state and artifacts are written under:
       state.json
       events.jsonl
       retrieval.json
+      task_semantics.json
+      knowledge_objects.json
+      knowledge_policy.json
       compatibility.json
       execution_fit.json
       validation.json
@@ -355,6 +404,9 @@ Task state and artifacts are written under:
       memory.json
       artifacts/
         summary.md
+        task_semantics_report.md
+        knowledge_objects_report.md
+        knowledge_policy_report.md
         resume_note.md
         compatibility_report.md
         execution_fit_report.md
@@ -369,7 +421,7 @@ Task state and artifacts are written under:
         executor_stderr.txt
 ```
 
-The current `run` command performs retrieval, invokes the selected executor, evaluates route compatibility, evaluates execution-fit against the active topology baseline, runs validation, records state and events, persists task memory, and writes executor, summary, resume note, grounding, route, topology, dispatch, handoff, execution-fit, compatibility, and validation artifacts.
+The current `run` command performs retrieval, invokes the selected executor, evaluates route compatibility, evaluates execution-fit against the active topology baseline, evaluates imported-knowledge policy, runs validation, records state and events, persists task memory, and writes executor, summary, resume note, task-semantics, knowledge-object, grounding, route, topology, dispatch, handoff, execution-fit, compatibility, knowledge-policy, and validation artifacts.
 
 Current task-state semantics are intentionally small and explicit:
 
@@ -389,6 +441,8 @@ task.phase        # executing
 executor.completed
 task.phase        # summarize
 compatibility.completed
+execution_fit.completed
+knowledge_policy.completed
 validation.completed
 artifacts.written
 task.completed

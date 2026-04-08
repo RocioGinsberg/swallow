@@ -140,6 +140,164 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[0]["payload"]["capability_manifest"]["profile_refs"], ["baseline_local"])
         self.assertEqual(events[0]["payload"]["capability_assembly"]["resolver"], "local_baseline")
 
+    def test_cli_create_persists_task_semantics_handoff_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Imported planning",
+                        "--goal",
+                        "Turn external planning into task semantics",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--planning-source",
+                        "chat://planning-session-1",
+                        "--constraint",
+                        "Preserve current artifact semantics",
+                        "--acceptance-criterion",
+                        "Persist a task-linked semantics record",
+                        "--priority-hint",
+                        "Do the smallest first cut",
+                        "--next-action-proposal",
+                        "Define the imported planning boundary",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            task_semantics = json.loads((task_dir / "task_semantics.json").read_text(encoding="utf-8"))
+            semantics_report = (task_dir / "artifacts" / "task_semantics_report.md").read_text(encoding="utf-8")
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(task_semantics["source_kind"], "external_planning_handoff")
+        self.assertEqual(task_semantics["source_ref"], "chat://planning-session-1")
+        self.assertEqual(task_semantics["constraints"], ["Preserve current artifact semantics"])
+        self.assertEqual(task_semantics["acceptance_criteria"], ["Persist a task-linked semantics record"])
+        self.assertEqual(task_semantics["priority_hints"], ["Do the smallest first cut"])
+        self.assertEqual(task_semantics["next_action_proposals"], ["Define the imported planning boundary"])
+        self.assertEqual(state["task_semantics"]["source_kind"], "external_planning_handoff")
+        self.assertTrue(state["artifact_paths"]["task_semantics_json"].endswith("task_semantics.json"))
+        self.assertTrue(state["artifact_paths"]["task_semantics_report"].endswith("task_semantics_report.md"))
+        self.assertEqual(events[0]["payload"]["task_semantics"]["source_kind"], "external_planning_handoff")
+        self.assertIn("Task Semantics Report", semantics_report)
+        self.assertIn("chat://planning-session-1", semantics_report)
+
+    def test_cli_create_persists_staged_knowledge_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Knowledge capture",
+                        "--goal",
+                        "Persist staged knowledge objects",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "candidate",
+                        "--knowledge-source",
+                        "chat://knowledge-session-1",
+                        "--knowledge-item",
+                        "Route selection should stay explicit.",
+                        "--knowledge-item",
+                        "Imported notes should remain task-linked before promotion.",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            knowledge_objects = json.loads((task_dir / "knowledge_objects.json").read_text(encoding="utf-8"))
+            knowledge_report = (task_dir / "artifacts" / "knowledge_objects_report.md").read_text(encoding="utf-8")
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(knowledge_objects), 2)
+        self.assertEqual(knowledge_objects[0]["stage"], "candidate")
+        self.assertEqual(knowledge_objects[0]["source_kind"], "external_knowledge_capture")
+        self.assertEqual(knowledge_objects[0]["source_ref"], "chat://knowledge-session-1")
+        self.assertEqual(knowledge_objects[1]["stage"], "candidate")
+        self.assertEqual(state["knowledge_objects"][0]["stage"], "candidate")
+        self.assertTrue(state["artifact_paths"]["knowledge_objects_json"].endswith("knowledge_objects.json"))
+        self.assertTrue(state["artifact_paths"]["knowledge_objects_report"].endswith("knowledge_objects_report.md"))
+        self.assertEqual(events[0]["payload"]["knowledge_objects_count"], 2)
+        self.assertEqual(events[0]["payload"]["knowledge_stage_counts"]["candidate"], 2)
+        self.assertIn("Knowledge Objects Report", knowledge_report)
+        self.assertIn("candidate: 2", knowledge_report)
+
+    def test_cli_create_marks_artifact_backed_knowledge_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Artifact-backed knowledge",
+                        "--goal",
+                        "Preserve artifact-backed evidence references",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "candidate",
+                        "--knowledge-source",
+                        "chat://knowledge-session-2",
+                        "--knowledge-item",
+                        "The route report should remain inspectable.",
+                        "--knowledge-item",
+                        "The summary should remain the run record.",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/route_report.md",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            knowledge_objects = json.loads((task_dir / "knowledge_objects.json").read_text(encoding="utf-8"))
+            knowledge_report = (task_dir / "artifacts" / "knowledge_objects_report.md").read_text(encoding="utf-8")
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(knowledge_objects[0]["evidence_status"], "artifact_backed")
+        self.assertEqual(knowledge_objects[0]["artifact_ref"], ".swl/tasks/demo/artifacts/route_report.md")
+        self.assertEqual(knowledge_objects[1]["evidence_status"], "source_only")
+        self.assertEqual(events[0]["payload"]["knowledge_evidence_counts"]["artifact_backed"], 1)
+        self.assertEqual(events[0]["payload"]["knowledge_evidence_counts"]["source_only"], 1)
+        self.assertIn("artifact_backed: 1", knowledge_report)
+        self.assertIn("source_only: 1", knowledge_report)
+        self.assertIn(".swl/tasks/demo/artifacts/route_report.md", knowledge_report)
+
     def test_run_task_capability_override_updates_manifest_and_assembly(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -165,6 +323,7 @@ class CliLifecycleTest(unittest.TestCase):
                         return_value=(
                             ValidationResult(status="passed", message="Compatibility passed."),
                             ValidationResult(status="passed", message="Execution fit passed."),
+                            ValidationResult(status="passed", message="Knowledge policy passed."),
                             ValidationResult(status="passed", message="Validation passed."),
                         ),
                     ):
@@ -191,6 +350,56 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["event_type"], "task.run_started")
         self.assertEqual(events[1]["payload"]["capability_manifest"]["profile_refs"], ["research_local"])
         self.assertEqual(events[1]["payload"]["capability_assembly"]["assembly_status"], "assembled")
+
+    def test_knowledge_policy_fails_for_unbacked_canonical_knowledge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\ncanonical policy\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Canonical knowledge policy",
+                            "--goal",
+                            "Block unbacked canonical promotion",
+                            "--workspace-root",
+                            str(tmp_path),
+                            "--knowledge-stage",
+                            "canonical",
+                            "--knowledge-source",
+                            "chat://canonical-source",
+                            "--knowledge-item",
+                            "The route report is the canonical execution record.",
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+                task_dir = tmp_path / ".swl" / "tasks" / task_id
+                state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+                knowledge_policy = json.loads((task_dir / "knowledge_policy.json").read_text(encoding="utf-8"))
+                summary = (task_dir / "artifacts" / "summary.md").read_text(encoding="utf-8")
+                resume_note = (task_dir / "artifacts" / "resume_note.md").read_text(encoding="utf-8")
+                inspect_stdout = StringIO()
+                with redirect_stdout(inspect_stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
+
+        self.assertEqual(state["status"], "failed")
+        self.assertEqual(knowledge_policy["status"], "failed")
+        self.assertEqual(knowledge_policy["findings"][0]["code"], "knowledge.canonical.evidence_missing")
+        self.assertIn("knowledge_policy_status: failed", summary)
+        self.assertIn("knowledge policy status: failed", resume_note)
+        self.assertIn("Treat the knowledge policy report as blocking", resume_note)
+        self.assertIn("knowledge_policy_status: failed", inspect_stdout.getvalue())
 
     def test_cli_capabilities_commands_show_requested_and_effective_capability_state(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -466,6 +675,12 @@ class CliLifecycleTest(unittest.TestCase):
                             "Surface compact overview",
                             "--workspace-root",
                             str(tmp_path),
+                            "--planning-source",
+                            "chat://inspect-baseline",
+                            "--constraint",
+                            "Keep inspect concise",
+                            "--acceptance-criterion",
+                            "Show imported semantics availability",
                         ]
                     ),
                     0,
@@ -484,17 +699,26 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("status: completed", output)
         self.assertIn("attempt_id: attempt-0002", output)
         self.assertIn("attempt_number: 2", output)
+        self.assertIn("task_semantics_source_kind: external_planning_handoff", output)
+        self.assertIn("task_semantics_source_ref: chat://inspect-baseline", output)
+        self.assertIn("task_semantics_constraints: 1", output)
+        self.assertIn("task_semantics_acceptance_criteria: 1", output)
+        self.assertIn("knowledge_objects_count: 0", output)
+        self.assertIn("knowledge_object_evidence: artifact_backed=0 source_only=0 unbacked=0", output)
         self.assertIn("route_name: local-mock", output)
         self.assertIn("topology_execution_site: local", output)
         self.assertIn("topology_dispatch_status: local_dispatched", output)
         self.assertIn("compatibility_status: passed", output)
         self.assertIn("execution_fit_status: passed", output)
+        self.assertIn("knowledge_policy_status: passed", output)
         self.assertIn("validation_status: passed", output)
         self.assertIn("retrieval_record_available: yes", output)
         self.assertIn("grounding_available: yes", output)
         self.assertIn("memory_available: yes", output)
         self.assertIn("handoff_status: review_completed_run", output)
         self.assertIn("next_operator_action: Review summary.md", output)
+        self.assertIn("task_semantics_report:", output)
+        self.assertIn("knowledge_objects_report:", output)
         self.assertIn("summary:", output)
         self.assertIn("retrieval_report:", output)
 
@@ -544,6 +768,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("validation_report:", output)
         self.assertIn("compatibility_report:", output)
         self.assertIn("execution_fit_report:", output)
+        self.assertIn("knowledge_policy_report:", output)
         self.assertIn("task_memory:", output)
 
     def test_task_review_surfaces_handoff_and_resume_guidance_after_failure(self) -> None:
@@ -586,9 +811,13 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("status: failed", output)
         self.assertIn("handoff_status: resume_from_failure", output)
         self.assertIn("blocking_reason: launch_error", output)
+        self.assertIn("knowledge_policy_status: passed", output)
         self.assertIn("next_operator_action:", output)
+        self.assertIn("task_semantics_report:", output)
+        self.assertIn("knowledge_objects_report:", output)
         self.assertIn("resume_note:", output)
         self.assertIn("handoff_report:", output)
+        self.assertIn("knowledge_policy_report:", output)
         self.assertIn("validation_report:", output)
 
     def test_task_help_includes_workbench_commands(self) -> None:
@@ -634,6 +863,10 @@ class CliLifecycleTest(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn("capabilities        Print the task capability assembly summary.", output)
         self.assertIn("capabilities-json   Print the task capability assembly record.", output)
+        self.assertIn("semantics           Print the task semantics report artifact.", output)
+        self.assertIn("semantics-json      Print the task semantics record.", output)
+        self.assertIn("knowledge-objects   Print the task knowledge-objects report artifact.", output)
+        self.assertIn("knowledge-policy    Print the task knowledge-policy report artifact.", output)
 
     def test_task_create_help_includes_capability_flag(self) -> None:
         stdout = StringIO()
@@ -739,6 +972,9 @@ class CliLifecycleTest(unittest.TestCase):
                 execution_fit_report = (tasks_dir / task_id / "artifacts" / "execution_fit_report.md").read_text(
                     encoding="utf-8"
                 )
+                knowledge_policy_report = (tasks_dir / task_id / "artifacts" / "knowledge_policy_report.md").read_text(
+                    encoding="utf-8"
+                )
                 route_report = (tasks_dir / task_id / "artifacts" / "route_report.md").read_text(
                     encoding="utf-8"
                 )
@@ -763,6 +999,7 @@ class CliLifecycleTest(unittest.TestCase):
                 retrieval = json.loads((tasks_dir / task_id / "retrieval.json").read_text(encoding="utf-8"))
                 compatibility = json.loads((tasks_dir / task_id / "compatibility.json").read_text(encoding="utf-8"))
                 execution_fit = json.loads((tasks_dir / task_id / "execution_fit.json").read_text(encoding="utf-8"))
+                knowledge_policy = json.loads((tasks_dir / task_id / "knowledge_policy.json").read_text(encoding="utf-8"))
                 validation = json.loads((tasks_dir / task_id / "validation.json").read_text(encoding="utf-8"))
                 memory = json.loads((tasks_dir / task_id / "memory.json").read_text(encoding="utf-8"))
                 route = json.loads((tasks_dir / task_id / "route.json").read_text(encoding="utf-8"))
@@ -780,6 +1017,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("route_mode:", summary)
                 self.assertIn("route_name:", summary)
                 self.assertIn("route_backend:", summary)
+                self.assertIn("route_executor_family:", summary)
                 self.assertIn("route_execution_site:", summary)
                 self.assertIn("route_remote_capable:", summary)
                 self.assertIn("route_transport_kind:", summary)
@@ -790,6 +1028,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("execution_kind=", summary)
                 self.assertIn("route_report_artifact:", summary)
                 self.assertIn("topology_execution_site:", summary)
+                self.assertIn("topology_executor_family:", summary)
                 self.assertIn("topology_transport_kind:", summary)
                 self.assertIn("topology_dispatch_status:", summary)
                 self.assertIn("topology_report_artifact:", summary)
@@ -799,13 +1038,24 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("handoff_report_artifact:", summary)
                 self.assertIn("compatibility_status:", summary)
                 self.assertIn("execution_fit_status:", summary)
+                self.assertIn("knowledge_policy_status:", summary)
                 self.assertIn("execution_fit_report_artifact:", summary)
                 self.assertIn("compatibility_report_artifact:", summary)
+                self.assertIn("knowledge_policy_report_artifact:", summary)
                 self.assertIn("source_grounding_artifact:", summary)
                 self.assertIn("retrieval_report_artifact:", summary)
                 self.assertIn("retrieval_record_path:", summary)
                 self.assertIn("task_memory_path:", summary)
+                self.assertIn("task_semantics_source_kind:", summary)
+                self.assertIn("task_semantics_source_ref:", summary)
+                self.assertIn("task_semantics_report_artifact:", summary)
+                self.assertIn("knowledge_objects_count:", summary)
+                self.assertIn("knowledge_evidence_artifact_backed:", summary)
+                self.assertIn("knowledge_objects_report_artifact:", summary)
+                self.assertIn("## Task Semantics", summary)
+                self.assertIn("## Knowledge Objects", summary)
                 self.assertIn("## Compatibility", summary)
+                self.assertIn("## Knowledge Policy", summary)
                 self.assertIn("## Executor Output", summary)
                 self.assertNotIn("## Next Suggested Step", summary)
                 self.assertIn("Resume Note for", resume_note)
@@ -818,7 +1068,14 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("route mode:", resume_note)
                 self.assertIn("route name:", resume_note)
                 self.assertIn("route backend:", resume_note)
+                self.assertIn("route executor family:", resume_note)
                 self.assertIn("route execution site:", resume_note)
+                self.assertIn("task semantics source kind:", resume_note)
+                self.assertIn("task semantics source ref:", resume_note)
+                self.assertIn("task semantics report artifact:", resume_note)
+                self.assertIn("knowledge objects count:", resume_note)
+                self.assertIn("artifact-backed knowledge objects:", resume_note)
+                self.assertIn("knowledge objects report artifact:", resume_note)
                 self.assertIn("route remote capable:", resume_note)
                 self.assertIn("route transport kind:", resume_note)
                 self.assertIn("execution lifecycle:", resume_note)
@@ -827,6 +1084,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("route reason:", resume_note)
                 self.assertIn("route report artifact:", resume_note)
                 self.assertIn("topology execution site:", resume_note)
+                self.assertIn("topology executor family:", resume_note)
                 self.assertIn("topology transport kind:", resume_note)
                 self.assertIn("topology dispatch status:", resume_note)
                 self.assertIn("topology report artifact:", resume_note)
@@ -836,14 +1094,19 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("handoff report artifact:", resume_note)
                 self.assertIn("compatibility status: passed", resume_note)
                 self.assertIn("execution fit status: passed", resume_note)
+                self.assertIn("knowledge policy status: passed", resume_note)
                 self.assertIn("execution fit report artifact:", resume_note)
                 self.assertIn("compatibility report artifact:", resume_note)
+                self.assertIn("knowledge policy report artifact:", resume_note)
                 self.assertIn("source grounding artifact:", resume_note)
                 self.assertIn("task memory path:", resume_note)
+                self.assertIn("task semantics json path:", resume_note)
+                self.assertIn("knowledge objects json path:", resume_note)
                 self.assertIn("top retrieved references: notes.md#L1-L3", resume_note)
                 self.assertIn("Validation Report", validation_report)
                 self.assertIn("Compatibility Report", compatibility_report)
                 self.assertIn("Execution Fit Report", execution_fit_report)
+                self.assertIn("Knowledge Policy Report", knowledge_policy_report)
                 self.assertIn("Route Report", route_report)
                 self.assertIn("Topology Report", topology_report)
                 self.assertIn("Dispatch Report", dispatch_report)
@@ -853,9 +1116,12 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("notes.md#L1-L3", source_grounding)
                 self.assertEqual(compatibility["status"], "passed")
                 self.assertEqual(execution_fit["status"], "passed")
+                self.assertEqual(knowledge_policy["status"], "passed")
                 self.assertEqual(validation["status"], "passed")
                 self.assertEqual(route["name"], "local-mock")
+                self.assertEqual(route["executor_family"], "cli")
                 self.assertEqual(topology["route_name"], "local-mock")
+                self.assertEqual(topology["executor_family"], "cli")
                 self.assertEqual(topology["execution_site"], "local")
                 self.assertEqual(topology["transport_kind"], "local_process")
                 self.assertEqual(topology["remote_capable_intent"], False)
@@ -864,6 +1130,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(dispatch["attempt_id"], "attempt-0001")
                 self.assertEqual(dispatch["attempt_number"], 1)
                 self.assertEqual(dispatch["route_name"], "local-mock")
+                self.assertEqual(dispatch["executor_family"], "cli")
                 self.assertEqual(dispatch["execution_site"], "local")
                 self.assertEqual(dispatch["transport_kind"], "local_process")
                 self.assertEqual(dispatch["dispatch_status"], "local_dispatched")
@@ -875,9 +1142,12 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(handoff["attempt_id"], "attempt-0001")
                 self.assertEqual(handoff["attempt_number"], 1)
                 self.assertEqual(handoff["execution_site"], "local")
+                self.assertEqual(handoff["executor_family"], "cli")
                 self.assertEqual(handoff["dispatch_status"], "local_dispatched")
                 self.assertEqual(handoff["blocking_reason"], "")
                 self.assertIn("Review summary.md", handoff["next_operator_action"])
+                self.assertIn("task_semantics", memory)
+                self.assertIn("knowledge_objects", memory)
                 self.assertEqual(memory["executor"]["name"], "mock")
                 self.assertEqual(memory["execution_attempt"]["attempt_id"], "attempt-0001")
                 self.assertEqual(memory["execution_attempt"]["attempt_number"], 1)
@@ -886,29 +1156,41 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(memory["execution_attempt"]["execution_lifecycle"], "completed")
                 self.assertEqual(memory["route"]["mode"], "auto")
                 self.assertEqual(memory["route"]["name"], "local-mock")
+                self.assertEqual(memory["route"]["executor_family"], "cli")
                 self.assertEqual(memory["route"]["execution_site"], "local")
                 self.assertEqual(memory["route"]["remote_capable"], False)
                 self.assertEqual(memory["route"]["transport_kind"], "local_process")
                 self.assertEqual(memory["route"]["capabilities"]["deterministic"], True)
                 self.assertEqual(memory["topology"]["route_name"], "local-mock")
+                self.assertEqual(memory["topology"]["executor_family"], "cli")
                 self.assertEqual(memory["topology"]["execution_site"], "local")
                 self.assertEqual(memory["topology"]["transport_kind"], "local_process")
                 self.assertEqual(memory["topology"]["remote_capable_intent"], False)
                 self.assertEqual(memory["topology"]["dispatch_status"], "local_dispatched")
                 self.assertEqual(memory["topology"]["execution_lifecycle"], "completed")
                 self.assertEqual(memory["dispatch"]["attempt_id"], "attempt-0001")
+                self.assertEqual(memory["dispatch"]["executor_family"], "cli")
                 self.assertEqual(memory["dispatch"]["attempt_number"], 1)
                 self.assertEqual(memory["dispatch"]["dispatch_status"], "local_dispatched")
                 self.assertEqual(memory["dispatch"]["execution_lifecycle"], "completed")
                 self.assertEqual(memory["handoff"]["status"], "review_completed_run")
                 self.assertEqual(memory["handoff"]["task_status"], "completed")
+                self.assertEqual(memory["handoff"]["executor_family"], "cli")
                 self.assertEqual(memory["handoff"]["execution_lifecycle"], "completed")
+                self.assertIn("evidence_counts", memory["knowledge_objects"])
                 self.assertEqual(memory["compatibility"]["status"], "passed")
                 self.assertEqual(memory["execution_fit"]["status"], "passed")
+                self.assertEqual(memory["knowledge_policy"]["status"], "passed")
                 self.assertTrue(
                     memory["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
                 )
                 self.assertTrue(memory["artifact_paths"]["compatibility_json"].endswith("compatibility.json"))
+                self.assertTrue(memory["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+                self.assertTrue(memory["artifact_paths"]["knowledge_policy_json"].endswith("knowledge_policy.json"))
+                self.assertTrue(memory["artifact_paths"]["task_semantics_json"].endswith("task_semantics.json"))
+                self.assertTrue(memory["artifact_paths"]["task_semantics_report"].endswith("task_semantics_report.md"))
+                self.assertTrue(memory["artifact_paths"]["knowledge_objects_json"].endswith("knowledge_objects.json"))
+                self.assertTrue(memory["artifact_paths"]["knowledge_objects_report"].endswith("knowledge_objects_report.md"))
                 self.assertTrue(memory["artifact_paths"]["route_report"].endswith("route_report.md"))
                 self.assertTrue(memory["artifact_paths"]["route_json"].endswith("route.json"))
                 self.assertTrue(memory["artifact_paths"]["topology_report"].endswith("topology_report.md"))
@@ -1353,6 +1635,7 @@ class CliLifecycleTest(unittest.TestCase):
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
                                         ValidationResult(status="passed", message="Execution fit passed."),
+                                        ValidationResult(status="passed", message="Knowledge policy passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
                                     ),
                                 ):
@@ -1399,11 +1682,12 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
-            ) -> tuple[ValidationResult, ValidationResult, ValidationResult]:
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
                 return (
                     ValidationResult(status="passed", message="Compatibility passed."),
                     ValidationResult(status="passed", message="Execution fit passed."),
+                    ValidationResult(status="passed", message="Knowledge policy passed."),
                     ValidationResult(status="passed", message="Validation passed."),
                 )
 
@@ -1476,11 +1760,12 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
-            ) -> tuple[ValidationResult, ValidationResult, ValidationResult]:
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
                 return (
                     ValidationResult(status="passed", message="Compatibility passed."),
                     ValidationResult(status="passed", message="Execution fit passed."),
+                    ValidationResult(status="passed", message="Knowledge policy passed."),
                     ValidationResult(status="passed", message="Validation passed."),
                 )
 
@@ -1566,6 +1851,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "compatibility.completed",
                 "execution_fit.completed",
+                "knowledge_policy.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.completed",
@@ -1575,10 +1861,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[0]["payload"]["phase"], "intake")
         self.assertEqual(events[0]["payload"]["route_name"], "local-mock")
         self.assertEqual(events[0]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[0]["payload"]["route_executor_family"], "cli")
         self.assertEqual(events[0]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[0]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[0]["payload"]["route_transport_kind"], "local_process")
         self.assertEqual(events[0]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[0]["payload"]["topology_executor_family"], "cli")
         self.assertEqual(events[0]["payload"]["topology_execution_site"], "local")
         self.assertEqual(events[0]["payload"]["topology_transport_kind"], "local_process")
         self.assertEqual(events[0]["payload"]["topology_remote_capable_intent"], False)
@@ -1590,12 +1878,14 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["payload"]["phase"], "intake")
         self.assertEqual(events[1]["payload"]["route_name"], "local-mock")
         self.assertEqual(events[1]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[1]["payload"]["route_executor_family"], "cli")
         self.assertEqual(events[1]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[1]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_process")
         self.assertEqual(events[1]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(events[1]["payload"]["attempt_number"], 1)
         self.assertEqual(events[1]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[1]["payload"]["topology_executor_family"], "cli")
         self.assertEqual(events[1]["payload"]["topology_execution_site"], "local")
         self.assertEqual(events[1]["payload"]["topology_transport_kind"], "local_process")
         self.assertEqual(events[1]["payload"]["topology_remote_capable_intent"], False)
@@ -1622,6 +1912,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[5]["payload"]["executor_name"], "mock")
         self.assertEqual(events[5]["payload"]["route_name"], "local-mock")
         self.assertEqual(events[5]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[5]["payload"]["route_executor_family"], "cli")
         self.assertEqual(events[5]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[5]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[5]["payload"]["route_transport_kind"], "local_process")
@@ -1630,6 +1921,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[5]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(events[5]["payload"]["attempt_number"], 1)
         self.assertEqual(events[5]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[5]["payload"]["topology_executor_family"], "cli")
         self.assertEqual(events[5]["payload"]["topology_execution_site"], "local")
         self.assertEqual(events[5]["payload"]["topology_transport_kind"], "local_process")
         self.assertEqual(events[5]["payload"]["topology_remote_capable_intent"], False)
@@ -1653,45 +1945,49 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[8]["payload"]["status"], "passed")
         self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 5, "warn": 0, "fail": 0})
         self.assertEqual(events[9]["payload"]["status"], "passed")
-        self.assertEqual(events[9]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
-        self.assertEqual(events[10]["payload"]["status"], "completed")
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
-        self.assertTrue(
-            events[10]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
-        )
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertEqual(events[9]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
+        self.assertEqual(events[10]["payload"]["status"], "passed")
+        self.assertEqual(events[10]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[11]["payload"]["status"], "completed")
-        self.assertEqual(events[11]["payload"]["phase"], "summarize")
-        self.assertEqual(events[11]["payload"]["retrieval_count"], 1)
-        self.assertEqual(events[11]["payload"]["executor_status"], "completed")
-        self.assertEqual(events[11]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[11]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[11]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[11]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[11]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[11]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[11]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[11]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[11]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[11]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[11]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[11]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertTrue(bool(events[11]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[11]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[11]["payload"]["execution_lifecycle"], "completed")
-        self.assertEqual(events[11]["payload"]["compatibility_status"], "passed")
-        self.assertEqual(events[11]["payload"]["execution_fit_status"], "passed")
-        self.assertEqual(events[11]["payload"]["validation_status"], "passed")
-        self.assertTrue(events[11]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
+        self.assertTrue(
+            events[11]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+        )
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+        self.assertEqual(events[12]["payload"]["status"], "completed")
+        self.assertEqual(events[12]["payload"]["phase"], "summarize")
+        self.assertEqual(events[12]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[12]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[12]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[12]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[12]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[12]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[12]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[12]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[12]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[12]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[12]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[12]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[12]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[12]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertTrue(bool(events[12]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[12]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[12]["payload"]["execution_lifecycle"], "completed")
+        self.assertEqual(events[12]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[12]["payload"]["execution_fit_status"], "passed")
+        self.assertEqual(events[12]["payload"]["knowledge_policy_status"], "passed")
+        self.assertEqual(events[12]["payload"]["validation_status"], "passed")
+        self.assertTrue(events[12]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
 
     def test_failed_task_events_include_failure_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1761,9 +2057,11 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[7]["payload"]["status"], "passed")
         self.assertEqual(events[8]["event_type"], "execution_fit.completed")
         self.assertEqual(events[8]["payload"]["status"], "passed")
-        self.assertEqual(events[9]["event_type"], "validation.completed")
+        self.assertEqual(events[9]["event_type"], "knowledge_policy.completed")
         self.assertEqual(events[9]["payload"]["status"], "passed")
-        self.assertEqual(events[10]["payload"]["status"], "failed")
+        self.assertEqual(events[10]["event_type"], "validation.completed")
+        self.assertEqual(events[10]["payload"]["status"], "passed")
+        self.assertEqual(events[11]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
@@ -1772,6 +2070,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[-1]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[-1]["payload"]["compatibility_status"], "passed")
         self.assertEqual(events[-1]["payload"]["execution_fit_status"], "passed")
+        self.assertEqual(events[-1]["payload"]["knowledge_policy_status"], "passed")
         self.assertEqual(events[-1]["payload"]["validation_status"], "passed")
         self.assertEqual(events[-1]["payload"]["retrieval_count"], 1)
 
@@ -1795,7 +2094,7 @@ class CliLifecycleTest(unittest.TestCase):
             failure_kind="launch_error",
         )
 
-        note = build_resume_note(state, retrieval_items, executor_result, None, None, None)
+        note = build_resume_note(state, retrieval_items, executor_result, None, None, None, None)
 
         self.assertIn("treat this run as incomplete", note)
         self.assertIn("Treat this run as a failed live execution attempt", note)
@@ -1865,6 +2164,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "compatibility.completed",
                 "execution_fit.completed",
+                "knowledge_policy.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
@@ -1882,6 +2182,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "compatibility.completed",
                 "execution_fit.completed",
+                "knowledge_policy.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
@@ -1893,21 +2194,22 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "compatibility.completed",
                 "execution_fit.completed",
+                "knowledge_policy.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
             ],
         )
-        self.assertEqual(final_events[12]["payload"]["previous_status"], "failed")
-        self.assertEqual(final_events[12]["payload"]["previous_phase"], "summarize")
-        self.assertEqual(final_events[12]["payload"]["status"], "running")
-        self.assertEqual(final_events[12]["payload"]["phase"], "intake")
+        self.assertEqual(final_events[13]["payload"]["previous_status"], "failed")
+        self.assertEqual(final_events[13]["payload"]["previous_phase"], "summarize")
+        self.assertEqual(final_events[13]["payload"]["status"], "running")
+        self.assertEqual(final_events[13]["payload"]["phase"], "intake")
         self.assertEqual(first_events[1]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(first_events[1]["payload"]["attempt_number"], 1)
         self.assertEqual(first_events[1]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(final_events[12]["payload"]["attempt_id"], "attempt-0002")
-        self.assertEqual(final_events[12]["payload"]["attempt_number"], 2)
-        self.assertEqual(final_events[12]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(final_events[13]["payload"]["attempt_id"], "attempt-0002")
+        self.assertEqual(final_events[13]["payload"]["attempt_number"], 2)
+        self.assertEqual(final_events[13]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(final_state["run_attempt_count"], 2)
         self.assertEqual(final_state["current_attempt_id"], "attempt-0002")
         self.assertEqual(final_state["current_attempt_number"], 2)
@@ -2289,12 +2591,18 @@ class CliLifecycleTest(unittest.TestCase):
             dispatch_stdout = StringIO()
             handoff_stdout = StringIO()
             execution_fit_stdout = StringIO()
+            semantics_stdout = StringIO()
+            knowledge_objects_stdout = StringIO()
+            knowledge_policy_stdout = StringIO()
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
             topology_json_stdout = StringIO()
             dispatch_json_stdout = StringIO()
             handoff_json_stdout = StringIO()
             execution_fit_json_stdout = StringIO()
+            semantics_json_stdout = StringIO()
+            knowledge_objects_json_stdout = StringIO()
+            knowledge_policy_json_stdout = StringIO()
             retrieval_json_stdout = StringIO()
             grounding_stdout = StringIO()
             memory_stdout = StringIO()
@@ -2307,6 +2615,12 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "route", task_id]), 0)
             with redirect_stdout(retrieval_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval", task_id]), 0)
+            with redirect_stdout(semantics_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "semantics", task_id]), 0)
+            with redirect_stdout(knowledge_objects_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-objects", task_id]), 0)
+            with redirect_stdout(knowledge_policy_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-policy", task_id]), 0)
             with redirect_stdout(topology_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "topology", task_id]), 0)
             with redirect_stdout(dispatch_stdout):
@@ -2327,6 +2641,12 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "handoff-json", task_id]), 0)
             with redirect_stdout(execution_fit_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "execution-fit-json", task_id]), 0)
+            with redirect_stdout(semantics_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "semantics-json", task_id]), 0)
+            with redirect_stdout(knowledge_objects_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-objects-json", task_id]), 0)
+            with redirect_stdout(knowledge_policy_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-policy-json", task_id]), 0)
             with redirect_stdout(retrieval_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval-json", task_id]), 0)
             with redirect_stdout(grounding_stdout):
@@ -2338,6 +2658,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Compatibility Report", compatibility_stdout.getvalue())
         self.assertIn("Route Report", route_stdout.getvalue())
         self.assertIn("Retrieval Report", retrieval_stdout.getvalue())
+        self.assertIn("Task Semantics Report", semantics_stdout.getvalue())
+        self.assertIn("Knowledge Objects Report", knowledge_objects_stdout.getvalue())
+        self.assertIn("Knowledge Policy Report", knowledge_policy_stdout.getvalue())
         self.assertIn("Topology Report", topology_stdout.getvalue())
         self.assertIn("Dispatch Report", dispatch_stdout.getvalue())
         self.assertIn("Handoff Report", handoff_stdout.getvalue())
@@ -2350,6 +2673,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"attempt_id"', dispatch_json_stdout.getvalue())
         self.assertIn('"next_operator_action"', handoff_json_stdout.getvalue())
         self.assertIn('"findings"', execution_fit_json_stdout.getvalue())
+        self.assertIn('"source_kind"', semantics_json_stdout.getvalue())
+        self.assertIn("[", knowledge_objects_json_stdout.getvalue())
+        self.assertIn('"status"', knowledge_policy_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())
@@ -2389,6 +2715,7 @@ class CliLifecycleTest(unittest.TestCase):
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
                                         ValidationResult(status="passed", message="Execution fit passed."),
+                                        ValidationResult(status="passed", message="Knowledge policy passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
                                     ),
                                 ):
@@ -2474,6 +2801,7 @@ class CliLifecycleTest(unittest.TestCase):
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
                                         ValidationResult(status="passed", message="Execution fit passed."),
+                                        ValidationResult(status="passed", message="Knowledge policy passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
                                     ),
                                 ):

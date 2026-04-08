@@ -84,6 +84,17 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 它更接近一个**面向真实项目工作的 AI 工作台 / AI 工作流操作系统**。
 
+在这个系统形态里，executor 也不应被看成单一类别。当前架构已经区分 model、runtime backend 与 executor，而下一步规划还会继续把 executor family 细分为两类：
+
+- **API executor**：更适合承担讨论、规划、总结、路由判断、检索后的综合、结构化输出等认知型工作
+- **CLI executor**：更适合承担读仓库、改文件、跑命令、调用本地工具、在环境内执行动作等操作型工作
+
+这两类 executor 都应被视为系统可路由的执行器。长期方向上：
+
+- API executor 更适合与官方模型 API 或更深的托管接口集成
+- CLI executor 更适合作为本地或半本地 code agent 执行壳
+- 后续 routing 应优先面向 executor family 与 capability，而不只是面向某个厂商或工具名字
+
 ## 核心原则
 
 这个系统围绕五个核心能力构建：
@@ -104,9 +115,23 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 领域适配应优先落在 domain packs 或 capability packs 中，而不是散落在一次性 prompt 技巧里。这个原则同样适用于 retrieval 行为、工具行为与 workflow 行为。
 
+同样的原则也适用于外部 AI 输入。外部规划、外部讨论和外部知识整理可以作为系统输入，但聊天记录本身不应直接成为 system of record。更合理的方向是把外部输入归一化为显式系统对象：
+
+- **task objects**：承接 external planning handoff、任务意图和可执行的 task semantics
+- **knowledge objects**：承接外部知识片段、研究摘录、总结、证据包，以及后续可复用的检索材料
+
+这些对象应保持可追踪、在需要时与任务绑定，并且尽量有 artifact 或 source reference 作为依据。长期目标不是直接囤积原始对话，而是走分级蒸馏路径：
+
+- `raw`
+- `candidate`
+- `verified`
+- `canonical`
+
+这样既能保留证据，也能避免把低质量或未经校验的内容直接污染长期知识层。
+
 ## 当前阶段
 
-当前仓库处于 **Phase 5 收口检查点**。
+当前仓库处于 **post-Phase-5 executor / external-input 收口检查点**。
 
 当前已经实现的基线包括：
 
@@ -130,6 +155,13 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - 面向 coding 与 research 的可复用 capability packs
 - 可选的 provider 路由与成本感知执行策略
 - 更广泛的 source adapter 与更完整的工作台界面
+
+这个方向也包括：
+
+- 更明确的 API executor 与 CLI executor 路由边界
+- 把 external planning handoff 收敛成 task semantics，而不是散落聊天残留
+- 把 external knowledge capture 收敛成分级、可引用的 knowledge objects
+- 更清楚地区分短期交互历史与长期系统记录
 
 
 ## 运行形态
@@ -180,12 +212,18 @@ backend 不等于模型，也不等于 executor。
 * **运行时 backend（Runtime backend）**：Harness 内部使用的 agent / workflow 运行时
 * **执行器（Executor）**：真正执行代码、命令或其他任务动作的具体执行单元
 
+而在 executor 这一层里，下一步规划还应继续区分：
+
+* **API executor**：偏认知型工作，负责讨论、规划、综合、结构化输出
+* **CLI executor**：偏操作型工作，负责仓库、文件、命令与工具调用等环境内执行
+
 因此，项目不应假设：
 
 * 所有模型都支持相同的 agent 能力
 * 所有 runtime backend 都支持相同的 handoff 语义
 * 所有 executor 都能参与所有工作流步骤
 * 所有 backend 都同等支持代码执行、tool loop、结构化 handoff 或失败后恢复
+* 所有 executor family 都适合同样的任务形态
 
 更合理的原则是：
 
@@ -209,7 +247,7 @@ backend 不等于模型，也不等于 executor。
 * **Orchestrator** 根据任务需求选择 backend 或 executor
 * **Harness Runtime** 提供稳定的集成边界
 * 每个 backend 明确声明自己真正支持的能力
-* 工作流设计应面向“角色与能力”，而不是写死某个模型厂商
+* 工作流设计应面向“角色、executor family 与能力”，而不是写死某个模型厂商
 
 这条原则很重要，因为这个项目并不是想成为某一个 agent framework 的薄封装。它真正的核心价值仍然在于自己的 orchestration、retrieval、state、artifact 和 execution 设计 
 
@@ -232,6 +270,8 @@ Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-
 - [docs/phase4_closeout_note.md](./docs/phase4_closeout_note.md)
 - [docs/phase5_task_breakdown.md](./docs/phase5_task_breakdown.md)
 - [docs/phase5_closeout_note.md](./docs/phase5_closeout_note.md)
+- [docs/post_phase5_executor_and_external_input_kickoff_note.md](./docs/post_phase5_executor_and_external_input_kickoff_note.md)
+- [docs/post_phase5_executor_and_external_input_task_breakdown.md](./docs/post_phase5_executor_and_external_input_task_breakdown.md)
 - [CHANGELOG.md](./CHANGELOG.md)
 
 ## 术语说明
@@ -316,7 +356,10 @@ python3 -m unittest discover -s tests
 - `swl task run`
 - `swl task list`
 - `swl task inspect`
+- `swl task semantics`
 - `swl task capabilities`
+- `swl task knowledge-objects`
+- `swl task knowledge-policy`
 - `swl task review`
 - `swl task artifacts`
 - `swl task summarize`
@@ -338,6 +381,9 @@ python3 -m unittest discover -s tests
 - `swl task handoff-json`
 - `swl task execution-fit-json`
 - `swl task capabilities-json`
+- `swl task semantics-json`
+- `swl task knowledge-objects-json`
+- `swl task knowledge-policy-json`
 - `swl task retrieval-json`
 - `swl doctor codex`
 
@@ -350,6 +396,9 @@ python3 -m unittest discover -s tests
       state.json
       events.jsonl
       retrieval.json
+      task_semantics.json
+      knowledge_objects.json
+      knowledge_policy.json
       compatibility.json
       execution_fit.json
       validation.json
@@ -360,6 +409,9 @@ python3 -m unittest discover -s tests
       memory.json
       artifacts/
         summary.md
+        task_semantics_report.md
+        knowledge_objects_report.md
+        knowledge_policy_report.md
         resume_note.md
         compatibility_report.md
         execution_fit_report.md
@@ -374,7 +426,7 @@ python3 -m unittest discover -s tests
         executor_stderr.txt
 ```
 
-当前 `run` 命令已经能完成检索、执行器调用、route compatibility 检查、execution-fit 检查、validation、状态记录、事件追加、task memory 持久化，以及 executor、summary、resume note、grounding、route、topology、dispatch、handoff、execution-fit、compatibility、validation 产物写入。
+当前 `run` 命令已经能完成检索、执行器调用、route compatibility 检查、execution-fit 检查、knowledge policy 检查、validation、状态记录、事件追加、task memory 持久化，以及 executor、summary、resume note、task semantics、knowledge objects、grounding、route、topology、dispatch、handoff、execution-fit、compatibility、knowledge policy、validation 产物写入。
 
 当前任务状态语义保持为最小且明确的形式：
 
@@ -394,6 +446,8 @@ task.phase        # executing
 executor.completed
 task.phase        # summarize
 compatibility.completed
+execution_fit.completed
+knowledge_policy.completed
 validation.completed
 artifacts.written
 task.completed

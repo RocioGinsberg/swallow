@@ -7,6 +7,7 @@ from uuid import uuid4
 from .capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
 from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
+from .knowledge_objects import build_knowledge_objects, summarize_knowledge_evidence, summarize_knowledge_stages
 from .models import Event, RetrievalRequest, TaskState
 from .paths import (
     artifacts_dir,
@@ -16,7 +17,10 @@ from .paths import (
     dispatch_path,
     execution_fit_path,
     handoff_path,
+    knowledge_objects_path,
+    knowledge_policy_path,
     memory_path,
+    task_semantics_path,
     retrieval_path,
     route_path,
     topology_path,
@@ -24,7 +28,17 @@ from .paths import (
 )
 from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
-from .store import append_event, load_state, save_capability_assembly, save_capability_manifest, save_state
+from .store import (
+    append_event,
+    load_state,
+    save_capability_assembly,
+    save_capability_manifest,
+    save_knowledge_objects,
+    save_state,
+    save_task_semantics,
+    write_artifact,
+)
+from .task_semantics import build_task_semantics
 from .models import utc_now
 
 
@@ -34,6 +48,7 @@ def _apply_execution_topology(
     dispatch_status: str,
 ) -> None:
     state.topology_route_name = state.route_name
+    state.topology_executor_family = state.route_executor_family
     state.topology_execution_site = state.route_execution_site
     state.topology_transport_kind = state.route_transport_kind
     state.topology_remote_capable_intent = state.route_remote_capable
@@ -55,6 +70,15 @@ def create_task(
     goal: str,
     workspace_root: Path,
     executor_name: str = "codex",
+    constraints: list[str] | None = None,
+    acceptance_criteria: list[str] | None = None,
+    priority_hints: list[str] | None = None,
+    next_action_proposals: list[str] | None = None,
+    planning_source: str | None = None,
+    knowledge_items: list[str] | None = None,
+    knowledge_stage: str = "raw",
+    knowledge_source: str | None = None,
+    knowledge_artifact_refs: list[str] | None = None,
     capability_refs: list[str] | None = None,
     route_mode: str = "auto",
 ) -> TaskState:
@@ -64,12 +88,29 @@ def create_task(
     if capability_errors:
         raise ValueError("; ".join(capability_errors))
     capability_assembly = build_capability_assembly(capability_manifest)
+    task_semantics = build_task_semantics(
+        title=title,
+        goal=goal,
+        constraints=constraints,
+        acceptance_criteria=acceptance_criteria,
+        priority_hints=priority_hints,
+        next_action_proposals=next_action_proposals,
+        planning_source=planning_source,
+    )
+    knowledge_objects = build_knowledge_objects(
+        items=knowledge_items,
+        stage=knowledge_stage,
+        source_ref=knowledge_source,
+        artifact_refs=knowledge_artifact_refs,
+    )
     state = TaskState(
         task_id=task_id,
         title=title,
         goal=goal,
         workspace_root=str(workspace_root.resolve()),
         executor_name=normalize_executor_name(executor_name),
+        task_semantics=task_semantics.to_dict(),
+        knowledge_objects=[item.to_dict() for item in knowledge_objects],
         capability_manifest=capability_manifest.to_dict(),
         capability_assembly=capability_assembly.to_dict(),
         route_mode=normalize_route_mode(route_mode),
@@ -77,6 +118,7 @@ def create_task(
     initial_route = select_route(state, route_mode_override=state.route_mode)
     state.route_name = initial_route.route.name
     state.route_backend = initial_route.route.backend_kind
+    state.route_executor_family = initial_route.route.executor_family
     state.route_execution_site = initial_route.route.execution_site
     state.route_remote_capable = initial_route.route.remote_capable
     state.route_transport_kind = initial_route.route.transport_kind
@@ -84,9 +126,19 @@ def create_task(
     state.route_reason = initial_route.reason
     state.route_capabilities = initial_route.route.capabilities.to_dict()
     _apply_execution_topology(state, dispatch_status="not_requested")
+    state.artifact_paths = {
+        "task_semantics_json": str(task_semantics_path(base_dir, task_id).resolve()),
+        "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
+        "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
+        "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
+    }
     save_state(base_dir, state)
+    save_task_semantics(base_dir, task_id, state.task_semantics)
+    save_knowledge_objects(base_dir, task_id, state.knowledge_objects)
     save_capability_manifest(base_dir, task_id, state.capability_manifest)
     save_capability_assembly(base_dir, task_id, state.capability_assembly)
+    write_artifact(base_dir, task_id, "task_semantics_report.md", build_task_semantics_report(state))
+    write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
     append_event(
         base_dir,
         Event(
@@ -98,15 +150,21 @@ def create_task(
                 "phase": state.phase,
                 "workspace_root": state.workspace_root,
                 "executor_name": state.executor_name,
+                "task_semantics": state.task_semantics,
+                "knowledge_objects_count": len(state.knowledge_objects),
+                "knowledge_stage_counts": summarize_knowledge_stages(state.knowledge_objects),
+                "knowledge_evidence_counts": summarize_knowledge_evidence(state.knowledge_objects),
                 "capability_manifest": state.capability_manifest,
                 "capability_assembly": state.capability_assembly,
                 "route_mode": state.route_mode,
                 "route_name": state.route_name,
                 "route_backend": state.route_backend,
+                "route_executor_family": state.route_executor_family,
                 "route_execution_site": state.route_execution_site,
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
                 "topology_route_name": state.topology_route_name,
+                "topology_executor_family": state.topology_executor_family,
                 "topology_execution_site": state.topology_execution_site,
                 "topology_transport_kind": state.topology_transport_kind,
                 "topology_remote_capable_intent": state.topology_remote_capable_intent,
@@ -172,6 +230,7 @@ def run_task(
     state.executor_name = route_selection.route.executor_name
     state.route_name = route_selection.route.name
     state.route_backend = route_selection.route.backend_kind
+    state.route_executor_family = route_selection.route.executor_family
     state.route_execution_site = route_selection.route.execution_site
     state.route_remote_capable = route_selection.route.remote_capable
     state.route_transport_kind = route_selection.route.transport_kind
@@ -201,6 +260,7 @@ def run_task(
                 "route_mode": state.route_mode,
                 "route_name": state.route_name,
                 "route_backend": state.route_backend,
+                "route_executor_family": state.route_executor_family,
                 "route_execution_site": state.route_execution_site,
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
@@ -209,6 +269,7 @@ def run_task(
                 "attempt_id": state.current_attempt_id,
                 "attempt_number": state.current_attempt_number,
                 "topology_route_name": state.topology_route_name,
+                "topology_executor_family": state.topology_executor_family,
                 "topology_execution_site": state.topology_execution_site,
                 "topology_transport_kind": state.topology_transport_kind,
                 "topology_remote_capable_intent": state.topology_remote_capable_intent,
@@ -241,6 +302,12 @@ def run_task(
         "executor_output": str((artifacts_dir(base_dir, task_id) / "executor_output.md").resolve()),
         "executor_stdout": str((artifacts_dir(base_dir, task_id) / "executor_stdout.txt").resolve()),
         "executor_stderr": str((artifacts_dir(base_dir, task_id) / "executor_stderr.txt").resolve()),
+        "task_semantics_json": str(task_semantics_path(base_dir, task_id).resolve()),
+        "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
+        "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
+        "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
+        "knowledge_policy_json": str(knowledge_policy_path(base_dir, task_id).resolve()),
+        "knowledge_policy_report": str((artifacts_dir(base_dir, task_id) / "knowledge_policy_report.md").resolve()),
         "summary": str((artifacts_dir(base_dir, task_id) / "summary.md").resolve()),
         "resume_note": str((artifacts_dir(base_dir, task_id) / "resume_note.md").resolve()),
         "route_report": str((artifacts_dir(base_dir, task_id) / "route_report.md").resolve()),
@@ -264,7 +331,7 @@ def run_task(
         "execution_fit_report": str((artifacts_dir(base_dir, task_id) / "execution_fit_report.md").resolve()),
         "execution_fit_json": str(execution_fit_path(base_dir, task_id).resolve()),
     }
-    compatibility_result, execution_fit_result, validation_result = write_task_artifacts(
+    compatibility_result, execution_fit_result, knowledge_policy_result, validation_result = write_task_artifacts(
         base_dir, replace(state), retrieval_items, executor_result
     )
 
@@ -273,6 +340,7 @@ def run_task(
         if executor_result.status == "completed"
         and compatibility_result.status != "failed"
         and execution_fit_result.status != "failed"
+        and knowledge_policy_result.status != "failed"
         and validation_result.status != "failed"
         else "failed"
     )
@@ -292,6 +360,7 @@ def run_task(
                 "route_mode": state.route_mode,
                 "route_name": state.route_name,
                 "route_backend": state.route_backend,
+                "route_executor_family": state.route_executor_family,
                 "route_execution_site": state.route_execution_site,
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
@@ -300,6 +369,7 @@ def run_task(
                 "attempt_id": state.current_attempt_id,
                 "attempt_number": state.current_attempt_number,
                 "topology_route_name": state.topology_route_name,
+                "topology_executor_family": state.topology_executor_family,
                 "topology_execution_site": state.topology_execution_site,
                 "topology_transport_kind": state.topology_transport_kind,
                 "topology_remote_capable_intent": state.topology_remote_capable_intent,
@@ -310,9 +380,90 @@ def run_task(
                 "executor_status": state.executor_status,
                 "compatibility_status": compatibility_result.status,
                 "execution_fit_status": execution_fit_result.status,
+                "knowledge_policy_status": knowledge_policy_result.status,
                 "validation_status": validation_result.status,
                 "artifact_paths": state.artifact_paths,
             },
         ),
     )
     return state
+
+
+def build_task_semantics_report(state: TaskState) -> str:
+    semantics = state.task_semantics or {}
+    lines = [
+        "# Task Semantics Report",
+        "",
+        f"- title: {semantics.get('title', state.title)}",
+        f"- goal: {semantics.get('goal', state.goal)}",
+        f"- source_kind: {semantics.get('source_kind', 'unknown')}",
+        f"- source_ref: {semantics.get('source_ref', '') or 'none'}",
+        "",
+        "## Imported Planning Constraints",
+    ]
+    constraints = semantics.get("constraints", [])
+    if constraints:
+        lines.extend([f"- {item}" for item in constraints])
+    else:
+        lines.append("- none")
+
+    lines.extend(["", "## Acceptance Criteria"])
+    acceptance_criteria = semantics.get("acceptance_criteria", [])
+    if acceptance_criteria:
+        lines.extend([f"- {item}" for item in acceptance_criteria])
+    else:
+        lines.append("- none")
+
+    lines.extend(["", "## Priority Hints"])
+    priority_hints = semantics.get("priority_hints", [])
+    if priority_hints:
+        lines.extend([f"- {item}" for item in priority_hints])
+    else:
+        lines.append("- none")
+
+    lines.extend(["", "## Next Action Proposals"])
+    next_actions = semantics.get("next_action_proposals", [])
+    if next_actions:
+        lines.extend([f"- {item}" for item in next_actions])
+    else:
+        lines.append("- none")
+    return "\n".join(lines)
+
+
+def build_knowledge_objects_report(state: TaskState) -> str:
+    knowledge_objects = state.knowledge_objects or []
+    stage_counts = summarize_knowledge_stages(knowledge_objects)
+    evidence_counts = summarize_knowledge_evidence(knowledge_objects)
+    lines = [
+        "# Knowledge Objects Report",
+        "",
+        f"- count: {len(knowledge_objects)}",
+        f"- raw: {stage_counts.get('raw', 0)}",
+        f"- candidate: {stage_counts.get('candidate', 0)}",
+        f"- verified: {stage_counts.get('verified', 0)}",
+        f"- canonical: {stage_counts.get('canonical', 0)}",
+        f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
+        f"- source_only: {evidence_counts.get('source_only', 0)}",
+        f"- unbacked: {evidence_counts.get('unbacked', 0)}",
+        "",
+        "## Objects",
+    ]
+    if not knowledge_objects:
+        lines.append("- none")
+        return "\n".join(lines)
+
+    for item in knowledge_objects:
+        lines.extend(
+            [
+                f"- id: {item.get('object_id', 'unknown')}",
+                f"  stage: {item.get('stage', 'raw')}",
+                f"  source_kind: {item.get('source_kind', 'unknown')}",
+                f"  source_ref: {item.get('source_ref', '') or 'none'}",
+                f"  captured_at: {item.get('captured_at', 'unknown')}",
+                f"  task_linked: {'yes' if item.get('task_linked', False) else 'no'}",
+                f"  evidence_status: {item.get('evidence_status', 'unbacked')}",
+                f"  artifact_ref: {item.get('artifact_ref', '') or 'none'}",
+                f"  text: {item.get('text', '') or '(empty)'}",
+            ]
+        )
+    return "\n".join(lines)

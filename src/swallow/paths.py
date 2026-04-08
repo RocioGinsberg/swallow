@@ -46,6 +46,18 @@ def memory_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "memory.json"
 
 
+def task_semantics_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "task_semantics.json"
+
+
+def knowledge_objects_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "knowledge_objects.json"
+
+
+def knowledge_policy_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "knowledge_policy.json"
+
+
 def capability_assembly_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "capability_assembly.json"
 

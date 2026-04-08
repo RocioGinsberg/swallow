@@ -7,7 +7,7 @@ This file tracks the implementation status of the repository itself so work can 
 ## Current Status
 
 - phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 5 closeout checkpoint
+- overall state: runnable, acceptance-validated, and at a post-Phase-5 executor/external-input closeout checkpoint
 - last checked: 2026-04-08
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -30,6 +30,10 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase5_kickoff_note.md`
   - `docs/phase5_task_breakdown.md`
   - `docs/phase5_closeout_note.md`
+- post-Phase-5 planning reference:
+  - `docs/post_phase5_executor_and_external_input_kickoff_note.md`
+  - `docs/post_phase5_executor_and_external_input_task_breakdown.md`
+  - `docs/post_phase5_executor_and_external_input_closeout_note.md`
 - system planning reference:
   - `docs/system_tracks.md`
 - post-Phase-2 retrieval planning reference:
@@ -155,6 +159,14 @@ This file tracks the implementation status of the repository itself so work can 
   - `P5-05` capability validation baseline is implemented with a small local-first known-capability allowlist; unknown capability refs now fail clearly during task creation or run-time override
   - `P5-06` capability closeout tightening is implemented with capability-aware CLI help, README quickstart alignment for create/run/inspect flows, and test coverage for capability help text
   - `docs/phase5_closeout_note.md` records the stop/go judgment for the completed Phase 5 baseline
+  - `docs/post_phase5_executor_and_external_input_kickoff_note.md` defines the next planning direction around executor-family distinction and external-input ingestion without changing the accepted Phase 5 closeout state
+  - `docs/post_phase5_executor_and_external_input_task_breakdown.md` turns that post-Phase-5 direction into executable slices without changing the accepted Phase 5 closeout state
+  - `X1-01` executor family declaration baseline is implemented with explicit `executor_family` fields in route selection, task state, topology, dispatch, handoff, memory, prompt context, and operator-facing reports while preserving the current local-first executor behavior
+  - `X1-02` task-semantics ingestion baseline is implemented with explicit imported-planning fields, persisted `task_semantics.json`, readable `task_semantics_report.md`, and task-linked semantics carried through task state, creation events, prompt context, summary, resume note, memory, and compact inspection flows
+  - `X1-03` staged knowledge-object record baseline is implemented with explicit staged knowledge records, persisted `knowledge_objects.json`, readable `knowledge_objects_report.md`, and knowledge-object context carried through task state, creation events, prompt context, summary, resume note, memory, and compact inspection without yet enabling default retrieval reuse or automated promotion
+  - `X1-04` artifact-backed external knowledge capture baseline is implemented with explicit evidence fields such as `artifact_ref`, `captured_at`, and `evidence_status`, plus artifact-backed/source-only/unbacked counts carried through creation events, prompt context, summary, resume note, memory, compact inspection, and `knowledge_objects_report.md`
+  - `X1-05` promotion and verification policy baseline is implemented with explicit `knowledge_policy` evaluation, persisted `knowledge_policy.json`, readable `knowledge_policy_report.md`, policy-aware terminal status gating on blocking failures, and operator-facing policy status carried through summary, resume note, handoff, memory, compact inspection, and review flows
+  - `X1-06` inspection and closeout tightening is implemented with explicit CLI inspection commands for task semantics, knowledge objects, and knowledge policy, review-flow visibility for imported task and knowledge records, and aligned closeout references for the completed post-Phase-5 slice
   - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
   - `P4-02` task inspect and overview baseline is implemented with `swl task inspect`, a compact per-task overview of the latest attempt, route/topology, policy status, retrieval/memory availability, operator guidance, and key artifact links
   - `P4-03` artifact index tightening is implemented with `swl task artifacts`, grouped artifact-path presentation by operator concern while preserving existing artifact paths and file layout
@@ -190,7 +202,7 @@ This file tracks the implementation status of the repository itself so work can 
 - The planned Phase 3 baseline is complete enough to stop open-ended execution-topology expansion by default.
 - The planned Phase 4 baseline is complete enough to stop open-ended Workbench / UX expansion by default.
 - The planned Phase 5 baseline is complete enough to stop open-ended `Capabilities` expansion by default.
-- New work should now begin from a fresh post-Phase-5 planning note rather than assuming more Phase 5 implementation slices exist.
+- New work should now begin from a fresh planning note rather than assuming more post-Phase-5 executor/external-input implementation slices exist by default.
 
 ## Known Issues
 
@@ -205,7 +217,7 @@ This file tracks the implementation status of the repository itself so work can 
 4. Use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference.
 5. Use `docs/post_phase2_retrieval_closeout_note.md` as the current retrieval stop/go decision reference.
 6. Use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference.
-7. Write or consult a fresh planning note before resuming implementation after Phase 5.
+7. Use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the current stop/go reference for the completed post-Phase-5 executor/external-input slice.
 8. Verify the editable install exposes the `swl` entrypoint correctly.
 9. Update this file after each substantial code change.
 

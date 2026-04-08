@@ -52,5 +52,7 @@ Use these references first:
 - `docs/system_tracks.md`
 - `current_state.md`
 - `docs/phase5_task_breakdown.md`
+- `docs/post_phase5_executor_and_external_input_kickoff_note.md`
+- `docs/post_phase5_executor_and_external_input_task_breakdown.md`
 
 Then define the next slice instead of treating Phase 5 as still open.

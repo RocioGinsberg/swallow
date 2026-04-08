@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 
 from .models import ExecutorResult, RetrievalItem, TaskState
+from .knowledge_objects import summarize_knowledge_evidence, summarize_knowledge_stages
 
 
 DEFAULT_EXECUTOR = "codex"
@@ -145,6 +146,7 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
         f"Route Mode: {state.route_mode or 'auto'}",
         f"Route: {state.route_name or 'pending'}",
         f"Route Backend: {state.route_backend or 'pending'}",
+        f"Route Executor Family: {state.route_executor_family or 'pending'}",
         f"Route Execution Site: {state.route_execution_site or 'pending'}",
         f"Route Remote Capable: {'yes' if state.route_remote_capable else 'no'}",
         f"Route Transport Kind: {state.route_transport_kind or 'pending'}",
@@ -152,6 +154,46 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
         f"Route Capabilities: {format_route_capabilities(state.route_capabilities)}",
         "",
     ]
+    semantics = state.task_semantics or {}
+    if semantics:
+        lines.extend(
+            [
+                "Task semantics:",
+                f"- source_kind: {semantics.get('source_kind', 'unknown')}",
+                f"- source_ref: {semantics.get('source_ref', '') or 'none'}",
+            ]
+        )
+        for label, key in [
+            ("constraints", "constraints"),
+            ("acceptance_criteria", "acceptance_criteria"),
+            ("priority_hints", "priority_hints"),
+            ("next_action_proposals", "next_action_proposals"),
+        ]:
+            values = semantics.get(key, [])
+            if values:
+                lines.append(f"- {label}: {'; '.join(values)}")
+        lines.append("")
+    knowledge_objects = state.knowledge_objects or []
+    if knowledge_objects:
+        stage_counts = summarize_knowledge_stages(knowledge_objects)
+        evidence_counts = summarize_knowledge_evidence(knowledge_objects)
+        lines.extend(
+            [
+                "Knowledge objects:",
+                f"- count: {len(knowledge_objects)}",
+                f"- raw: {stage_counts.get('raw', 0)}",
+                f"- candidate: {stage_counts.get('candidate', 0)}",
+                f"- verified: {stage_counts.get('verified', 0)}",
+                f"- canonical: {stage_counts.get('canonical', 0)}",
+                f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
+                f"- source_only: {evidence_counts.get('source_only', 0)}",
+                f"- unbacked: {evidence_counts.get('unbacked', 0)}",
+            ]
+        )
+        top_items = [item.get("text", "") for item in knowledge_objects[:3]]
+        if top_items:
+            lines.append(f"- top_items: {'; '.join(item for item in top_items if item)}")
+        lines.append("")
     previous_memory_artifacts = [
         state.artifact_paths.get("task_memory", ""),
         state.artifact_paths.get("source_grounding", ""),

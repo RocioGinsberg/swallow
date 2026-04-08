@@ -50,7 +50,7 @@ Use `docs/system_tracks.md` as the top-level planning map before defining or exe
 
 ## Current planning state
 
-Current planning checkpoint: Phase 5 closeout.
+Current planning checkpoint: post-Phase-5 executor / external-input closeout.
 
 Current implementation status:
 1. Phase 0 accepted
@@ -63,11 +63,14 @@ Current implementation status:
 
 Current planning direction:
 1. anchor new work in `docs/system_tracks.md`
-2. treat `Capabilities` as the current primary planning track
+2. treat `docs/phase5_closeout_note.md` as the stop/go boundary for completed `Capabilities` work
 3. use `docs/phase3_closeout_note.md` as the execution-topology stop/go reference
 4. use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference
 5. use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference
-6. write a fresh planning note before expanding beyond the completed Phase 5 baseline
+6. use `docs/post_phase5_executor_and_external_input_kickoff_note.md` as the planning entrypoint for the completed slice
+7. use `docs/post_phase5_executor_and_external_input_task_breakdown.md` as the implementation record for that slice
+8. use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the current stop/go reference
+9. treat `Retrieval / Memory` and `Execution Topology` as the likely next primary tracks for any fresh follow-on slice
 
 Do not default new work back to a generic MVP feature bundle. Start from the current system map and current closeout checkpoint.
 
@@ -78,6 +81,8 @@ Current planning should focus on:
 - treating the completed Phase 3 and Phase 4 baselines as stable checkpoints
 - treating the completed Phase 5 baseline as a stable checkpoint
 - planning the next slice against the repository’s current system tracks
+- clarifying executor-family boundaries and external-input ingestion as planning work, not implemented facts
+- treating the completed post-Phase-5 executor / external-input slice as a stable checkpoint instead of continuing it by default
 - avoiding accidental open-ended continuation of `Capabilities`, execution-topology, or Workbench / UX work
 - keeping retrieval, routing, validation, memory, and artifact semantics inspectable
 
@@ -150,6 +155,33 @@ Source-specific parsing and chunking are preferred.
   - light agentic retrieval
   - graph only when clearly needed
 
+## Executor family principles
+
+- Continue to distinguish clearly between **model**, **runtime backend**, and **executor**.
+- The next planning direction should further distinguish executor families:
+  - **API executor** for planning, discussion, synthesis, summarization, route judgment, and structured output
+  - **CLI executor** for repository, filesystem, command, tool, and environment-bound execution
+- API executors should not be treated as the default place for environment execution.
+- CLI executors should not be treated as the default place for open-ended cognitive synthesis when no environment action is needed.
+- Future routing should target executor family and declared capability, not only vendor name or local tool name.
+
+## External input and knowledge-ingestion principles
+
+- External AI output is a valid input source, but it is not a system fact source by default.
+- External planning should be normalized into **task semantics** rather than stored as loose conversation history.
+- External knowledge capture should flow into a staged knowledge pipeline rather than directly into long-term canonical memory.
+- Do not write all external inputs into the long-term knowledge layer unchanged.
+- Prefer a staged promotion model such as:
+  - `raw`
+  - `candidate`
+  - `verified`
+  - `canonical`
+- Preserve source traceability and artifact-backed evidence during that promotion path.
+- Treat task objects and knowledge objects as different system concerns:
+  - task objects carry execution intent, planning structure, and task linkage
+  - knowledge objects carry reusable evidence, distilled context, and retrieval-facing records
+- Knowledge capture belongs primarily to the `Retrieval / Memory` track, not to a generic chat-interface feature bucket.
+
 ## Capability principles
 
 For the current baseline:
@@ -182,6 +214,7 @@ The next planning concern is no longer "whether routing exists" or "whether exec
 
 For future phases:
 - distinguish clearly between **model**, **runtime backend**, and **executor**
+- distinguish further between **API executor** and **CLI executor** when planning routing and integration boundaries
 - do not assume all backends support the same tool loops, handoff semantics, resumability, or code execution
 - a unified harness boundary may exist, but backend capabilities must be declared explicitly
 - prefer capability-based routing over assuming universal backend compatibility

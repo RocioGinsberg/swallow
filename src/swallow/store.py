@@ -14,7 +14,10 @@ from .paths import (
     execution_fit_path,
     events_path,
     handoff_path,
+    knowledge_objects_path,
+    knowledge_policy_path,
     memory_path,
+    task_semantics_path,
     retrieval_path,
     route_path,
     state_path,
@@ -96,6 +99,30 @@ def save_compatibility(base_dir: Path, task_id: str, payload: dict[str, object])
 def save_memory(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
     ensure_task_layout(base_dir, task_id)
     memory_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_task_semantics(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    task_semantics_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_knowledge_objects(base_dir: Path, task_id: str, payload: list[dict[str, object]]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    knowledge_objects_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_knowledge_policy(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    knowledge_policy_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )

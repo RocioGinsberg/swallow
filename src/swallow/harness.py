@@ -6,11 +6,14 @@ from pathlib import Path
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
 from .execution_fit import build_execution_fit_report, evaluate_execution_fit
 from .executor import build_failure_recommendations, run_executor
+from .knowledge_objects import summarize_knowledge_evidence, summarize_knowledge_stages
+from .knowledge_policy import build_knowledge_policy_report, evaluate_knowledge_policy
 from .models import (
     CompatibilityResult,
     ExecutionFitResult,
     Event,
     ExecutorResult,
+    KnowledgePolicyResult,
     RetrievalItem,
     RetrievalRequest,
     TaskState,
@@ -23,6 +26,7 @@ from .store import (
     save_dispatch,
     save_execution_fit,
     save_handoff,
+    save_knowledge_policy,
     save_memory,
     save_retrieval,
     save_route,
@@ -76,6 +80,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                 "route_mode": state.route_mode,
                 "route_name": state.route_name,
                 "route_backend": state.route_backend,
+                "route_executor_family": state.route_executor_family,
                 "route_execution_site": state.route_execution_site,
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
@@ -83,6 +88,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                 "attempt_id": state.current_attempt_id,
                 "attempt_number": state.current_attempt_number,
                 "topology_route_name": state.topology_route_name,
+                "topology_executor_family": state.topology_executor_family,
                 "topology_execution_site": state.topology_execution_site,
                 "topology_transport_kind": state.topology_transport_kind,
                 "topology_remote_capable_intent": state.topology_remote_capable_intent,
@@ -108,7 +114,7 @@ def write_task_artifacts(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
-) -> tuple[CompatibilityResult, ExecutionFitResult, ValidationResult]:
+) -> tuple[CompatibilityResult, ExecutionFitResult, KnowledgePolicyResult, ValidationResult]:
     save_route(base_dir, state.task_id, build_route_record(state))
     save_topology(base_dir, state.task_id, build_topology_record(state))
     save_dispatch(base_dir, state.task_id, build_dispatch_record(state))
@@ -147,13 +153,13 @@ def write_task_artifacts(
         base_dir,
         state.task_id,
         "summary.md",
-        build_summary(provisional_state, retrieval_items, executor_result, None, None, None),
+        build_summary(provisional_state, retrieval_items, executor_result, None, None, None, None),
     )
     write_artifact(
         base_dir,
         state.task_id,
         "resume_note.md",
-        build_resume_note(provisional_state, retrieval_items, executor_result, None, None, None),
+        build_resume_note(provisional_state, retrieval_items, executor_result, None, None, None, None),
     )
 
     compatibility_result = evaluate_route_compatibility(state, executor_result)
@@ -198,6 +204,27 @@ def write_task_artifacts(
         ),
     )
 
+    knowledge_policy_result = evaluate_knowledge_policy(state)
+    save_knowledge_policy(base_dir, state.task_id, knowledge_policy_result.to_dict())
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "knowledge_policy_report.md",
+        build_knowledge_policy_report(knowledge_policy_result),
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="knowledge_policy.completed",
+            message=knowledge_policy_result.message,
+            payload={
+                "status": knowledge_policy_result.status,
+                "finding_counts": knowledge_policy_counts(knowledge_policy_result),
+            },
+        ),
+    )
+
     validation_result = validate_run_outputs(state, retrieval_items, executor_result, state.artifact_paths)
     save_validation(base_dir, state.task_id, validation_result)
     write_artifact(base_dir, state.task_id, "validation_report.md", build_validation_report(validation_result))
@@ -219,6 +246,7 @@ def write_task_artifacts(
         if executor_result.status == "completed"
         and compatibility_result.status != "failed"
         and execution_fit_result.status != "failed"
+        and knowledge_policy_result.status != "failed"
         and validation_result.status != "failed"
         else "failed"
     )
@@ -232,6 +260,7 @@ def write_task_artifacts(
         executor_result,
         compatibility_result,
         execution_fit_result,
+        knowledge_policy_result,
         validation_result,
     )
     save_handoff(base_dir, state.task_id, handoff_record)
@@ -250,6 +279,7 @@ def write_task_artifacts(
             executor_result,
             compatibility_result,
             execution_fit_result,
+            knowledge_policy_result,
             validation_result,
             handoff_record,
         ),
@@ -264,6 +294,7 @@ def write_task_artifacts(
             executor_result,
             compatibility_result,
             execution_fit_result,
+            knowledge_policy_result,
             validation_result,
         ),
     )
@@ -277,6 +308,7 @@ def write_task_artifacts(
             executor_result,
             compatibility_result,
             execution_fit_result,
+            knowledge_policy_result,
             validation_result,
         ),
     )
@@ -290,6 +322,8 @@ def write_task_artifacts(
                 "status": final_status,
                 "phase": state.phase,
                 "artifact_paths": {
+                    "task_semantics_report": state.artifact_paths.get("task_semantics_report", ""),
+                    "knowledge_objects_report": state.artifact_paths.get("knowledge_objects_report", ""),
                     "summary": state.artifact_paths.get("summary", ""),
                     "resume_note": state.artifact_paths.get("resume_note", ""),
                     "route_report": state.artifact_paths.get("route_report", ""),
@@ -298,6 +332,7 @@ def write_task_artifacts(
                     "handoff_report": state.artifact_paths.get("handoff_report", ""),
                     "execution_fit_report": state.artifact_paths.get("execution_fit_report", ""),
                     "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
+                    "knowledge_policy_report": state.artifact_paths.get("knowledge_policy_report", ""),
                     "source_grounding": state.artifact_paths.get("source_grounding", ""),
                     "retrieval_report": state.artifact_paths.get("retrieval_report", ""),
                     "validation_report": state.artifact_paths.get("validation_report", ""),
@@ -306,7 +341,7 @@ def write_task_artifacts(
             },
         ),
     )
-    return compatibility_result, execution_fit_result, validation_result
+    return compatibility_result, execution_fit_result, knowledge_policy_result, validation_result
 
 
 def validation_counts(result: ValidationResult) -> dict[str, int]:
@@ -324,6 +359,13 @@ def compatibility_counts(result: CompatibilityResult) -> dict[str, int]:
 
 
 def execution_fit_counts(result: ExecutionFitResult) -> dict[str, int]:
+    counts = {"pass": 0, "warn": 0, "fail": 0}
+    for finding in result.findings:
+        counts[finding.level] = counts.get(finding.level, 0) + 1
+    return counts
+
+
+def knowledge_policy_counts(result: KnowledgePolicyResult) -> dict[str, int]:
     counts = {"pass": 0, "warn": 0, "fail": 0}
     for finding in result.findings:
         counts[finding.level] = counts.get(finding.level, 0) + 1
@@ -400,6 +442,7 @@ def build_task_memory(
     executor_result: ExecutorResult,
     compatibility_result: CompatibilityResult,
     execution_fit_result: ExecutionFitResult,
+    knowledge_policy_result: KnowledgePolicyResult,
     validation_result: ValidationResult,
     handoff_record: dict[str, object],
 ) -> dict[str, object]:
@@ -410,6 +453,13 @@ def build_task_memory(
         "phase": state.phase,
         "status": state.status,
         "workspace_root": state.workspace_root,
+        "task_semantics": state.task_semantics,
+        "knowledge_objects": {
+            "count": len(state.knowledge_objects),
+            "stage_counts": summarize_knowledge_stages(state.knowledge_objects),
+            "evidence_counts": summarize_knowledge_evidence(state.knowledge_objects),
+            "items": state.knowledge_objects[:5],
+        },
         "executor": {
             "name": executor_result.executor_name,
             "status": executor_result.status,
@@ -427,6 +477,7 @@ def build_task_memory(
             "mode": state.route_mode,
             "name": state.route_name,
             "backend": state.route_backend,
+            "executor_family": state.route_executor_family,
             "execution_site": state.route_execution_site,
             "remote_capable": state.route_remote_capable,
             "transport_kind": state.route_transport_kind,
@@ -439,6 +490,7 @@ def build_task_memory(
         "handoff": handoff_record,
         "compatibility": compatibility_result.to_dict(),
         "execution_fit": execution_fit_result.to_dict(),
+        "knowledge_policy": knowledge_policy_result.to_dict(),
         "validation": validation_result.to_dict(),
         "retrieval": {
             "count": len(retrieval_items),
@@ -459,6 +511,10 @@ def build_task_memory(
             ],
         },
         "artifact_paths": {
+            "task_semantics_json": state.artifact_paths.get("task_semantics_json", ""),
+            "task_semantics_report": state.artifact_paths.get("task_semantics_report", ""),
+            "knowledge_objects_json": state.artifact_paths.get("knowledge_objects_json", ""),
+            "knowledge_objects_report": state.artifact_paths.get("knowledge_objects_report", ""),
             "summary": state.artifact_paths.get("summary", ""),
             "resume_note": state.artifact_paths.get("resume_note", ""),
             "route_report": state.artifact_paths.get("route_report", ""),
@@ -473,6 +529,8 @@ def build_task_memory(
             "execution_fit_json": state.artifact_paths.get("execution_fit_json", ""),
             "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
             "compatibility_json": state.artifact_paths.get("compatibility_json", ""),
+            "knowledge_policy_report": state.artifact_paths.get("knowledge_policy_report", ""),
+            "knowledge_policy_json": state.artifact_paths.get("knowledge_policy_json", ""),
             "source_grounding": state.artifact_paths.get("source_grounding", ""),
             "retrieval_report": state.artifact_paths.get("retrieval_report", ""),
             "retrieval_json": state.artifact_paths.get("retrieval_json", ""),
@@ -487,6 +545,7 @@ def build_route_record(state: TaskState) -> dict[str, object]:
         "mode": state.route_mode,
         "name": state.route_name,
         "backend": state.route_backend,
+        "executor_family": state.route_executor_family,
         "execution_site": state.route_execution_site,
         "remote_capable": state.route_remote_capable,
         "transport_kind": state.route_transport_kind,
@@ -504,6 +563,7 @@ def build_route_report(state: TaskState) -> str:
             f"- mode: {state.route_mode}",
             f"- name: {state.route_name}",
             f"- backend: {state.route_backend}",
+            f"- executor_family: {state.route_executor_family}",
             f"- execution_site: {state.route_execution_site}",
             f"- remote_capable: {'yes' if state.route_remote_capable else 'no'}",
             f"- transport_kind: {state.route_transport_kind}",
@@ -517,6 +577,7 @@ def build_route_report(state: TaskState) -> str:
 def build_topology_record(state: TaskState) -> dict[str, object]:
     return {
         "route_name": state.topology_route_name,
+        "executor_family": state.topology_executor_family,
         "execution_site": state.topology_execution_site,
         "transport_kind": state.topology_transport_kind,
         "remote_capable_intent": state.topology_remote_capable_intent,
@@ -531,6 +592,7 @@ def build_topology_report(state: TaskState) -> str:
             "# Topology Report",
             "",
             f"- route_name: {state.topology_route_name}",
+            f"- executor_family: {state.topology_executor_family}",
             f"- execution_site: {state.topology_execution_site}",
             f"- transport_kind: {state.topology_transport_kind}",
             f"- remote_capable_intent: {'yes' if state.topology_remote_capable_intent else 'no'}",
@@ -545,6 +607,7 @@ def build_dispatch_record(state: TaskState) -> dict[str, object]:
         "attempt_id": state.current_attempt_id,
         "attempt_number": state.current_attempt_number,
         "route_name": state.route_name,
+        "executor_family": state.topology_executor_family,
         "execution_site": state.topology_execution_site,
         "transport_kind": state.topology_transport_kind,
         "dispatch_status": state.topology_dispatch_status,
@@ -562,6 +625,7 @@ def build_dispatch_report(state: TaskState) -> str:
             f"- attempt_id: {state.current_attempt_id or 'pending'}",
             f"- attempt_number: {state.current_attempt_number}",
             f"- route_name: {state.route_name}",
+            f"- executor_family: {state.topology_executor_family}",
             f"- execution_site: {state.topology_execution_site}",
             f"- transport_kind: {state.topology_transport_kind}",
             f"- dispatch_status: {state.topology_dispatch_status}",
@@ -577,9 +641,15 @@ def build_handoff_record(
     executor_result: ExecutorResult,
     compatibility_result: CompatibilityResult,
     execution_fit_result: ExecutionFitResult,
+    knowledge_policy_result: KnowledgePolicyResult,
     validation_result: ValidationResult,
 ) -> dict[str, object]:
-    if executor_result.status == "completed" and compatibility_result.status != "failed" and validation_result.status != "failed":
+    if (
+        executor_result.status == "completed"
+        and compatibility_result.status != "failed"
+        and knowledge_policy_result.status != "failed"
+        and validation_result.status != "failed"
+    ):
         handoff_status = "review_completed_run"
         blocking_reason = ""
         next_operator_action = "Review summary.md and executor_output.md before starting the next task iteration."
@@ -595,6 +665,7 @@ def build_handoff_record(
         "attempt_id": state.current_attempt_id,
         "attempt_number": state.current_attempt_number,
         "execution_site": state.topology_execution_site,
+        "executor_family": state.topology_executor_family,
         "dispatch_status": state.topology_dispatch_status,
         "execution_lifecycle": state.execution_lifecycle,
         "blocking_reason": blocking_reason,
@@ -603,6 +674,7 @@ def build_handoff_record(
         "failure_kind": executor_result.failure_kind,
         "compatibility_status": compatibility_result.status,
         "execution_fit_status": execution_fit_result.status,
+        "knowledge_policy_status": knowledge_policy_result.status,
         "validation_status": validation_result.status,
     }
 
@@ -617,12 +689,14 @@ def build_handoff_report(handoff_record: dict[str, object]) -> str:
             f"- attempt_id: {handoff_record.get('attempt_id', 'pending')}",
             f"- attempt_number: {handoff_record.get('attempt_number', 0)}",
             f"- execution_site: {handoff_record.get('execution_site', 'pending')}",
+            f"- executor_family: {handoff_record.get('executor_family', 'pending')}",
             f"- dispatch_status: {handoff_record.get('dispatch_status', 'pending')}",
             f"- execution_lifecycle: {handoff_record.get('execution_lifecycle', 'pending')}",
             f"- executor_status: {handoff_record.get('executor_status', 'pending')}",
             f"- failure_kind: {handoff_record.get('failure_kind', '') or 'none'}",
             f"- compatibility_status: {handoff_record.get('compatibility_status', 'pending')}",
             f"- execution_fit_status: {handoff_record.get('execution_fit_status', 'pending')}",
+            f"- knowledge_policy_status: {handoff_record.get('knowledge_policy_status', 'pending')}",
             f"- validation_status: {handoff_record.get('validation_status', 'pending')}",
             f"- blocking_reason: {handoff_record.get('blocking_reason', '') or 'none'}",
             f"- next_operator_action: {handoff_record.get('next_operator_action', 'pending')}",
@@ -654,6 +728,7 @@ def build_summary(
     executor_result: ExecutorResult,
     compatibility_result: CompatibilityResult | None,
     execution_fit_result: ExecutionFitResult | None,
+    knowledge_policy_result: KnowledgePolicyResult | None,
     validation_result: ValidationResult | None,
 ) -> str:
     lines = [
@@ -669,6 +744,12 @@ def build_summary(
         f"- phase: {state.phase}",
         f"- status: {state.status}",
         f"- workspace: {state.workspace_root}",
+        f"- task_semantics_source_kind: {state.task_semantics.get('source_kind', 'none') if state.task_semantics else 'none'}",
+        f"- task_semantics_source_ref: {state.task_semantics.get('source_ref', '') or 'none' if state.task_semantics else 'none'}",
+        f"- task_semantics_report_artifact: {state.artifact_paths.get('task_semantics_report', '') or 'pending'}",
+        f"- knowledge_objects_count: {len(state.knowledge_objects)}",
+        f"- knowledge_evidence_artifact_backed: {summarize_knowledge_evidence(state.knowledge_objects).get('artifact_backed', 0)}",
+        f"- knowledge_objects_report_artifact: {state.artifact_paths.get('knowledge_objects_report', '') or 'pending'}",
         f"- executor: {state.executor_name}",
         f"- executor_status: {state.executor_status}",
         f"- execution_lifecycle: {state.execution_lifecycle}",
@@ -677,6 +758,7 @@ def build_summary(
         f"- route_mode: {state.route_mode}",
         f"- route_name: {state.route_name}",
         f"- route_backend: {state.route_backend}",
+        f"- route_executor_family: {state.route_executor_family}",
         f"- route_execution_site: {state.route_execution_site}",
         f"- route_remote_capable: {state.route_remote_capable}",
         f"- route_transport_kind: {state.route_transport_kind}",
@@ -685,6 +767,7 @@ def build_summary(
         f"- route_capabilities: {format_route_capabilities(state.route_capabilities)}",
         f"- route_report_artifact: {state.artifact_paths.get('route_report', '') or 'pending'}",
         f"- topology_execution_site: {state.topology_execution_site}",
+        f"- topology_executor_family: {state.topology_executor_family}",
         f"- topology_transport_kind: {state.topology_transport_kind}",
         f"- topology_dispatch_status: {state.topology_dispatch_status}",
         f"- topology_report_artifact: {state.artifact_paths.get('topology_report', '') or 'pending'}",
@@ -694,15 +777,58 @@ def build_summary(
         f"- handoff_report_artifact: {state.artifact_paths.get('handoff_report', '') or 'pending'}",
         f"- compatibility_status: {compatibility_result.status if compatibility_result else 'pending'}",
         f"- execution_fit_status: {execution_fit_result.status if execution_fit_result else 'pending'}",
+        f"- knowledge_policy_status: {knowledge_policy_result.status if knowledge_policy_result else 'pending'}",
         f"- execution_fit_report_artifact: {state.artifact_paths.get('execution_fit_report', '') or 'pending'}",
         f"- compatibility_report_artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
+        f"- knowledge_policy_report_artifact: {state.artifact_paths.get('knowledge_policy_report', '') or 'pending'}",
         f"- source_grounding_artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
         f"- retrieval_report_artifact: {state.artifact_paths.get('retrieval_report', '') or 'pending'}",
         f"- retrieval_record_path: {state.artifact_paths.get('retrieval_json', '') or 'pending'}",
         f"- task_memory_path: {state.artifact_paths.get('task_memory', '') or 'pending'}",
         "",
-        "## Retrieved Context",
+        "## Task Semantics",
     ]
+    if state.task_semantics:
+        for label, key in [
+            ("constraints", "constraints"),
+            ("acceptance_criteria", "acceptance_criteria"),
+            ("priority_hints", "priority_hints"),
+            ("next_action_proposals", "next_action_proposals"),
+        ]:
+            values = state.task_semantics.get(key, [])
+            lines.append(f"- {label}: {'; '.join(values) if values else 'none'}")
+    else:
+        lines.append("- none")
+
+    lines.extend([
+        "",
+        "## Knowledge Objects",
+    ])
+    if state.knowledge_objects:
+        stage_counts = summarize_knowledge_stages(state.knowledge_objects)
+        evidence_counts = summarize_knowledge_evidence(state.knowledge_objects)
+        lines.extend(
+            [
+                f"- raw: {stage_counts.get('raw', 0)}",
+                f"- candidate: {stage_counts.get('candidate', 0)}",
+                f"- verified: {stage_counts.get('verified', 0)}",
+                f"- canonical: {stage_counts.get('canonical', 0)}",
+                f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
+                f"- source_only: {evidence_counts.get('source_only', 0)}",
+                f"- unbacked: {evidence_counts.get('unbacked', 0)}",
+            ]
+        )
+        for item in state.knowledge_objects[:5]:
+            lines.append(
+                f"- [{item.get('stage', 'raw')}/{item.get('evidence_status', 'unbacked')}] {item.get('text', '') or '(empty)'}"
+            )
+    else:
+        lines.append("- none")
+
+    lines.extend([
+        "",
+        "## Retrieved Context",
+    ])
     if retrieval_items:
         for item in retrieval_items:
             score_context = ", ".join(f"{key}={value}" for key, value in item.score_breakdown.items()) or "none"
@@ -743,6 +869,17 @@ def build_summary(
         )
         for finding in execution_fit_result.findings:
             lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
+    if knowledge_policy_result is not None:
+        lines.extend(
+            [
+                "",
+                "## Knowledge Policy",
+                f"- status: {knowledge_policy_result.status}",
+                f"- message: {knowledge_policy_result.message}",
+            ]
+        )
+        for finding in knowledge_policy_result.findings:
+            lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
     if validation_result is not None:
         lines.extend(
             [
@@ -764,6 +901,7 @@ def build_resume_note(
     executor_result: ExecutorResult,
     compatibility_result: CompatibilityResult | None,
     execution_fit_result: ExecutionFitResult | None,
+    knowledge_policy_result: KnowledgePolicyResult | None,
     validation_result: ValidationResult | None,
 ) -> str:
     top_references = ", ".join(item.reference() for item in retrieval_items[:3]) or "none"
@@ -775,6 +913,12 @@ def build_resume_note(
         f"- goal: {state.goal}",
         f"- status: {state.status}",
         f"- current phase: {state.phase}",
+        f"- task semantics source kind: {state.task_semantics.get('source_kind', 'none') if state.task_semantics else 'none'}",
+        f"- task semantics source ref: {state.task_semantics.get('source_ref', '') or 'none' if state.task_semantics else 'none'}",
+        f"- task semantics report artifact: {state.artifact_paths.get('task_semantics_report', '') or 'pending'}",
+        f"- knowledge objects count: {len(state.knowledge_objects)}",
+        f"- artifact-backed knowledge objects: {summarize_knowledge_evidence(state.knowledge_objects).get('artifact_backed', 0)}",
+        f"- knowledge objects report artifact: {state.artifact_paths.get('knowledge_objects_report', '') or 'pending'}",
         f"- top retrieved references: {top_references}",
         f"- executor: {executor_result.executor_name}",
         f"- executor status: {executor_result.status}",
@@ -784,12 +928,14 @@ def build_resume_note(
         f"- route mode: {state.route_mode}",
         f"- route name: {state.route_name}",
         f"- route backend: {state.route_backend}",
+        f"- route executor family: {state.route_executor_family}",
         f"- route execution site: {state.route_execution_site}",
         f"- route remote capable: {'yes' if state.route_remote_capable else 'no'}",
         f"- route transport kind: {state.route_transport_kind}",
         f"- route reason: {state.route_reason}",
         f"- route report artifact: {state.artifact_paths.get('route_report', '') or 'pending'}",
         f"- topology execution site: {state.topology_execution_site}",
+        f"- topology executor family: {state.topology_executor_family}",
         f"- topology transport kind: {state.topology_transport_kind}",
         f"- topology dispatch status: {state.topology_dispatch_status}",
         f"- topology report artifact: {state.artifact_paths.get('topology_report', '') or 'pending'}",
@@ -800,8 +946,10 @@ def build_resume_note(
         f"- failure kind: {executor_result.failure_kind or 'none'}",
         f"- compatibility status: {compatibility_result.status if compatibility_result else 'pending'}",
         f"- execution fit status: {execution_fit_result.status if execution_fit_result else 'pending'}",
+        f"- knowledge policy status: {knowledge_policy_result.status if knowledge_policy_result else 'pending'}",
         f"- execution fit report artifact: {state.artifact_paths.get('execution_fit_report', '') or 'pending'}",
         f"- compatibility report artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
+        f"- knowledge policy report artifact: {state.artifact_paths.get('knowledge_policy_report', '') or 'pending'}",
         f"- validation status: {validation_result.status if validation_result else 'pending'}",
         "",
         "## Hand-off",
@@ -810,6 +958,8 @@ def build_resume_note(
         f"- retrieval report artifact: {state.artifact_paths.get('retrieval_report', '') or 'pending'}",
         f"- retrieval record path: {state.artifact_paths.get('retrieval_json', '') or 'pending'}",
         f"- task memory path: {state.artifact_paths.get('task_memory', '') or 'pending'}",
+        f"- task semantics json path: {state.artifact_paths.get('task_semantics_json', '') or 'pending'}",
+        f"- knowledge objects json path: {state.artifact_paths.get('knowledge_objects_json', '') or 'pending'}",
     ]
     if executor_result.status == "completed":
         lines.append("- treat summary.md and executor_output.md as the record of what happened in this run")
@@ -835,6 +985,16 @@ def build_resume_note(
             0,
             "- Treat the compatibility report as blocking and switch to a route that matches the requested policy before continuing.",
         )
+    if knowledge_policy_result is not None and knowledge_policy_result.status == "warning":
+        next_steps.insert(
+            0,
+            "- Review knowledge_policy_report.md before promoting imported knowledge because the policy recorded warnings.",
+        )
+    if knowledge_policy_result is not None and knowledge_policy_result.status == "failed":
+        next_steps.insert(
+            0,
+            "- Treat the knowledge policy report as blocking and fix promotion or evidence mismatches before reusing imported knowledge.",
+        )
     if validation_result is not None and validation_result.status == "warning":
         next_steps.insert(0, "- Review validation_report.md before trusting this run because the validator recorded warnings.")
     if validation_result is not None and validation_result.status == "failed":
@@ -848,6 +1008,7 @@ def build_resume_note(
             "- Review summary.md before restarting work so the prior run is not reinterpreted from scratch.",
             "- Use retrieval_report.md to review the latest retrieval set before opening raw retrieval.json.",
             "- Use compatibility_report.md when checking whether the selected route actually matched the requested policy.",
+            "- Use knowledge_policy_report.md when deciding whether imported knowledge is safe to promote or reuse.",
             "- Use validation_report.md when deciding whether to reuse the current run outputs.",
             "- Expand retrieval scoring when the source set grows.",
         ]
