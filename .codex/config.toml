@@ -1,12 +1,12 @@
 # Project-scoped Codex configuration.
-# Keep this file minimal during Phase 0.
+# Keep this file minimal and aligned with the current active phase.
 
 project_root_markers = [".git"]
 project_doc_max_bytes = 32768
 model = "gpt-5.4"
 personality = "pragmatic"
 
-[profiles.phase0]
+[profiles.baseline]
 model = "gpt-5.4"
 personality = "pragmatic"
 

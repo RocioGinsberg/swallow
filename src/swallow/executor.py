@@ -53,7 +53,7 @@ def run_mock_executor(prompt: str) -> ExecutorResult:
         executor_name="mock",
         status="completed",
         message="Mock executor completed.",
-        output="Mock executor output for Phase 0 verification.",
+        output="Mock executor output for deterministic verification.",
         prompt=prompt,
         failure_kind="",
         stdout="",
@@ -136,11 +136,19 @@ def run_local_executor(
 
 def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
     lines = [
-        "You are the executor for a Phase 0 AI workflow task.",
+        "You are the executor for a swallow workflow task.",
         f"Task ID: {state.task_id}",
         f"Task Title: {state.title}",
         f"Goal: {state.goal}",
         f"Executor: {resolve_executor_name(state)}",
+        f"Route Mode: {state.route_mode or 'auto'}",
+        f"Route: {state.route_name or 'pending'}",
+        f"Route Backend: {state.route_backend or 'pending'}",
+        f"Route Execution Site: {state.route_execution_site or 'pending'}",
+        f"Route Remote Capable: {'yes' if state.route_remote_capable else 'no'}",
+        f"Route Transport Kind: {state.route_transport_kind or 'pending'}",
+        f"Route Model Hint: {state.route_model_hint or 'pending'}",
+        f"Route Capabilities: {format_route_capabilities(state.route_capabilities)}",
         "",
     ]
     previous_memory_artifacts = [
@@ -183,6 +191,20 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
         ]
     )
     return "\n".join(lines)
+
+
+def format_route_capabilities(capabilities: dict[str, object]) -> str:
+    if not capabilities:
+        return "none"
+    ordered_keys = [
+        "execution_kind",
+        "supports_tool_loop",
+        "filesystem_access",
+        "network_access",
+        "deterministic",
+        "resumable",
+    ]
+    return ", ".join(f"{key}={capabilities.get(key)}" for key in ordered_keys if key in capabilities)
 
 
 def run_codex_executor(

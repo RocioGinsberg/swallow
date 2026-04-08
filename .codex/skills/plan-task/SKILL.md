@@ -1,6 +1,6 @@
 ---
 name: plan-task
-description: Use this skill when a task needs to be broken into a small, executable Phase 0 plan with clear scope, affected modules, validation steps, and non-goals.
+description: Use this skill when a task needs to be broken into a small, executable plan aligned with the current active phase, with clear scope, affected modules, validation steps, and non-goals.
 ---
 
 # Plan Task
@@ -20,12 +20,13 @@ Use this skill when:
 ## Workflow
 
 1. Read the active phase document in `.codex/phases/`.
-2. Restate the task in repository terms.
-3. Identify the minimum useful outcome.
-4. Identify likely affected files or modules.
-5. Write a short step sequence.
-6. Include validation steps.
-7. State what is explicitly deferred.
+2. Read the current execution status in `current_state.md`.
+3. Restate the task in repository terms.
+4. Identify the minimum useful outcome.
+5. Identify likely affected files or modules.
+6. Write a short step sequence.
+7. Include validation steps.
+8. State what is explicitly deferred.
 
 ## Output shape
 

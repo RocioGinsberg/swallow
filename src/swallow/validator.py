@@ -19,6 +19,7 @@ def validate_run_outputs(
         "executor_stderr",
         "summary",
         "resume_note",
+        "compatibility_report",
         "source_grounding",
     ]
 

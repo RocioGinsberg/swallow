@@ -3,8 +3,10 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from .compatibility import build_compatibility_report, evaluate_route_compatibility
 from .executor import build_failure_recommendations, run_executor
 from .models import (
+    CompatibilityResult,
     Event,
     ExecutorResult,
     RetrievalItem,
@@ -13,7 +15,7 @@ from .models import (
     ValidationResult,
 )
 from .retrieval import retrieve_context
-from .store import append_event, save_memory, save_retrieval, save_validation, write_artifact
+from .store import append_event, save_compatibility, save_memory, save_retrieval, save_route, save_validation, write_artifact
 from .validator import build_validation_report, validate_run_outputs
 
 
@@ -57,6 +59,13 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
             payload={
                 "status": executor_result.status,
                 "executor_name": executor_result.executor_name,
+                "route_mode": state.route_mode,
+                "route_name": state.route_name,
+                "route_backend": state.route_backend,
+                "route_execution_site": state.route_execution_site,
+                "route_remote_capable": state.route_remote_capable,
+                "route_transport_kind": state.route_transport_kind,
+                "route_capabilities": state.route_capabilities,
                 "failure_kind": executor_result.failure_kind,
                 "output_written": [
                     "executor_prompt.md",
@@ -75,7 +84,14 @@ def write_task_artifacts(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
-) -> ValidationResult:
+) -> tuple[CompatibilityResult, ValidationResult]:
+    save_route(base_dir, state.task_id, build_route_record(state))
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "route_report.md",
+        build_route_report(state),
+    )
     write_artifact(
         base_dir,
         state.task_id,
@@ -87,13 +103,34 @@ def write_task_artifacts(
         base_dir,
         state.task_id,
         "summary.md",
-        build_summary(provisional_state, retrieval_items, executor_result, None),
+        build_summary(provisional_state, retrieval_items, executor_result, None, None),
     )
     write_artifact(
         base_dir,
         state.task_id,
         "resume_note.md",
-        build_resume_note(provisional_state, retrieval_items, executor_result, None),
+        build_resume_note(provisional_state, retrieval_items, executor_result, None, None),
+    )
+
+    compatibility_result = evaluate_route_compatibility(state, executor_result)
+    save_compatibility(base_dir, state.task_id, build_compatibility_record(state, executor_result, compatibility_result))
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "compatibility_report.md",
+        build_compatibility_report(compatibility_result),
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="compatibility.completed",
+            message=compatibility_result.message,
+            payload={
+                "status": compatibility_result.status,
+                "finding_counts": compatibility_counts(compatibility_result),
+            },
+        ),
     )
 
     validation_result = validate_run_outputs(state, retrieval_items, executor_result, state.artifact_paths)
@@ -114,39 +151,43 @@ def write_task_artifacts(
 
     final_status = (
         "completed"
-        if executor_result.status == "completed" and validation_result.status != "failed"
+        if executor_result.status == "completed"
+        and compatibility_result.status != "failed"
+        and validation_result.status != "failed"
         else "failed"
     )
     render_state = replace(state, status=final_status)
     save_memory(
         base_dir,
         state.task_id,
-        build_task_memory(render_state, retrieval_items, executor_result, validation_result),
+        build_task_memory(render_state, retrieval_items, executor_result, compatibility_result, validation_result),
     )
     write_artifact(
         base_dir,
         state.task_id,
         "summary.md",
-        build_summary(render_state, retrieval_items, executor_result, validation_result),
+        build_summary(render_state, retrieval_items, executor_result, compatibility_result, validation_result),
     )
     write_artifact(
         base_dir,
         state.task_id,
         "resume_note.md",
-        build_resume_note(render_state, retrieval_items, executor_result, validation_result),
+        build_resume_note(render_state, retrieval_items, executor_result, compatibility_result, validation_result),
     )
     append_event(
         base_dir,
         Event(
             task_id=state.task_id,
             event_type="artifacts.written",
-            message="Wrote summary, resume note, and validation artifacts.",
+            message="Wrote summary, resume note, compatibility, and validation artifacts.",
             payload={
                 "status": final_status,
                 "phase": state.phase,
                 "artifact_paths": {
                     "summary": state.artifact_paths.get("summary", ""),
                     "resume_note": state.artifact_paths.get("resume_note", ""),
+                    "route_report": state.artifact_paths.get("route_report", ""),
+                    "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
                     "source_grounding": state.artifact_paths.get("source_grounding", ""),
                     "validation_report": state.artifact_paths.get("validation_report", ""),
                     "task_memory": state.artifact_paths.get("task_memory", ""),
@@ -154,7 +195,7 @@ def write_task_artifacts(
             },
         ),
     )
-    return validation_result
+    return compatibility_result, validation_result
 
 
 def validation_counts(result: ValidationResult) -> dict[str, int]:
@@ -162,6 +203,27 @@ def validation_counts(result: ValidationResult) -> dict[str, int]:
     for finding in result.findings:
         counts[finding.level] = counts.get(finding.level, 0) + 1
     return counts
+
+
+def compatibility_counts(result: CompatibilityResult) -> dict[str, int]:
+    counts = {"pass": 0, "warn": 0, "fail": 0}
+    for finding in result.findings:
+        counts[finding.level] = counts.get(finding.level, 0) + 1
+    return counts
+
+
+def format_route_capabilities(capabilities: dict[str, object]) -> str:
+    if not capabilities:
+        return "none"
+    ordered_keys = [
+        "execution_kind",
+        "supports_tool_loop",
+        "filesystem_access",
+        "network_access",
+        "deterministic",
+        "resumable",
+    ]
+    return ", ".join(f"{key}={capabilities.get(key)}" for key in ordered_keys if key in capabilities)
 
 
 def build_source_grounding(retrieval_items: list[RetrievalItem]) -> str:
@@ -190,6 +252,7 @@ def build_task_memory(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
+    compatibility_result: CompatibilityResult,
     validation_result: ValidationResult,
 ) -> dict[str, object]:
     return {
@@ -205,6 +268,18 @@ def build_task_memory(
             "message": executor_result.message,
             "failure_kind": executor_result.failure_kind,
         },
+        "route": {
+            "mode": state.route_mode,
+            "name": state.route_name,
+            "backend": state.route_backend,
+            "execution_site": state.route_execution_site,
+            "remote_capable": state.route_remote_capable,
+            "transport_kind": state.route_transport_kind,
+            "model_hint": state.route_model_hint,
+            "reason": state.route_reason,
+            "capabilities": state.route_capabilities,
+        },
+        "compatibility": compatibility_result.to_dict(),
         "validation": validation_result.to_dict(),
         "retrieval": {
             "count": len(retrieval_items),
@@ -223,8 +298,63 @@ def build_task_memory(
         "artifact_paths": {
             "summary": state.artifact_paths.get("summary", ""),
             "resume_note": state.artifact_paths.get("resume_note", ""),
+            "route_report": state.artifact_paths.get("route_report", ""),
+            "route_json": state.artifact_paths.get("route_json", ""),
+            "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
+            "compatibility_json": state.artifact_paths.get("compatibility_json", ""),
             "source_grounding": state.artifact_paths.get("source_grounding", ""),
             "validation_report": state.artifact_paths.get("validation_report", ""),
+            "validation_json": state.artifact_paths.get("validation_json", ""),
+        },
+    }
+
+
+def build_route_record(state: TaskState) -> dict[str, object]:
+    return {
+        "mode": state.route_mode,
+        "name": state.route_name,
+        "backend": state.route_backend,
+        "execution_site": state.route_execution_site,
+        "remote_capable": state.route_remote_capable,
+        "transport_kind": state.route_transport_kind,
+        "model_hint": state.route_model_hint,
+        "reason": state.route_reason,
+        "capabilities": state.route_capabilities,
+    }
+
+
+def build_route_report(state: TaskState) -> str:
+    return "\n".join(
+        [
+            "# Route Report",
+            "",
+            f"- mode: {state.route_mode}",
+            f"- name: {state.route_name}",
+            f"- backend: {state.route_backend}",
+            f"- execution_site: {state.route_execution_site}",
+            f"- remote_capable: {'yes' if state.route_remote_capable else 'no'}",
+            f"- transport_kind: {state.route_transport_kind}",
+            f"- model_hint: {state.route_model_hint}",
+            f"- reason: {state.route_reason}",
+            f"- capabilities: {format_route_capabilities(state.route_capabilities)}",
+        ]
+    )
+
+
+def build_compatibility_record(
+    state: TaskState,
+    executor_result: ExecutorResult,
+    compatibility_result: CompatibilityResult,
+) -> dict[str, object]:
+    return {
+        "status": compatibility_result.status,
+        "message": compatibility_result.message,
+        "findings": [finding.to_dict() for finding in compatibility_result.findings],
+        "route": build_route_record(state),
+        "executor": {
+            "name": executor_result.executor_name,
+            "status": executor_result.status,
+            "failure_kind": executor_result.failure_kind,
         },
     }
 
@@ -233,6 +363,7 @@ def build_summary(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
+    compatibility_result: CompatibilityResult | None,
     validation_result: ValidationResult | None,
 ) -> str:
     lines = [
@@ -250,6 +381,18 @@ def build_summary(
         f"- workspace: {state.workspace_root}",
         f"- executor: {state.executor_name}",
         f"- executor_status: {state.executor_status}",
+        f"- route_mode: {state.route_mode}",
+        f"- route_name: {state.route_name}",
+        f"- route_backend: {state.route_backend}",
+        f"- route_execution_site: {state.route_execution_site}",
+        f"- route_remote_capable: {state.route_remote_capable}",
+        f"- route_transport_kind: {state.route_transport_kind}",
+        f"- route_model_hint: {state.route_model_hint}",
+        f"- route_reason: {state.route_reason}",
+        f"- route_capabilities: {format_route_capabilities(state.route_capabilities)}",
+        f"- route_report_artifact: {state.artifact_paths.get('route_report', '') or 'pending'}",
+        f"- compatibility_status: {compatibility_result.status if compatibility_result else 'pending'}",
+        f"- compatibility_report_artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
         f"- source_grounding_artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
         f"- task_memory_path: {state.artifact_paths.get('task_memory', '') or 'pending'}",
         "",
@@ -273,6 +416,17 @@ def build_summary(
     lines.extend(["", "## Executor Result", f"- message: {executor_result.message}"])
     if executor_result.failure_kind:
         lines.append(f"- failure_kind: {executor_result.failure_kind}")
+    if compatibility_result is not None:
+        lines.extend(
+            [
+                "",
+                "## Compatibility",
+                f"- status: {compatibility_result.status}",
+                f"- message: {compatibility_result.message}",
+            ]
+        )
+        for finding in compatibility_result.findings:
+            lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
     if validation_result is not None:
         lines.extend(
             [
@@ -292,6 +446,7 @@ def build_resume_note(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
+    compatibility_result: CompatibilityResult | None,
     validation_result: ValidationResult | None,
 ) -> str:
     top_references = ", ".join(item.reference() for item in retrieval_items[:3]) or "none"
@@ -306,7 +461,17 @@ def build_resume_note(
         f"- top retrieved references: {top_references}",
         f"- executor: {executor_result.executor_name}",
         f"- executor status: {executor_result.status}",
+        f"- route mode: {state.route_mode}",
+        f"- route name: {state.route_name}",
+        f"- route backend: {state.route_backend}",
+        f"- route execution site: {state.route_execution_site}",
+        f"- route remote capable: {'yes' if state.route_remote_capable else 'no'}",
+        f"- route transport kind: {state.route_transport_kind}",
+        f"- route reason: {state.route_reason}",
+        f"- route report artifact: {state.artifact_paths.get('route_report', '') or 'pending'}",
         f"- failure kind: {executor_result.failure_kind or 'none'}",
+        f"- compatibility status: {compatibility_result.status if compatibility_result else 'pending'}",
+        f"- compatibility report artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
         f"- validation status: {validation_result.status if validation_result else 'pending'}",
         "",
         "## Hand-off",
@@ -328,6 +493,16 @@ def build_resume_note(
     else:
         next_steps = build_failure_recommendations(executor_result.failure_kind)
 
+    if compatibility_result is not None and compatibility_result.status == "warning":
+        next_steps.insert(
+            0,
+            "- Review compatibility_report.md before trusting this route choice because the compatibility layer recorded warnings.",
+        )
+    if compatibility_result is not None and compatibility_result.status == "failed":
+        next_steps.insert(
+            0,
+            "- Treat the compatibility report as blocking and switch to a route that matches the requested policy before continuing.",
+        )
     if validation_result is not None and validation_result.status == "warning":
         next_steps.insert(0, "- Review validation_report.md before trusting this run because the validator recorded warnings.")
     if validation_result is not None and validation_result.status == "failed":
@@ -339,6 +514,7 @@ def build_resume_note(
             "## Next Suggested Step",
             *next_steps,
             "- Review summary.md before restarting work so the prior run is not reinterpreted from scratch.",
+            "- Use compatibility_report.md when checking whether the selected route actually matched the requested policy.",
             "- Use validation_report.md when deciding whether to reuse the current run outputs.",
             "- Expand retrieval scoring when the source set grows.",
         ]

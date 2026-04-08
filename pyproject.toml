@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "swallow"
 version = "0.1.0"
-description = "CLI-first Phase 0 bootstrap for a stateful AI workflow system."
+description = "CLI for a stateful AI workflow system with orchestration, harness runtime, and persistent task state."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "TBD" }

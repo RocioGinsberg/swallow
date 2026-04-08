@@ -13,6 +13,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.cli import main
+from swallow.compatibility import build_compatibility_report, evaluate_route_compatibility
 from swallow.executor import (
     build_fallback_output,
     classify_failure_kind,
@@ -24,6 +25,7 @@ from swallow.harness import build_resume_note
 from swallow.models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskState, ValidationResult
 from swallow.orchestrator import build_task_retrieval_request, create_task, run_task
 from swallow.retrieval import retrieve_context
+from swallow.router import select_route
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
@@ -64,6 +66,12 @@ class CliLifecycleTest(unittest.TestCase):
                 validation_report = (tasks_dir / task_id / "artifacts" / "validation_report.md").read_text(
                     encoding="utf-8"
                 )
+                compatibility_report = (tasks_dir / task_id / "artifacts" / "compatibility_report.md").read_text(
+                    encoding="utf-8"
+                )
+                route_report = (tasks_dir / task_id / "artifacts" / "route_report.md").read_text(
+                    encoding="utf-8"
+                )
                 source_grounding = (tasks_dir / task_id / "artifacts" / "source_grounding.md").read_text(
                     encoding="utf-8"
                 )
@@ -71,8 +79,10 @@ class CliLifecycleTest(unittest.TestCase):
                     encoding="utf-8"
                 )
                 retrieval = json.loads((tasks_dir / task_id / "retrieval.json").read_text(encoding="utf-8"))
+                compatibility = json.loads((tasks_dir / task_id / "compatibility.json").read_text(encoding="utf-8"))
                 validation = json.loads((tasks_dir / task_id / "validation.json").read_text(encoding="utf-8"))
                 memory = json.loads((tasks_dir / task_id / "memory.json").read_text(encoding="utf-8"))
+                route = json.loads((tasks_dir / task_id / "route.json").read_text(encoding="utf-8"))
 
                 self.assertIn("Summary for", summary)
                 self.assertIn("notes.md", summary)
@@ -81,8 +91,20 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("score_breakdown:", summary)
                 self.assertIn("## Validation", summary)
                 self.assertIn("- status: passed", summary)
+                self.assertIn("route_mode:", summary)
+                self.assertIn("route_name:", summary)
+                self.assertIn("route_backend:", summary)
+                self.assertIn("route_execution_site:", summary)
+                self.assertIn("route_remote_capable:", summary)
+                self.assertIn("route_transport_kind:", summary)
+                self.assertIn("route_capabilities:", summary)
+                self.assertIn("execution_kind=", summary)
+                self.assertIn("route_report_artifact:", summary)
+                self.assertIn("compatibility_status:", summary)
+                self.assertIn("compatibility_report_artifact:", summary)
                 self.assertIn("source_grounding_artifact:", summary)
                 self.assertIn("task_memory_path:", summary)
+                self.assertIn("## Compatibility", summary)
                 self.assertIn("## Executor Output", summary)
                 self.assertNotIn("## Next Suggested Step", summary)
                 self.assertIn("Resume Note for", resume_note)
@@ -92,13 +114,42 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertNotIn("failed live execution attempt", resume_note)
                 self.assertIn("Review summary.md to confirm the run outcome", resume_note)
                 self.assertIn("validation status: passed", resume_note)
+                self.assertIn("route mode:", resume_note)
+                self.assertIn("route name:", resume_note)
+                self.assertIn("route backend:", resume_note)
+                self.assertIn("route execution site:", resume_note)
+                self.assertIn("route remote capable:", resume_note)
+                self.assertIn("route transport kind:", resume_note)
+                self.assertIn("route reason:", resume_note)
+                self.assertIn("route report artifact:", resume_note)
+                self.assertIn("compatibility status: passed", resume_note)
+                self.assertIn("compatibility report artifact:", resume_note)
                 self.assertIn("source grounding artifact:", resume_note)
                 self.assertIn("task memory path:", resume_note)
                 self.assertIn("top retrieved references: notes.md#L1-L3", resume_note)
                 self.assertIn("Validation Report", validation_report)
+                self.assertIn("Compatibility Report", compatibility_report)
+                self.assertIn("Route Report", route_report)
                 self.assertIn("Source Grounding", source_grounding)
                 self.assertIn("notes.md#L1-L3", source_grounding)
+                self.assertEqual(compatibility["status"], "passed")
                 self.assertEqual(validation["status"], "passed")
+                self.assertEqual(route["name"], "local-mock")
+                self.assertEqual(memory["executor"]["name"], "mock")
+                self.assertEqual(memory["route"]["mode"], "auto")
+                self.assertEqual(memory["route"]["name"], "local-mock")
+                self.assertEqual(memory["route"]["execution_site"], "local")
+                self.assertEqual(memory["route"]["remote_capable"], False)
+                self.assertEqual(memory["route"]["transport_kind"], "local_process")
+                self.assertEqual(memory["route"]["capabilities"]["deterministic"], True)
+                self.assertEqual(memory["compatibility"]["status"], "passed")
+                self.assertTrue(
+                    memory["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+                )
+                self.assertTrue(memory["artifact_paths"]["compatibility_json"].endswith("compatibility.json"))
+                self.assertTrue(memory["artifact_paths"]["route_report"].endswith("route_report.md"))
+                self.assertTrue(memory["artifact_paths"]["route_json"].endswith("route.json"))
+                self.assertEqual(memory["artifact_paths"]["source_grounding"].endswith("source_grounding.md"), True)
                 self.assertEqual(memory["retrieval"]["top_references"], ["notes.md#L1-L3"])
                 self.assertEqual(memory["validation"]["status"], "passed")
                 self.assertEqual(memory["status"], "completed")
@@ -307,10 +358,14 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"executor_stderr"', state)
         self.assertIn('"summary"', state)
         self.assertIn('"resume_note"', state)
+        self.assertIn('"route_report"', state)
+        self.assertIn('"compatibility_report"', state)
         self.assertIn('"source_grounding"', state)
+        self.assertIn('"compatibility_json"', state)
         self.assertIn('"validation_report"', state)
         self.assertIn('"validation_json"', state)
         self.assertIn('"task_memory"', state)
+        self.assertIn('"route_json"', state)
 
     def test_retrieve_context_returns_traceable_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -425,7 +480,10 @@ class CliLifecycleTest(unittest.TestCase):
                             with patch("swallow.orchestrator.run_execution", return_value=executor_result):
                                 with patch(
                                     "swallow.orchestrator.write_task_artifacts",
-                                    return_value=ValidationResult(status="passed", message="Validation passed."),
+                                    return_value=(
+                                        ValidationResult(status="passed", message="Compatibility passed."),
+                                        ValidationResult(status="passed", message="Validation passed."),
+                                    ),
                                 ):
                                     run_task(base_dir, created.task_id)
 
@@ -470,9 +528,12 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
-            ) -> ValidationResult:
+            ) -> tuple[ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
-                return ValidationResult(status="passed", message="Validation passed.")
+                return (
+                    ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Validation passed."),
+                )
 
             with patch("swallow.orchestrator.load_state", return_value=created):
                 with patch("swallow.orchestrator.save_state", side_effect=save_state_spy):
@@ -543,9 +604,12 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
-            ) -> ValidationResult:
+            ) -> tuple[ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
-                return ValidationResult(status="passed", message="Validation passed.")
+                return (
+                    ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Validation passed."),
+                )
 
             with patch("swallow.orchestrator.load_state", return_value=created):
                 with patch("swallow.orchestrator.save_state", side_effect=save_state_spy):
@@ -627,6 +691,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "executor.completed",
                 "task.phase",
+                "compatibility.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.completed",
@@ -634,10 +699,21 @@ class CliLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(events[0]["payload"]["status"], "created")
         self.assertEqual(events[0]["payload"]["phase"], "intake")
+        self.assertEqual(events[0]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[0]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[0]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[0]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[0]["payload"]["route_transport_kind"], "local_process")
         self.assertEqual(events[1]["payload"]["previous_status"], "created")
         self.assertEqual(events[1]["payload"]["previous_phase"], "intake")
         self.assertEqual(events[1]["payload"]["status"], "running")
         self.assertEqual(events[1]["payload"]["phase"], "intake")
+        self.assertEqual(events[1]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[1]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[1]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[1]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_process")
+        self.assertIn("Selected the route from legacy executor mode", events[1]["payload"]["route_reason"])
         self.assertEqual(events[2]["payload"]["phase"], "retrieval")
         self.assertEqual(events[2]["payload"]["status"], "running")
         self.assertEqual(events[3]["payload"]["count"], 1)
@@ -652,6 +728,13 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[4]["payload"]["phase"], "executing")
         self.assertEqual(events[5]["payload"]["status"], "completed")
         self.assertEqual(events[5]["payload"]["executor_name"], "mock")
+        self.assertEqual(events[5]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[5]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[5]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[5]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[5]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[5]["payload"]["route_capabilities"]["deterministic"], True)
+        self.assertEqual(events[5]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
         self.assertEqual(
             events[5]["payload"]["output_written"],
             [
@@ -664,18 +747,30 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[6]["payload"]["phase"], "summarize")
         self.assertEqual(events[7]["payload"]["status"], "passed")
         self.assertEqual(events[7]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
-        self.assertEqual(events[8]["payload"]["status"], "completed")
-        self.assertTrue(events[8]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
-        self.assertTrue(events[8]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
-        self.assertTrue(events[8]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
-        self.assertTrue(events[8]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
-        self.assertTrue(events[8]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertEqual(events[8]["payload"]["status"], "passed")
+        self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[9]["payload"]["status"], "completed")
-        self.assertEqual(events[9]["payload"]["phase"], "summarize")
-        self.assertEqual(events[9]["payload"]["retrieval_count"], 1)
-        self.assertEqual(events[9]["payload"]["executor_status"], "completed")
-        self.assertEqual(events[9]["payload"]["validation_status"], "passed")
-        self.assertTrue(events[9]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
+        self.assertTrue(events[9]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
+        self.assertTrue(events[9]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
+        self.assertTrue(events[9]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
+        self.assertTrue(
+            events[9]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+        )
+        self.assertTrue(events[9]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[9]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
+        self.assertTrue(events[9]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertEqual(events[10]["payload"]["status"], "completed")
+        self.assertEqual(events[10]["payload"]["phase"], "summarize")
+        self.assertEqual(events[10]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[10]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[10]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[10]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[10]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[10]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[10]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[10]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[10]["payload"]["validation_status"], "passed")
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
 
     def test_failed_task_events_include_failure_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -719,16 +814,29 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["event_type"], "task.run_started")
         self.assertEqual(events[1]["payload"]["previous_status"], "created")
         self.assertEqual(events[1]["payload"]["previous_phase"], "intake")
+        self.assertEqual(events[1]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[1]["payload"]["route_backend"], "local_cli")
+        self.assertEqual(events[1]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[1]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_process")
         self.assertEqual(events[5]["event_type"], "executor.failed")
         self.assertEqual(events[5]["payload"]["status"], "failed")
         self.assertEqual(events[5]["payload"]["executor_name"], "codex")
+        self.assertEqual(events[5]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[5]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[5]["payload"]["failure_kind"], "launch_error")
-        self.assertEqual(events[7]["event_type"], "validation.completed")
+        self.assertEqual(events[7]["event_type"], "compatibility.completed")
         self.assertEqual(events[7]["payload"]["status"], "passed")
-        self.assertEqual(events[8]["payload"]["status"], "failed")
+        self.assertEqual(events[8]["event_type"], "validation.completed")
+        self.assertEqual(events[8]["payload"]["status"], "passed")
+        self.assertEqual(events[9]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
+        self.assertEqual(events[-1]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[-1]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[-1]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[-1]["payload"]["compatibility_status"], "passed")
         self.assertEqual(events[-1]["payload"]["validation_status"], "passed")
         self.assertEqual(events[-1]["payload"]["retrieval_count"], 1)
 
@@ -752,7 +860,7 @@ class CliLifecycleTest(unittest.TestCase):
             failure_kind="launch_error",
         )
 
-        note = build_resume_note(state, retrieval_items, executor_result, None)
+        note = build_resume_note(state, retrieval_items, executor_result, None, None)
 
         self.assertIn("treat this run as incomplete", note)
         self.assertIn("Treat this run as a failed live execution attempt", note)
@@ -820,6 +928,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "executor.failed",
                 "task.phase",
+                "compatibility.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
@@ -835,6 +944,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "executor.failed",
                 "task.phase",
+                "compatibility.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
@@ -844,15 +954,16 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "executor.failed",
                 "task.phase",
+                "compatibility.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
             ],
         )
-        self.assertEqual(final_events[10]["payload"]["previous_status"], "failed")
-        self.assertEqual(final_events[10]["payload"]["previous_phase"], "summarize")
-        self.assertEqual(final_events[10]["payload"]["status"], "running")
-        self.assertEqual(final_events[10]["payload"]["phase"], "intake")
+        self.assertEqual(final_events[11]["payload"]["previous_status"], "failed")
+        self.assertEqual(final_events[11]["payload"]["previous_phase"], "summarize")
+        self.assertEqual(final_events[11]["payload"]["status"], "running")
+        self.assertEqual(final_events[11]["payload"]["phase"], "intake")
 
     def test_normalize_executor_name_supports_aliases(self) -> None:
         self.assertEqual(normalize_executor_name("local-summary"), "local")
@@ -887,7 +998,132 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
         self.assertEqual(state.executor_name, "local")
+        self.assertEqual(state.route_mode, "auto")
         self.assertEqual(persisted["executor_name"], "local")
+        self.assertEqual(persisted["route_mode"], "auto")
+        self.assertEqual(persisted["route_name"], "local-summary")
+        self.assertEqual(persisted["route_backend"], "local_summary")
+        self.assertEqual(persisted["route_execution_site"], "local")
+        self.assertEqual(persisted["route_remote_capable"], False)
+        self.assertEqual(persisted["route_transport_kind"], "local_process")
+        self.assertEqual(persisted["route_capabilities"]["execution_kind"], "artifact_generation")
+
+    def test_select_route_uses_override_before_legacy_mode(self) -> None:
+        state = TaskState(
+            task_id="route123",
+            title="Route selection",
+            goal="Prefer explicit route selection",
+            workspace_root="/tmp",
+            executor_name="codex",
+        )
+
+        with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+            selection = select_route(state, executor_override="local")
+
+        self.assertEqual(selection.route.name, "local-summary")
+        self.assertEqual(selection.route.executor_name, "local")
+        self.assertEqual(selection.route.execution_site, "local")
+        self.assertEqual(selection.route.remote_capable, False)
+        self.assertEqual(selection.route.transport_kind, "local_process")
+        self.assertEqual(selection.route.capabilities.filesystem_access, "workspace_read")
+        self.assertIn("run-time executor override", selection.reason)
+
+    def test_select_route_uses_legacy_mode_when_task_stays_default(self) -> None:
+        state = TaskState(
+            task_id="route124",
+            title="Route selection",
+            goal="Use legacy mode only for default tasks",
+            workspace_root="/tmp",
+            executor_name="codex",
+        )
+
+        with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+            selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-mock")
+        self.assertEqual(selection.route.backend_kind, "deterministic_test")
+        self.assertEqual(selection.route.execution_site, "local")
+        self.assertEqual(selection.route.remote_capable, False)
+        self.assertEqual(selection.route.capabilities.deterministic, True)
+
+    def test_select_route_uses_route_mode_when_no_executor_override_is_present(self) -> None:
+        state = TaskState(
+            task_id="route125",
+            title="Route selection",
+            goal="Use route mode policy inputs",
+            workspace_root="/tmp",
+            executor_name="codex",
+            route_mode="deterministic",
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-mock")
+        self.assertEqual(selection.route.capabilities.execution_kind, "artifact_generation")
+        self.assertIn("routing policy mode", selection.reason)
+
+    def test_compatibility_reports_warning_for_live_route_without_network(self) -> None:
+        state = TaskState(
+            task_id="compatwarn",
+            title="Compatibility warning",
+            goal="Surface compatibility warnings",
+            workspace_root="/tmp",
+            executor_name="codex",
+            route_mode="live",
+            route_name="local-codex",
+            route_backend="local_cli",
+            route_capabilities={
+                "execution_kind": "code_execution",
+                "supports_tool_loop": True,
+                "filesystem_access": "workspace_write",
+                "network_access": "none",
+                "deterministic": False,
+                "resumable": True,
+            },
+        )
+        executor_result = ExecutorResult(
+            executor_name="codex",
+            status="completed",
+            message="Execution finished.",
+            output="done",
+        )
+
+        result = evaluate_route_compatibility(state, executor_result)
+        report = build_compatibility_report(result)
+
+        self.assertEqual(result.status, "warning")
+        self.assertIn("[warn] route_mode.live.network_limited", report)
+
+    def test_compatibility_reports_failure_for_deterministic_mode_mismatch(self) -> None:
+        state = TaskState(
+            task_id="compatfail",
+            title="Compatibility failure",
+            goal="Block route-policy mismatches",
+            workspace_root="/tmp",
+            executor_name="codex",
+            route_mode="deterministic",
+            route_name="local-codex",
+            route_backend="local_cli",
+            route_capabilities={
+                "execution_kind": "code_execution",
+                "supports_tool_loop": True,
+                "filesystem_access": "workspace_write",
+                "network_access": "optional",
+                "deterministic": False,
+                "resumable": True,
+            },
+        )
+        executor_result = ExecutorResult(
+            executor_name="codex",
+            status="completed",
+            message="Execution finished.",
+            output="done",
+        )
+
+        result = evaluate_route_compatibility(state, executor_result)
+
+        self.assertEqual(result.status, "failed")
+        self.assertTrue(any(finding.code == "route_mode.deterministic.missing" for finding in result.findings))
 
     def test_validator_reports_warning_when_retrieval_is_empty(self) -> None:
         state = TaskState(
@@ -910,6 +1146,7 @@ class CliLifecycleTest(unittest.TestCase):
             "executor_stderr": __file__,
             "summary": __file__,
             "resume_note": __file__,
+            "compatibility_report": __file__,
             "source_grounding": __file__,
         }
 
@@ -941,6 +1178,7 @@ class CliLifecycleTest(unittest.TestCase):
             "executor_stderr": __file__,
             "summary": __file__,
             "resume_note": __file__,
+            "compatibility_report": __file__,
             "source_grounding": __file__,
         }
 
@@ -988,11 +1226,20 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertEqual(state["status"], "completed")
         self.assertEqual(state["executor_name"], "local")
+        self.assertEqual(state["route_mode"], "auto")
+        self.assertEqual(state["route_name"], "local-summary")
+        self.assertEqual(state["route_backend"], "local_summary")
+        self.assertEqual(state["route_execution_site"], "local")
+        self.assertEqual(state["route_remote_capable"], False)
+        self.assertEqual(state["route_transport_kind"], "local_process")
         self.assertEqual(state["executor_status"], "completed")
         self.assertIn("Local summary executor completed.", summary)
         self.assertEqual(events[0]["payload"]["executor_name"], "local")
+        self.assertEqual(events[0]["payload"]["route_name"], "local-summary")
         self.assertEqual(events[1]["payload"]["executor_name"], "local")
+        self.assertEqual(events[1]["payload"]["route_name"], "local-summary")
         self.assertEqual(events[5]["payload"]["executor_name"], "local")
+        self.assertEqual(events[5]["payload"]["route_name"], "local-summary")
 
     def test_cli_artifact_commands_print_phase1_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1023,17 +1270,35 @@ class CliLifecycleTest(unittest.TestCase):
             self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
 
             validation_stdout = StringIO()
+            compatibility_stdout = StringIO()
+            route_stdout = StringIO()
+            compatibility_json_stdout = StringIO()
+            route_json_stdout = StringIO()
             grounding_stdout = StringIO()
             memory_stdout = StringIO()
 
             with redirect_stdout(validation_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "validation", task_id]), 0)
+            with redirect_stdout(compatibility_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "compatibility", task_id]), 0)
+            with redirect_stdout(route_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "route", task_id]), 0)
+            with redirect_stdout(compatibility_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "compatibility-json", task_id]), 0)
+            with redirect_stdout(route_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "route-json", task_id]), 0)
             with redirect_stdout(grounding_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "grounding", task_id]), 0)
             with redirect_stdout(memory_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "memory", task_id]), 0)
 
         self.assertIn("Validation Report", validation_stdout.getvalue())
+        self.assertIn("Compatibility Report", compatibility_stdout.getvalue())
+        self.assertIn("Route Report", route_stdout.getvalue())
+        self.assertIn('"status"', compatibility_json_stdout.getvalue())
+        self.assertIn('"name"', route_json_stdout.getvalue())
+        self.assertIn('"execution_site"', route_json_stdout.getvalue())
+        self.assertIn('"remote_capable"', route_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())
 
@@ -1069,12 +1334,100 @@ class CliLifecycleTest(unittest.TestCase):
                             with patch("swallow.orchestrator.run_execution", return_value=executor_result):
                                 with patch(
                                     "swallow.orchestrator.write_task_artifacts",
-                                    return_value=ValidationResult(status="passed", message="Validation passed."),
+                                    return_value=(
+                                        ValidationResult(status="passed", message="Compatibility passed."),
+                                        ValidationResult(status="passed", message="Validation passed."),
+                                    ),
                                 ):
                                     final_state = run_task(base_dir, created.task_id, executor_name="local")
 
         self.assertEqual(observed_states[0], ("running", "intake", "local"))
         self.assertEqual(final_state.executor_name, "local")
+        self.assertEqual(final_state.route_name, "local-summary")
+
+    def test_cli_route_mode_selects_route_without_executor_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\nroute mode policy\n", encoding="utf-8")
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Route mode",
+                        "--goal",
+                        "Pick a deterministic route policy",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--route-mode",
+                        "deterministic",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(state["route_mode"], "deterministic")
+        self.assertEqual(state["executor_name"], "mock")
+        self.assertEqual(state["route_name"], "local-mock")
+        self.assertEqual(state["route_execution_site"], "local")
+        self.assertEqual(state["route_remote_capable"], False)
+        self.assertEqual(events[1]["payload"]["route_mode"], "deterministic")
+        self.assertEqual(events[1]["payload"]["route_name"], "local-mock")
+
+    def test_run_task_route_mode_override_changes_selected_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            created = TaskState(
+                task_id="routemodeoverride",
+                title="Route mode override",
+                goal="Override route mode at run time",
+                workspace_root=str(base_dir),
+                executor_name="codex",
+                route_mode="auto",
+            )
+            retrieval_items = [
+                RetrievalItem(path="notes.md", source_type="notes", score=3, preview="override"),
+            ]
+            executor_result = ExecutorResult(
+                executor_name="note-only",
+                status="failed",
+                message="Execution skipped.",
+                output="note",
+                failure_kind="unreachable_backend",
+            )
+
+            with patch("swallow.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestrator.save_state"):
+                    with patch("swallow.orchestrator.append_event"):
+                        with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
+                            with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                                with patch(
+                                    "swallow.orchestrator.write_task_artifacts",
+                                    return_value=(
+                                        ValidationResult(status="passed", message="Compatibility passed."),
+                                        ValidationResult(status="passed", message="Validation passed."),
+                                    ),
+                                ):
+                                    final_state = run_task(base_dir, created.task_id, route_mode="offline")
+
+        self.assertEqual(final_state.route_mode, "offline")
+        self.assertEqual(final_state.route_name, "local-note")
+        self.assertEqual(final_state.executor_name, "note-only")
 
     def test_repeat_run_prompt_includes_prior_memory_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1112,6 +1465,9 @@ class CliLifecycleTest(unittest.TestCase):
             second_prompt = (task_dir / "artifacts" / "executor_prompt.md").read_text(encoding="utf-8")
 
         self.assertIn("Prior persisted context:", second_prompt)
+        self.assertIn("Route Execution Site: local", second_prompt)
+        self.assertIn("Route Remote Capable: no", second_prompt)
+        self.assertIn("Route Transport Kind: local_process", second_prompt)
         self.assertIn("source_grounding.md", second_prompt)
         self.assertIn("memory.json", second_prompt)
 

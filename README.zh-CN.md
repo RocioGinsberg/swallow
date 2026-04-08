@@ -106,21 +106,18 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 ## 当前阶段
 
-当前优先实现一个 **CLI-first MVP**。
+当前仓库处于 **Phase 2 baseline 收口后的检查点**。
 
-Phase 0 聚焦于：
+当前已经实现的基线包括：
 
-- 一个最小 **Orchestrator**，负责任务接入与阶段推进
-- 一个最小 **Harness Runtime**，负责 retrieve → execute → record → summarize 的闭环
-- 一个最小 **Capability Registry**，先只支持内置工具
-- 使用 Codex 作为主本地 code executor adapter
-- 支持 Git 项目文件作为检索源
-- 支持 Markdown / Obsidian 笔记作为检索源
-- 采用本地优先、结构可检查的实现方式
+- 显式的 **Orchestrator**，负责任务接入、阶段推进与 route 选择
+- **Harness Runtime**，负责 retrieve → execute → record → summarize 的闭环
+- 结构化的 route 与 capability 声明
+- compatibility 检查与 route provenance 产物
+- 明确的本地优先执行路径，以及为后续远端执行预留的 route 元数据
+- Git 项目文件与 Markdown / Obsidian 笔记检索
 
-这一阶段的目标，是先验证最核心的闭环：
-
-**让 AI 能围绕本地项目通过“编排 + 执行壳 + 状态沉淀”的方式持续工作，而不只是给出一次性回答。**
+当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在继续扩展 backend 或远端执行之前，先保持一个干净、可检查、可恢复的基线。
 
 ## 长期方向
 
@@ -228,7 +225,11 @@ backend 不等于模型，也不等于 executor。
 
 ## 当前状态
 
-Phase 0 CLI bootstrap。
+Phase 0 已验收，Phase 1 已完成，计划中的 Phase 2 baseline 也已完成。
+
+- [current_state.md](./current_state.md)
+- [docs/phase2_closeout_note.md](./docs/phase2_closeout_note.md)
+- [CHANGELOG.md](./CHANGELOG.md)
 
 ## 术语说明
 
@@ -237,7 +238,7 @@ Phase 0 CLI bootstrap。
 
 ## 快速开始
 
-当前仓库已经包含一个可运行的最小 CLI，用来验证文档里定义的 Phase 0 闭环。
+当前仓库已经包含一个可运行的 CLI，用来执行当前本地优先工作流基线。
 
 可编辑安装：
 
@@ -250,7 +251,7 @@ python3 -m pip install -e .
 ```bash
 swl task create \
   --title "Design orchestrator" \
-  --goal "Create a minimal Phase 0 harness runtime" \
+  --goal "Tighten the harness runtime boundary" \
   --workspace-root . \
   --executor local
 ```
@@ -267,9 +268,11 @@ swl task run <task-id> --executor codex
 ```bash
 swl task summarize <task-id>
 swl task resume-note <task-id>
+swl task compatibility <task-id>
 swl task validation <task-id>
 swl task grounding <task-id>
 swl task memory <task-id>
+swl task route <task-id>
 ```
 
 运行测试：
@@ -286,15 +289,19 @@ python3 -m unittest discover -s tests
 
 ## 当前 CLI 形态
 
-Phase 0 CLI 目前提供：
+当前 CLI 提供：
 
 - `swl task create`
 - `swl task run`
 - `swl task summarize`
 - `swl task resume-note`
+- `swl task compatibility`
 - `swl task validation`
 - `swl task grounding`
 - `swl task memory`
+- `swl task compatibility-json`
+- `swl task route`
+- `swl task route-json`
 - `swl doctor codex`
 
 任务状态与产物会写入：
@@ -306,18 +313,22 @@ Phase 0 CLI 目前提供：
       state.json
       events.jsonl
       retrieval.json
+      compatibility.json
       validation.json
+      route.json
       memory.json
       artifacts/
         summary.md
         resume_note.md
+        compatibility_report.md
+        route_report.md
         source_grounding.md
         validation_report.md
         executor_stdout.txt
         executor_stderr.txt
 ```
 
-当前仍然是 bootstrap。`run` 命令已经能完成检索、执行器调用、小型 validation、状态记录、事件追加、task memory 持久化，以及 executor、summary、resume note、grounding、validation 产物写入。
+当前 `run` 命令已经能完成检索、执行器调用、route compatibility 检查、validation、状态记录、事件追加、task memory 持久化，以及 executor、summary、resume note、grounding、route、compatibility、validation 产物写入。
 
 当前任务状态语义保持为最小且明确的形式：
 
@@ -336,6 +347,7 @@ retrieval.completed
 task.phase        # executing
 executor.completed
 task.phase        # summarize
+compatibility.completed
 validation.completed
 artifacts.written
 task.completed
@@ -363,6 +375,10 @@ task.completed
 
 - `summary.md` 负责记录本次运行实际发生了什么：任务信息、最终状态、检索结果、执行结果、执行输出
 - `resume_note.md` 负责为下一次接手提供 hand-off 信息：ready state、最新 executor message、建议的下一步动作
+- `route_report.md` 负责记录可读的 route provenance：选中的 route、声明的 backend、执行位置元数据和 route reason
+- `route.json` 负责保存结构化 route 记录，便于后续自动化或检查
+- `compatibility_report.md` 负责记录本次运行的可读 route-policy compatibility 结果
+- `compatibility.json` 负责保存结构化 compatibility 记录，便于后续自动化或检查
 - `source_grounding.md` 负责记录本次运行的 retrieval grounding：citation、score、matched terms 与 preview
 - `validation_report.md` 负责记录本次运行的可读 validation 结果
 - `validation.json` 负责保存结构化 validation 记录，便于后续自动化复用

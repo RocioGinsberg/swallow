@@ -101,21 +101,18 @@ Domain-specific behavior should live in domain packs or capability packs rather 
 
 ## Current focus
 
-The current phase is a **CLI-first MVP**.
+The repository is currently at a **post-Phase-2 baseline checkpoint**.
 
-Phase 0 focuses on:
+The implemented baseline now includes:
 
-- a minimal **orchestrator** for task intake and phase progression
-- a minimal **harness runtime** for retrieve → execute → record → summarize
-- a minimal **capability registry** with built-in tools only
-- Codex as the primary local code executor adapter
-- Git project files as a retrieval source
-- Markdown / Obsidian notes as a retrieval source
-- local-first development and inspectable architecture
+- an explicit **orchestrator** for task intake, phase progression, and route selection
+- a **harness runtime** for retrieve → execute → record → summarize
+- structured route and capability declarations
+- compatibility checks and route provenance artifacts
+- explicit local-first execution with remote-ready route metadata
+- Git project files and Markdown / Obsidian notes as retrieval sources
 
-The goal of this phase is to validate the core loop:
-
-**AI should be able to work around a local project continuously through an orchestrated, harnessed task loop, not just answer once.**
+The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve a clean, inspectable baseline before any broader backend or remote-execution expansion.
 
 ## Long-term direction
 
@@ -221,11 +218,13 @@ A practical interpretation is:
 
 ## Status
 
-Phase 0 CLI bootstrap.
+Phase 0 accepted, Phase 1 complete, and the planned Phase 2 baseline complete.
 
 Implementation checkpoint for interrupted sessions:
 
 - [current_state.md](./current_state.md)
+- [docs/phase2_closeout_note.md](./docs/phase2_closeout_note.md)
+- [CHANGELOG.md](./CHANGELOG.md)
 
 ## Terminology
 
@@ -234,7 +233,7 @@ Implementation checkpoint for interrupted sessions:
 
 ## Quickstart
 
-This repository now includes a minimal runnable CLI for the documented Phase 0 loop.
+This repository includes a runnable CLI for the current local-first workflow baseline.
 
 Install in editable mode:
 
@@ -247,7 +246,7 @@ Create a task:
 ```bash
 swl task create \
   --title "Design orchestrator" \
-  --goal "Create a minimal Phase 0 harness runtime" \
+  --goal "Tighten the harness runtime boundary" \
   --workspace-root . \
   --executor local
 ```
@@ -264,9 +263,11 @@ Print the generated artifacts:
 ```bash
 swl task summarize <task-id>
 swl task resume-note <task-id>
+swl task compatibility <task-id>
 swl task validation <task-id>
 swl task grounding <task-id>
 swl task memory <task-id>
+swl task route <task-id>
 ```
 
 Run a minimal Codex preflight:
@@ -283,15 +284,19 @@ python3 -m unittest discover -s tests
 
 ## Current CLI Shape
 
-The Phase 0 CLI currently implements:
+The current CLI implements:
 
 - `swl task create`
 - `swl task run`
 - `swl task summarize`
 - `swl task resume-note`
+- `swl task compatibility`
 - `swl task validation`
 - `swl task grounding`
 - `swl task memory`
+- `swl task compatibility-json`
+- `swl task route`
+- `swl task route-json`
 - `swl doctor codex`
 
 Task state and artifacts are written under:
@@ -303,18 +308,22 @@ Task state and artifacts are written under:
       state.json
       events.jsonl
       retrieval.json
+      compatibility.json
       validation.json
+      route.json
       memory.json
       artifacts/
         summary.md
         resume_note.md
+        compatibility_report.md
+        route_report.md
         source_grounding.md
         validation_report.md
         executor_stdout.txt
         executor_stderr.txt
 ```
 
-This is still a bootstrap. The current `run` command performs retrieval, invokes the selected executor, runs a small validation pass, records state and events, persists task memory, and writes executor, summary, resume note, grounding, and validation artifacts.
+The current `run` command performs retrieval, invokes the selected executor, evaluates route compatibility, runs validation, records state and events, persists task memory, and writes executor, summary, resume note, grounding, route, compatibility, and validation artifacts.
 
 Current task-state semantics are intentionally small and explicit:
 
@@ -333,6 +342,7 @@ retrieval.completed
 task.phase        # executing
 executor.completed
 task.phase        # summarize
+compatibility.completed
 validation.completed
 artifacts.written
 task.completed
@@ -368,6 +378,10 @@ Artifact roles are also intentionally distinct:
 
 - `summary.md` is the run record: task, final state, retrieved context, executor result, and executor output
 - `resume_note.md` is the hand-off note: ready state, latest executor message, and suggested next actions
+- `route_report.md` is the readable route provenance artifact: selected route, declared backend, execution-site metadata, and route reason
+- `route.json` is the structured route record for later automation or inspection
+- `compatibility_report.md` is the human-readable route-policy compatibility result for the run
+- `compatibility.json` is the structured compatibility record for later automation or inspection
 - `source_grounding.md` is the retrieval-grounding artifact: citations, scores, matched terms, and previews for the run
 - `validation_report.md` is the human-readable validation result for the run
 - `validation.json` is the structured validation record for later automation

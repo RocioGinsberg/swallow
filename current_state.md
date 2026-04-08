@@ -6,14 +6,18 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 in progress
-- overall state: runnable, acceptance-validated, and partway through the Phase 1 execution plan
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 2 documentation and planning checkpoint
 - last checked: 2026-04-08
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
 - phase 1 planning reference:
   - `docs/phase1_kickoff_plan.md`
   - `docs/phase1_task_breakdown.md`
+- phase 2 planning reference:
+  - `docs/phase2_kickoff_note.md`
+  - `docs/phase2_closeout_note.md`
+  - `docs/phase2_task_breakdown.md`
 - verification:
   - `python3 -m unittest discover -s tests`
   - `PYTHONPATH=src python3 -m swallow.cli --help`
@@ -27,9 +31,13 @@ This file tracks the implementation status of the repository itself so work can 
   - `swl task run`
   - `swl task summarize`
   - `swl task resume-note`
+  - `swl task compatibility`
   - `swl task validation`
   - `swl task grounding`
   - `swl task memory`
+  - `swl task compatibility-json`
+  - `swl task route`
+  - `swl task route-json`
   - `swl doctor codex`
 - Added explicit modules for:
   - orchestrator
@@ -76,9 +84,12 @@ This file tracks the implementation status of the repository itself so work can 
 - Artifact semantics are now clearer:
   - `summary.md` records what happened in the run
   - `resume_note.md` records what the next operator/session should do next
+  - `route_report.md` records the selected route, route reason, and capability summary in a dedicated readable artifact
+  - `compatibility_report.md` records whether the selected route matches the requested route policy baseline
   - `validation_report.md` records validator findings in a human-readable form
   - `source_grounding.md` records the retrieval-backed citations and score context that grounded the run
   - `memory.json` records a compact reusable task-memory packet for later runs
+  - route records now also declare execution-site metadata such as `execution_site`, `remote_capable`, and `transport_kind` so later remote execution can be added without changing the current local behavior
 - Phase 1 progress:
   - `P1-01` retrieval result shape and metadata baseline is implemented
   - `P1-02` source-aware chunking and ranking baseline is implemented for markdown notes and repo line chunks
@@ -86,6 +97,14 @@ This file tracks the implementation status of the repository itself so work can 
   - `P1-04` executor selection seam baseline is implemented with explicit task-level selection and a second built-in executor path (`local`)
   - `P1-05` validator and execution-policy baseline is implemented with persisted validation results, validation events, and validator-driven terminal failure on blocking inconsistencies
   - `P1-06` artifact and memory tightening is implemented with persisted source grounding, reusable task memory, and rerun prompts that surface prior task artifacts
+- Phase 2 progress:
+  - `P2-01` route declaration and selection baseline is implemented with a small built-in router, declared route capabilities, and persisted route provenance in task state, events, summaries, resume notes, prompts, and task memory
+  - `P2-02` richer route policy inputs are implemented with persisted `route_mode` policy selection and run-time route-mode overrides for `auto`, `live`, `deterministic`, `offline`, and `summary`
+  - `P2-03` capability declaration refinement is implemented with a structured capability schema covering execution kind, tool-loop support, filesystem access, network access, determinism, and resumability
+  - `P2-04` route provenance and artifact tightening is implemented with persisted `route.json`, readable `route_report.md`, route CLI inspection commands, and tighter route links inside summary, resume note, memory, and artifact indexes
+  - `P2-05` backend-compatibility policy baseline is implemented with persisted `compatibility.json`, readable `compatibility_report.md`, compatibility events, route-policy fit checks, CLI inspection commands, and terminal failure on blocking compatibility mismatches
+  - `P2-06` remote-ready hook baseline is implemented with explicit route execution-site metadata in route declarations, state, events, route artifacts, prompts, summaries, resume notes, and task memory while keeping all current routes local-only
+  - Phase 2 closeout judgment is documented in `docs/phase2_closeout_note.md`, and no additional Phase 2 breadth should be added by default without a fresh planning note
 
 ## Acceptance Result
 
@@ -104,18 +123,20 @@ This file tracks the implementation status of the repository itself so work can 
 ## Phase Boundary
 
 - Phase 0 is complete enough to stop Phase 0-only cleanup work by default.
-- New work should now be evaluated against Phase 1 goals unless it fixes a clear regression in the accepted Phase 0 loop.
+- Phase 1 is complete enough to stop Phase 1-only expansion work by default.
+- The planned Phase 2 baseline is complete enough to stop open-ended Phase 2 backend expansion by default.
+- New work should now begin from a fresh planning note rather than assuming more Phase 2 implementation slices exist.
 
 ## Known Issues
 
 - A real `codex exec` run can still fail in this environment because outbound network/WebSocket connections are denied, so the adapter is structurally correct but not yet operationally reliable.
-- The package metadata and CLI help text still describe the project as a Phase 0 bootstrap, which is correct for now but should be revised once the first real executor is integrated.
+- Some deeper design and historical documents still describe earlier phases intentionally; user-facing entrypoints should stay aligned with the current post-Phase-2 baseline.
 
 ## Next Resume Step
 
 1. Re-run the test suite.
-2. Use `docs/phase1_kickoff_plan.md` and `docs/phase1_task_breakdown.md` as the active planning references for Phase 1.
-3. Revisit Phase 1 scope and decide whether to harden current slices or define the first Phase 2 planning note.
+2. Use `docs/phase2_closeout_note.md` as the current stop/go decision reference.
+3. Draft the next planning note before adding more backend breadth, remote transport work, or provider integrations.
 4. Verify the editable install exposes the `swl` entrypoint correctly.
 5. Update this file after each substantial code change.
 

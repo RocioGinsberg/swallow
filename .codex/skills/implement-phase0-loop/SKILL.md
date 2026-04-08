@@ -1,34 +1,33 @@
 ---
 name: implement-phase0-loop
-description: Use this skill when the task is to implement or refine the core Phase 0 MVP loop CLI task intake, retrieval from repo and markdown notes, Codex-centered execution, task/event/artifact recording, and summary output.
+description: "Historical skill for work that explicitly targets the accepted Phase 0 baseline loop: CLI task intake, repo/markdown retrieval, Codex-centered execution, task/event/artifact recording, and summary output."
 ---
 
 # Implement Phase 0 Loop
 
 ## Purpose
 
-Use this skill to keep implementation aligned with the current MVP boundary.
+Use this skill only when a task explicitly asks to revisit or compare against the accepted Phase 0 loop.
 
 ## When to use
 
 Use this skill when:
-- implementing the CLI-first MVP
-- creating the minimal orchestration loop
-- wiring retrieval into execution
-- adding task, event, or artifact persistence
-- adding summary or handoff generation
+- validating or revisiting historical Phase 0 behavior
+- comparing current implementation against the accepted minimal loop
+- making a narrow fix that explicitly targets the original CLI-first baseline
 
 Do not use this skill when:
-- the task primarily concerns later-phase provider routing
+- the task primarily concerns current Phase 2 routing work
+- the task is driven by current active-phase planning
 - the task is mostly UI work beyond the CLI
 - the task is about broad source-adapter expansion
 
 ## Workflow
 
-1. Re-read `.codex/phases/phase0-mvp.md`.
-2. Identify the narrowest useful implementation slice.
+1. Re-read `/home/rocio/projects/swallow/docs/phase0_exit_checklist.md` and `current_state.md`.
+2. Identify the narrowest historical baseline behavior that matters for the task.
 3. Keep the code path visible and testable.
-4. Preserve clean seams for future extension, but avoid large abstraction layers.
+4. Preserve clean seams for later phases, but do not pull current routing work back into a Phase 0 framing.
 5. Validate the slice before expanding scope.
 6. Produce a structured progress summary.
 
@@ -43,7 +42,8 @@ Do not use this skill when:
 
 ## Constraints
 
-- Avoid Phase 2 routing abstractions.
+- Do not treat this as the default implementation skill for the current repository phase.
+- Avoid dragging current Phase 2 routing work into a Phase 0-only framing.
 - Avoid broad multi-agent behavior.
 - Prefer local-first inspectable behavior.
 - Keep artifacts easy to inspect on disk.

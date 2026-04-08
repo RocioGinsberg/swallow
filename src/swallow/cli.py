@@ -6,11 +6,14 @@ from pathlib import Path
 
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .orchestrator import create_task, run_task
-from .paths import artifacts_dir, memory_path, validation_path
+from .paths import artifacts_dir, compatibility_path, memory_path, route_path
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="swl", description="Phase 0 AI workflow bootstrap CLI.")
+    parser = argparse.ArgumentParser(
+        prog="swl",
+        description="CLI for the swallow stateful AI workflow system.",
+    )
     parser.add_argument(
         "--base-dir",
         default=".",
@@ -37,13 +40,25 @@ def build_parser() -> argparse.ArgumentParser:
         default="codex",
         help="Executor to persist for the task. Defaults to codex.",
     )
+    create_parser.add_argument(
+        "--route-mode",
+        default="auto",
+        choices=["auto", "live", "deterministic", "offline", "summary"],
+        help="Routing policy mode to persist for the task. Defaults to auto.",
+    )
 
-    run_parser = task_subparsers.add_parser("run", help="Run a task through the Phase 0 loop.")
+    run_parser = task_subparsers.add_parser("run", help="Run a task through the current workflow loop.")
     run_parser.add_argument("task_id", help="Task identifier.")
     run_parser.add_argument(
         "--executor",
         default=None,
         help="Override the task executor for this run.",
+    )
+    run_parser.add_argument(
+        "--route-mode",
+        default=None,
+        choices=["auto", "live", "deterministic", "offline", "summary"],
+        help="Override the task routing policy mode for this run.",
     )
 
     summarize_parser = task_subparsers.add_parser("summarize", help="Print the task summary artifact.")
@@ -56,10 +71,24 @@ def build_parser() -> argparse.ArgumentParser:
     resume_note_parser.add_argument("task_id", help="Task identifier.")
     validation_parser = task_subparsers.add_parser("validation", help="Print the task validation report artifact.")
     validation_parser.add_argument("task_id", help="Task identifier.")
+    compatibility_parser = task_subparsers.add_parser(
+        "compatibility",
+        help="Print the task compatibility report artifact.",
+    )
+    compatibility_parser.add_argument("task_id", help="Task identifier.")
     grounding_parser = task_subparsers.add_parser("grounding", help="Print the task source grounding artifact.")
     grounding_parser.add_argument("task_id", help="Task identifier.")
     memory_parser = task_subparsers.add_parser("memory", help="Print the task memory record.")
     memory_parser.add_argument("task_id", help="Task identifier.")
+    route_parser = task_subparsers.add_parser("route", help="Print the task route report artifact.")
+    route_parser.add_argument("task_id", help="Task identifier.")
+    compatibility_json_parser = task_subparsers.add_parser(
+        "compatibility-json",
+        help="Print the task compatibility record.",
+    )
+    compatibility_json_parser.add_argument("task_id", help="Task identifier.")
+    route_json_parser = task_subparsers.add_parser("route-json", help="Print the task route record.")
+    route_json_parser.add_argument("task_id", help="Task identifier.")
 
     doctor_subparsers.add_parser("codex", help="Run a minimal Codex executor preflight.")
 
@@ -78,27 +107,45 @@ def main(argv: list[str] | None = None) -> int:
             goal=args.goal.strip(),
             workspace_root=Path(args.workspace_root).resolve(),
             executor_name=args.executor.strip(),
+            route_mode=args.route_mode,
         )
         print(state.task_id)
         return 0
 
     if args.command == "task" and args.task_command == "run":
-        state = run_task(base_dir=base_dir, task_id=args.task_id, executor_name=args.executor)
+        state = run_task(base_dir=base_dir, task_id=args.task_id, executor_name=args.executor, route_mode=args.route_mode)
         print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
         return 0
 
-    if args.command == "task" and args.task_command in {"summarize", "resume-note", "validation", "grounding"}:
+    if args.command == "task" and args.task_command in {
+        "summarize",
+        "resume-note",
+        "validation",
+        "compatibility",
+        "grounding",
+        "route",
+    }:
         artifact_name = {
             "summarize": "summary.md",
             "resume-note": "resume_note.md",
             "validation": "validation_report.md",
+            "compatibility": "compatibility_report.md",
             "grounding": "source_grounding.md",
+            "route": "route_report.md",
         }[args.task_command]
         print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
         return 0
 
     if args.command == "task" and args.task_command == "memory":
         print(json.dumps(json.loads(memory_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "compatibility-json":
+        print(json.dumps(json.loads(compatibility_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "route-json":
+        print(json.dumps(json.loads(route_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "doctor" and args.doctor_command == "codex":
