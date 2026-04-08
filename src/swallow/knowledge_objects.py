@@ -4,6 +4,7 @@ from .models import KnowledgeObject
 
 
 KNOWLEDGE_STAGES = {"raw", "candidate", "verified", "canonical"}
+CANONICALIZATION_INTENTS = {"none", "review", "promote"}
 
 
 def build_knowledge_objects(
@@ -13,10 +14,12 @@ def build_knowledge_objects(
     source_ref: str | None = None,
     artifact_refs: list[str] | None = None,
     retrieval_eligible: bool = False,
+    canonicalization_intent: str = "none",
 ) -> list[KnowledgeObject]:
     normalized_stage = stage.strip().lower() if stage else "raw"
     if normalized_stage not in KNOWLEDGE_STAGES:
         normalized_stage = "raw"
+    normalized_canonicalization_intent = normalize_canonicalization_intent(canonicalization_intent)
 
     objects: list[KnowledgeObject] = []
     normalized_artifact_refs = [(item or "").strip() for item in (artifact_refs or [])]
@@ -38,9 +41,17 @@ def build_knowledge_objects(
                 artifact_ref=artifact_ref,
                 retrieval_eligible=retrieval_eligible,
                 knowledge_reuse_scope="retrieval_candidate" if retrieval_eligible else "task_only",
+                canonicalization_intent=normalized_canonicalization_intent,
             )
         )
     return objects
+
+
+def normalize_canonicalization_intent(intent: str | None) -> str:
+    normalized_intent = (intent or "none").strip().lower()
+    if normalized_intent not in CANONICALIZATION_INTENTS:
+        return "none"
+    return normalized_intent
 
 
 def summarize_knowledge_stages(objects: list[dict[str, object]] | list[KnowledgeObject]) -> dict[str, int]:
@@ -68,6 +79,40 @@ def summarize_knowledge_reuse(objects: list[dict[str, object]] | list[KnowledgeO
             else str(item.get("knowledge_reuse_scope", "task_only"))
         )
         counts[scope] = counts.get(scope, 0) + 1
+    return counts
+
+
+def canonicalization_status_for(item: dict[str, object] | KnowledgeObject) -> str:
+    stage = item.stage if isinstance(item, KnowledgeObject) else str(item.get("stage", "raw"))
+    evidence_status = item.evidence_status if isinstance(item, KnowledgeObject) else str(item.get("evidence_status", "unbacked"))
+    intent = (
+        item.canonicalization_intent
+        if isinstance(item, KnowledgeObject)
+        else str(item.get("canonicalization_intent", "none"))
+    )
+    if stage == "canonical":
+        return "canonical"
+    if intent == "none":
+        return "not_requested"
+    if stage != "verified":
+        return "blocked_stage"
+    if evidence_status != "artifact_backed":
+        return "blocked_evidence"
+    return "review_ready" if intent == "review" else "promotion_ready"
+
+
+def summarize_canonicalization(objects: list[dict[str, object]] | list[KnowledgeObject]) -> dict[str, int]:
+    counts = {
+        "not_requested": 0,
+        "review_ready": 0,
+        "promotion_ready": 0,
+        "blocked_stage": 0,
+        "blocked_evidence": 0,
+        "canonical": 0,
+    }
+    for item in objects:
+        status = canonicalization_status_for(item)
+        counts[status] = counts.get(status, 0) + 1
     return counts
 
 

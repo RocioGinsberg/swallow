@@ -6,7 +6,13 @@ from pathlib import Path
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
 from .execution_fit import build_execution_fit_report, evaluate_execution_fit
 from .executor import build_failure_recommendations, run_executor
-from .knowledge_objects import summarize_knowledge_evidence, summarize_knowledge_reuse, summarize_knowledge_stages
+from .knowledge_index import build_knowledge_index, build_knowledge_index_report
+from .knowledge_objects import (
+    summarize_canonicalization,
+    summarize_knowledge_evidence,
+    summarize_knowledge_reuse,
+    summarize_knowledge_stages,
+)
 from .knowledge_policy import build_knowledge_policy_report, evaluate_knowledge_policy
 from .models import (
     CompatibilityResult,
@@ -26,6 +32,7 @@ from .store import (
     save_dispatch,
     save_execution_fit,
     save_handoff,
+    save_knowledge_index,
     save_knowledge_policy,
     save_memory,
     save_retrieval,
@@ -58,6 +65,8 @@ def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -
                 "top_citations": [item.reference() for item in retrieval_items[:3]],
                 "source_types": sorted({item.source_type for item in retrieval_items}),
                 "reused_knowledge_count": reused_knowledge["count"],
+                "reused_knowledge_current_task_count": reused_knowledge["current_task_count"],
+                "reused_knowledge_cross_task_count": reused_knowledge["cross_task_count"],
                 "reused_knowledge_references": reused_knowledge["references"],
             },
         ),
@@ -118,6 +127,7 @@ def write_task_artifacts(
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
 ) -> tuple[CompatibilityResult, ExecutionFitResult, KnowledgePolicyResult, ValidationResult]:
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
     save_route(base_dir, state.task_id, build_route_record(state))
     save_topology(base_dir, state.task_id, build_topology_record(state))
     save_dispatch(base_dir, state.task_id, build_dispatch_record(state))
@@ -139,6 +149,13 @@ def write_task_artifacts(
         "dispatch_report.md",
         build_dispatch_report(state),
     )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "knowledge_index_report.md",
+        build_knowledge_index_report(knowledge_index),
+    )
+    save_knowledge_index(base_dir, state.task_id, knowledge_index)
     write_artifact(
         base_dir,
         state.task_id,
@@ -328,6 +345,7 @@ def write_task_artifacts(
                     "task_semantics_report": state.artifact_paths.get("task_semantics_report", ""),
                     "knowledge_objects_report": state.artifact_paths.get("knowledge_objects_report", ""),
                     "knowledge_partition_report": state.artifact_paths.get("knowledge_partition_report", ""),
+                    "knowledge_index_report": state.artifact_paths.get("knowledge_index_report", ""),
                     "summary": state.artifact_paths.get("summary", ""),
                     "resume_note": state.artifact_paths.get("resume_note", ""),
                     "route_report": state.artifact_paths.get("route_report", ""),
@@ -419,6 +437,8 @@ def build_retrieval_report(state: TaskState, retrieval_items: list[RetrievalItem
         "",
         f"- retrieval_count: {len(retrieval_items)}",
         f"- reused_knowledge_count: {reused_knowledge['count']}",
+        f"- reused_knowledge_current_task_count: {reused_knowledge['current_task_count']}",
+        f"- reused_knowledge_cross_task_count: {reused_knowledge['cross_task_count']}",
         f"- reused_knowledge_references: {', '.join(reused_knowledge['references']) or 'none'}",
         f"- retrieval_record_path: {state.artifact_paths.get('retrieval_json', '') or 'pending'}",
         f"- source_grounding_artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
@@ -454,6 +474,8 @@ def build_task_memory(
     handoff_record: dict[str, object],
 ) -> dict[str, object]:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
+    canonicalization_counts = summarize_canonicalization(state.knowledge_objects)
     return {
         "task_id": state.task_id,
         "task_title": state.title,
@@ -467,11 +489,19 @@ def build_task_memory(
             "stage_counts": summarize_knowledge_stages(state.knowledge_objects),
             "evidence_counts": summarize_knowledge_evidence(state.knowledge_objects),
             "reuse_counts": summarize_knowledge_reuse(state.knowledge_objects),
+            "canonicalization_counts": canonicalization_counts,
             "items": state.knowledge_objects[:5],
         },
         "knowledge_partition": {
             "task_linked_count": len(state.knowledge_objects),
             "reusable_candidate_count": summarize_knowledge_reuse(state.knowledge_objects).get("retrieval_candidate", 0),
+        },
+        "knowledge_index": {
+            "active_reusable_count": knowledge_index["active_reusable_count"],
+            "inactive_reusable_count": knowledge_index["inactive_reusable_count"],
+            "refreshed_at": knowledge_index["refreshed_at"],
+            "reusable_records": knowledge_index["reusable_records"][:5],
+            "inactive_records": knowledge_index["inactive_records"][:5],
         },
         "executor": {
             "name": executor_result.executor_name,
@@ -509,6 +539,8 @@ def build_task_memory(
             "count": len(retrieval_items),
             "top_references": [item.reference() for item in retrieval_items[:5]],
             "reused_knowledge_count": reused_knowledge["count"],
+            "reused_knowledge_current_task_count": reused_knowledge["current_task_count"],
+            "reused_knowledge_cross_task_count": reused_knowledge["cross_task_count"],
             "reused_knowledge_references": reused_knowledge["references"],
             "reused_knowledge_object_ids": reused_knowledge["object_ids"],
             "reused_knowledge_evidence_counts": reused_knowledge["evidence_counts"],
@@ -534,6 +566,8 @@ def build_task_memory(
             "knowledge_objects_report": state.artifact_paths.get("knowledge_objects_report", ""),
             "knowledge_partition_json": state.artifact_paths.get("knowledge_partition_json", ""),
             "knowledge_partition_report": state.artifact_paths.get("knowledge_partition_report", ""),
+            "knowledge_index_json": state.artifact_paths.get("knowledge_index_json", ""),
+            "knowledge_index_report": state.artifact_paths.get("knowledge_index_report", ""),
             "summary": state.artifact_paths.get("summary", ""),
             "resume_note": state.artifact_paths.get("resume_note", ""),
             "route_report": state.artifact_paths.get("route_report", ""),
@@ -751,6 +785,8 @@ def build_summary(
     validation_result: ValidationResult | None,
 ) -> str:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
+    canonicalization_counts = summarize_canonicalization(state.knowledge_objects)
     lines = [
         f"# Summary for {state.task_id}",
         "",
@@ -770,9 +806,17 @@ def build_summary(
         f"- knowledge_objects_count: {len(state.knowledge_objects)}",
         f"- knowledge_evidence_artifact_backed: {summarize_knowledge_evidence(state.knowledge_objects).get('artifact_backed', 0)}",
         f"- knowledge_retrieval_candidate_count: {summarize_knowledge_reuse(state.knowledge_objects).get('retrieval_candidate', 0)}",
+        f"- knowledge_canonicalization_ready_count: {canonicalization_counts.get('review_ready', 0) + canonicalization_counts.get('promotion_ready', 0)}",
+        f"- knowledge_canonicalization_blocked_count: {canonicalization_counts.get('blocked_stage', 0) + canonicalization_counts.get('blocked_evidence', 0)}",
         f"- knowledge_objects_report_artifact: {state.artifact_paths.get('knowledge_objects_report', '') or 'pending'}",
         f"- knowledge_partition_report_artifact: {state.artifact_paths.get('knowledge_partition_report', '') or 'pending'}",
+        f"- knowledge_index_report_artifact: {state.artifact_paths.get('knowledge_index_report', '') or 'pending'}",
+        f"- knowledge_index_active_reusable_count: {knowledge_index['active_reusable_count']}",
+        f"- knowledge_index_inactive_reusable_count: {knowledge_index['inactive_reusable_count']}",
+        f"- knowledge_index_refreshed_at: {knowledge_index['refreshed_at']}",
         f"- retrieval_reused_knowledge_count: {reused_knowledge['count']}",
+        f"- retrieval_reused_knowledge_current_task_count: {reused_knowledge['current_task_count']}",
+        f"- retrieval_reused_knowledge_cross_task_count: {reused_knowledge['cross_task_count']}",
         f"- executor: {state.executor_name}",
         f"- executor_status: {state.executor_status}",
         f"- execution_lifecycle: {state.execution_lifecycle}",
@@ -842,11 +886,15 @@ def build_summary(
                 f"- unbacked: {evidence_counts.get('unbacked', 0)}",
                 f"- retrieval_candidate: {reuse_counts.get('retrieval_candidate', 0)}",
                 f"- task_only: {reuse_counts.get('task_only', 0)}",
+                f"- canonicalization_review_ready: {canonicalization_counts.get('review_ready', 0)}",
+                f"- canonicalization_promotion_ready: {canonicalization_counts.get('promotion_ready', 0)}",
+                f"- canonicalization_blocked_stage: {canonicalization_counts.get('blocked_stage', 0)}",
+                f"- canonicalization_blocked_evidence: {canonicalization_counts.get('blocked_evidence', 0)}",
             ]
         )
         for item in state.knowledge_objects[:5]:
             lines.append(
-                f"- [{item.get('stage', 'raw')}/{item.get('evidence_status', 'unbacked')}/{item.get('knowledge_reuse_scope', 'task_only')}] {item.get('text', '') or '(empty)'}"
+                f"- [{item.get('stage', 'raw')}/{item.get('evidence_status', 'unbacked')}/{item.get('knowledge_reuse_scope', 'task_only')}/{item.get('canonicalization_intent', 'none')}] {item.get('text', '') or '(empty)'}"
             )
     else:
         lines.append("- none")
@@ -860,6 +908,8 @@ def build_summary(
             lines.extend(
                 [
                     f"- reused_verified_knowledge: {reused_knowledge['count']}",
+                    f"- reused_current_task_knowledge: {reused_knowledge['current_task_count']}",
+                    f"- reused_cross_task_knowledge: {reused_knowledge['cross_task_count']}",
                     f"- reused_knowledge_references: {', '.join(reused_knowledge['references'])}",
                 ]
             )
@@ -939,6 +989,8 @@ def build_resume_note(
 ) -> str:
     top_references = ", ".join(item.reference() for item in retrieval_items[:3]) or "none"
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
+    canonicalization_counts = summarize_canonicalization(state.knowledge_objects)
     lines = [
         f"# Resume Note for {state.task_id}",
         "",
@@ -953,9 +1005,17 @@ def build_resume_note(
         f"- knowledge objects count: {len(state.knowledge_objects)}",
         f"- artifact-backed knowledge objects: {summarize_knowledge_evidence(state.knowledge_objects).get('artifact_backed', 0)}",
         f"- retrieval-eligible knowledge objects: {summarize_knowledge_reuse(state.knowledge_objects).get('retrieval_candidate', 0)}",
+        f"- canonicalization-ready knowledge objects: {canonicalization_counts.get('review_ready', 0) + canonicalization_counts.get('promotion_ready', 0)}",
+        f"- canonicalization-blocked knowledge objects: {canonicalization_counts.get('blocked_stage', 0) + canonicalization_counts.get('blocked_evidence', 0)}",
         f"- reused verified knowledge records: {reused_knowledge['count']}",
+        f"- reused current-task knowledge records: {reused_knowledge['current_task_count']}",
+        f"- reused cross-task knowledge records: {reused_knowledge['cross_task_count']}",
         f"- knowledge objects report artifact: {state.artifact_paths.get('knowledge_objects_report', '') or 'pending'}",
         f"- knowledge partition report artifact: {state.artifact_paths.get('knowledge_partition_report', '') or 'pending'}",
+        f"- knowledge index report artifact: {state.artifact_paths.get('knowledge_index_report', '') or 'pending'}",
+        f"- knowledge index active reusable count: {knowledge_index['active_reusable_count']}",
+        f"- knowledge index inactive reusable count: {knowledge_index['inactive_reusable_count']}",
+        f"- knowledge index refreshed at: {knowledge_index['refreshed_at']}",
         f"- top retrieved references: {top_references}",
         f"- reused knowledge references: {', '.join(reused_knowledge['references']) or 'none'}",
         f"- executor: {executor_result.executor_name}",
@@ -999,6 +1059,7 @@ def build_resume_note(
         f"- task semantics json path: {state.artifact_paths.get('task_semantics_json', '') or 'pending'}",
         f"- knowledge objects json path: {state.artifact_paths.get('knowledge_objects_json', '') or 'pending'}",
         f"- knowledge partition json path: {state.artifact_paths.get('knowledge_partition_json', '') or 'pending'}",
+        f"- knowledge index json path: {state.artifact_paths.get('knowledge_index_json', '') or 'pending'}",
     ]
     if executor_result.status == "completed":
         lines.append("- treat summary.md and executor_output.md as the record of what happened in this run")

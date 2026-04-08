@@ -9,10 +9,13 @@ from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
 from .knowledge_objects import (
     build_knowledge_objects,
+    canonicalization_status_for,
+    summarize_canonicalization,
     summarize_knowledge_evidence,
     summarize_knowledge_reuse,
     summarize_knowledge_stages,
 )
+from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .models import Event, RetrievalRequest, TaskState
 from .paths import (
@@ -23,6 +26,7 @@ from .paths import (
     dispatch_path,
     execution_fit_path,
     handoff_path,
+    knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
     knowledge_policy_path,
@@ -40,6 +44,7 @@ from .store import (
     load_state,
     save_capability_assembly,
     save_capability_manifest,
+    save_knowledge_index,
     save_knowledge_objects,
     save_knowledge_partition,
     save_state,
@@ -88,6 +93,7 @@ def create_task(
     knowledge_source: str | None = None,
     knowledge_artifact_refs: list[str] | None = None,
     knowledge_retrieval_eligible: bool = False,
+    knowledge_canonicalization_intent: str = "none",
     capability_refs: list[str] | None = None,
     route_mode: str = "auto",
 ) -> TaskState:
@@ -112,6 +118,7 @@ def create_task(
         source_ref=knowledge_source,
         artifact_refs=knowledge_artifact_refs,
         retrieval_eligible=knowledge_retrieval_eligible,
+        canonicalization_intent=knowledge_canonicalization_intent,
     )
     state = TaskState(
         task_id=task_id,
@@ -143,17 +150,22 @@ def create_task(
         "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
         "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
         "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
+        "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
+        "knowledge_index_report": str((artifacts_dir(base_dir, task_id) / "knowledge_index_report.md").resolve()),
     }
     knowledge_partition = build_knowledge_partition(state.knowledge_objects)
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
     save_state(base_dir, state)
     save_task_semantics(base_dir, task_id, state.task_semantics)
     save_knowledge_objects(base_dir, task_id, state.knowledge_objects)
     save_knowledge_partition(base_dir, task_id, knowledge_partition)
+    save_knowledge_index(base_dir, task_id, knowledge_index)
     save_capability_manifest(base_dir, task_id, state.capability_manifest)
     save_capability_assembly(base_dir, task_id, state.capability_assembly)
     write_artifact(base_dir, task_id, "task_semantics_report.md", build_task_semantics_report(state))
     write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
     write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
+    write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
     append_event(
         base_dir,
         Event(
@@ -170,9 +182,15 @@ def create_task(
                 "knowledge_stage_counts": summarize_knowledge_stages(state.knowledge_objects),
                 "knowledge_evidence_counts": summarize_knowledge_evidence(state.knowledge_objects),
                 "knowledge_reuse_counts": summarize_knowledge_reuse(state.knowledge_objects),
+                "knowledge_canonicalization_counts": summarize_canonicalization(state.knowledge_objects),
                 "knowledge_partition": {
                     "task_linked_count": knowledge_partition["task_linked_count"],
                     "reusable_candidate_count": knowledge_partition["reusable_candidate_count"],
+                },
+                "knowledge_index": {
+                    "active_reusable_count": knowledge_index["active_reusable_count"],
+                    "inactive_reusable_count": knowledge_index["inactive_reusable_count"],
+                    "refreshed_at": knowledge_index["refreshed_at"],
                 },
                 "capability_manifest": state.capability_manifest,
                 "capability_assembly": state.capability_assembly,
@@ -220,6 +238,7 @@ def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
         query=f"{state.title} {state.goal}".strip(),
         source_types=["repo", "notes"],
         context_layers=["workspace", "task"],
+        current_task_id=state.task_id,
         limit=8,
         strategy="system_baseline",
     )
@@ -328,6 +347,8 @@ def run_task(
         "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
         "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
         "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
+        "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
+        "knowledge_index_report": str((artifacts_dir(base_dir, task_id) / "knowledge_index_report.md").resolve()),
         "knowledge_policy_json": str(knowledge_policy_path(base_dir, task_id).resolve()),
         "knowledge_policy_report": str((artifacts_dir(base_dir, task_id) / "knowledge_policy_report.md").resolve()),
         "summary": str((artifacts_dir(base_dir, task_id) / "summary.md").resolve()),
@@ -457,6 +478,7 @@ def build_knowledge_objects_report(state: TaskState) -> str:
     stage_counts = summarize_knowledge_stages(knowledge_objects)
     evidence_counts = summarize_knowledge_evidence(knowledge_objects)
     reuse_counts = summarize_knowledge_reuse(knowledge_objects)
+    canonicalization_counts = summarize_canonicalization(knowledge_objects)
     lines = [
         "# Knowledge Objects Report",
         "",
@@ -470,6 +492,12 @@ def build_knowledge_objects_report(state: TaskState) -> str:
         f"- unbacked: {evidence_counts.get('unbacked', 0)}",
         f"- retrieval_candidate: {reuse_counts.get('retrieval_candidate', 0)}",
         f"- task_only: {reuse_counts.get('task_only', 0)}",
+        f"- canonicalization_not_requested: {canonicalization_counts.get('not_requested', 0)}",
+        f"- canonicalization_review_ready: {canonicalization_counts.get('review_ready', 0)}",
+        f"- canonicalization_promotion_ready: {canonicalization_counts.get('promotion_ready', 0)}",
+        f"- canonicalization_blocked_stage: {canonicalization_counts.get('blocked_stage', 0)}",
+        f"- canonicalization_blocked_evidence: {canonicalization_counts.get('blocked_evidence', 0)}",
+        f"- canonicalization_canonical: {canonicalization_counts.get('canonical', 0)}",
         "",
         "## Objects",
     ]
@@ -490,6 +518,8 @@ def build_knowledge_objects_report(state: TaskState) -> str:
                 f"  artifact_ref: {item.get('artifact_ref', '') or 'none'}",
                 f"  retrieval_eligible: {'yes' if item.get('retrieval_eligible', False) else 'no'}",
                 f"  knowledge_reuse_scope: {item.get('knowledge_reuse_scope', 'task_only')}",
+                f"  canonicalization_intent: {item.get('canonicalization_intent', 'none')}",
+                f"  canonicalization_status: {canonicalization_status_for(item)}",
                 f"  text: {item.get('text', '') or '(empty)'}",
             ]
         )

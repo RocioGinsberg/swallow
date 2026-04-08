@@ -1,6 +1,6 @@
 # Active Phase
 
-Current active phase: post-Phase-5 retrieval / memory next closeout checkpoint.
+Current active phase: Phase 6 Retrieval / Memory Operationalization closeout checkpoint.
 
 ## Current status
 
@@ -41,6 +41,12 @@ Current active phase: post-Phase-5 retrieval / memory next closeout checkpoint.
   - `/home/rocio/projects/swallow/docs/post_phase5_retrieval_memory_next_task_breakdown.md`
 - post-Phase-5 retrieval / memory next closeout:
   - `/home/rocio/projects/swallow/docs/post_phase5_retrieval_memory_next_closeout_note.md`
+- Phase 6 kickoff:
+  - `/home/rocio/projects/swallow/docs/phase6_kickoff_note.md`
+- Phase 6 breakdown:
+  - `/home/rocio/projects/swallow/docs/phase6_task_breakdown.md`
+- Phase 6 closeout:
+  - `/home/rocio/projects/swallow/docs/phase6_closeout_note.md`
 - retrieval closeout:
   - `/home/rocio/projects/swallow/docs/post_phase2_retrieval_closeout_note.md`
 
@@ -69,6 +75,6 @@ The repository already has:
 
 ## Current rule
 
-New planning work should align with `docs/system_tracks.md` first and then the active retrieval / memory closeout references above.
+New planning work should align with `docs/system_tracks.md` first and then the active Phase 6 references above.
 
-New implementation work should not fall back to a generic MVP framing or resume open-ended executor / external-input breadth by default.
+New implementation work should not fall back to a generic MVP framing or resume open-ended Phase 6 breadth by default.

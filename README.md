@@ -126,7 +126,7 @@ That staged promotion model is intended to preserve evidence while avoiding poll
 
 ## Current focus
 
-The repository is currently at a **post-Phase-5 retrieval/memory next closeout checkpoint**.
+The repository is currently at a **Phase 6 Retrieval / Memory Operationalization closeout checkpoint**.
 
 The implemented baseline now includes:
 
@@ -137,7 +137,7 @@ The implemented baseline now includes:
 - explicit local-first execution with route, topology, dispatch, handoff, and execution-fit artifacts
 - Git project files and Markdown / Obsidian notes as retrieval sources
 
-The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve the accepted local baselines, treat both the completed executor/external-input slice and the completed retrieval/memory-next slice as stable checkpoints, and start any further work from a fresh planning note instead of open-ended continuation.
+The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve the accepted local baselines, treat the completed executor/external-input slice, the completed retrieval/memory-next slice, and the completed Phase 6 retrieval/memory operationalization slice as stable checkpoints, and begin new work from a fresh planning note instead of open-ended continuation.
 
 ## Long-term direction
 
@@ -271,7 +271,8 @@ Implementation checkpoint for interrupted sessions:
 - [docs/post_phase5_retrieval_memory_next_kickoff_note.md](./docs/post_phase5_retrieval_memory_next_kickoff_note.md)
 - [docs/post_phase5_retrieval_memory_next_task_breakdown.md](./docs/post_phase5_retrieval_memory_next_task_breakdown.md)
 - [docs/post_phase5_retrieval_memory_next_closeout_note.md](./docs/post_phase5_retrieval_memory_next_closeout_note.md)
-- [CHANGELOG.md](./CHANGELOG.md)
+- [docs/phase6_kickoff_note.md](./docs/phase6_kickoff_note.md)
+- [docs/phase6_task_breakdown.md](./docs/phase6_task_breakdown.md)
 
 ## Terminology
 

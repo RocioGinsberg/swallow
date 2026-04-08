@@ -135,12 +135,14 @@ def build_retrieval_request(
     limit: int = 8,
     source_types: list[str] | None = None,
     context_layers: list[str] | None = None,
+    current_task_id: str = "",
     strategy: str = "system_baseline",
 ) -> RetrievalRequest:
     return RetrievalRequest(
         query=query,
         source_types=source_types or ["repo", "notes"],
         context_layers=context_layers or ["workspace", "task"],
+        current_task_id=current_task_id,
         limit=limit,
         strategy=strategy,
     )
@@ -199,7 +201,12 @@ def build_item_metadata(
 def build_knowledge_item_metadata(
     knowledge_object: dict[str, Any],
     query_plan: dict[str, Any],
+    knowledge_task_id: str,
+    current_task_id: str,
 ) -> dict[str, Any]:
+    task_relation = "unknown_task"
+    if current_task_id:
+        task_relation = "current_task" if knowledge_task_id == current_task_id else "cross_task"
     return {
         "extension": ".json",
         "adapter_name": "verified_knowledge_records",
@@ -217,6 +224,8 @@ def build_knowledge_item_metadata(
         "source_ref": knowledge_object.get("source_ref", ""),
         "task_linked": bool(knowledge_object.get("task_linked", False)),
         "retrieval_eligible": bool(knowledge_object.get("retrieval_eligible", False)),
+        "knowledge_task_id": knowledge_task_id,
+        "knowledge_task_relation": task_relation,
     }
 
 
@@ -231,18 +240,27 @@ def summarize_reused_knowledge(retrieval_items: list[RetrievalItem]) -> dict[str
         "references": [item.reference() for item in knowledge_items[:5]],
         "object_ids": [str(item.metadata.get("knowledge_object_id", item.chunk_id)) for item in knowledge_items[:5]],
         "evidence_counts": evidence_counts,
+        "current_task_count": sum(
+            1 for item in knowledge_items if str(item.metadata.get("knowledge_task_relation", "")) == "current_task"
+        ),
+        "cross_task_count": sum(
+            1 for item in knowledge_items if str(item.metadata.get("knowledge_task_relation", "")) == "cross_task"
+        ),
     }
 
 
 def iter_verified_knowledge_items(
     workspace_root: Path,
-    allowed_sources: set[str],
+    request: RetrievalRequest,
     query_plan: dict[str, Any],
 ) -> list[RetrievalItem]:
+    allowed_sources = set(request.source_types)
     if KNOWLEDGE_SOURCE_TYPE not in allowed_sources:
         return []
 
     items: list[RetrievalItem] = []
+    allow_current_task = "task" in request.context_layers
+    allow_cross_task = "history" in request.context_layers
     for path in sorted(workspace_root.glob(".swl/tasks/*/knowledge_objects.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
@@ -253,6 +271,11 @@ def iter_verified_knowledge_items(
 
         relative_path = str(path.relative_to(workspace_root))
         task_id = path.parent.name
+        if request.current_task_id:
+            if task_id == request.current_task_id and not allow_current_task:
+                continue
+            if task_id != request.current_task_id and not allow_cross_task:
+                continue
         for knowledge_object in payload:
             if not isinstance(knowledge_object, dict):
                 continue
@@ -290,6 +313,8 @@ def iter_verified_knowledge_items(
                     metadata=build_knowledge_item_metadata(
                         knowledge_object=knowledge_object,
                         query_plan=query_plan,
+                        knowledge_task_id=task_id,
+                        current_task_id=request.current_task_id,
                     ),
                 )
             )
@@ -308,7 +333,7 @@ def retrieve_context(
     allowed_sources = set(retrieval_request.source_types)
     items: list[RetrievalItem] = iter_verified_knowledge_items(
         workspace_root=workspace_root,
-        allowed_sources=allowed_sources,
+        request=retrieval_request,
         query_plan=query_plan,
     )
 

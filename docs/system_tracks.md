@@ -260,6 +260,41 @@ Secondary effect:
 - Workbench / UX improvements through retrieval inspection paths
 - Evaluation / Policy improvements through retrieval fixtures
 
+### Post-Phase-5 Executor / External-Input Slice
+
+Primary tracks:
+
+- Retrieval / Memory
+- Execution Topology
+
+Secondary effect:
+
+- Workbench / UX improvements through task-semantics and knowledge-object inspection
+- Evaluation / Policy improvements through knowledge-policy checks
+
+### Post-Phase-5 Retrieval / Memory Next Slice
+
+Primary tracks:
+
+- Retrieval / Memory
+- Evaluation / Policy
+
+Secondary effect:
+
+- Workbench / UX improvements through reusable-knowledge inspection paths
+
+### Phase 6
+
+Planned primary track:
+
+- Retrieval / Memory
+
+Planned secondary effect:
+
+- Evaluation / Policy
+- Workbench / UX
+- Capabilities
+
 ## Planning Rule
 
 Future planning should happen in two passes:
@@ -282,23 +317,10 @@ The repository is now at a planning checkpoint with:
 - Phase 3 baseline complete
 - Phase 4 baseline complete
 - Phase 5 baseline complete
-
-The next step should be to define a fresh planning note against one or two primary tracks, most likely:
-
-- Retrieval / Memory
-- Execution Topology
-
-That next slice may also have secondary effects on:
-
-- Workbench / UX
-- Capabilities
-
-Current likely planning directions include:
-
-- executor family refinement between API executors and CLI executors
-- external planning ingestion and handoff normalization
-- external knowledge capture with staged promotion into reusable knowledge records
+- post-Phase-5 executor / external-input slice complete
+- post-Phase-5 retrieval / memory-next slice complete
 
 Current fresh planning reference:
 
-- `docs/post_phase5_executor_and_external_input_kickoff_note.md`
+- `docs/phase6_kickoff_note.md`
+- `docs/phase6_task_breakdown.md`

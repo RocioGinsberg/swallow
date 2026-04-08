@@ -14,6 +14,7 @@ from .paths import (
     execution_fit_path,
     events_path,
     handoff_path,
+    knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
     knowledge_policy_path,
@@ -132,6 +133,14 @@ def save_knowledge_policy(base_dir: Path, task_id: str, payload: dict[str, objec
 def save_knowledge_partition(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
     ensure_task_layout(base_dir, task_id)
     knowledge_partition_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_knowledge_index(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    knowledge_index_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )

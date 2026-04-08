@@ -131,7 +131,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 ## 当前阶段
 
-当前仓库处于 **post-Phase-5 retrieval / memory 下一段收口检查点**。
+当前仓库处于 **Phase 6 Retrieval / Memory Operationalization 收口检查点**。
 
 当前已经实现的基线包括：
 
@@ -142,7 +142,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - 明确的本地优先执行路径，以及 route、topology、dispatch、handoff、execution-fit 产物
 - Git 项目文件与 Markdown / Obsidian 笔记检索
 
-当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把已完成的 executor / external-input 切片和 retrieval / memory 下一段切片都视为稳定检查点；如果继续推进，需要先写新的规划说明，而不是继续无边界扩展。
+当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把已完成的 executor / external-input 切片、retrieval / memory 下一段切片，以及已完成的 Phase 6 retrieval / memory operationalization 切片都视为稳定检查点，并从新的规划说明开始后续工作，而不是继续无边界扩展。
 
 ## 长期方向
 
@@ -263,16 +263,17 @@ backend 不等于模型，也不等于 executor。
 
 ## 当前状态
 
-Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-2 retrieval baseline 已完成，Phase 3 baseline 已完成，Phase 4 baseline 已完成，Phase 5 baseline 也已完成。
+Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-2 retrieval baseline 已完成，Phase 3 baseline 已完成，Phase 4 baseline 已完成，Phase 5 baseline 已完成，Phase 6 Retrieval / Memory Operationalization baseline 也已完成。
 
 - [current_state.md](./current_state.md)
 - [docs/phase3_closeout_note.md](./docs/phase3_closeout_note.md)
 - [docs/phase4_closeout_note.md](./docs/phase4_closeout_note.md)
 - [docs/phase5_task_breakdown.md](./docs/phase5_task_breakdown.md)
 - [docs/phase5_closeout_note.md](./docs/phase5_closeout_note.md)
+- [docs/phase6_task_breakdown.md](./docs/phase6_task_breakdown.md)
+- [docs/phase6_closeout_note.md](./docs/phase6_closeout_note.md)
 - [docs/post_phase5_executor_and_external_input_kickoff_note.md](./docs/post_phase5_executor_and_external_input_kickoff_note.md)
 - [docs/post_phase5_executor_and_external_input_task_breakdown.md](./docs/post_phase5_executor_and_external_input_task_breakdown.md)
-- [CHANGELOG.md](./CHANGELOG.md)
 
 ## 术语说明
 
@@ -351,6 +352,8 @@ python3 -m unittest discover -s tests
 - [docs/post_phase5_retrieval_memory_next_kickoff_note.md](./docs/post_phase5_retrieval_memory_next_kickoff_note.md)
 - [docs/post_phase5_retrieval_memory_next_task_breakdown.md](./docs/post_phase5_retrieval_memory_next_task_breakdown.md)
 - [docs/post_phase5_retrieval_memory_next_closeout_note.md](./docs/post_phase5_retrieval_memory_next_closeout_note.md)
+- [docs/phase6_kickoff_note.md](./docs/phase6_kickoff_note.md)
+- [docs/phase6_task_breakdown.md](./docs/phase6_task_breakdown.md)
 
 ## 当前 CLI 形态
 

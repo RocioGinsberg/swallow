@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .knowledge_objects import is_retrieval_reuse_ready
+from .knowledge_objects import canonicalization_status_for, is_retrieval_reuse_ready
 from .models import KnowledgePolicyFinding, KnowledgePolicyResult, TaskState
 
 
@@ -25,6 +25,8 @@ def evaluate_knowledge_policy(state: TaskState) -> KnowledgePolicyResult:
         artifact_ref = str(item.get("artifact_ref", ""))
         retrieval_eligible = bool(item.get("retrieval_eligible", False))
         reuse_scope = str(item.get("knowledge_reuse_scope", "task_only"))
+        canonicalization_intent = str(item.get("canonicalization_intent", "none"))
+        canonicalization_status = canonicalization_status_for(item)
 
         if stage == "canonical":
             if evidence_status == "artifact_backed":
@@ -142,6 +144,60 @@ def evaluate_knowledge_policy(state: TaskState) -> KnowledgePolicyResult:
                         level="fail",
                         message="Verified retrieval candidates require artifact-backed evidence before they can enter reusable retrieval.",
                         details={"object_id": object_id, "stage": stage, "evidence_status": evidence_status},
+                    )
+                )
+
+        if canonicalization_intent != "none":
+            if stage == "canonical":
+                findings.append(
+                    KnowledgePolicyFinding(
+                        code="knowledge.canonicalization.already_canonical",
+                        level="pass",
+                        message="Canonicalization intent is already satisfied because the knowledge object is canonical.",
+                        details={"object_id": object_id, "canonicalization_intent": canonicalization_intent},
+                    )
+                )
+            elif canonicalization_status in {"review_ready", "promotion_ready"}:
+                findings.append(
+                    KnowledgePolicyFinding(
+                        code="knowledge.canonicalization.ready_for_review",
+                        level="pass",
+                        message="Canonicalization intent is evidence-backed and ready for explicit review before promotion.",
+                        details={
+                            "object_id": object_id,
+                            "canonicalization_intent": canonicalization_intent,
+                            "canonicalization_status": canonicalization_status,
+                            "artifact_ref": artifact_ref,
+                        },
+                    )
+                )
+            elif canonicalization_status == "blocked_stage":
+                findings.append(
+                    KnowledgePolicyFinding(
+                        code="knowledge.canonicalization.stage_not_ready",
+                        level="warn",
+                        message="Canonicalization intent is declared before the knowledge object has reached verified stage.",
+                        details={
+                            "object_id": object_id,
+                            "stage": stage,
+                            "canonicalization_intent": canonicalization_intent,
+                            "canonicalization_status": canonicalization_status,
+                        },
+                    )
+                )
+            elif canonicalization_status == "blocked_evidence":
+                findings.append(
+                    KnowledgePolicyFinding(
+                        code="knowledge.canonicalization.evidence_not_ready",
+                        level="warn",
+                        message="Canonicalization intent is declared but artifact-backed evidence is still missing.",
+                        details={
+                            "object_id": object_id,
+                            "stage": stage,
+                            "evidence_status": evidence_status,
+                            "canonicalization_intent": canonicalization_intent,
+                            "canonicalization_status": canonicalization_status,
+                        },
                     )
                 )
 

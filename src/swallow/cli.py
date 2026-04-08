@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .doctor import diagnose_codex, format_codex_doctor_result
+from .knowledge_objects import summarize_canonicalization
 from .orchestrator import create_task, run_task
 from .paths import (
     artifacts_dir,
@@ -14,6 +15,7 @@ from .paths import (
     dispatch_path,
     execution_fit_path,
     handoff_path,
+    knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
     knowledge_policy_path,
@@ -31,7 +33,14 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Routing And Topology", ("route_report", "topology_report", "dispatch_report", "handoff_report")),
     (
         "Retrieval And Grounding",
-        ("knowledge_objects_report", "knowledge_partition_report", "retrieval_report", "retrieval_json", "source_grounding"),
+        (
+            "knowledge_objects_report",
+            "knowledge_partition_report",
+            "knowledge_index_report",
+            "retrieval_report",
+            "retrieval_json",
+            "source_grounding",
+        ),
     ),
     (
         "Validation And Policy",
@@ -48,7 +57,16 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ),
     (
         "Memory And Reuse",
-        ("task_memory", "knowledge_objects_json", "knowledge_partition_json", "route_json", "topology_json", "dispatch_json", "handoff_json"),
+        (
+            "task_memory",
+            "knowledge_objects_json",
+            "knowledge_partition_json",
+            "knowledge_index_json",
+            "route_json",
+            "topology_json",
+            "dispatch_json",
+            "handoff_json",
+        ),
     ),
 )
 
@@ -172,6 +190,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Declare imported knowledge objects as retrieval-eligible candidates without automatically enabling retrieval reuse.",
     )
     create_parser.add_argument(
+        "--knowledge-canonicalization-intent",
+        default="none",
+        choices=["none", "review", "promote"],
+        help="Optional canonicalization intent for imported knowledge objects. This does not promote them automatically.",
+    )
+    create_parser.add_argument(
         "--capability",
         action="append",
         default=[],
@@ -231,6 +255,10 @@ def build_parser() -> argparse.ArgumentParser:
         "knowledge-partition", help="Print the task knowledge-partition report artifact."
     )
     knowledge_partition_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_index_parser = task_subparsers.add_parser(
+        "knowledge-index", help="Print the task knowledge-index report artifact."
+    )
+    knowledge_index_parser.add_argument("task_id", help="Task identifier.")
     knowledge_policy_parser = task_subparsers.add_parser(
         "knowledge-policy", help="Print the task knowledge-policy report artifact."
     )
@@ -309,6 +337,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task knowledge-partition record.",
     )
     knowledge_partition_json_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_index_json_parser = task_subparsers.add_parser(
+        "knowledge-index-json",
+        help="Print the task knowledge-index record.",
+    )
+    knowledge_index_json_parser.add_argument("task_id", help="Task identifier.")
     knowledge_policy_json_parser = task_subparsers.add_parser(
         "knowledge-policy-json",
         help="Print the task knowledge-policy record.",
@@ -344,6 +377,7 @@ def main(argv: list[str] | None = None) -> int:
             knowledge_source=args.knowledge_source,
             knowledge_artifact_refs=args.knowledge_artifact_ref,
             knowledge_retrieval_eligible=args.knowledge_retrieval_eligible,
+            knowledge_canonicalization_intent=args.knowledge_canonicalization_intent,
             capability_refs=args.capability,
             route_mode=args.route_mode,
         )
@@ -402,6 +436,7 @@ def main(argv: list[str] | None = None) -> int:
         execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         knowledge_partition = load_json_if_exists(knowledge_partition_path(base_dir, args.task_id))
+        knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         task_semantics = load_json_if_exists(task_semantics_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
@@ -412,6 +447,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
         knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
         knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
+        canonicalization_counts = summarize_canonicalization(knowledge_objects)
         reused_knowledge_references: list[str] = []
         for item in knowledge_objects:
             stage = str(item.get("stage", "raw"))
@@ -444,7 +480,10 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_object_stages: raw={knowledge_stage_counts.get('raw', 0)} candidate={knowledge_stage_counts.get('candidate', 0)} verified={knowledge_stage_counts.get('verified', 0)} canonical={knowledge_stage_counts.get('canonical', 0)}",
             f"knowledge_object_evidence: artifact_backed={knowledge_evidence_counts.get('artifact_backed', 0)} source_only={knowledge_evidence_counts.get('source_only', 0)} unbacked={knowledge_evidence_counts.get('unbacked', 0)}",
             f"knowledge_object_reuse: retrieval_candidate={knowledge_reuse_counts.get('retrieval_candidate', 0)} task_only={knowledge_reuse_counts.get('task_only', 0)}",
+            f"knowledge_object_canonicalization: ready={canonicalization_counts.get('review_ready', 0) + canonicalization_counts.get('promotion_ready', 0)} blocked={canonicalization_counts.get('blocked_stage', 0) + canonicalization_counts.get('blocked_evidence', 0)} canonical={canonicalization_counts.get('canonical', 0)}",
             f"knowledge_partition: task_linked={knowledge_partition.get('task_linked_count', len(knowledge_objects))} reusable_candidate={knowledge_partition.get('reusable_candidate_count', 0)}",
+            f"knowledge_index: active_reusable={knowledge_index.get('active_reusable_count', 0)} inactive_reusable={knowledge_index.get('inactive_reusable_count', 0)}",
+            f"knowledge_index_refreshed_at: {knowledge_index.get('refreshed_at', '-')}",
             "",
             "Route And Topology",
             f"route_mode: {state.route_mode}",
@@ -467,6 +506,8 @@ def main(argv: list[str] | None = None) -> int:
             f"retrieval_count: {state.retrieval_count}",
             f"retrieval_record_available: {'yes' if isinstance(retrieval, list) and bool(retrieval) else 'no'}",
             f"reused_knowledge_in_retrieval: {len(reused_knowledge_references)}",
+            f"reused_current_task_knowledge: {sum(1 for item in retrieval if str(item.get('metadata', {}).get('knowledge_task_relation', '')) == 'current_task') if isinstance(retrieval, list) else 0}",
+            f"reused_cross_task_knowledge: {sum(1 for item in retrieval if str(item.get('metadata', {}).get('knowledge_task_relation', '')) == 'cross_task') if isinstance(retrieval, list) else 0}",
             f"reused_knowledge_references: {', '.join(reused_knowledge_references) or '-'}",
             f"grounding_available: {'yes' if state.artifact_paths.get('source_grounding') else 'no'}",
             f"memory_available: {'yes' if memory_path(base_dir, args.task_id).exists() else 'no'}",
@@ -480,6 +521,7 @@ def main(argv: list[str] | None = None) -> int:
             f"task_semantics_report: {state.artifact_paths.get('task_semantics_report', '-')}",
             f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
             f"knowledge_partition_report: {state.artifact_paths.get('knowledge_partition_report', '-')}",
+            f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"route_report: {state.artifact_paths.get('route_report', '-')}",
@@ -530,12 +572,25 @@ def main(argv: list[str] | None = None) -> int:
         compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
         execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
+        knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
+        knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
+        canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         reused_knowledge_references = []
         if isinstance(retrieval, list):
             for item in retrieval:
                 if str(item.get("source_type", "")) == "knowledge":
                     reused_knowledge_references.append(str(item.get("citation", item.get("path", ""))))
+        reused_current_task = (
+            sum(1 for item in retrieval if str(item.get("metadata", {}).get("knowledge_task_relation", "")) == "current_task")
+            if isinstance(retrieval, list)
+            else 0
+        )
+        reused_cross_task = (
+            sum(1 for item in retrieval if str(item.get("metadata", {}).get("knowledge_task_relation", "")) == "cross_task")
+            if isinstance(retrieval, list)
+            else 0
+        )
         validation = load_json_if_exists(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
         lines = [
             f"Task Review: {state.task_id}",
@@ -557,14 +612,23 @@ def main(argv: list[str] | None = None) -> int:
             f"compatibility_status: {compatibility.get('status', 'pending')}",
             f"execution_fit_status: {execution_fit.get('status', 'pending')}",
             f"knowledge_policy_status: {knowledge_policy.get('status', 'pending')}",
+            f"knowledge_canonicalization_ready: {canonicalization_counts.get('review_ready', 0) + canonicalization_counts.get('promotion_ready', 0)}",
+            f"knowledge_canonicalization_blocked: {canonicalization_counts.get('blocked_stage', 0) + canonicalization_counts.get('blocked_evidence', 0)}",
+            f"knowledge_canonicalization_canonical: {canonicalization_counts.get('canonical', 0)}",
             f"validation_status: {validation.get('status', 'pending')}",
+            f"knowledge_index_active_reusable: {knowledge_index.get('active_reusable_count', 0)}",
+            f"knowledge_index_inactive_reusable: {knowledge_index.get('inactive_reusable_count', 0)}",
+            f"knowledge_index_refreshed_at: {knowledge_index.get('refreshed_at', '-')}",
             f"reused_knowledge_in_retrieval: {len(reused_knowledge_references)}",
+            f"reused_current_task_knowledge: {reused_current_task}",
+            f"reused_cross_task_knowledge: {reused_cross_task}",
             f"reused_knowledge_references: {', '.join(reused_knowledge_references) or '-'}",
             "",
             "Review Artifacts",
             f"task_semantics_report: {state.artifact_paths.get('task_semantics_report', '-')}",
             f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
             f"knowledge_partition_report: {state.artifact_paths.get('knowledge_partition_report', '-')}",
+            f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"source_grounding: {state.artifact_paths.get('source_grounding', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
@@ -592,6 +656,7 @@ def main(argv: list[str] | None = None) -> int:
         "grounding",
         "knowledge-objects",
         "knowledge-partition",
+        "knowledge-index",
         "knowledge-policy",
         "retrieval",
         "topology",
@@ -609,6 +674,7 @@ def main(argv: list[str] | None = None) -> int:
             "grounding": "source_grounding.md",
             "knowledge-objects": "knowledge_objects_report.md",
             "knowledge-partition": "knowledge_partition_report.md",
+            "knowledge-index": "knowledge_index_report.md",
             "knowledge-policy": "knowledge_policy_report.md",
             "retrieval": "retrieval_report.md",
             "topology": "topology_report.md",
@@ -662,6 +728,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "knowledge-partition-json":
         print(json.dumps(json.loads(knowledge_partition_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "knowledge-index-json":
+        print(json.dumps(json.loads(knowledge_index_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-policy-json":

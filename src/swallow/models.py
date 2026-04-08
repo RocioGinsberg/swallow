@@ -97,6 +97,7 @@ class KnowledgeObject:
     artifact_ref: str = ""
     retrieval_eligible: bool = False
     knowledge_reuse_scope: str = "task_only"
+    canonicalization_intent: str = "none"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -168,6 +169,7 @@ class RetrievalRequest:
     query: str
     source_types: list[str] = field(default_factory=lambda: ["repo", "notes"])
     context_layers: list[str] = field(default_factory=lambda: ["workspace", "task"])
+    current_task_id: str = ""
     limit: int = 8
     strategy: str = "system_baseline"
 

@@ -350,8 +350,143 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("retrieval_candidate: 1", knowledge_report)
         self.assertIn("retrieval_eligible: yes", knowledge_report)
         self.assertIn("knowledge_reuse_scope: retrieval_candidate", knowledge_report)
-        self.assertIn("Knowledge Partition Report", partition_report)
-        self.assertIn("reusable_candidate_count: 1", partition_report)
+
+    def test_cli_create_persists_canonicalization_intent_without_promoting_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Canonicalization intent",
+                        "--goal",
+                        "Persist canonicalization boundary semantics",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://canonicalization-intent",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/summary.md",
+                        "--knowledge-canonicalization-intent",
+                        "promote",
+                        "--knowledge-item",
+                        "Verified artifact-backed knowledge may be ready for canonical review without already being canonical.",
+                    ]
+                ),
+                0,
+            )
+            task_dir = next(entry for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            knowledge_objects = json.loads((task_dir / "knowledge_objects.json").read_text(encoding="utf-8"))
+            knowledge_report = (task_dir / "artifacts" / "knowledge_objects_report.md").read_text(encoding="utf-8")
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(knowledge_objects[0]["stage"], "verified")
+        self.assertEqual(knowledge_objects[0]["canonicalization_intent"], "promote")
+        self.assertEqual(events[0]["payload"]["knowledge_canonicalization_counts"]["promotion_ready"], 1)
+        self.assertIn("canonicalization_intent: promote", knowledge_report)
+        self.assertIn("canonicalization_status: promotion_ready", knowledge_report)
+        self.assertIn("canonicalization_promotion_ready: 1", knowledge_report)
+
+    def test_cli_create_builds_reusable_knowledge_index_for_artifact_backed_verified_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Knowledge index",
+                        "--goal",
+                        "Persist reusable knowledge index",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://knowledge-index",
+                        "--knowledge-retrieval-eligible",
+                        "--knowledge-item",
+                        "Artifact-backed verified reusable knowledge should enter the index.",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/summary.md",
+                    ]
+                ),
+                0,
+            )
+            task_dir = next(entry for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            knowledge_index = json.loads((task_dir / "knowledge_index.json").read_text(encoding="utf-8"))
+            knowledge_index_report = (task_dir / "artifacts" / "knowledge_index_report.md").read_text(encoding="utf-8")
+
+        self.assertTrue(state["artifact_paths"]["knowledge_index_json"].endswith("knowledge_index.json"))
+        self.assertTrue(state["artifact_paths"]["knowledge_index_report"].endswith("knowledge_index_report.md"))
+        self.assertEqual(knowledge_index["active_reusable_count"], 1)
+        self.assertEqual(knowledge_index["inactive_reusable_count"], 0)
+        self.assertTrue(bool(knowledge_index["refreshed_at"]))
+        self.assertEqual(knowledge_index["reusable_records"][0]["object_id"], "knowledge-0001")
+        self.assertEqual(events[0]["payload"]["knowledge_index"]["active_reusable_count"], 1)
+        self.assertEqual(events[0]["payload"]["knowledge_index"]["inactive_reusable_count"], 0)
+        self.assertIn("Knowledge Index Report", knowledge_index_report)
+        self.assertIn("active_reusable_count: 1", knowledge_index_report)
+        self.assertIn("inactive_reusable_count: 0", knowledge_index_report)
+
+    def test_cli_create_builds_inactive_knowledge_index_for_source_only_verified_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Knowledge index inactive",
+                        "--goal",
+                        "Persist inactive reusable knowledge records",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://knowledge-index-inactive",
+                        "--knowledge-retrieval-eligible",
+                        "--knowledge-item",
+                        "Source-only verified knowledge should remain indexed but inactive.",
+                    ]
+                ),
+                0,
+            )
+            task_dir = next(entry for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            knowledge_index = json.loads((task_dir / "knowledge_index.json").read_text(encoding="utf-8"))
+            knowledge_index_report = (task_dir / "artifacts" / "knowledge_index_report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(knowledge_index["active_reusable_count"], 0)
+        self.assertEqual(knowledge_index["inactive_reusable_count"], 1)
+        self.assertEqual(knowledge_index["inactive_records"][0]["invalidation_reason"], "evidence_not_artifact_backed")
+        self.assertIn("inactive_reusable_count: 1", knowledge_index_report)
+        self.assertIn("invalidation_reason: evidence_not_artifact_backed", knowledge_index_report)
 
     def test_run_task_capability_override_updates_manifest_and_assembly(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -769,6 +904,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_object_evidence: artifact_backed=0 source_only=1 unbacked=0", output)
         self.assertIn("knowledge_object_reuse: retrieval_candidate=1 task_only=0", output)
         self.assertIn("knowledge_partition: task_linked=1 reusable_candidate=1", output)
+        self.assertIn("knowledge_index: active_reusable=0 inactive_reusable=1", output)
+        self.assertIn("knowledge_index_refreshed_at:", output)
         self.assertIn("route_name: local-mock", output)
         self.assertIn("topology_execution_site: local", output)
         self.assertIn("topology_dispatch_status: local_dispatched", output)
@@ -786,6 +923,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("task_semantics_report:", output)
         self.assertIn("knowledge_objects_report:", output)
         self.assertIn("knowledge_partition_report:", output)
+        self.assertIn("knowledge_index_report:", output)
         self.assertIn("summary:", output)
         self.assertIn("retrieval_report:", output)
 
@@ -879,12 +1017,16 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("handoff_status: resume_from_failure", output)
         self.assertIn("blocking_reason: launch_error", output)
         self.assertIn("knowledge_policy_status: passed", output)
+        self.assertIn("knowledge_index_active_reusable: 0", output)
+        self.assertIn("knowledge_index_inactive_reusable: 0", output)
+        self.assertIn("knowledge_index_refreshed_at:", output)
         self.assertIn("reused_knowledge_in_retrieval: 0", output)
         self.assertIn("reused_knowledge_references: -", output)
         self.assertIn("next_operator_action:", output)
         self.assertIn("task_semantics_report:", output)
         self.assertIn("knowledge_objects_report:", output)
         self.assertIn("knowledge_partition_report:", output)
+        self.assertIn("knowledge_index_report:", output)
         self.assertIn("retrieval_report:", output)
         self.assertIn("source_grounding:", output)
         self.assertIn("resume_note:", output)
@@ -1001,6 +1143,52 @@ class CliLifecycleTest(unittest.TestCase):
                     self.assertEqual(top_item.path, case["expected_path"])
                     self.assertEqual(top_item.title, case["expected_title"])
                     self.assertEqual(top_item.source_type, case["expected_source_type"])
+
+    def test_retrieval_evaluation_fixtures_cover_current_and_cross_task_knowledge_boundaries(self) -> None:
+        fixture_root = Path(__file__).resolve().parent / "fixtures" / "retrieval_eval"
+        cases = [
+            {
+                "query": "current task topology review retrieval reuse boundary",
+                "request": RetrievalRequest(
+                    query="current task topology review retrieval reuse boundary",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    context_layers=["task"],
+                    current_task_id="demo",
+                    limit=5,
+                    strategy="fixture_eval",
+                ),
+                "expected_path": ".swl/tasks/demo/knowledge_objects.json",
+                "expected_citation": ".swl/tasks/demo/knowledge_objects.json#knowledge-0001",
+                "expected_relation": "current_task",
+            },
+            {
+                "query": "historical cross task retrieval history boundary grounding reuse",
+                "request": RetrievalRequest(
+                    query="historical cross task retrieval history boundary grounding reuse",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    context_layers=["history"],
+                    current_task_id="demo",
+                    limit=5,
+                    strategy="fixture_eval",
+                ),
+                "expected_path": ".swl/tasks/prior/knowledge_objects.json",
+                "expected_citation": ".swl/tasks/prior/knowledge_objects.json#knowledge-0001",
+                "expected_relation": "cross_task",
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            shutil.copytree(fixture_root, tmp_path, dirs_exist_ok=True)
+
+            for case in cases:
+                with self.subTest(query=case["query"]):
+                    items = retrieve_context(tmp_path, request=case["request"])
+                    self.assertEqual(len(items), 1)
+                    top_item = items[0]
+                    self.assertEqual(top_item.path, case["expected_path"])
+                    self.assertEqual(top_item.citation, case["expected_citation"])
+                    self.assertEqual(top_item.metadata["knowledge_task_relation"], case["expected_relation"])
 
     def test_task_lifecycle(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1126,6 +1314,10 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("knowledge_retrieval_candidate_count:", summary)
                 self.assertIn("knowledge_objects_report_artifact:", summary)
                 self.assertIn("knowledge_partition_report_artifact:", summary)
+                self.assertIn("knowledge_index_report_artifact:", summary)
+                self.assertIn("knowledge_index_active_reusable_count: 0", summary)
+                self.assertIn("knowledge_index_inactive_reusable_count: 0", summary)
+                self.assertIn("knowledge_index_refreshed_at:", summary)
                 self.assertIn("retrieval_reused_knowledge_count: 0", summary)
                 self.assertIn("## Task Semantics", summary)
                 self.assertIn("## Knowledge Objects", summary)
@@ -1154,6 +1346,11 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("reused verified knowledge records: 0", resume_note)
                 self.assertIn("knowledge objects report artifact:", resume_note)
                 self.assertIn("knowledge partition report artifact:", resume_note)
+                self.assertIn("knowledge index report artifact:", resume_note)
+                self.assertIn("knowledge index active reusable count: 0", resume_note)
+                self.assertIn("knowledge index inactive reusable count: 0", resume_note)
+                self.assertIn("knowledge index refreshed at:", resume_note)
+                self.assertIn("knowledge index json path:", resume_note)
                 self.assertIn("reused knowledge references: none", resume_note)
                 self.assertIn("route remote capable:", resume_note)
                 self.assertIn("route transport kind:", resume_note)
@@ -1260,6 +1457,9 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("evidence_counts", memory["knowledge_objects"])
                 self.assertIn("reuse_counts", memory["knowledge_objects"])
                 self.assertEqual(memory["knowledge_partition"]["reusable_candidate_count"], 0)
+                self.assertEqual(memory["knowledge_index"]["active_reusable_count"], 0)
+                self.assertEqual(memory["knowledge_index"]["inactive_reusable_count"], 0)
+                self.assertTrue(bool(memory["knowledge_index"]["refreshed_at"]))
                 self.assertEqual(memory["compatibility"]["status"], "passed")
                 self.assertEqual(memory["execution_fit"]["status"], "passed")
                 self.assertEqual(memory["knowledge_policy"]["status"], "passed")
@@ -1275,6 +1475,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertTrue(memory["artifact_paths"]["knowledge_objects_report"].endswith("knowledge_objects_report.md"))
                 self.assertTrue(memory["artifact_paths"]["knowledge_partition_json"].endswith("knowledge_partition.json"))
                 self.assertTrue(memory["artifact_paths"]["knowledge_partition_report"].endswith("knowledge_partition_report.md"))
+                self.assertTrue(memory["artifact_paths"]["knowledge_index_json"].endswith("knowledge_index.json"))
+                self.assertTrue(memory["artifact_paths"]["knowledge_index_report"].endswith("knowledge_index_report.md"))
                 self.assertTrue(memory["artifact_paths"]["route_report"].endswith("route_report.md"))
                 self.assertTrue(memory["artifact_paths"]["route_json"].endswith("route.json"))
                 self.assertTrue(memory["artifact_paths"]["topology_report"].endswith("topology_report.md"))
@@ -1758,6 +1960,98 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertTrue(all(item.source_type != KNOWLEDGE_SOURCE_TYPE for item in items))
 
+    def test_retrieve_context_limits_knowledge_reuse_to_current_task_when_history_is_not_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            for task_id, text in [
+                ("task123", "Current task verified reusable knowledge."),
+                ("task999", "Cross task verified reusable knowledge."),
+            ]:
+                task_dir = tmp_path / ".swl" / "tasks" / task_id
+                task_dir.mkdir(parents=True, exist_ok=True)
+                (task_dir / "knowledge_objects.json").write_text(
+                    json.dumps(
+                        [
+                            {
+                                "object_id": "knowledge-0001",
+                                "text": text,
+                                "stage": "verified",
+                                "source_kind": "external_knowledge_capture",
+                                "source_ref": f"chat://{task_id}",
+                                "task_linked": True,
+                                "captured_at": "2026-04-09T00:00:00+00:00",
+                                "evidence_status": "artifact_backed",
+                                "artifact_ref": f".swl/tasks/{task_id}/artifacts/summary.md",
+                                "retrieval_eligible": True,
+                                "knowledge_reuse_scope": "retrieval_candidate",
+                            }
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+
+            items = retrieve_context(
+                tmp_path,
+                request=RetrievalRequest(
+                    query="verified reusable knowledge",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    context_layers=["task"],
+                    current_task_id="task123",
+                    limit=8,
+                    strategy="system_baseline",
+                ),
+            )
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].metadata["knowledge_task_id"], "task123")
+        self.assertEqual(items[0].metadata["knowledge_task_relation"], "current_task")
+
+    def test_retrieve_context_can_include_cross_task_knowledge_when_history_is_requested(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            for task_id, text in [
+                ("task123", "Current task verified reusable knowledge."),
+                ("task999", "Cross task verified reusable knowledge with history boundary."),
+            ]:
+                task_dir = tmp_path / ".swl" / "tasks" / task_id
+                task_dir.mkdir(parents=True, exist_ok=True)
+                (task_dir / "knowledge_objects.json").write_text(
+                    json.dumps(
+                        [
+                            {
+                                "object_id": "knowledge-0001",
+                                "text": text,
+                                "stage": "verified",
+                                "source_kind": "external_knowledge_capture",
+                                "source_ref": f"chat://{task_id}",
+                                "task_linked": True,
+                                "captured_at": "2026-04-09T00:00:00+00:00",
+                                "evidence_status": "artifact_backed",
+                                "artifact_ref": f".swl/tasks/{task_id}/artifacts/summary.md",
+                                "retrieval_eligible": True,
+                                "knowledge_reuse_scope": "retrieval_candidate",
+                            }
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+
+            items = retrieve_context(
+                tmp_path,
+                request=RetrievalRequest(
+                    query="history boundary cross task knowledge",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    context_layers=["history"],
+                    current_task_id="task123",
+                    limit=8,
+                    strategy="system_baseline",
+                ),
+            )
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].metadata["knowledge_task_id"], "task999")
+        self.assertEqual(items[0].metadata["knowledge_task_relation"], "cross_task")
+
     def test_retrieve_context_excludes_source_only_verified_knowledge_from_reusable_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -1821,6 +2115,64 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(result.status, "warning")
         self.assertTrue(any(f.code == "knowledge.reuse.verified.blocked_source_only" for f in result.findings))
 
+    def test_knowledge_policy_marks_verified_artifact_backed_canonicalization_intent_ready(self) -> None:
+        state = TaskState(
+            task_id="knowledgepolicy3",
+            title="Canonicalization policy",
+            goal="Allow explicit canonicalization review readiness",
+            workspace_root="/tmp",
+            knowledge_objects=[
+                {
+                    "object_id": "knowledge-0001",
+                    "text": "Verified artifact-backed knowledge can be reviewed for canonical promotion.",
+                    "stage": "verified",
+                    "source_kind": "external_knowledge_capture",
+                    "source_ref": "chat://knowledge-canonical-review",
+                    "task_linked": True,
+                    "captured_at": "2026-04-08T00:00:00+00:00",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": ".swl/tasks/task123/artifacts/summary.md",
+                    "retrieval_eligible": False,
+                    "knowledge_reuse_scope": "task_only",
+                    "canonicalization_intent": "promote",
+                }
+            ],
+        )
+
+        result = evaluate_knowledge_policy(state)
+
+        self.assertEqual(result.status, "passed")
+        self.assertTrue(any(f.code == "knowledge.canonicalization.ready_for_review" for f in result.findings))
+
+    def test_knowledge_policy_warns_when_canonicalization_intent_is_declared_before_verified_stage(self) -> None:
+        state = TaskState(
+            task_id="knowledgepolicy4",
+            title="Canonicalization policy",
+            goal="Warn when canonicalization intent arrives too early",
+            workspace_root="/tmp",
+            knowledge_objects=[
+                {
+                    "object_id": "knowledge-0001",
+                    "text": "Candidate knowledge should not be treated as canonical-ready.",
+                    "stage": "candidate",
+                    "source_kind": "external_knowledge_capture",
+                    "source_ref": "chat://knowledge-canonical-blocked",
+                    "task_linked": True,
+                    "captured_at": "2026-04-08T00:00:00+00:00",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": ".swl/tasks/task123/artifacts/summary.md",
+                    "retrieval_eligible": False,
+                    "knowledge_reuse_scope": "task_only",
+                    "canonicalization_intent": "review",
+                }
+            ],
+        )
+
+        result = evaluate_knowledge_policy(state)
+
+        self.assertEqual(result.status, "warning")
+        self.assertTrue(any(f.code == "knowledge.canonicalization.stage_not_ready" for f in result.findings))
+
     def test_knowledge_policy_fails_for_non_verified_reuse_candidate(self) -> None:
         state = TaskState(
             task_id="knowledgepolicy2",
@@ -1862,6 +2214,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(request.query, "Improve retrieval Refine harness boundary")
         self.assertEqual(request.source_types, ["repo", "notes"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
+        self.assertEqual(request.current_task_id, "request123")
         self.assertEqual(request.limit, 8)
         self.assertEqual(request.strategy, "system_baseline")
 
@@ -1911,6 +2264,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(request.query, "Request boundary Pass retrieval request explicitly")
         self.assertEqual(request.source_types, ["repo", "notes"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
+        self.assertEqual(request.current_task_id, "taskrequest")
         self.assertEqual(request.strategy, "system_baseline")
 
     def test_run_task_status_and_phase_timing_success_path(self) -> None:
@@ -2860,6 +3214,7 @@ class CliLifecycleTest(unittest.TestCase):
             semantics_stdout = StringIO()
             knowledge_objects_stdout = StringIO()
             knowledge_partition_stdout = StringIO()
+            knowledge_index_stdout = StringIO()
             knowledge_policy_stdout = StringIO()
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
@@ -2870,6 +3225,7 @@ class CliLifecycleTest(unittest.TestCase):
             semantics_json_stdout = StringIO()
             knowledge_objects_json_stdout = StringIO()
             knowledge_partition_json_stdout = StringIO()
+            knowledge_index_json_stdout = StringIO()
             knowledge_policy_json_stdout = StringIO()
             retrieval_json_stdout = StringIO()
             grounding_stdout = StringIO()
@@ -2889,6 +3245,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-objects", task_id]), 0)
             with redirect_stdout(knowledge_partition_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-partition", task_id]), 0)
+            with redirect_stdout(knowledge_index_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-index", task_id]), 0)
             with redirect_stdout(knowledge_policy_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-policy", task_id]), 0)
             with redirect_stdout(topology_stdout):
@@ -2917,6 +3275,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-objects-json", task_id]), 0)
             with redirect_stdout(knowledge_partition_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-partition-json", task_id]), 0)
+            with redirect_stdout(knowledge_index_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-index-json", task_id]), 0)
             with redirect_stdout(knowledge_policy_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-policy-json", task_id]), 0)
             with redirect_stdout(retrieval_json_stdout):
@@ -2933,6 +3293,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Task Semantics Report", semantics_stdout.getvalue())
         self.assertIn("Knowledge Objects Report", knowledge_objects_stdout.getvalue())
         self.assertIn("Knowledge Partition Report", knowledge_partition_stdout.getvalue())
+        self.assertIn("Knowledge Index Report", knowledge_index_stdout.getvalue())
         self.assertIn("Knowledge Policy Report", knowledge_policy_stdout.getvalue())
         self.assertIn("Topology Report", topology_stdout.getvalue())
         self.assertIn("Dispatch Report", dispatch_stdout.getvalue())
@@ -2949,6 +3310,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"source_kind"', semantics_json_stdout.getvalue())
         self.assertIn("[", knowledge_objects_json_stdout.getvalue())
         self.assertIn('"task_linked_count"', knowledge_partition_json_stdout.getvalue())
+        self.assertIn('"active_reusable_count"', knowledge_index_json_stdout.getvalue())
         self.assertIn('"status"', knowledge_policy_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
@@ -3178,6 +3540,8 @@ class CliLifecycleTest(unittest.TestCase):
                         "evidence_status": "artifact_backed",
                         "artifact_ref": ".swl/tasks/demo/artifacts/summary.md",
                         "source_ref": "chat://knowledge-verified",
+                        "knowledge_task_id": "demo",
+                        "knowledge_task_relation": "cross_task",
                     },
                 )
             ]
@@ -3192,6 +3556,8 @@ class CliLifecycleTest(unittest.TestCase):
             retrieval_report = (task_dir / "artifacts" / "retrieval_report.md").read_text(encoding="utf-8")
 
             self.assertEqual(memory["retrieval"]["reused_knowledge_count"], 1)
+            self.assertEqual(memory["retrieval"]["reused_knowledge_current_task_count"], 0)
+            self.assertEqual(memory["retrieval"]["reused_knowledge_cross_task_count"], 1)
             self.assertEqual(
                 memory["retrieval"]["reused_knowledge_references"],
                 [".swl/tasks/demo/knowledge_objects.json#knowledge-0001"],
@@ -3199,11 +3565,15 @@ class CliLifecycleTest(unittest.TestCase):
             self.assertEqual(memory["retrieval"]["reused_knowledge_object_ids"], ["knowledge-0001"])
             self.assertEqual(memory["retrieval"]["reused_knowledge_evidence_counts"]["artifact_backed"], 1)
             self.assertIn("retrieval_reused_knowledge_count: 1", summary)
+            self.assertIn("retrieval_reused_knowledge_cross_task_count: 1", summary)
             self.assertIn("reused_verified_knowledge: 1", summary)
+            self.assertIn("reused_cross_task_knowledge: 1", summary)
             self.assertIn(".swl/tasks/demo/knowledge_objects.json#knowledge-0001", summary)
             self.assertIn("reused verified knowledge records: 1", resume_note)
+            self.assertIn("reused cross-task knowledge records: 1", resume_note)
             self.assertIn("reused knowledge references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001", resume_note)
             self.assertIn("reused_knowledge_count: 1", retrieval_report)
+            self.assertIn("reused_knowledge_cross_task_count: 1", retrieval_report)
             self.assertIn("reused_knowledge_references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001", retrieval_report)
             inspect_stdout = StringIO()
             review_stdout = StringIO()
@@ -3216,16 +3586,19 @@ class CliLifecycleTest(unittest.TestCase):
             second_prompt = (task_dir / "artifacts" / "executor_prompt.md").read_text(encoding="utf-8")
 
         self.assertIn("previous_reused_knowledge_count: 1", second_prompt)
+        self.assertIn("previous_reused_cross_task_knowledge_count: 1", second_prompt)
         self.assertIn(
             "previous_reused_knowledge_references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001",
             second_prompt,
         )
         self.assertIn("reused_knowledge_in_retrieval: 1", inspect_stdout.getvalue())
+        self.assertIn("reused_cross_task_knowledge: 1", inspect_stdout.getvalue())
         self.assertIn(
             "reused_knowledge_references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001",
             inspect_stdout.getvalue(),
         )
         self.assertIn("reused_knowledge_in_retrieval: 1", review_stdout.getvalue())
+        self.assertIn("reused_cross_task_knowledge: 1", review_stdout.getvalue())
         self.assertIn(
             "reused_knowledge_references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001",
             review_stdout.getvalue(),

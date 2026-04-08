@@ -50,7 +50,7 @@ Use `docs/system_tracks.md` as the top-level planning map before defining or exe
 
 ## Current planning state
 
-Current planning checkpoint: post-Phase-5 retrieval / memory next closeout.
+Current planning checkpoint: Phase 6 Retrieval / Memory Operationalization closeout.
 
 Current implementation status:
 1. Phase 0 accepted
@@ -69,8 +69,9 @@ Current planning direction:
 5. use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference
 6. use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the stop/go reference for the completed executor / external-input slice
 7. use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval / memory-next slice
-8. open a fresh planning note before continuing `Retrieval / Memory` work again
-9. treat `Retrieval / Memory` as a likely next primary track, but do not continue the completed slice by default
+8. use `docs/phase6_kickoff_note.md` as the current fresh planning note
+9. use `docs/phase6_task_breakdown.md` as the current executable planning breakdown
+10. use `docs/phase6_closeout_note.md` as the stop/go reference for completed Phase 6 work
 
 Do not default new work back to a generic MVP feature bundle. Start from the current system map and current closeout checkpoint.
 
@@ -82,7 +83,8 @@ Current planning should focus on:
 - treating the completed Phase 5 baseline as a stable checkpoint
 - planning the next slice against the repository’s current system tracks
 - treating the completed post-Phase-5 executor / external-input slice as a stable checkpoint instead of continuing it by default
-- treating the completed retrieval / memory-next slice as a stable checkpoint instead of continuing it by default
+- treating the completed retrieval / memory-next slice as a stable checkpoint before starting Phase 6 work
+- treating the completed Phase 6 `Retrieval / Memory Operationalization` baseline as a stable checkpoint before starting the next slice
 - avoiding accidental open-ended continuation of `Capabilities`, execution-topology, or Workbench / UX work
 - keeping retrieval, routing, validation, memory, and artifact semantics inspectable
 
