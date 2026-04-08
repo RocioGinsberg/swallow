@@ -4,6 +4,7 @@ Status:
 
 - planning baseline created on 2026-04-08
 - track reference: `docs/system_tracks.md`
+- closeout reference: `docs/phase3_closeout_note.md`
 
 This note defines the smallest useful Phase 3 starting point after the completed Phase 2 baseline and the completed post-Phase-2 retrieval baseline.
 
@@ -177,3 +178,10 @@ Explicitly defer these until a later Phase 3 slice or beyond:
 When choosing a Phase 3 task, prefer the smallest step that makes execution location, dispatch, and ownership more truthful without hiding behavior behind infrastructure abstractions.
 
 If a change mostly adds remote terminology or backend breadth but does not improve execution-topology truthfulness, handoff clarity, or attempt traceability, it is probably too early.
+
+## Closeout
+
+The kickoff intent in this note has now been satisfied by the completed `P3-01` through `P3-06` baseline.
+
+This note should remain as the Phase 3 starting rationale.
+Use `docs/phase3_closeout_note.md` for the current stop/go decision.

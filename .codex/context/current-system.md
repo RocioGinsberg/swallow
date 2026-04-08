@@ -21,14 +21,14 @@ The repository now includes:
 - a runnable CLI-first task loop
 - retrieval for repository files and markdown notes
 - explicit task, event, and artifact persistence
-- summary, resume note, validation, grounding, and memory outputs
+- summary, resume note, validation, grounding, memory, topology, dispatch, handoff, and execution-fit outputs
 - multiple local execution routes
 - route provenance in prompts, state, events, and artifacts
 - route-policy input through `route_mode`
 
-## Current active phase
+## Current planning state
 
-Active phase: Phase 2.
+Active phase: Phase 3 closeout checkpoint.
 
 Phase status:
 
@@ -36,10 +36,12 @@ Phase status:
 - Phase 1 complete
 - Phase 2 baseline complete
 - post-Phase-2 retrieval baseline complete
+- Phase 3 baseline complete
 
 ## Current references
 
 - `/home/rocio/projects/swallow/current_state.md`
 - `/home/rocio/projects/swallow/docs/system_tracks.md`
-- `/home/rocio/projects/swallow/docs/phase2_kickoff_note.md`
-- `/home/rocio/projects/swallow/docs/phase2_task_breakdown.md`
+- `/home/rocio/projects/swallow/docs/phase3_kickoff_note.md`
+- `/home/rocio/projects/swallow/docs/phase3_task_breakdown.md`
+- `/home/rocio/projects/swallow/docs/phase3_closeout_note.md`

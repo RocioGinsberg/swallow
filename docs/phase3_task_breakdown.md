@@ -9,6 +9,7 @@ Status:
 - planning baseline created on 2026-04-08
 - current runtime reference: `current_state.md`
 - kickoff reference: `docs/phase3_kickoff_note.md`
+- closeout reference: `docs/phase3_closeout_note.md`
 
 ## Working Rule
 
@@ -36,12 +37,12 @@ Recommended implementation order:
 
 Current completion state:
 
-- `P3-01` pending
-- `P3-02` pending
-- `P3-03` pending
-- `P3-04` pending
-- `P3-05` pending
-- `P3-06` pending
+- `P3-01` completed
+- `P3-02` completed
+- `P3-03` completed
+- `P3-04` completed
+- `P3-05` completed
+- `P3-06` completed
 
 ## Tasks
 
@@ -249,3 +250,11 @@ Keep these outside the active Phase 3 task list unless a concrete implementation
 Phase 3 should start from this execution-topology baseline rather than from backend breadth or UI breadth.
 
 If later planning changes the primary track, this breakdown should be updated rather than half-followed.
+
+## Closeout Judgment
+
+The planned Phase 3 baseline is complete.
+
+Do not continue Phase 3 by default through open-ended execution-topology expansion.
+
+Use `docs/phase3_closeout_note.md` as the decision reference before starting follow-up work.

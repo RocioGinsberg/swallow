@@ -48,3 +48,19 @@ def memory_path(base_dir: Path, task_id: str) -> Path:
 
 def route_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "route.json"
+
+
+def topology_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "topology.json"
+
+
+def dispatch_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "dispatch.json"
+
+
+def handoff_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "handoff.json"
+
+
+def execution_fit_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "execution_fit.json"

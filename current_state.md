@@ -6,8 +6,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 3 planning checkpoint
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 3 closeout checkpoint
 - last checked: 2026-04-08
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -21,6 +21,7 @@ This file tracks the implementation status of the repository itself so work can 
 - phase 3 planning reference:
   - `docs/phase3_kickoff_note.md`
   - `docs/phase3_task_breakdown.md`
+  - `docs/phase3_closeout_note.md`
 - system planning reference:
   - `docs/system_tracks.md`
 - post-Phase-2 retrieval planning reference:
@@ -129,6 +130,13 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/system_tracks.md` defines the repository’s long-running tracks so future phases can be scoped against a stable system map instead of treating each phase as a mixed bundle
   - `docs/phase3_kickoff_note.md` defines the next planned primary slice on the `Execution Topology` track
   - `docs/phase3_task_breakdown.md` breaks that direction into `P3-01` through `P3-06`
+  - `docs/phase3_closeout_note.md` records the stop/go judgment for the completed Phase 3 baseline
+  - `P3-01` execution-topology contract baseline is implemented with explicit topology fields in task state, persisted `topology.json`, readable `topology_report.md`, topology-aware event payloads, and separate route-versus-topology provenance in summaries, resume notes, and task memory
+  - `P3-02` dispatch record and attempt identity baseline is implemented with stable per-run `attempt_id` sequencing, persisted `dispatch.json`, readable `dispatch_report.md`, dispatch timestamps, and attempt-aware event, summary, resume-note, state, and memory records
+  - `P3-03` handoff artifact baseline is implemented with persisted `handoff.json`, readable `handoff_report.md`, explicit blocking reason and next-operator-action fields, and handoff links carried through summary, resume note, artifact paths, and task memory
+  - `P3-04` topology-aware lifecycle semantics are implemented with explicit `execution_lifecycle` state, event, summary, resume-note, topology, dispatch, handoff, and memory fields so prepared, dispatched, and terminal execution states are recorded separately from task `status` and `phase`
+  - `P3-05` execution-fit policy baseline is implemented with `execution_fit.json`, readable `execution_fit_report.md`, `execution_fit.completed` events, execution-fit status in terminal task payloads, and execution-fit links carried through summary, resume note, handoff, and task memory
+  - `P3-06` operator inspection path tightening is implemented with dedicated CLI commands for topology, dispatch, handoff, and execution-fit artifacts and records, plus README updates so Phase 3 execution-topology outputs are inspectable without reading files manually
 
 ## Acceptance Result
 
@@ -149,7 +157,8 @@ This file tracks the implementation status of the repository itself so work can 
 - Phase 0 is complete enough to stop Phase 0-only cleanup work by default.
 - Phase 1 is complete enough to stop Phase 1-only expansion work by default.
 - The planned Phase 2 baseline is complete enough to stop open-ended Phase 2 backend expansion by default.
-- New work should now begin from the explicit Phase 3 planning note rather than assuming more Phase 2 implementation slices exist.
+- The planned Phase 3 baseline is complete enough to stop open-ended execution-topology expansion by default.
+- New work should now begin from a fresh planning note rather than assuming more Phase 3 implementation slices exist.
 
 ## Known Issues
 
@@ -160,8 +169,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 1. Re-run the test suite.
 2. Use `docs/system_tracks.md` as the system-map reference before starting new implementation.
-3. Use `docs/phase3_kickoff_note.md` as the current Phase 3 starting rationale.
-4. Use `docs/phase3_task_breakdown.md` as the active implementation order if Phase 3 begins.
+3. Use `docs/phase3_closeout_note.md` as the current stop/go decision reference.
+4. Use `docs/system_tracks.md` before writing any new phase note so the next slice is anchored to a primary track.
 5. Use `docs/post_phase2_retrieval_closeout_note.md` as the current retrieval stop/go decision reference.
 6. Verify the editable install exposes the `swl` entrypoint correctly.
 7. Update this file after each substantial code change.

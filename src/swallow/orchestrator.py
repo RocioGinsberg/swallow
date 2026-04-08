@@ -7,10 +7,43 @@ from uuid import uuid4
 from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
 from .models import Event, RetrievalRequest, TaskState
-from .paths import artifacts_dir, compatibility_path, memory_path, retrieval_path, route_path, validation_path
+from .paths import (
+    artifacts_dir,
+    compatibility_path,
+    dispatch_path,
+    execution_fit_path,
+    handoff_path,
+    memory_path,
+    retrieval_path,
+    route_path,
+    topology_path,
+    validation_path,
+)
 from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
 from .store import append_event, load_state, save_state
+from .models import utc_now
+
+
+def _apply_execution_topology(
+    state: TaskState,
+    *,
+    dispatch_status: str,
+) -> None:
+    state.topology_route_name = state.route_name
+    state.topology_execution_site = state.route_execution_site
+    state.topology_transport_kind = state.route_transport_kind
+    state.topology_remote_capable_intent = state.route_remote_capable
+    state.topology_dispatch_status = dispatch_status
+
+
+def _begin_execution_attempt(state: TaskState) -> None:
+    state.run_attempt_count += 1
+    state.current_attempt_number = state.run_attempt_count
+    state.current_attempt_id = f"attempt-{state.current_attempt_number:04d}"
+    state.dispatch_requested_at = utc_now()
+    state.dispatch_started_at = ""
+    state.execution_lifecycle = "prepared"
 
 
 def create_task(
@@ -39,6 +72,7 @@ def create_task(
     state.route_model_hint = initial_route.route.model_hint
     state.route_reason = initial_route.reason
     state.route_capabilities = initial_route.route.capabilities.to_dict()
+    _apply_execution_topology(state, dispatch_status="not_requested")
     save_state(base_dir, state)
     append_event(
         base_dir,
@@ -57,6 +91,12 @@ def create_task(
                 "route_execution_site": state.route_execution_site,
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
+                "topology_route_name": state.topology_route_name,
+                "topology_execution_site": state.topology_execution_site,
+                "topology_transport_kind": state.topology_transport_kind,
+                "topology_remote_capable_intent": state.topology_remote_capable_intent,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_lifecycle": state.execution_lifecycle,
             },
         ),
     )
@@ -75,6 +115,7 @@ def _set_phase(base_dir: Path, state: TaskState, phase: str) -> None:
             payload={
                 "phase": state.phase,
                 "status": state.status,
+                "execution_lifecycle": state.execution_lifecycle,
                 "executor_status": state.executor_status,
             },
         ),
@@ -111,6 +152,8 @@ def run_task(
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = route_selection.reason
     state.route_capabilities = route_selection.route.capabilities.to_dict()
+    _begin_execution_attempt(state)
+    _apply_execution_topology(state, dispatch_status="planned")
     state.executor_status = "running"
     state.status = "running"
     state.phase = "intake"
@@ -135,6 +178,16 @@ def run_task(
                 "route_transport_kind": state.route_transport_kind,
                 "route_reason": state.route_reason,
                 "route_capabilities": state.route_capabilities,
+                "attempt_id": state.current_attempt_id,
+                "attempt_number": state.current_attempt_number,
+                "topology_route_name": state.topology_route_name,
+                "topology_execution_site": state.topology_execution_site,
+                "topology_transport_kind": state.topology_transport_kind,
+                "topology_remote_capable_intent": state.topology_remote_capable_intent,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "dispatch_requested_at": state.dispatch_requested_at,
+                "dispatch_started_at": state.dispatch_started_at,
+                "execution_lifecycle": state.execution_lifecycle,
                 "executor_status": state.executor_status,
             },
         ),
@@ -145,6 +198,9 @@ def run_task(
     retrieval_items = run_retrieval(base_dir, state, retrieval_request)
     state.retrieval_count = len(retrieval_items)
 
+    state.dispatch_started_at = utc_now()
+    state.topology_dispatch_status = "local_dispatched"
+    state.execution_lifecycle = "dispatched"
     _set_phase(base_dir, state, "executing")
     executor_result = run_execution(base_dir, state, retrieval_items)
     state.executor_name = executor_result.executor_name
@@ -169,8 +225,16 @@ def run_task(
         "validation_json": str(validation_path(base_dir, task_id).resolve()),
         "task_memory": str(memory_path(base_dir, task_id).resolve()),
         "route_json": str(route_path(base_dir, task_id).resolve()),
+        "topology_report": str((artifacts_dir(base_dir, task_id) / "topology_report.md").resolve()),
+        "topology_json": str(topology_path(base_dir, task_id).resolve()),
+        "dispatch_report": str((artifacts_dir(base_dir, task_id) / "dispatch_report.md").resolve()),
+        "dispatch_json": str(dispatch_path(base_dir, task_id).resolve()),
+        "handoff_report": str((artifacts_dir(base_dir, task_id) / "handoff_report.md").resolve()),
+        "handoff_json": str(handoff_path(base_dir, task_id).resolve()),
+        "execution_fit_report": str((artifacts_dir(base_dir, task_id) / "execution_fit_report.md").resolve()),
+        "execution_fit_json": str(execution_fit_path(base_dir, task_id).resolve()),
     }
-    compatibility_result, validation_result = write_task_artifacts(
+    compatibility_result, execution_fit_result, validation_result = write_task_artifacts(
         base_dir, replace(state), retrieval_items, executor_result
     )
 
@@ -178,9 +242,11 @@ def run_task(
         "completed"
         if executor_result.status == "completed"
         and compatibility_result.status != "failed"
+        and execution_fit_result.status != "failed"
         and validation_result.status != "failed"
         else "failed"
     )
+    state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
     save_state(base_dir, state)
     append_event(
         base_dir,
@@ -201,8 +267,19 @@ def run_task(
                 "route_transport_kind": state.route_transport_kind,
                 "route_reason": state.route_reason,
                 "route_capabilities": state.route_capabilities,
+                "attempt_id": state.current_attempt_id,
+                "attempt_number": state.current_attempt_number,
+                "topology_route_name": state.topology_route_name,
+                "topology_execution_site": state.topology_execution_site,
+                "topology_transport_kind": state.topology_transport_kind,
+                "topology_remote_capable_intent": state.topology_remote_capable_intent,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "dispatch_requested_at": state.dispatch_requested_at,
+                "dispatch_started_at": state.dispatch_started_at,
+                "execution_lifecycle": state.execution_lifecycle,
                 "executor_status": state.executor_status,
                 "compatibility_status": compatibility_result.status,
+                "execution_fit_status": execution_fit_result.status,
                 "validation_status": validation_result.status,
                 "artifact_paths": state.artifact_paths,
             },

@@ -4,9 +4,11 @@ from dataclasses import replace
 from pathlib import Path
 
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
+from .execution_fit import build_execution_fit_report, evaluate_execution_fit
 from .executor import build_failure_recommendations, run_executor
 from .models import (
     CompatibilityResult,
+    ExecutionFitResult,
     Event,
     ExecutorResult,
     RetrievalItem,
@@ -15,7 +17,19 @@ from .models import (
     ValidationResult,
 )
 from .retrieval import retrieve_context
-from .store import append_event, save_compatibility, save_memory, save_retrieval, save_route, save_validation, write_artifact
+from .store import (
+    append_event,
+    save_compatibility,
+    save_dispatch,
+    save_execution_fit,
+    save_handoff,
+    save_memory,
+    save_retrieval,
+    save_route,
+    save_topology,
+    save_validation,
+    write_artifact,
+)
 from .validator import build_validation_report, validate_run_outputs
 
 
@@ -66,6 +80,16 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
                 "route_capabilities": state.route_capabilities,
+                "attempt_id": state.current_attempt_id,
+                "attempt_number": state.current_attempt_number,
+                "topology_route_name": state.topology_route_name,
+                "topology_execution_site": state.topology_execution_site,
+                "topology_transport_kind": state.topology_transport_kind,
+                "topology_remote_capable_intent": state.topology_remote_capable_intent,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "dispatch_requested_at": state.dispatch_requested_at,
+                "dispatch_started_at": state.dispatch_started_at,
+                "execution_lifecycle": state.execution_lifecycle,
                 "failure_kind": executor_result.failure_kind,
                 "output_written": [
                     "executor_prompt.md",
@@ -84,13 +108,27 @@ def write_task_artifacts(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
-) -> tuple[CompatibilityResult, ValidationResult]:
+) -> tuple[CompatibilityResult, ExecutionFitResult, ValidationResult]:
     save_route(base_dir, state.task_id, build_route_record(state))
+    save_topology(base_dir, state.task_id, build_topology_record(state))
+    save_dispatch(base_dir, state.task_id, build_dispatch_record(state))
     write_artifact(
         base_dir,
         state.task_id,
         "route_report.md",
         build_route_report(state),
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "topology_report.md",
+        build_topology_report(state),
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "dispatch_report.md",
+        build_dispatch_report(state),
     )
     write_artifact(
         base_dir,
@@ -109,13 +147,13 @@ def write_task_artifacts(
         base_dir,
         state.task_id,
         "summary.md",
-        build_summary(provisional_state, retrieval_items, executor_result, None, None),
+        build_summary(provisional_state, retrieval_items, executor_result, None, None, None),
     )
     write_artifact(
         base_dir,
         state.task_id,
         "resume_note.md",
-        build_resume_note(provisional_state, retrieval_items, executor_result, None, None),
+        build_resume_note(provisional_state, retrieval_items, executor_result, None, None, None),
     )
 
     compatibility_result = evaluate_route_compatibility(state, executor_result)
@@ -135,6 +173,27 @@ def write_task_artifacts(
             payload={
                 "status": compatibility_result.status,
                 "finding_counts": compatibility_counts(compatibility_result),
+            },
+        ),
+    )
+
+    execution_fit_result = evaluate_execution_fit(state, executor_result)
+    save_execution_fit(base_dir, state.task_id, execution_fit_result.to_dict())
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "execution_fit_report.md",
+        build_execution_fit_report(execution_fit_result),
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="execution_fit.completed",
+            message=execution_fit_result.message,
+            payload={
+                "status": execution_fit_result.status,
+                "finding_counts": execution_fit_counts(execution_fit_result),
             },
         ),
     )
@@ -159,26 +218,67 @@ def write_task_artifacts(
         "completed"
         if executor_result.status == "completed"
         and compatibility_result.status != "failed"
+        and execution_fit_result.status != "failed"
         and validation_result.status != "failed"
         else "failed"
     )
-    render_state = replace(state, status=final_status)
+    render_state = replace(
+        state,
+        status=final_status,
+        execution_lifecycle="completed" if final_status == "completed" else "failed",
+    )
+    handoff_record = build_handoff_record(
+        render_state,
+        executor_result,
+        compatibility_result,
+        execution_fit_result,
+        validation_result,
+    )
+    save_handoff(base_dir, state.task_id, handoff_record)
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "handoff_report.md",
+        build_handoff_report(handoff_record),
+    )
     save_memory(
         base_dir,
         state.task_id,
-        build_task_memory(render_state, retrieval_items, executor_result, compatibility_result, validation_result),
+        build_task_memory(
+            render_state,
+            retrieval_items,
+            executor_result,
+            compatibility_result,
+            execution_fit_result,
+            validation_result,
+            handoff_record,
+        ),
     )
     write_artifact(
         base_dir,
         state.task_id,
         "summary.md",
-        build_summary(render_state, retrieval_items, executor_result, compatibility_result, validation_result),
+        build_summary(
+            render_state,
+            retrieval_items,
+            executor_result,
+            compatibility_result,
+            execution_fit_result,
+            validation_result,
+        ),
     )
     write_artifact(
         base_dir,
         state.task_id,
         "resume_note.md",
-        build_resume_note(render_state, retrieval_items, executor_result, compatibility_result, validation_result),
+        build_resume_note(
+            render_state,
+            retrieval_items,
+            executor_result,
+            compatibility_result,
+            execution_fit_result,
+            validation_result,
+        ),
     )
     append_event(
         base_dir,
@@ -193,6 +293,10 @@ def write_task_artifacts(
                     "summary": state.artifact_paths.get("summary", ""),
                     "resume_note": state.artifact_paths.get("resume_note", ""),
                     "route_report": state.artifact_paths.get("route_report", ""),
+                    "topology_report": state.artifact_paths.get("topology_report", ""),
+                    "dispatch_report": state.artifact_paths.get("dispatch_report", ""),
+                    "handoff_report": state.artifact_paths.get("handoff_report", ""),
+                    "execution_fit_report": state.artifact_paths.get("execution_fit_report", ""),
                     "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
                     "source_grounding": state.artifact_paths.get("source_grounding", ""),
                     "retrieval_report": state.artifact_paths.get("retrieval_report", ""),
@@ -202,7 +306,7 @@ def write_task_artifacts(
             },
         ),
     )
-    return compatibility_result, validation_result
+    return compatibility_result, execution_fit_result, validation_result
 
 
 def validation_counts(result: ValidationResult) -> dict[str, int]:
@@ -213,6 +317,13 @@ def validation_counts(result: ValidationResult) -> dict[str, int]:
 
 
 def compatibility_counts(result: CompatibilityResult) -> dict[str, int]:
+    counts = {"pass": 0, "warn": 0, "fail": 0}
+    for finding in result.findings:
+        counts[finding.level] = counts.get(finding.level, 0) + 1
+    return counts
+
+
+def execution_fit_counts(result: ExecutionFitResult) -> dict[str, int]:
     counts = {"pass": 0, "warn": 0, "fail": 0}
     for finding in result.findings:
         counts[finding.level] = counts.get(finding.level, 0) + 1
@@ -288,7 +399,9 @@ def build_task_memory(
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
     compatibility_result: CompatibilityResult,
+    execution_fit_result: ExecutionFitResult,
     validation_result: ValidationResult,
+    handoff_record: dict[str, object],
 ) -> dict[str, object]:
     return {
         "task_id": state.task_id,
@@ -303,6 +416,13 @@ def build_task_memory(
             "message": executor_result.message,
             "failure_kind": executor_result.failure_kind,
         },
+        "execution_attempt": {
+            "attempt_id": state.current_attempt_id,
+            "attempt_number": state.current_attempt_number,
+            "dispatch_requested_at": state.dispatch_requested_at,
+            "dispatch_started_at": state.dispatch_started_at,
+            "execution_lifecycle": state.execution_lifecycle,
+        },
         "route": {
             "mode": state.route_mode,
             "name": state.route_name,
@@ -314,7 +434,11 @@ def build_task_memory(
             "reason": state.route_reason,
             "capabilities": state.route_capabilities,
         },
+        "topology": build_topology_record(state),
+        "dispatch": build_dispatch_record(state),
+        "handoff": handoff_record,
         "compatibility": compatibility_result.to_dict(),
+        "execution_fit": execution_fit_result.to_dict(),
         "validation": validation_result.to_dict(),
         "retrieval": {
             "count": len(retrieval_items),
@@ -339,6 +463,14 @@ def build_task_memory(
             "resume_note": state.artifact_paths.get("resume_note", ""),
             "route_report": state.artifact_paths.get("route_report", ""),
             "route_json": state.artifact_paths.get("route_json", ""),
+            "topology_report": state.artifact_paths.get("topology_report", ""),
+            "topology_json": state.artifact_paths.get("topology_json", ""),
+            "dispatch_report": state.artifact_paths.get("dispatch_report", ""),
+            "dispatch_json": state.artifact_paths.get("dispatch_json", ""),
+            "handoff_report": state.artifact_paths.get("handoff_report", ""),
+            "handoff_json": state.artifact_paths.get("handoff_json", ""),
+            "execution_fit_report": state.artifact_paths.get("execution_fit_report", ""),
+            "execution_fit_json": state.artifact_paths.get("execution_fit_json", ""),
             "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
             "compatibility_json": state.artifact_paths.get("compatibility_json", ""),
             "source_grounding": state.artifact_paths.get("source_grounding", ""),
@@ -382,6 +514,122 @@ def build_route_report(state: TaskState) -> str:
     )
 
 
+def build_topology_record(state: TaskState) -> dict[str, object]:
+    return {
+        "route_name": state.topology_route_name,
+        "execution_site": state.topology_execution_site,
+        "transport_kind": state.topology_transport_kind,
+        "remote_capable_intent": state.topology_remote_capable_intent,
+        "dispatch_status": state.topology_dispatch_status,
+        "execution_lifecycle": state.execution_lifecycle,
+    }
+
+
+def build_topology_report(state: TaskState) -> str:
+    return "\n".join(
+        [
+            "# Topology Report",
+            "",
+            f"- route_name: {state.topology_route_name}",
+            f"- execution_site: {state.topology_execution_site}",
+            f"- transport_kind: {state.topology_transport_kind}",
+            f"- remote_capable_intent: {'yes' if state.topology_remote_capable_intent else 'no'}",
+            f"- dispatch_status: {state.topology_dispatch_status}",
+            f"- execution_lifecycle: {state.execution_lifecycle}",
+        ]
+    )
+
+
+def build_dispatch_record(state: TaskState) -> dict[str, object]:
+    return {
+        "attempt_id": state.current_attempt_id,
+        "attempt_number": state.current_attempt_number,
+        "route_name": state.route_name,
+        "execution_site": state.topology_execution_site,
+        "transport_kind": state.topology_transport_kind,
+        "dispatch_status": state.topology_dispatch_status,
+        "dispatch_requested_at": state.dispatch_requested_at,
+        "dispatch_started_at": state.dispatch_started_at,
+        "execution_lifecycle": state.execution_lifecycle,
+    }
+
+
+def build_dispatch_report(state: TaskState) -> str:
+    return "\n".join(
+        [
+            "# Dispatch Report",
+            "",
+            f"- attempt_id: {state.current_attempt_id or 'pending'}",
+            f"- attempt_number: {state.current_attempt_number}",
+            f"- route_name: {state.route_name}",
+            f"- execution_site: {state.topology_execution_site}",
+            f"- transport_kind: {state.topology_transport_kind}",
+            f"- dispatch_status: {state.topology_dispatch_status}",
+            f"- dispatch_requested_at: {state.dispatch_requested_at or 'pending'}",
+            f"- dispatch_started_at: {state.dispatch_started_at or 'pending'}",
+            f"- execution_lifecycle: {state.execution_lifecycle}",
+        ]
+    )
+
+
+def build_handoff_record(
+    state: TaskState,
+    executor_result: ExecutorResult,
+    compatibility_result: CompatibilityResult,
+    execution_fit_result: ExecutionFitResult,
+    validation_result: ValidationResult,
+) -> dict[str, object]:
+    if executor_result.status == "completed" and compatibility_result.status != "failed" and validation_result.status != "failed":
+        handoff_status = "review_completed_run"
+        blocking_reason = ""
+        next_operator_action = "Review summary.md and executor_output.md before starting the next task iteration."
+    else:
+        handoff_status = "resume_from_failure"
+        blocking_reason = executor_result.failure_kind or executor_result.message
+        failure_steps = build_failure_recommendations(executor_result.failure_kind)
+        next_operator_action = failure_steps[0].lstrip("- ").strip() if failure_steps else "Resume from the latest failure context."
+
+    return {
+        "status": handoff_status,
+        "task_status": state.status,
+        "attempt_id": state.current_attempt_id,
+        "attempt_number": state.current_attempt_number,
+        "execution_site": state.topology_execution_site,
+        "dispatch_status": state.topology_dispatch_status,
+        "execution_lifecycle": state.execution_lifecycle,
+        "blocking_reason": blocking_reason,
+        "next_operator_action": next_operator_action,
+        "executor_status": executor_result.status,
+        "failure_kind": executor_result.failure_kind,
+        "compatibility_status": compatibility_result.status,
+        "execution_fit_status": execution_fit_result.status,
+        "validation_status": validation_result.status,
+    }
+
+
+def build_handoff_report(handoff_record: dict[str, object]) -> str:
+    return "\n".join(
+        [
+            "# Handoff Report",
+            "",
+            f"- status: {handoff_record.get('status', 'pending')}",
+            f"- task_status: {handoff_record.get('task_status', 'pending')}",
+            f"- attempt_id: {handoff_record.get('attempt_id', 'pending')}",
+            f"- attempt_number: {handoff_record.get('attempt_number', 0)}",
+            f"- execution_site: {handoff_record.get('execution_site', 'pending')}",
+            f"- dispatch_status: {handoff_record.get('dispatch_status', 'pending')}",
+            f"- execution_lifecycle: {handoff_record.get('execution_lifecycle', 'pending')}",
+            f"- executor_status: {handoff_record.get('executor_status', 'pending')}",
+            f"- failure_kind: {handoff_record.get('failure_kind', '') or 'none'}",
+            f"- compatibility_status: {handoff_record.get('compatibility_status', 'pending')}",
+            f"- execution_fit_status: {handoff_record.get('execution_fit_status', 'pending')}",
+            f"- validation_status: {handoff_record.get('validation_status', 'pending')}",
+            f"- blocking_reason: {handoff_record.get('blocking_reason', '') or 'none'}",
+            f"- next_operator_action: {handoff_record.get('next_operator_action', 'pending')}",
+        ]
+    )
+
+
 def build_compatibility_record(
     state: TaskState,
     executor_result: ExecutorResult,
@@ -405,6 +653,7 @@ def build_summary(
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
     compatibility_result: CompatibilityResult | None,
+    execution_fit_result: ExecutionFitResult | None,
     validation_result: ValidationResult | None,
 ) -> str:
     lines = [
@@ -422,6 +671,9 @@ def build_summary(
         f"- workspace: {state.workspace_root}",
         f"- executor: {state.executor_name}",
         f"- executor_status: {state.executor_status}",
+        f"- execution_lifecycle: {state.execution_lifecycle}",
+        f"- attempt_id: {state.current_attempt_id or 'pending'}",
+        f"- attempt_number: {state.current_attempt_number}",
         f"- route_mode: {state.route_mode}",
         f"- route_name: {state.route_name}",
         f"- route_backend: {state.route_backend}",
@@ -432,7 +684,17 @@ def build_summary(
         f"- route_reason: {state.route_reason}",
         f"- route_capabilities: {format_route_capabilities(state.route_capabilities)}",
         f"- route_report_artifact: {state.artifact_paths.get('route_report', '') or 'pending'}",
+        f"- topology_execution_site: {state.topology_execution_site}",
+        f"- topology_transport_kind: {state.topology_transport_kind}",
+        f"- topology_dispatch_status: {state.topology_dispatch_status}",
+        f"- topology_report_artifact: {state.artifact_paths.get('topology_report', '') or 'pending'}",
+        f"- dispatch_requested_at: {state.dispatch_requested_at or 'pending'}",
+        f"- dispatch_started_at: {state.dispatch_started_at or 'pending'}",
+        f"- dispatch_report_artifact: {state.artifact_paths.get('dispatch_report', '') or 'pending'}",
+        f"- handoff_report_artifact: {state.artifact_paths.get('handoff_report', '') or 'pending'}",
         f"- compatibility_status: {compatibility_result.status if compatibility_result else 'pending'}",
+        f"- execution_fit_status: {execution_fit_result.status if execution_fit_result else 'pending'}",
+        f"- execution_fit_report_artifact: {state.artifact_paths.get('execution_fit_report', '') or 'pending'}",
         f"- compatibility_report_artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
         f"- source_grounding_artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
         f"- retrieval_report_artifact: {state.artifact_paths.get('retrieval_report', '') or 'pending'}",
@@ -470,6 +732,17 @@ def build_summary(
         )
         for finding in compatibility_result.findings:
             lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
+    if execution_fit_result is not None:
+        lines.extend(
+            [
+                "",
+                "## Execution Fit",
+                f"- status: {execution_fit_result.status}",
+                f"- message: {execution_fit_result.message}",
+            ]
+        )
+        for finding in execution_fit_result.findings:
+            lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
     if validation_result is not None:
         lines.extend(
             [
@@ -490,6 +763,7 @@ def build_resume_note(
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
     compatibility_result: CompatibilityResult | None,
+    execution_fit_result: ExecutionFitResult | None,
     validation_result: ValidationResult | None,
 ) -> str:
     top_references = ", ".join(item.reference() for item in retrieval_items[:3]) or "none"
@@ -504,6 +778,9 @@ def build_resume_note(
         f"- top retrieved references: {top_references}",
         f"- executor: {executor_result.executor_name}",
         f"- executor status: {executor_result.status}",
+        f"- execution lifecycle: {state.execution_lifecycle}",
+        f"- attempt id: {state.current_attempt_id or 'pending'}",
+        f"- attempt number: {state.current_attempt_number}",
         f"- route mode: {state.route_mode}",
         f"- route name: {state.route_name}",
         f"- route backend: {state.route_backend}",
@@ -512,8 +789,18 @@ def build_resume_note(
         f"- route transport kind: {state.route_transport_kind}",
         f"- route reason: {state.route_reason}",
         f"- route report artifact: {state.artifact_paths.get('route_report', '') or 'pending'}",
+        f"- topology execution site: {state.topology_execution_site}",
+        f"- topology transport kind: {state.topology_transport_kind}",
+        f"- topology dispatch status: {state.topology_dispatch_status}",
+        f"- topology report artifact: {state.artifact_paths.get('topology_report', '') or 'pending'}",
+        f"- dispatch requested at: {state.dispatch_requested_at or 'pending'}",
+        f"- dispatch started at: {state.dispatch_started_at or 'pending'}",
+        f"- dispatch report artifact: {state.artifact_paths.get('dispatch_report', '') or 'pending'}",
+        f"- handoff report artifact: {state.artifact_paths.get('handoff_report', '') or 'pending'}",
         f"- failure kind: {executor_result.failure_kind or 'none'}",
         f"- compatibility status: {compatibility_result.status if compatibility_result else 'pending'}",
+        f"- execution fit status: {execution_fit_result.status if execution_fit_result else 'pending'}",
+        f"- execution fit report artifact: {state.artifact_paths.get('execution_fit_report', '') or 'pending'}",
         f"- compatibility report artifact: {state.artifact_paths.get('compatibility_report', '') or 'pending'}",
         f"- validation status: {validation_result.status if validation_result else 'pending'}",
         "",

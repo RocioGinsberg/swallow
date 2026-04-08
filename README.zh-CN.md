@@ -106,7 +106,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 ## 当前阶段
 
-当前仓库处于 **Phase 2 baseline 收口后的检查点**。
+当前仓库处于 **Phase 3 收口检查点**。
 
 当前已经实现的基线包括：
 
@@ -114,10 +114,10 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - **Harness Runtime**，负责 retrieve → execute → record → summarize 的闭环
 - 结构化的 route 与 capability 声明
 - compatibility 检查与 route provenance 产物
-- 明确的本地优先执行路径，以及为后续远端执行预留的 route 元数据
+- 明确的本地优先执行路径，以及 route、topology、dispatch、handoff、execution-fit 产物
 - Git 项目文件与 Markdown / Obsidian 笔记检索
 
-当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在继续扩展 backend 或远端执行之前，先保持一个干净、可检查、可恢复的基线。
+当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在写下一份新规划说明之前，先保持一个干净、可检查、可恢复的基线。
 
 ## 长期方向
 
@@ -271,6 +271,10 @@ swl task resume-note <task-id>
 swl task compatibility <task-id>
 swl task validation <task-id>
 swl task grounding <task-id>
+swl task topology <task-id>
+swl task dispatch <task-id>
+swl task handoff <task-id>
+swl task execution-fit <task-id>
 swl task memory <task-id>
 swl task route <task-id>
 ```
@@ -298,10 +302,19 @@ python3 -m unittest discover -s tests
 - `swl task compatibility`
 - `swl task validation`
 - `swl task grounding`
+- `swl task topology`
+- `swl task dispatch`
+- `swl task handoff`
+- `swl task execution-fit`
 - `swl task memory`
 - `swl task compatibility-json`
 - `swl task route`
 - `swl task route-json`
+- `swl task topology-json`
+- `swl task dispatch-json`
+- `swl task handoff-json`
+- `swl task execution-fit-json`
+- `swl task retrieval-json`
 - `swl doctor codex`
 
 任务状态与产物会写入：
@@ -314,21 +327,30 @@ python3 -m unittest discover -s tests
       events.jsonl
       retrieval.json
       compatibility.json
+      execution_fit.json
       validation.json
       route.json
+      topology.json
+      dispatch.json
+      handoff.json
       memory.json
       artifacts/
         summary.md
         resume_note.md
         compatibility_report.md
+        execution_fit_report.md
         route_report.md
+        topology_report.md
+        dispatch_report.md
+        handoff_report.md
+        retrieval_report.md
         source_grounding.md
         validation_report.md
         executor_stdout.txt
         executor_stderr.txt
 ```
 
-当前 `run` 命令已经能完成检索、执行器调用、route compatibility 检查、validation、状态记录、事件追加、task memory 持久化，以及 executor、summary、resume note、grounding、route、compatibility、validation 产物写入。
+当前 `run` 命令已经能完成检索、执行器调用、route compatibility 检查、execution-fit 检查、validation、状态记录、事件追加、task memory 持久化，以及 executor、summary、resume note、grounding、route、topology、dispatch、handoff、execution-fit、compatibility、validation 产物写入。
 
 当前任务状态语义保持为最小且明确的形式：
 

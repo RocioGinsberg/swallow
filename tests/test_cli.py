@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.cli import main
 from swallow.compatibility import build_compatibility_report, evaluate_route_compatibility
+from swallow.execution_fit import build_execution_fit_report, evaluate_execution_fit
 from swallow.executor import (
     build_fallback_output,
     classify_failure_kind,
@@ -115,7 +116,19 @@ class CliLifecycleTest(unittest.TestCase):
                 compatibility_report = (tasks_dir / task_id / "artifacts" / "compatibility_report.md").read_text(
                     encoding="utf-8"
                 )
+                execution_fit_report = (tasks_dir / task_id / "artifacts" / "execution_fit_report.md").read_text(
+                    encoding="utf-8"
+                )
                 route_report = (tasks_dir / task_id / "artifacts" / "route_report.md").read_text(
+                    encoding="utf-8"
+                )
+                topology_report = (tasks_dir / task_id / "artifacts" / "topology_report.md").read_text(
+                    encoding="utf-8"
+                )
+                dispatch_report = (tasks_dir / task_id / "artifacts" / "dispatch_report.md").read_text(
+                    encoding="utf-8"
+                )
+                handoff_report = (tasks_dir / task_id / "artifacts" / "handoff_report.md").read_text(
                     encoding="utf-8"
                 )
                 retrieval_report = (tasks_dir / task_id / "artifacts" / "retrieval_report.md").read_text(
@@ -129,9 +142,13 @@ class CliLifecycleTest(unittest.TestCase):
                 )
                 retrieval = json.loads((tasks_dir / task_id / "retrieval.json").read_text(encoding="utf-8"))
                 compatibility = json.loads((tasks_dir / task_id / "compatibility.json").read_text(encoding="utf-8"))
+                execution_fit = json.loads((tasks_dir / task_id / "execution_fit.json").read_text(encoding="utf-8"))
                 validation = json.loads((tasks_dir / task_id / "validation.json").read_text(encoding="utf-8"))
                 memory = json.loads((tasks_dir / task_id / "memory.json").read_text(encoding="utf-8"))
                 route = json.loads((tasks_dir / task_id / "route.json").read_text(encoding="utf-8"))
+                topology = json.loads((tasks_dir / task_id / "topology.json").read_text(encoding="utf-8"))
+                dispatch = json.loads((tasks_dir / task_id / "dispatch.json").read_text(encoding="utf-8"))
+                handoff = json.loads((tasks_dir / task_id / "handoff.json").read_text(encoding="utf-8"))
 
                 self.assertIn("Summary for", summary)
                 self.assertIn("notes.md", summary)
@@ -146,10 +163,23 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("route_execution_site:", summary)
                 self.assertIn("route_remote_capable:", summary)
                 self.assertIn("route_transport_kind:", summary)
+                self.assertIn("execution_lifecycle:", summary)
+                self.assertIn("attempt_id:", summary)
+                self.assertIn("attempt_number:", summary)
                 self.assertIn("route_capabilities:", summary)
                 self.assertIn("execution_kind=", summary)
                 self.assertIn("route_report_artifact:", summary)
+                self.assertIn("topology_execution_site:", summary)
+                self.assertIn("topology_transport_kind:", summary)
+                self.assertIn("topology_dispatch_status:", summary)
+                self.assertIn("topology_report_artifact:", summary)
+                self.assertIn("dispatch_requested_at:", summary)
+                self.assertIn("dispatch_started_at:", summary)
+                self.assertIn("dispatch_report_artifact:", summary)
+                self.assertIn("handoff_report_artifact:", summary)
                 self.assertIn("compatibility_status:", summary)
+                self.assertIn("execution_fit_status:", summary)
+                self.assertIn("execution_fit_report_artifact:", summary)
                 self.assertIn("compatibility_report_artifact:", summary)
                 self.assertIn("source_grounding_artifact:", summary)
                 self.assertIn("retrieval_report_artifact:", summary)
@@ -171,36 +201,104 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("route execution site:", resume_note)
                 self.assertIn("route remote capable:", resume_note)
                 self.assertIn("route transport kind:", resume_note)
+                self.assertIn("execution lifecycle:", resume_note)
+                self.assertIn("attempt id:", resume_note)
+                self.assertIn("attempt number:", resume_note)
                 self.assertIn("route reason:", resume_note)
                 self.assertIn("route report artifact:", resume_note)
+                self.assertIn("topology execution site:", resume_note)
+                self.assertIn("topology transport kind:", resume_note)
+                self.assertIn("topology dispatch status:", resume_note)
+                self.assertIn("topology report artifact:", resume_note)
+                self.assertIn("dispatch requested at:", resume_note)
+                self.assertIn("dispatch started at:", resume_note)
+                self.assertIn("dispatch report artifact:", resume_note)
+                self.assertIn("handoff report artifact:", resume_note)
                 self.assertIn("compatibility status: passed", resume_note)
+                self.assertIn("execution fit status: passed", resume_note)
+                self.assertIn("execution fit report artifact:", resume_note)
                 self.assertIn("compatibility report artifact:", resume_note)
                 self.assertIn("source grounding artifact:", resume_note)
                 self.assertIn("task memory path:", resume_note)
                 self.assertIn("top retrieved references: notes.md#L1-L3", resume_note)
                 self.assertIn("Validation Report", validation_report)
                 self.assertIn("Compatibility Report", compatibility_report)
+                self.assertIn("Execution Fit Report", execution_fit_report)
                 self.assertIn("Route Report", route_report)
+                self.assertIn("Topology Report", topology_report)
+                self.assertIn("Dispatch Report", dispatch_report)
+                self.assertIn("Handoff Report", handoff_report)
                 self.assertIn("Retrieval Report", retrieval_report)
                 self.assertIn("Source Grounding", source_grounding)
                 self.assertIn("notes.md#L1-L3", source_grounding)
                 self.assertEqual(compatibility["status"], "passed")
+                self.assertEqual(execution_fit["status"], "passed")
                 self.assertEqual(validation["status"], "passed")
                 self.assertEqual(route["name"], "local-mock")
+                self.assertEqual(topology["route_name"], "local-mock")
+                self.assertEqual(topology["execution_site"], "local")
+                self.assertEqual(topology["transport_kind"], "local_process")
+                self.assertEqual(topology["remote_capable_intent"], False)
+                self.assertEqual(topology["dispatch_status"], "local_dispatched")
+                self.assertEqual(topology["execution_lifecycle"], "dispatched")
+                self.assertEqual(dispatch["attempt_id"], "attempt-0001")
+                self.assertEqual(dispatch["attempt_number"], 1)
+                self.assertEqual(dispatch["route_name"], "local-mock")
+                self.assertEqual(dispatch["execution_site"], "local")
+                self.assertEqual(dispatch["transport_kind"], "local_process")
+                self.assertEqual(dispatch["dispatch_status"], "local_dispatched")
+                self.assertEqual(dispatch["execution_lifecycle"], "dispatched")
+                self.assertTrue(bool(dispatch["dispatch_requested_at"]))
+                self.assertTrue(bool(dispatch["dispatch_started_at"]))
+                self.assertEqual(handoff["status"], "review_completed_run")
+                self.assertEqual(handoff["task_status"], "completed")
+                self.assertEqual(handoff["attempt_id"], "attempt-0001")
+                self.assertEqual(handoff["attempt_number"], 1)
+                self.assertEqual(handoff["execution_site"], "local")
+                self.assertEqual(handoff["dispatch_status"], "local_dispatched")
+                self.assertEqual(handoff["blocking_reason"], "")
+                self.assertIn("Review summary.md", handoff["next_operator_action"])
                 self.assertEqual(memory["executor"]["name"], "mock")
+                self.assertEqual(memory["execution_attempt"]["attempt_id"], "attempt-0001")
+                self.assertEqual(memory["execution_attempt"]["attempt_number"], 1)
+                self.assertTrue(bool(memory["execution_attempt"]["dispatch_requested_at"]))
+                self.assertTrue(bool(memory["execution_attempt"]["dispatch_started_at"]))
+                self.assertEqual(memory["execution_attempt"]["execution_lifecycle"], "completed")
                 self.assertEqual(memory["route"]["mode"], "auto")
                 self.assertEqual(memory["route"]["name"], "local-mock")
                 self.assertEqual(memory["route"]["execution_site"], "local")
                 self.assertEqual(memory["route"]["remote_capable"], False)
                 self.assertEqual(memory["route"]["transport_kind"], "local_process")
                 self.assertEqual(memory["route"]["capabilities"]["deterministic"], True)
+                self.assertEqual(memory["topology"]["route_name"], "local-mock")
+                self.assertEqual(memory["topology"]["execution_site"], "local")
+                self.assertEqual(memory["topology"]["transport_kind"], "local_process")
+                self.assertEqual(memory["topology"]["remote_capable_intent"], False)
+                self.assertEqual(memory["topology"]["dispatch_status"], "local_dispatched")
+                self.assertEqual(memory["topology"]["execution_lifecycle"], "completed")
+                self.assertEqual(memory["dispatch"]["attempt_id"], "attempt-0001")
+                self.assertEqual(memory["dispatch"]["attempt_number"], 1)
+                self.assertEqual(memory["dispatch"]["dispatch_status"], "local_dispatched")
+                self.assertEqual(memory["dispatch"]["execution_lifecycle"], "completed")
+                self.assertEqual(memory["handoff"]["status"], "review_completed_run")
+                self.assertEqual(memory["handoff"]["task_status"], "completed")
+                self.assertEqual(memory["handoff"]["execution_lifecycle"], "completed")
                 self.assertEqual(memory["compatibility"]["status"], "passed")
+                self.assertEqual(memory["execution_fit"]["status"], "passed")
                 self.assertTrue(
                     memory["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
                 )
                 self.assertTrue(memory["artifact_paths"]["compatibility_json"].endswith("compatibility.json"))
                 self.assertTrue(memory["artifact_paths"]["route_report"].endswith("route_report.md"))
                 self.assertTrue(memory["artifact_paths"]["route_json"].endswith("route.json"))
+                self.assertTrue(memory["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+                self.assertTrue(memory["artifact_paths"]["topology_json"].endswith("topology.json"))
+                self.assertTrue(memory["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
+                self.assertTrue(memory["artifact_paths"]["dispatch_json"].endswith("dispatch.json"))
+                self.assertTrue(memory["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
+                self.assertTrue(memory["artifact_paths"]["handoff_json"].endswith("handoff.json"))
+                self.assertTrue(memory["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
+                self.assertTrue(memory["artifact_paths"]["execution_fit_json"].endswith("execution_fit.json"))
                 self.assertTrue(memory["artifact_paths"]["retrieval_json"].endswith("retrieval.json"))
                 self.assertTrue(memory["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
                 self.assertEqual(memory["artifact_paths"]["source_grounding"].endswith("source_grounding.md"), True)
@@ -426,6 +524,14 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"task_memory"', state)
         self.assertIn('"retrieval_json"', state)
         self.assertIn('"route_json"', state)
+        self.assertIn('"topology_report"', state)
+        self.assertIn('"topology_json"', state)
+        self.assertIn('"dispatch_report"', state)
+        self.assertIn('"dispatch_json"', state)
+        self.assertIn('"execution_fit_report"', state)
+        self.assertIn('"execution_fit_json"', state)
+        self.assertIn('"handoff_report"', state)
+        self.assertIn('"handoff_json"', state)
 
     def test_retrieve_context_returns_traceable_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -626,6 +732,7 @@ class CliLifecycleTest(unittest.TestCase):
                                     "swallow.orchestrator.write_task_artifacts",
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
+                                        ValidationResult(status="passed", message="Execution fit passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
                                     ),
                                 ):
@@ -672,10 +779,11 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
-            ) -> tuple[ValidationResult, ValidationResult]:
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
                 return (
                     ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Execution fit passed."),
                     ValidationResult(status="passed", message="Validation passed."),
                 )
 
@@ -748,10 +856,11 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
-            ) -> tuple[ValidationResult, ValidationResult]:
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
                 return (
                     ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Execution fit passed."),
                     ValidationResult(status="passed", message="Validation passed."),
                 )
 
@@ -836,6 +945,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "executor.completed",
                 "task.phase",
                 "compatibility.completed",
+                "execution_fit.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.completed",
@@ -848,6 +958,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[0]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[0]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[0]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[0]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[0]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[0]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[0]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[0]["payload"]["topology_dispatch_status"], "not_requested")
+        self.assertEqual(events[0]["payload"]["execution_lifecycle"], "idle")
         self.assertEqual(events[1]["payload"]["previous_status"], "created")
         self.assertEqual(events[1]["payload"]["previous_phase"], "intake")
         self.assertEqual(events[1]["payload"]["status"], "running")
@@ -857,9 +973,20 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[1]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[1]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[1]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[1]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[1]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[1]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[1]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[1]["payload"]["topology_dispatch_status"], "planned")
+        self.assertTrue(bool(events[1]["payload"]["dispatch_requested_at"]))
+        self.assertEqual(events[1]["payload"]["dispatch_started_at"], "")
+        self.assertEqual(events[1]["payload"]["execution_lifecycle"], "prepared")
         self.assertIn("Selected the route from legacy executor mode", events[1]["payload"]["route_reason"])
         self.assertEqual(events[2]["payload"]["phase"], "retrieval")
         self.assertEqual(events[2]["payload"]["status"], "running")
+        self.assertEqual(events[2]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(events[3]["payload"]["count"], 1)
         self.assertEqual(events[3]["payload"]["query"], "Ordered lifecycle Check persisted phase ordering")
         self.assertEqual(events[3]["payload"]["source_types_requested"], ["repo", "notes"])
@@ -870,6 +997,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[3]["payload"]["top_citations"], ["notes.md#L1-L3"])
         self.assertEqual(events[3]["payload"]["source_types"], ["notes"])
         self.assertEqual(events[4]["payload"]["phase"], "executing")
+        self.assertEqual(events[4]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(events[5]["payload"]["status"], "completed")
         self.assertEqual(events[5]["payload"]["executor_name"], "mock")
         self.assertEqual(events[5]["payload"]["route_name"], "local-mock")
@@ -879,6 +1007,16 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[5]["payload"]["route_transport_kind"], "local_process")
         self.assertEqual(events[5]["payload"]["route_capabilities"]["deterministic"], True)
         self.assertEqual(events[5]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
+        self.assertEqual(events[5]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[5]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[5]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[5]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[5]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[5]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[5]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertTrue(bool(events[5]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[5]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[5]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(
             events[5]["payload"]["output_written"],
             [
@@ -889,33 +1027,51 @@ class CliLifecycleTest(unittest.TestCase):
             ],
         )
         self.assertEqual(events[6]["payload"]["phase"], "summarize")
+        self.assertEqual(events[6]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(events[7]["payload"]["status"], "passed")
         self.assertEqual(events[7]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[8]["payload"]["status"], "passed")
-        self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
-        self.assertEqual(events[9]["payload"]["status"], "completed")
-        self.assertTrue(events[9]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
-        self.assertTrue(events[9]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
-        self.assertTrue(events[9]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
-        self.assertTrue(
-            events[9]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
-        )
-        self.assertTrue(events[9]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
-        self.assertTrue(events[9]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
-        self.assertTrue(events[9]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
-        self.assertTrue(events[9]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 5, "warn": 0, "fail": 0})
+        self.assertEqual(events[9]["payload"]["status"], "passed")
+        self.assertEqual(events[9]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[10]["payload"]["status"], "completed")
-        self.assertEqual(events[10]["payload"]["phase"], "summarize")
-        self.assertEqual(events[10]["payload"]["retrieval_count"], 1)
-        self.assertEqual(events[10]["payload"]["executor_status"], "completed")
-        self.assertEqual(events[10]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[10]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[10]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[10]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[10]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[10]["payload"]["compatibility_status"], "passed")
-        self.assertEqual(events[10]["payload"]["validation_status"], "passed")
-        self.assertTrue(events[10]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
+        self.assertTrue(
+            events[10]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+        )
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
+        self.assertTrue(events[10]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertEqual(events[11]["payload"]["status"], "completed")
+        self.assertEqual(events[11]["payload"]["phase"], "summarize")
+        self.assertEqual(events[11]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[11]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[11]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[11]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[11]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[11]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[11]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[11]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[11]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[11]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[11]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[11]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[11]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[11]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertTrue(bool(events[11]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[11]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[11]["payload"]["execution_lifecycle"], "completed")
+        self.assertEqual(events[11]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[11]["payload"]["execution_fit_status"], "passed")
+        self.assertEqual(events[11]["payload"]["validation_status"], "passed")
+        self.assertTrue(events[11]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
 
     def test_failed_task_events_include_failure_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -964,17 +1120,30 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[1]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[1]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[1]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[1]["payload"]["topology_dispatch_status"], "planned")
+        self.assertTrue(bool(events[1]["payload"]["dispatch_requested_at"]))
+        self.assertEqual(events[1]["payload"]["dispatch_started_at"], "")
+        self.assertEqual(events[1]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(events[5]["event_type"], "executor.failed")
         self.assertEqual(events[5]["payload"]["status"], "failed")
         self.assertEqual(events[5]["payload"]["executor_name"], "codex")
         self.assertEqual(events[5]["payload"]["route_name"], "local-codex")
         self.assertEqual(events[5]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[5]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[5]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[5]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertTrue(bool(events[5]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[5]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(events[5]["payload"]["failure_kind"], "launch_error")
         self.assertEqual(events[7]["event_type"], "compatibility.completed")
         self.assertEqual(events[7]["payload"]["status"], "passed")
-        self.assertEqual(events[8]["event_type"], "validation.completed")
+        self.assertEqual(events[8]["event_type"], "execution_fit.completed")
         self.assertEqual(events[8]["payload"]["status"], "passed")
-        self.assertEqual(events[9]["payload"]["status"], "failed")
+        self.assertEqual(events[9]["event_type"], "validation.completed")
+        self.assertEqual(events[9]["payload"]["status"], "passed")
+        self.assertEqual(events[10]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
@@ -982,6 +1151,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[-1]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[-1]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[-1]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[-1]["payload"]["execution_fit_status"], "passed")
         self.assertEqual(events[-1]["payload"]["validation_status"], "passed")
         self.assertEqual(events[-1]["payload"]["retrieval_count"], 1)
 
@@ -1005,7 +1175,7 @@ class CliLifecycleTest(unittest.TestCase):
             failure_kind="launch_error",
         )
 
-        note = build_resume_note(state, retrieval_items, executor_result, None, None)
+        note = build_resume_note(state, retrieval_items, executor_result, None, None, None)
 
         self.assertIn("treat this run as incomplete", note)
         self.assertIn("Treat this run as a failed live execution attempt", note)
@@ -1074,6 +1244,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "executor.failed",
                 "task.phase",
                 "compatibility.completed",
+                "execution_fit.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
@@ -1090,6 +1261,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "executor.failed",
                 "task.phase",
                 "compatibility.completed",
+                "execution_fit.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
@@ -1100,15 +1272,26 @@ class CliLifecycleTest(unittest.TestCase):
                 "executor.failed",
                 "task.phase",
                 "compatibility.completed",
+                "execution_fit.completed",
                 "validation.completed",
                 "artifacts.written",
                 "task.failed",
             ],
         )
-        self.assertEqual(final_events[11]["payload"]["previous_status"], "failed")
-        self.assertEqual(final_events[11]["payload"]["previous_phase"], "summarize")
-        self.assertEqual(final_events[11]["payload"]["status"], "running")
-        self.assertEqual(final_events[11]["payload"]["phase"], "intake")
+        self.assertEqual(final_events[12]["payload"]["previous_status"], "failed")
+        self.assertEqual(final_events[12]["payload"]["previous_phase"], "summarize")
+        self.assertEqual(final_events[12]["payload"]["status"], "running")
+        self.assertEqual(final_events[12]["payload"]["phase"], "intake")
+        self.assertEqual(first_events[1]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(first_events[1]["payload"]["attempt_number"], 1)
+        self.assertEqual(first_events[1]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(final_events[12]["payload"]["attempt_id"], "attempt-0002")
+        self.assertEqual(final_events[12]["payload"]["attempt_number"], 2)
+        self.assertEqual(final_events[12]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(final_state["run_attempt_count"], 2)
+        self.assertEqual(final_state["current_attempt_id"], "attempt-0002")
+        self.assertEqual(final_state["current_attempt_number"], 2)
+        self.assertEqual(final_state["execution_lifecycle"], "failed")
 
     def test_normalize_executor_name_supports_aliases(self) -> None:
         self.assertEqual(normalize_executor_name("local-summary"), "local")
@@ -1270,6 +1453,70 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(result.status, "failed")
         self.assertTrue(any(finding.code == "route_mode.deterministic.missing" for finding in result.findings))
 
+    def test_execution_fit_reports_pass_for_local_dispatched_baseline(self) -> None:
+        state = TaskState(
+            task_id="fitpass",
+            title="Execution fit pass",
+            goal="Check local execution-fit baseline",
+            workspace_root="/tmp",
+            executor_name="mock",
+            route_name="local-mock",
+            route_execution_site="local",
+            route_transport_kind="local_process",
+            topology_route_name="local-mock",
+            topology_execution_site="local",
+            topology_transport_kind="local_process",
+            topology_dispatch_status="local_dispatched",
+            current_attempt_id="attempt-0001",
+            current_attempt_number=1,
+            dispatch_requested_at="2026-04-08T00:00:00+00:00",
+            dispatch_started_at="2026-04-08T00:00:01+00:00",
+            execution_lifecycle="dispatched",
+        )
+        executor_result = ExecutorResult(
+            executor_name="mock",
+            status="completed",
+            message="Execution finished.",
+            output="done",
+        )
+
+        result = evaluate_execution_fit(state, executor_result)
+        report = build_execution_fit_report(result)
+
+        self.assertEqual(result.status, "passed")
+        self.assertIn("Execution Fit Report", report)
+
+    def test_execution_fit_reports_failure_for_inconsistent_local_dispatch(self) -> None:
+        state = TaskState(
+            task_id="fitfail",
+            title="Execution fit fail",
+            goal="Catch inconsistent dispatch state",
+            workspace_root="/tmp",
+            executor_name="mock",
+            route_name="local-mock",
+            route_execution_site="local",
+            route_transport_kind="local_process",
+            topology_route_name="local-mock",
+            topology_execution_site="local",
+            topology_transport_kind="local_process",
+            topology_dispatch_status="planned",
+            current_attempt_id="attempt-0001",
+            current_attempt_number=1,
+            dispatch_requested_at="2026-04-08T00:00:00+00:00",
+            dispatch_started_at="",
+            execution_lifecycle="prepared",
+        )
+        executor_result = ExecutorResult(
+            executor_name="mock",
+            status="completed",
+            message="Execution finished.",
+            output="done",
+        )
+
+        result = evaluate_execution_fit(state, executor_result)
+
+        self.assertEqual(result.status, "failed")
+
     def test_validator_reports_warning_when_retrieval_is_empty(self) -> None:
         state = TaskState(
             task_id="warn123",
@@ -1418,8 +1665,16 @@ class CliLifecycleTest(unittest.TestCase):
             compatibility_stdout = StringIO()
             route_stdout = StringIO()
             retrieval_stdout = StringIO()
+            topology_stdout = StringIO()
+            dispatch_stdout = StringIO()
+            handoff_stdout = StringIO()
+            execution_fit_stdout = StringIO()
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
+            topology_json_stdout = StringIO()
+            dispatch_json_stdout = StringIO()
+            handoff_json_stdout = StringIO()
+            execution_fit_json_stdout = StringIO()
             retrieval_json_stdout = StringIO()
             grounding_stdout = StringIO()
             memory_stdout = StringIO()
@@ -1432,10 +1687,26 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "route", task_id]), 0)
             with redirect_stdout(retrieval_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval", task_id]), 0)
+            with redirect_stdout(topology_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "topology", task_id]), 0)
+            with redirect_stdout(dispatch_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "dispatch", task_id]), 0)
+            with redirect_stdout(handoff_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "handoff", task_id]), 0)
+            with redirect_stdout(execution_fit_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "execution-fit", task_id]), 0)
             with redirect_stdout(compatibility_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "compatibility-json", task_id]), 0)
             with redirect_stdout(route_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "route-json", task_id]), 0)
+            with redirect_stdout(topology_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "topology-json", task_id]), 0)
+            with redirect_stdout(dispatch_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "dispatch-json", task_id]), 0)
+            with redirect_stdout(handoff_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "handoff-json", task_id]), 0)
+            with redirect_stdout(execution_fit_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "execution-fit-json", task_id]), 0)
             with redirect_stdout(retrieval_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval-json", task_id]), 0)
             with redirect_stdout(grounding_stdout):
@@ -1447,10 +1718,18 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Compatibility Report", compatibility_stdout.getvalue())
         self.assertIn("Route Report", route_stdout.getvalue())
         self.assertIn("Retrieval Report", retrieval_stdout.getvalue())
+        self.assertIn("Topology Report", topology_stdout.getvalue())
+        self.assertIn("Dispatch Report", dispatch_stdout.getvalue())
+        self.assertIn("Handoff Report", handoff_stdout.getvalue())
+        self.assertIn("Execution Fit Report", execution_fit_stdout.getvalue())
         self.assertIn('"status"', compatibility_json_stdout.getvalue())
         self.assertIn('"name"', route_json_stdout.getvalue())
         self.assertIn('"execution_site"', route_json_stdout.getvalue())
         self.assertIn('"remote_capable"', route_json_stdout.getvalue())
+        self.assertIn('"dispatch_status"', topology_json_stdout.getvalue())
+        self.assertIn('"attempt_id"', dispatch_json_stdout.getvalue())
+        self.assertIn('"next_operator_action"', handoff_json_stdout.getvalue())
+        self.assertIn('"findings"', execution_fit_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())
@@ -1489,6 +1768,7 @@ class CliLifecycleTest(unittest.TestCase):
                                     "swallow.orchestrator.write_task_artifacts",
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
+                                        ValidationResult(status="passed", message="Execution fit passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
                                     ),
                                 ):
@@ -1573,6 +1853,7 @@ class CliLifecycleTest(unittest.TestCase):
                                     "swallow.orchestrator.write_task_artifacts",
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
+                                        ValidationResult(status="passed", message="Execution fit passed."),
                                         ValidationResult(status="passed", message="Validation passed."),
                                     ),
                                 ):

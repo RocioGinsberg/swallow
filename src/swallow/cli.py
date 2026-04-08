@@ -6,7 +6,17 @@ from pathlib import Path
 
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .orchestrator import create_task, run_task
-from .paths import artifacts_dir, compatibility_path, memory_path, retrieval_path, route_path
+from .paths import (
+    artifacts_dir,
+    compatibility_path,
+    dispatch_path,
+    execution_fit_path,
+    handoff_path,
+    memory_path,
+    retrieval_path,
+    route_path,
+    topology_path,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -80,6 +90,17 @@ def build_parser() -> argparse.ArgumentParser:
     grounding_parser.add_argument("task_id", help="Task identifier.")
     retrieval_parser = task_subparsers.add_parser("retrieval", help="Print the task retrieval report artifact.")
     retrieval_parser.add_argument("task_id", help="Task identifier.")
+    topology_parser = task_subparsers.add_parser("topology", help="Print the task topology report artifact.")
+    topology_parser.add_argument("task_id", help="Task identifier.")
+    dispatch_parser = task_subparsers.add_parser("dispatch", help="Print the task dispatch report artifact.")
+    dispatch_parser.add_argument("task_id", help="Task identifier.")
+    handoff_parser = task_subparsers.add_parser("handoff", help="Print the task handoff report artifact.")
+    handoff_parser.add_argument("task_id", help="Task identifier.")
+    execution_fit_parser = task_subparsers.add_parser(
+        "execution-fit",
+        help="Print the task execution-fit report artifact.",
+    )
+    execution_fit_parser.add_argument("task_id", help="Task identifier.")
     memory_parser = task_subparsers.add_parser("memory", help="Print the task memory record.")
     memory_parser.add_argument("task_id", help="Task identifier.")
     route_parser = task_subparsers.add_parser("route", help="Print the task route report artifact.")
@@ -91,6 +112,17 @@ def build_parser() -> argparse.ArgumentParser:
     compatibility_json_parser.add_argument("task_id", help="Task identifier.")
     route_json_parser = task_subparsers.add_parser("route-json", help="Print the task route record.")
     route_json_parser.add_argument("task_id", help="Task identifier.")
+    topology_json_parser = task_subparsers.add_parser("topology-json", help="Print the task topology record.")
+    topology_json_parser.add_argument("task_id", help="Task identifier.")
+    dispatch_json_parser = task_subparsers.add_parser("dispatch-json", help="Print the task dispatch record.")
+    dispatch_json_parser.add_argument("task_id", help="Task identifier.")
+    handoff_json_parser = task_subparsers.add_parser("handoff-json", help="Print the task handoff record.")
+    handoff_json_parser.add_argument("task_id", help="Task identifier.")
+    execution_fit_json_parser = task_subparsers.add_parser(
+        "execution-fit-json",
+        help="Print the task execution-fit record.",
+    )
+    execution_fit_json_parser.add_argument("task_id", help="Task identifier.")
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
@@ -128,6 +160,10 @@ def main(argv: list[str] | None = None) -> int:
         "compatibility",
         "grounding",
         "retrieval",
+        "topology",
+        "dispatch",
+        "handoff",
+        "execution-fit",
         "route",
     }:
         artifact_name = {
@@ -137,6 +173,10 @@ def main(argv: list[str] | None = None) -> int:
             "compatibility": "compatibility_report.md",
             "grounding": "source_grounding.md",
             "retrieval": "retrieval_report.md",
+            "topology": "topology_report.md",
+            "dispatch": "dispatch_report.md",
+            "handoff": "handoff_report.md",
+            "execution-fit": "execution_fit_report.md",
             "route": "route_report.md",
         }[args.task_command]
         print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
@@ -152,6 +192,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "route-json":
         print(json.dumps(json.loads(route_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "topology-json":
+        print(json.dumps(json.loads(topology_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "dispatch-json":
+        print(json.dumps(json.loads(dispatch_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "handoff-json":
+        print(json.dumps(json.loads(handoff_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "execution-fit-json":
+        print(json.dumps(json.loads(execution_fit_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":

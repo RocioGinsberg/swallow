@@ -101,7 +101,7 @@ Domain-specific behavior should live in domain packs or capability packs rather 
 
 ## Current focus
 
-The repository is currently at a **post-Phase-2 baseline checkpoint**.
+The repository is currently at a **Phase 3 closeout checkpoint**.
 
 The implemented baseline now includes:
 
@@ -109,10 +109,10 @@ The implemented baseline now includes:
 - a **harness runtime** for retrieve → execute → record → summarize
 - structured route and capability declarations
 - compatibility checks and route provenance artifacts
-- explicit local-first execution with remote-ready route metadata
+- explicit local-first execution with route, topology, dispatch, handoff, and execution-fit artifacts
 - Git project files and Markdown / Obsidian notes as retrieval sources
 
-The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve a clean, inspectable baseline before any broader backend or remote-execution expansion.
+The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve a clean, inspectable baseline before writing the next planning note.
 
 ## Long-term direction
 
@@ -266,6 +266,10 @@ swl task resume-note <task-id>
 swl task compatibility <task-id>
 swl task validation <task-id>
 swl task grounding <task-id>
+swl task topology <task-id>
+swl task dispatch <task-id>
+swl task handoff <task-id>
+swl task execution-fit <task-id>
 swl task memory <task-id>
 swl task route <task-id>
 ```
@@ -293,10 +297,19 @@ The current CLI implements:
 - `swl task compatibility`
 - `swl task validation`
 - `swl task grounding`
+- `swl task topology`
+- `swl task dispatch`
+- `swl task handoff`
+- `swl task execution-fit`
 - `swl task memory`
 - `swl task compatibility-json`
 - `swl task route`
 - `swl task route-json`
+- `swl task topology-json`
+- `swl task dispatch-json`
+- `swl task handoff-json`
+- `swl task execution-fit-json`
+- `swl task retrieval-json`
 - `swl doctor codex`
 
 Task state and artifacts are written under:
@@ -309,21 +322,30 @@ Task state and artifacts are written under:
       events.jsonl
       retrieval.json
       compatibility.json
+      execution_fit.json
       validation.json
       route.json
+      topology.json
+      dispatch.json
+      handoff.json
       memory.json
       artifacts/
         summary.md
         resume_note.md
         compatibility_report.md
+        execution_fit_report.md
         route_report.md
+        topology_report.md
+        dispatch_report.md
+        handoff_report.md
+        retrieval_report.md
         source_grounding.md
         validation_report.md
         executor_stdout.txt
         executor_stderr.txt
 ```
 
-The current `run` command performs retrieval, invokes the selected executor, evaluates route compatibility, runs validation, records state and events, persists task memory, and writes executor, summary, resume note, grounding, route, compatibility, and validation artifacts.
+The current `run` command performs retrieval, invokes the selected executor, evaluates route compatibility, evaluates execution-fit against the active topology baseline, runs validation, records state and events, persists task memory, and writes executor, summary, resume note, grounding, route, topology, dispatch, handoff, execution-fit, compatibility, and validation artifacts.
 
 Current task-state semantics are intentionally small and explicit:
 

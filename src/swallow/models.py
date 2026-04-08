@@ -55,6 +55,17 @@ class TaskState:
     route_model_hint: str = "codex"
     route_reason: str = "Default local Codex route."
     route_capabilities: dict[str, Any] = field(default_factory=dict)
+    topology_route_name: str = "local-codex"
+    topology_execution_site: str = "local"
+    topology_transport_kind: str = "local_process"
+    topology_remote_capable_intent: bool = False
+    topology_dispatch_status: str = "not_requested"
+    run_attempt_count: int = 0
+    current_attempt_id: str = ""
+    current_attempt_number: int = 0
+    dispatch_requested_at: str = ""
+    dispatch_started_at: str = ""
+    execution_lifecycle: str = "idle"
     executor_status: str = "pending"
     artifact_paths: dict[str, str] = field(default_factory=dict)
 
@@ -169,6 +180,31 @@ class CompatibilityResult:
     status: str
     message: str
     findings: list[CompatibilityFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "message": self.message,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }
+
+
+@dataclass(slots=True)
+class ExecutionFitFinding:
+    code: str
+    level: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class ExecutionFitResult:
+    status: str
+    message: str
+    findings: list[ExecutionFitFinding] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {

@@ -7,13 +7,17 @@ from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
 from .paths import (
     artifacts_dir,
     compatibility_path,
+    dispatch_path,
+    execution_fit_path,
     events_path,
+    handoff_path,
     memory_path,
     retrieval_path,
     route_path,
     state_path,
     task_root,
     tasks_root,
+    topology_path,
     validation_path,
 )
 
@@ -80,6 +84,38 @@ def save_memory(base_dir: Path, task_id: str, payload: dict[str, object]) -> Non
 def save_route(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
     ensure_task_layout(base_dir, task_id)
     route_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_topology(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    topology_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_dispatch(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    dispatch_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_handoff(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    handoff_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_execution_fit(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    execution_fit_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
