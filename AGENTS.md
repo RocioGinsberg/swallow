@@ -50,7 +50,7 @@ Use `docs/system_tracks.md` as the top-level planning map before defining or exe
 
 ## Current planning state
 
-Current planning checkpoint: post-Phase-5 executor / external-input closeout.
+Current planning checkpoint: post-Phase-5 retrieval / memory next closeout.
 
 Current implementation status:
 1. Phase 0 accepted
@@ -67,10 +67,10 @@ Current planning direction:
 3. use `docs/phase3_closeout_note.md` as the execution-topology stop/go reference
 4. use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference
 5. use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference
-6. use `docs/post_phase5_executor_and_external_input_kickoff_note.md` as the planning entrypoint for the completed slice
-7. use `docs/post_phase5_executor_and_external_input_task_breakdown.md` as the implementation record for that slice
-8. use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the current stop/go reference
-9. treat `Retrieval / Memory` and `Execution Topology` as the likely next primary tracks for any fresh follow-on slice
+6. use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the stop/go reference for the completed executor / external-input slice
+7. use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval / memory-next slice
+8. open a fresh planning note before continuing `Retrieval / Memory` work again
+9. treat `Retrieval / Memory` as a likely next primary track, but do not continue the completed slice by default
 
 Do not default new work back to a generic MVP feature bundle. Start from the current system map and current closeout checkpoint.
 
@@ -81,8 +81,8 @@ Current planning should focus on:
 - treating the completed Phase 3 and Phase 4 baselines as stable checkpoints
 - treating the completed Phase 5 baseline as a stable checkpoint
 - planning the next slice against the repository’s current system tracks
-- clarifying executor-family boundaries and external-input ingestion as planning work, not implemented facts
 - treating the completed post-Phase-5 executor / external-input slice as a stable checkpoint instead of continuing it by default
+- treating the completed retrieval / memory-next slice as a stable checkpoint instead of continuing it by default
 - avoiding accidental open-ended continuation of `Capabilities`, execution-topology, or Workbench / UX work
 - keeping retrieval, routing, validation, memory, and artifact semantics inspectable
 

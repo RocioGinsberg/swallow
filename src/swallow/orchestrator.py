@@ -7,7 +7,13 @@ from uuid import uuid4
 from .capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
 from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
-from .knowledge_objects import build_knowledge_objects, summarize_knowledge_evidence, summarize_knowledge_stages
+from .knowledge_objects import (
+    build_knowledge_objects,
+    summarize_knowledge_evidence,
+    summarize_knowledge_reuse,
+    summarize_knowledge_stages,
+)
+from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .models import Event, RetrievalRequest, TaskState
 from .paths import (
     artifacts_dir,
@@ -18,6 +24,7 @@ from .paths import (
     execution_fit_path,
     handoff_path,
     knowledge_objects_path,
+    knowledge_partition_path,
     knowledge_policy_path,
     memory_path,
     task_semantics_path,
@@ -34,6 +41,7 @@ from .store import (
     save_capability_assembly,
     save_capability_manifest,
     save_knowledge_objects,
+    save_knowledge_partition,
     save_state,
     save_task_semantics,
     write_artifact,
@@ -79,6 +87,7 @@ def create_task(
     knowledge_stage: str = "raw",
     knowledge_source: str | None = None,
     knowledge_artifact_refs: list[str] | None = None,
+    knowledge_retrieval_eligible: bool = False,
     capability_refs: list[str] | None = None,
     route_mode: str = "auto",
 ) -> TaskState:
@@ -102,6 +111,7 @@ def create_task(
         stage=knowledge_stage,
         source_ref=knowledge_source,
         artifact_refs=knowledge_artifact_refs,
+        retrieval_eligible=knowledge_retrieval_eligible,
     )
     state = TaskState(
         task_id=task_id,
@@ -131,14 +141,19 @@ def create_task(
         "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
         "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
         "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
+        "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
+        "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
     }
+    knowledge_partition = build_knowledge_partition(state.knowledge_objects)
     save_state(base_dir, state)
     save_task_semantics(base_dir, task_id, state.task_semantics)
     save_knowledge_objects(base_dir, task_id, state.knowledge_objects)
+    save_knowledge_partition(base_dir, task_id, knowledge_partition)
     save_capability_manifest(base_dir, task_id, state.capability_manifest)
     save_capability_assembly(base_dir, task_id, state.capability_assembly)
     write_artifact(base_dir, task_id, "task_semantics_report.md", build_task_semantics_report(state))
     write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
+    write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
     append_event(
         base_dir,
         Event(
@@ -154,6 +169,11 @@ def create_task(
                 "knowledge_objects_count": len(state.knowledge_objects),
                 "knowledge_stage_counts": summarize_knowledge_stages(state.knowledge_objects),
                 "knowledge_evidence_counts": summarize_knowledge_evidence(state.knowledge_objects),
+                "knowledge_reuse_counts": summarize_knowledge_reuse(state.knowledge_objects),
+                "knowledge_partition": {
+                    "task_linked_count": knowledge_partition["task_linked_count"],
+                    "reusable_candidate_count": knowledge_partition["reusable_candidate_count"],
+                },
                 "capability_manifest": state.capability_manifest,
                 "capability_assembly": state.capability_assembly,
                 "route_mode": state.route_mode,
@@ -306,6 +326,8 @@ def run_task(
         "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
         "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
         "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
+        "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
+        "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
         "knowledge_policy_json": str(knowledge_policy_path(base_dir, task_id).resolve()),
         "knowledge_policy_report": str((artifacts_dir(base_dir, task_id) / "knowledge_policy_report.md").resolve()),
         "summary": str((artifacts_dir(base_dir, task_id) / "summary.md").resolve()),
@@ -434,6 +456,7 @@ def build_knowledge_objects_report(state: TaskState) -> str:
     knowledge_objects = state.knowledge_objects or []
     stage_counts = summarize_knowledge_stages(knowledge_objects)
     evidence_counts = summarize_knowledge_evidence(knowledge_objects)
+    reuse_counts = summarize_knowledge_reuse(knowledge_objects)
     lines = [
         "# Knowledge Objects Report",
         "",
@@ -445,6 +468,8 @@ def build_knowledge_objects_report(state: TaskState) -> str:
         f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
         f"- source_only: {evidence_counts.get('source_only', 0)}",
         f"- unbacked: {evidence_counts.get('unbacked', 0)}",
+        f"- retrieval_candidate: {reuse_counts.get('retrieval_candidate', 0)}",
+        f"- task_only: {reuse_counts.get('task_only', 0)}",
         "",
         "## Objects",
     ]
@@ -463,6 +488,8 @@ def build_knowledge_objects_report(state: TaskState) -> str:
                 f"  task_linked: {'yes' if item.get('task_linked', False) else 'no'}",
                 f"  evidence_status: {item.get('evidence_status', 'unbacked')}",
                 f"  artifact_ref: {item.get('artifact_ref', '') or 'none'}",
+                f"  retrieval_eligible: {'yes' if item.get('retrieval_eligible', False) else 'no'}",
+                f"  knowledge_reuse_scope: {item.get('knowledge_reuse_scope', 'task_only')}",
                 f"  text: {item.get('text', '') or '(empty)'}",
             ]
         )

@@ -1,6 +1,6 @@
 # Active Phase
 
-Current active phase: Phase 5 closeout checkpoint.
+Current active phase: post-Phase-5 retrieval / memory next closeout checkpoint.
 
 ## Current status
 
@@ -11,6 +11,7 @@ Current active phase: Phase 5 closeout checkpoint.
 - Phase 3 baseline complete
 - Phase 4 baseline complete
 - Phase 5 baseline complete
+- post-Phase-5 executor / external-input slice complete
 
 ## Working references
 
@@ -32,6 +33,14 @@ Current active phase: Phase 5 closeout checkpoint.
   - `/home/rocio/projects/swallow/docs/phase5_task_breakdown.md`
 - Phase 5 closeout:
   - `/home/rocio/projects/swallow/docs/phase5_closeout_note.md`
+- post-Phase-5 executor / external-input closeout:
+  - `/home/rocio/projects/swallow/docs/post_phase5_executor_and_external_input_closeout_note.md`
+- post-Phase-5 retrieval / memory next kickoff:
+  - `/home/rocio/projects/swallow/docs/post_phase5_retrieval_memory_next_kickoff_note.md`
+- post-Phase-5 retrieval / memory next breakdown:
+  - `/home/rocio/projects/swallow/docs/post_phase5_retrieval_memory_next_task_breakdown.md`
+- post-Phase-5 retrieval / memory next closeout:
+  - `/home/rocio/projects/swallow/docs/post_phase5_retrieval_memory_next_closeout_note.md`
 - retrieval closeout:
   - `/home/rocio/projects/swallow/docs/post_phase2_retrieval_closeout_note.md`
 
@@ -60,6 +69,6 @@ The repository already has:
 
 ## Current rule
 
-New planning work should align with `docs/system_tracks.md` first and then the active Phase 5 closeout references above.
+New planning work should align with `docs/system_tracks.md` first and then the active retrieval / memory closeout references above.
 
-New implementation work should not fall back to a generic MVP framing or resume open-ended Phase 5 breadth by default.
+New implementation work should not fall back to a generic MVP framing or resume open-ended executor / external-input breadth by default.

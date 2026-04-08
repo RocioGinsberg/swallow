@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any
 
+from .knowledge_objects import is_retrieval_reuse_ready
 from .models import RetrievalItem, RetrievalRequest
 from .retrieval_adapters import select_retrieval_adapter
 
@@ -34,6 +36,7 @@ STOPWORDS = {
     "task",
 }
 ARTIFACTS_SOURCE_TYPE = "artifacts"
+KNOWLEDGE_SOURCE_TYPE = "knowledge"
 TASK_ARTIFACT_FILE_NAMES = {
     "memory.json",
     "retrieval.json",
@@ -193,6 +196,106 @@ def build_item_metadata(
     return metadata
 
 
+def build_knowledge_item_metadata(
+    knowledge_object: dict[str, Any],
+    query_plan: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "extension": ".json",
+        "adapter_name": "verified_knowledge_records",
+        "chunk_kind": "knowledge_object",
+        "line_start": 1,
+        "line_end": 1,
+        "title_source": "knowledge_object",
+        "query_token_count": query_plan["token_count"],
+        "storage_scope": "task_knowledge",
+        "knowledge_object_id": knowledge_object.get("object_id", ""),
+        "knowledge_stage": knowledge_object.get("stage", ""),
+        "knowledge_reuse_scope": knowledge_object.get("knowledge_reuse_scope", ""),
+        "evidence_status": knowledge_object.get("evidence_status", ""),
+        "artifact_ref": knowledge_object.get("artifact_ref", ""),
+        "source_ref": knowledge_object.get("source_ref", ""),
+        "task_linked": bool(knowledge_object.get("task_linked", False)),
+        "retrieval_eligible": bool(knowledge_object.get("retrieval_eligible", False)),
+    }
+
+
+def summarize_reused_knowledge(retrieval_items: list[RetrievalItem]) -> dict[str, Any]:
+    knowledge_items = [item for item in retrieval_items if item.source_type == KNOWLEDGE_SOURCE_TYPE]
+    evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
+    for item in knowledge_items:
+        evidence_status = str(item.metadata.get("evidence_status", "unbacked"))
+        evidence_counts[evidence_status] = evidence_counts.get(evidence_status, 0) + 1
+    return {
+        "count": len(knowledge_items),
+        "references": [item.reference() for item in knowledge_items[:5]],
+        "object_ids": [str(item.metadata.get("knowledge_object_id", item.chunk_id)) for item in knowledge_items[:5]],
+        "evidence_counts": evidence_counts,
+    }
+
+
+def iter_verified_knowledge_items(
+    workspace_root: Path,
+    allowed_sources: set[str],
+    query_plan: dict[str, Any],
+) -> list[RetrievalItem]:
+    if KNOWLEDGE_SOURCE_TYPE not in allowed_sources:
+        return []
+
+    items: list[RetrievalItem] = []
+    for path in sorted(workspace_root.glob(".swl/tasks/*/knowledge_objects.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(payload, list):
+            continue
+
+        relative_path = str(path.relative_to(workspace_root))
+        task_id = path.parent.name
+        for knowledge_object in payload:
+            if not isinstance(knowledge_object, dict):
+                continue
+            if not is_retrieval_reuse_ready(knowledge_object):
+                continue
+
+            knowledge_text = str(knowledge_object.get("text", "")).strip()
+            if not knowledge_text:
+                continue
+
+            object_id = str(knowledge_object.get("object_id", "knowledge-object"))
+            title = f"Knowledge {object_id}"
+            score, score_breakdown, matched_terms = score_chunk(
+                query_plan=query_plan,
+                relative_path=relative_path,
+                path_name=path.name,
+                title=title,
+                chunk_text=knowledge_text[:4000],
+            )
+            if score <= 0:
+                continue
+
+            preview = " ".join(knowledge_text.split())[:220]
+            items.append(
+                RetrievalItem(
+                    path=relative_path,
+                    source_type=KNOWLEDGE_SOURCE_TYPE,
+                    score=score,
+                    preview=preview,
+                    chunk_id=object_id,
+                    title=title,
+                    citation=f"{relative_path}#{object_id}",
+                    matched_terms=matched_terms,
+                    score_breakdown=score_breakdown,
+                    metadata=build_knowledge_item_metadata(
+                        knowledge_object=knowledge_object,
+                        query_plan=query_plan,
+                    ),
+                )
+            )
+    return items
+
+
 def retrieve_context(
     workspace_root: Path,
     query: str | None = None,
@@ -203,7 +306,11 @@ def retrieve_context(
     retrieval_request = request or build_retrieval_request(query=query or "", limit=limit, source_types=source_types)
     query_plan = prepare_query_plan(retrieval_request.query)
     allowed_sources = set(retrieval_request.source_types)
-    items: list[RetrievalItem] = []
+    items: list[RetrievalItem] = iter_verified_knowledge_items(
+        workspace_root=workspace_root,
+        allowed_sources=allowed_sources,
+        query_plan=query_plan,
+    )
 
     for path in sorted(workspace_root.rglob("*")):
         if not path.is_file():

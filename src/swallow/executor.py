@@ -8,7 +8,8 @@ import tempfile
 from pathlib import Path
 
 from .models import ExecutorResult, RetrievalItem, TaskState
-from .knowledge_objects import summarize_knowledge_evidence, summarize_knowledge_stages
+from .knowledge_objects import summarize_knowledge_evidence, summarize_knowledge_reuse, summarize_knowledge_stages
+from .retrieval import summarize_reused_knowledge
 
 
 DEFAULT_EXECUTOR = "codex"
@@ -177,6 +178,7 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
     if knowledge_objects:
         stage_counts = summarize_knowledge_stages(knowledge_objects)
         evidence_counts = summarize_knowledge_evidence(knowledge_objects)
+        reuse_counts = summarize_knowledge_reuse(knowledge_objects)
         lines.extend(
             [
                 "Knowledge objects:",
@@ -188,12 +190,23 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
                 f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
                 f"- source_only: {evidence_counts.get('source_only', 0)}",
                 f"- unbacked: {evidence_counts.get('unbacked', 0)}",
+                f"- retrieval_candidate: {reuse_counts.get('retrieval_candidate', 0)}",
             ]
         )
         top_items = [item.get("text", "") for item in knowledge_objects[:3]]
         if top_items:
             lines.append(f"- top_items: {'; '.join(item for item in top_items if item)}")
         lines.append("")
+    reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    if reused_knowledge["count"] > 0:
+        lines.extend(
+            [
+                "Reused verified knowledge in current retrieval:",
+                f"- count: {reused_knowledge['count']}",
+                f"- references: {', '.join(reused_knowledge['references'])}",
+                "",
+            ]
+        )
     previous_memory_artifacts = [
         state.artifact_paths.get("task_memory", ""),
         state.artifact_paths.get("source_grounding", ""),
@@ -216,6 +229,8 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
                 "Prior retrieval memory:",
                 f"- previous_retrieval_count: {prior_retrieval_snapshot['count']}",
                 f"- previous_top_references: {prior_retrieval_snapshot['top_references']}",
+                f"- previous_reused_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_count']}",
+                f"- previous_reused_knowledge_references: {prior_retrieval_snapshot['reused_knowledge_references']}",
                 f"- previous_grounding_artifact: {prior_retrieval_snapshot['grounding_artifact']}",
                 f"- previous_retrieval_record: {prior_retrieval_snapshot['retrieval_record_path']}",
                 "",
@@ -264,6 +279,8 @@ def load_prior_retrieval_snapshot(state: TaskState) -> dict[str, str] | None:
     return {
         "count": str(retrieval.get("count", 0)),
         "top_references": ", ".join(top_references) if top_references else "none",
+        "reused_knowledge_count": str(retrieval.get("reused_knowledge_count", 0)),
+        "reused_knowledge_references": ", ".join(retrieval.get("reused_knowledge_references", [])) or "none",
         "grounding_artifact": str(retrieval.get("grounding_artifact", "")),
         "retrieval_record_path": str(retrieval.get("retrieval_record_path", "")),
     }

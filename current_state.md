@@ -7,7 +7,7 @@ This file tracks the implementation status of the repository itself so work can 
 ## Current Status
 
 - phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete
-- overall state: runnable, acceptance-validated, and at a post-Phase-5 executor/external-input closeout checkpoint
+- overall state: runnable, acceptance-validated, and at a post-Phase-5 retrieval/memory-next closeout checkpoint
 - last checked: 2026-04-08
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -34,6 +34,10 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/post_phase5_executor_and_external_input_kickoff_note.md`
   - `docs/post_phase5_executor_and_external_input_task_breakdown.md`
   - `docs/post_phase5_executor_and_external_input_closeout_note.md`
+- post-Phase-5 retrieval/memory-next planning reference:
+  - `docs/post_phase5_retrieval_memory_next_kickoff_note.md`
+  - `docs/post_phase5_retrieval_memory_next_task_breakdown.md`
+  - `docs/post_phase5_retrieval_memory_next_closeout_note.md`
 - system planning reference:
   - `docs/system_tracks.md`
 - post-Phase-2 retrieval planning reference:
@@ -167,6 +171,12 @@ This file tracks the implementation status of the repository itself so work can 
   - `X1-04` artifact-backed external knowledge capture baseline is implemented with explicit evidence fields such as `artifact_ref`, `captured_at`, and `evidence_status`, plus artifact-backed/source-only/unbacked counts carried through creation events, prompt context, summary, resume note, memory, compact inspection, and `knowledge_objects_report.md`
   - `X1-05` promotion and verification policy baseline is implemented with explicit `knowledge_policy` evaluation, persisted `knowledge_policy.json`, readable `knowledge_policy_report.md`, policy-aware terminal status gating on blocking failures, and operator-facing policy status carried through summary, resume note, handoff, memory, compact inspection, and review flows
   - `X1-06` inspection and closeout tightening is implemented with explicit CLI inspection commands for task semantics, knowledge objects, and knowledge policy, review-flow visibility for imported task and knowledge records, and aligned closeout references for the completed post-Phase-5 slice
+  - `R2-01` retrieval-eligible knowledge declaration baseline is implemented with explicit `retrieval_eligible` and `knowledge_reuse_scope` fields on knowledge objects, task-create declaration of retrieval eligibility, and operator-facing reuse visibility through events, reports, summary, resume note, prompt context, task memory, and compact inspection without yet enabling retrieval reuse
+  - `R2-02` task-linked versus reusable knowledge partition baseline is implemented with explicit `knowledge_partition.json`, readable `knowledge_partition_report.md`, and partition-aware visibility across creation events, task inspection, review artifacts, grouped artifact indexes, task memory, and dedicated CLI inspection commands while preserving the current task-local retrieval baseline
+  - `R2-03` verified-knowledge retrieval source baseline is implemented with an explicit opt-in `knowledge` source type that surfaces only `verified` reusable knowledge objects, preserves `knowledge_objects.json#<object_id>` citations plus artifact/source metadata, and keeps the default retrieval baseline unchanged unless knowledge reuse is explicitly requested
+  - `R2-04` reuse-aware retrieval memory tightening is implemented with explicit reused-knowledge summaries in retrieval completion events, `retrieval_report.md`, `memory.json`, summary output, resume notes, and rerun prompt context so later runs can distinguish fresh retrieval from previously reused verified knowledge
+  - `R2-05` knowledge-reuse policy and verification tightening is implemented with an explicit reuse gate: only `verified`, `artifact_backed`, `retrieval_candidate` knowledge records are reusable by the current retrieval baseline, while source-only verified candidates remain warning-level and non-verified reuse candidates fail policy explicitly
+  - `R2-06` inspection and closeout tightening is implemented with reusable-knowledge visibility in `swl task inspect` and `swl task review`, retrieval-backed reused-knowledge references in operator inspection flows, and a dedicated retrieval/memory-next closeout note for this completed slice
   - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
   - `P4-02` task inspect and overview baseline is implemented with `swl task inspect`, a compact per-task overview of the latest attempt, route/topology, policy status, retrieval/memory availability, operator guidance, and key artifact links
   - `P4-03` artifact index tightening is implemented with `swl task artifacts`, grouped artifact-path presentation by operator concern while preserving existing artifact paths and file layout
@@ -202,7 +212,7 @@ This file tracks the implementation status of the repository itself so work can 
 - The planned Phase 3 baseline is complete enough to stop open-ended execution-topology expansion by default.
 - The planned Phase 4 baseline is complete enough to stop open-ended Workbench / UX expansion by default.
 - The planned Phase 5 baseline is complete enough to stop open-ended `Capabilities` expansion by default.
-- New work should now begin from a fresh planning note rather than assuming more post-Phase-5 executor/external-input implementation slices exist by default.
+- New work should now begin from a fresh planning note rather than assuming more post-Phase-5 retrieval/memory-next implementation slices exist by default.
 
 ## Known Issues
 
@@ -218,6 +228,7 @@ This file tracks the implementation status of the repository itself so work can 
 5. Use `docs/post_phase2_retrieval_closeout_note.md` as the current retrieval stop/go decision reference.
 6. Use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference.
 7. Use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the current stop/go reference for the completed post-Phase-5 executor/external-input slice.
+8. Use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval/memory-next slice before opening a fresh `Retrieval / Memory` planning note.
 8. Verify the editable install exposes the `swl` entrypoint correctly.
 9. Update this file after each substantial code change.
 

@@ -131,7 +131,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 ## 当前阶段
 
-当前仓库处于 **post-Phase-5 executor / external-input 收口检查点**。
+当前仓库处于 **post-Phase-5 retrieval / memory 下一段收口检查点**。
 
 当前已经实现的基线包括：
 
@@ -142,7 +142,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - 明确的本地优先执行路径，以及 route、topology、dispatch、handoff、execution-fit 产物
 - Git 项目文件与 Markdown / Obsidian 笔记检索
 
-当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把 `Capabilities` 基线视为已完成，并通过新的规划说明决定下一轮实现，而不是继续无边界扩展。
+当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把已完成的 executor / external-input 切片和 retrieval / memory 下一段切片都视为稳定检查点；如果继续推进，需要先写新的规划说明，而不是继续无边界扩展。
 
 ## 长期方向
 
@@ -347,6 +347,10 @@ python3 -m unittest discover -s tests
 为了在终端意外中断后快速恢复，仓库级实现状态记录在这里：
 
 - [current_state.md](./current_state.md)
+- [docs/post_phase5_executor_and_external_input_closeout_note.md](./docs/post_phase5_executor_and_external_input_closeout_note.md)
+- [docs/post_phase5_retrieval_memory_next_kickoff_note.md](./docs/post_phase5_retrieval_memory_next_kickoff_note.md)
+- [docs/post_phase5_retrieval_memory_next_task_breakdown.md](./docs/post_phase5_retrieval_memory_next_task_breakdown.md)
+- [docs/post_phase5_retrieval_memory_next_closeout_note.md](./docs/post_phase5_retrieval_memory_next_closeout_note.md)
 
 ## 当前 CLI 形态
 

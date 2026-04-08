@@ -95,6 +95,8 @@ class KnowledgeObject:
     captured_at: str = field(default_factory=utc_now)
     evidence_status: str = "unbacked"
     artifact_ref: str = ""
+    retrieval_eligible: bool = False
+    knowledge_reuse_scope: str = "task_only"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

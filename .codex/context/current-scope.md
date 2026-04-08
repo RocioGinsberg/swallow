@@ -30,6 +30,23 @@ The completed Phase 5 baseline established:
 - operator-facing capability inspection
 - clear failure for unknown capability references
 
+The completed post-Phase-5 executor / external-input slice established:
+
+- explicit executor-family declaration in planning and persistence surfaces
+- task-semantics ingestion for imported planning
+- staged knowledge-object records for imported external knowledge
+- artifact-backed evidence tracking and knowledge-policy checks
+- CLI inspection paths for task semantics, knowledge objects, and knowledge policy
+
+The completed post-Phase-5 retrieval / memory-next slice established:
+
+- explicit retrieval-eligibility and reuse-scope declarations on knowledge objects
+- a task-linked versus reusable knowledge partition record
+- an opt-in verified-knowledge retrieval source
+- reuse-aware retrieval memory and rerun prompt visibility
+- a tighter reuse gate for artifact-backed verified knowledge
+- CLI inspection visibility for reused knowledge inside retrieval and review flows
+
 ## Explicit non-goals right now
 
 Do not treat these as current-slice requirements:
@@ -49,4 +66,6 @@ When planning the next task:
 - use `docs/phase3_closeout_note.md` before deciding whether to continue execution-topology work
 - use `docs/phase4_closeout_note.md` before deciding whether to continue Workbench / UX work
 - use `docs/phase5_closeout_note.md` before deciding whether to continue `Capabilities` work
+- use `docs/post_phase5_executor_and_external_input_closeout_note.md` before deciding whether to continue that completed slice
+- use `docs/post_phase5_retrieval_memory_next_closeout_note.md` before deciding whether to continue that completed `Retrieval / Memory` slice
 - prefer a fresh planning note over open-ended continuation

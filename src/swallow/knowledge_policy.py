@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .knowledge_objects import is_retrieval_reuse_ready
 from .models import KnowledgePolicyFinding, KnowledgePolicyResult, TaskState
 
 
@@ -22,6 +23,8 @@ def evaluate_knowledge_policy(state: TaskState) -> KnowledgePolicyResult:
         evidence_status = str(item.get("evidence_status", "unbacked"))
         source_ref = str(item.get("source_ref", ""))
         artifact_ref = str(item.get("artifact_ref", ""))
+        retrieval_eligible = bool(item.get("retrieval_eligible", False))
+        reuse_scope = str(item.get("knowledge_reuse_scope", "task_only"))
 
         if stage == "canonical":
             if evidence_status == "artifact_backed":
@@ -93,6 +96,54 @@ def evaluate_knowledge_policy(state: TaskState) -> KnowledgePolicyResult:
                     details={"object_id": object_id, "stage": stage, "evidence_status": evidence_status},
                 )
             )
+
+        if retrieval_eligible and reuse_scope != "retrieval_candidate":
+            findings.append(
+                KnowledgePolicyFinding(
+                    code="knowledge.reuse.declaration_mismatch",
+                    level="warn",
+                    message="Retrieval-eligible knowledge should declare retrieval_candidate reuse scope.",
+                    details={"object_id": object_id, "retrieval_eligible": retrieval_eligible, "knowledge_reuse_scope": reuse_scope},
+                )
+            )
+
+        if reuse_scope == "retrieval_candidate":
+            if stage != "verified":
+                findings.append(
+                    KnowledgePolicyFinding(
+                        code="knowledge.reuse.stage_not_ready",
+                        level="fail",
+                        message="Reusable retrieval knowledge must remain at verified stage in the current baseline.",
+                        details={"object_id": object_id, "stage": stage, "evidence_status": evidence_status},
+                    )
+                )
+            elif is_retrieval_reuse_ready(item):
+                findings.append(
+                    KnowledgePolicyFinding(
+                        code="knowledge.reuse.verified_ready",
+                        level="pass",
+                        message="Verified retrieval candidate is artifact-backed and reusable by the current retrieval baseline.",
+                        details={"object_id": object_id, "stage": stage, "artifact_ref": artifact_ref},
+                    )
+                )
+            elif evidence_status == "source_only":
+                findings.append(
+                    KnowledgePolicyFinding(
+                        code="knowledge.reuse.verified.blocked_source_only",
+                        level="warn",
+                        message="Verified retrieval candidate is only source-backed; it stays blocked from reusable retrieval until artifact-backed evidence is available.",
+                        details={"object_id": object_id, "stage": stage, "evidence_status": evidence_status, "source_ref": source_ref},
+                    )
+                )
+            else:
+                findings.append(
+                    KnowledgePolicyFinding(
+                        code="knowledge.reuse.verified.evidence_missing",
+                        level="fail",
+                        message="Verified retrieval candidates require artifact-backed evidence before they can enter reusable retrieval.",
+                        details={"object_id": object_id, "stage": stage, "evidence_status": evidence_status},
+                    )
+                )
 
     if any(f.level == "fail" for f in findings):
         status = "failed"
