@@ -34,6 +34,7 @@
 - canonical inspect / list 入口
 - canonical record 的 source task / object / evidence traceability
 - canonical record 的显式 dedupe / replace 语义
+- canonical record 的 trace-based supersede 语义
 
 ---
 
@@ -82,12 +83,13 @@
 - task artifact 视图已包含 canonical registry 路径
 - inspect / review 已纳入 canonical registry 摘要
 - canonical registry 已补充按 `canonical_id` 去重、latest-record-wins replace 规则
+- canonical registry 已补充基于 `artifact_ref` / `source_ref` 的 `canonical_key`，并支持 trace-based supersede
 - 相关 CLI 测试已补齐并通过
 
 ## 下一步
 
 下一步应优先完成：
 
-1. 判断 canonical registry 是否还需要更强的 replace / supersede 语义，而不只是 `canonical_id` 级别 upsert
+1. 判断 canonical registry 是否还需要显式的 operator-facing supersede review，而不只是当前自动 trace-based supersede
 2. 视需要把 canonical registry 摘要进一步纳入 queue / control
 3. 为 Phase 13 后续 closeout 预留 stop/go 边界
