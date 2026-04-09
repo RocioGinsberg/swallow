@@ -2,19 +2,19 @@
 
 ## 当前轮次
 
-- active_track: `to_be_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `feat/phase14-canonical-reuse-policy`
-- status: `completed`
+- active_track: `Evaluation / Policy`
+- active_phase: `Phase 15`
+- active_slice: `Canonical Reuse Evaluation Baseline`
+- active_branch: `feat/phase15-canonical-reuse-evaluation`
+- status: `planning`
 
 ---
 
 ## 当前目标
 
-当前默认目标不是继续扩张已完成的 Phase 14，而是从系统 track 重新选择下一轮工作。
+当前默认目标是建立显式 canonical reuse evaluation baseline，并把已有 canonical reuse 路径接到最小 evaluation / judgment 结构。
 
-当前应把 `docs/plans/phase14/closeout.md` 视为最近稳定 stop/go 边界，再决定是否开启新的 kickoff。
+当前重点不是继续扩 ranking 平台、自动策略学习或 freshness workflow，而是先建立 canonical reuse 的 evaluation truth。
 
 ---
 
@@ -25,12 +25,14 @@
 - staged knowledge 的显式 review / promote / reject gate
 - canonical registry / index / inspect baseline
 - canonical promotion write-through、dedupe、trace-based supersede
+- canonical reuse policy / retrieval integration / traceability baseline
 
 当前最需要明确的是：
 
-- 下一轮 primary track 选择
-- 下一轮 phase / slice 边界
-- 是否继续深挖 retrieval / memory，或切换到其他系统 track
+- canonical reuse evaluation record schema
+- evaluation summary / judgment distribution 的最小表达
+- retrieval hit provenance 与 evaluation judgment 的显式对应关系
+- operator 如何检查当前 canonical reuse evaluation baseline
 
 ---
 
@@ -40,11 +42,13 @@
 
 1. `AGENTS.md`
 2. `docs/system_tracks.md`
-3. `current_state.md`
-4. `docs/plans/phase14/closeout.md`
+3. `docs/plans/phase15/kickoff.md`
+4. `docs/plans/phase15/breakdown.md`
 
 需要恢复历史上下文时再读取：
 
+- `current_state.md`
+- `docs/plans/phase14/closeout.md`
 - `docs/plans/phase14/kickoff.md`
 - `docs/plans/phase14/breakdown.md`
 - `docs/plans/phase13/closeout.md`
@@ -59,22 +63,15 @@
 
 已完成：
 
-- Phase 13 `Canonical Knowledge Registry Baseline` 已完成
-- 下一轮 primary track 已选择为 `Retrieval / Memory`
-- Phase 14 `Canonical Reuse Policy Baseline` kickoff / breakdown 已建立
-- canonical reuse policy summary baseline 已落地：
-  - `.swl/canonical_knowledge/reuse_policy.json`
-  - `canonical_reuse_policy_report.md`
-- retrieval 已开始读取 policy-visible canonical records
-- inspect / review 已纳入 canonical reuse 摘要
-- retrieval report / source grounding / summary / resume note 已补齐 canonical reuse traceability 表达
-- Phase 14 closeout 已写入 `docs/plans/phase14/closeout.md`
-- 当前默认不再继续扩张本轮 slice，而应从 fresh kickoff 重新选方向
+- Phase 14 `Canonical Reuse Policy Baseline` 已完成
+- 下一轮 primary track 已选择为 `Evaluation / Policy`
+- Phase 15 `Canonical Reuse Evaluation Baseline` kickoff / breakdown 已建立
+- 当前已进入新一轮 planning 状态
 
 ## 下一步
 
 下一步应优先完成：
 
-1. 从 `docs/system_tracks.md` 选择下一轮 primary track
-2. 写新的 kickoff / breakdown
-3. 再切出新的 feature branch 继续开发
+1. 明确 canonical reuse evaluation 的最小 schema / summary 结构
+2. 切出 `feat/phase15-canonical-reuse-evaluation`
+3. 从 evaluation baseline 开始实现
