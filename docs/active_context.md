@@ -70,10 +70,14 @@
 - canonical record schema baseline 已落地
 - canonical registry persistence 已落地：
   - `.swl/canonical_knowledge/registry.jsonl`
+  - `.swl/canonical_knowledge/index.json`
 - canonical promotion 已接入 registry write-through
 - 新增 operator inspect 入口：
   - `swl task canonical-registry`
   - `swl task canonical-registry-json`
+- 新增 canonical registry index 入口：
+  - `swl task canonical-registry-index`
+  - `swl task canonical-registry-index-json`
 - task artifact 视图已包含 canonical registry 路径
 - inspect / review 已纳入 canonical registry 摘要
 - 相关 CLI 测试已补齐并通过
@@ -82,6 +86,6 @@
 
 下一步应优先完成：
 
-1. 对齐 README / CLI help 中 canonical registry 的 operator 语义
-2. 继续评估是否需要最小 canonical registry index / summary 结构
-3. 视需要把 canonical registry 摘要进一步纳入 queue / control
+1. 视需要把 canonical registry 摘要进一步纳入 queue / control
+2. 继续评估 canonical registry 是否需要更明确的去重 / replace 规则
+3. 为 Phase 13 后续 closeout 预留 stop/go 边界
