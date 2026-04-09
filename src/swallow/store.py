@@ -6,6 +6,7 @@ from typing import Iterable
 
 from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
 from .paths import (
+    canonical_registry_index_path,
     artifacts_dir,
     canonical_registry_path,
     canonical_registry_root,
@@ -165,6 +166,14 @@ def append_canonical_record(base_dir: Path, payload: dict[str, object]) -> None:
     canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
     with canonical_registry_path(base_dir).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload) + "\n")
+
+
+def save_canonical_registry_index(base_dir: Path, payload: dict[str, object]) -> None:
+    canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
+    canonical_registry_index_path(base_dir).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 def save_capability_assembly(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:

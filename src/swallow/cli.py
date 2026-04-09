@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
-from .canonical_registry import build_canonical_registry_report
+from .canonical_registry import build_canonical_registry_index_report, build_canonical_registry_report
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
@@ -18,6 +18,7 @@ from .orchestrator import (
 )
 from .paths import (
     artifacts_dir,
+    canonical_registry_index_path,
     canonical_registry_path,
     capability_assembly_path,
     capability_manifest_path,
@@ -55,6 +56,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_index_report",
             "knowledge_decisions_report",
             "canonical_registry_report",
+            "canonical_registry_index_report",
             "retrieval_report",
             "retrieval_json",
             "source_grounding",
@@ -95,6 +97,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_index_json",
             "knowledge_decisions_json",
             "canonical_registry_json",
+            "canonical_registry_index_json",
             "route_json",
             "topology_json",
             "execution_site_json",
@@ -269,15 +272,15 @@ def summarize_knowledge_attention(base_dir: Path, task_id: str) -> dict[str, str
     }
 
 
-def build_canonical_registry_snapshot(records: list[dict[str, object]]) -> list[str]:
-    latest = records[-1] if records else {}
+def build_canonical_registry_snapshot(index_record: dict[str, object]) -> list[str]:
     return [
         "Canonical Registry",
-        f"canonical_registry_count: {len(records)}",
-        f"canonical_registry_latest_id: {latest.get('canonical_id', '-') if records else '-'}",
-        f"canonical_registry_latest_source_task: {latest.get('source_task_id', '-') if records else '-'}",
-        f"canonical_registry_latest_source_object: {latest.get('source_object_id', '-') if records else '-'}",
-        f"canonical_registry_latest_artifact_ref: {latest.get('artifact_ref', '-') or '-'}",
+        f"canonical_registry_count: {index_record.get('count', 0)}",
+        f"canonical_registry_source_task_count: {index_record.get('source_task_count', 0)}",
+        f"canonical_registry_artifact_backed_count: {index_record.get('artifact_backed_count', 0)}",
+        f"canonical_registry_latest_id: {index_record.get('latest_canonical_id', '') or '-'}",
+        f"canonical_registry_latest_source_task: {index_record.get('latest_source_task_id', '') or '-'}",
+        f"canonical_registry_latest_source_object: {index_record.get('latest_source_object_id', '') or '-'}",
     ]
 
 
@@ -980,6 +983,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Print the canonical knowledge registry report.",
     )
     canonical_registry_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
+    canonical_registry_index_parser = task_subparsers.add_parser(
+        "canonical-registry-index",
+        help="Print the canonical knowledge registry index report.",
+        description="Print the canonical knowledge registry index report.",
+    )
+    canonical_registry_index_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
     checkpoint_parser = task_subparsers.add_parser(
@@ -1127,6 +1136,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the canonical knowledge registry records.",
     )
     canonical_registry_json_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
+    canonical_registry_index_json_parser = task_subparsers.add_parser(
+        "canonical-registry-index-json",
+        help="Print the canonical knowledge registry index record.",
+    )
+    canonical_registry_index_json_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
@@ -1401,7 +1415,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_partition = load_json_if_exists(knowledge_partition_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
-        canonical_registry = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         task_semantics = load_json_if_exists(task_semantics_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
@@ -1476,7 +1490,7 @@ def main(argv: list[str] | None = None) -> int:
             "",
             *build_knowledge_review_snapshot(knowledge_objects, knowledge_decisions),
             "",
-            *build_canonical_registry_snapshot(canonical_registry),
+            *build_canonical_registry_snapshot(canonical_registry_index),
             "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
@@ -1510,6 +1524,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
             f"knowledge_decisions_report: {state.artifact_paths.get('knowledge_decisions_report', '-')}",
             f"canonical_registry_report: {state.artifact_paths.get('canonical_registry_report', '-')}",
+            f"canonical_registry_index_report: {state.artifact_paths.get('canonical_registry_index_report', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"route_report: {state.artifact_paths.get('route_report', '-')}",
@@ -1567,7 +1582,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
-        canonical_registry = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
         canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         reused_knowledge_references = []
@@ -1634,7 +1649,7 @@ def main(argv: list[str] | None = None) -> int:
                 knowledge_decisions,
             ),
             "",
-            *build_canonical_registry_snapshot(canonical_registry),
+            *build_canonical_registry_snapshot(canonical_registry_index),
             "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
@@ -1645,6 +1660,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
             f"knowledge_decisions_report: {state.artifact_paths.get('knowledge_decisions_report', '-')}",
             f"canonical_registry_report: {state.artifact_paths.get('canonical_registry_report', '-')}",
+            f"canonical_registry_index_report: {state.artifact_paths.get('canonical_registry_index_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"source_grounding: {state.artifact_paths.get('source_grounding', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
@@ -1823,12 +1839,20 @@ def main(argv: list[str] | None = None) -> int:
         print(build_canonical_registry_report(load_json_lines_if_exists(canonical_registry_path(base_dir))))
         return 0
 
+    if args.command == "task" and args.task_command == "canonical-registry-index":
+        print(build_canonical_registry_index_report(load_json_if_exists(canonical_registry_index_path(base_dir))))
+        return 0
+
     if args.command == "task" and args.task_command == "knowledge-decisions-json":
         print(json.dumps(load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-registry-json":
         print(json.dumps(load_json_lines_if_exists(canonical_registry_path(base_dir)), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "canonical-registry-index-json":
+        print(json.dumps(load_json_if_exists(canonical_registry_index_path(base_dir)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":

@@ -673,6 +673,8 @@ class CliLifecycleTest(unittest.TestCase):
             review_stdout = StringIO()
             registry_stdout = StringIO()
             registry_json_stdout = StringIO()
+            registry_index_stdout = StringIO()
+            registry_index_json_stdout = StringIO()
             with redirect_stdout(inspect_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
             with redirect_stdout(review_stdout):
@@ -681,6 +683,10 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry", task_id]), 0)
             with redirect_stdout(registry_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-json", task_id]), 0)
+            with redirect_stdout(registry_index_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-index", task_id]), 0)
+            with redirect_stdout(registry_index_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-index-json", task_id]), 0)
 
         self.assertEqual(knowledge_objects[0]["stage"], "canonical")
         self.assertEqual(canonical_records[0]["source_task_id"], task_id)
@@ -688,12 +694,16 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["artifact_ref"], ".swl/tasks/demo/artifacts/evidence.md")
         self.assertIn("Canonical Registry", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_count: 1", inspect_stdout.getvalue())
+        self.assertIn("canonical_registry_source_task_count: 1", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_latest_source_task: " + task_id, inspect_stdout.getvalue())
         self.assertIn("Canonical Registry", review_stdout.getvalue())
         self.assertIn("canonical_registry_count: 1", review_stdout.getvalue())
         self.assertIn("Canonical Knowledge Registry", registry_stdout.getvalue())
+        self.assertIn("Canonical Knowledge Registry Index", registry_index_stdout.getvalue())
+        self.assertIn("source_task_count: 1", registry_index_stdout.getvalue())
         self.assertIn(f"source_task_id: {task_id}", registry_stdout.getvalue())
         self.assertIn('"canonical_id"', registry_json_stdout.getvalue())
+        self.assertIn('"source_task_count"', registry_index_json_stdout.getvalue())
 
     def test_cli_create_marks_retrieval_eligible_knowledge_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2370,6 +2380,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge-promote", output)
         self.assertIn("knowledge-reject", output)
         self.assertIn("canonical-registry", output)
+        self.assertIn("canonical-registry-index", output)
         self.assertIn("inspect             Print a compact per-task overview.", output)
         self.assertIn("intake              Print a compact planning-handoff and staged-", output)
         self.assertIn("review              Print a review-focused task handoff summary.", output)
@@ -2413,6 +2424,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge-policy    Print the task knowledge-policy report artifact.", output)
         self.assertIn("knowledge-decisions", output)
         self.assertIn("canonical-registry", output)
+        self.assertIn("canonical-registry-index", output)
 
     def test_task_help_includes_phase9_workbench_commands(self) -> None:
         stdout = StringIO()
@@ -2477,6 +2489,7 @@ class CliLifecycleTest(unittest.TestCase):
             (["task", "knowledge-promote", "--help"], "Explicitly promote one knowledge object"),
             (["task", "knowledge-reject", "--help"], "Explicitly reject one knowledge object"),
             (["task", "canonical-registry", "--help"], "Print the canonical knowledge registry report."),
+            (["task", "canonical-registry-index", "--help"], "Print the canonical knowledge registry index report."),
         ]
 
         for argv, expected in command_expectations:
@@ -4876,6 +4889,7 @@ class CliLifecycleTest(unittest.TestCase):
             knowledge_policy_stdout = StringIO()
             knowledge_decisions_stdout = StringIO()
             canonical_registry_stdout = StringIO()
+            canonical_registry_index_stdout = StringIO()
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
             topology_json_stdout = StringIO()
@@ -4890,6 +4904,7 @@ class CliLifecycleTest(unittest.TestCase):
             knowledge_policy_json_stdout = StringIO()
             knowledge_decisions_json_stdout = StringIO()
             canonical_registry_json_stdout = StringIO()
+            canonical_registry_index_json_stdout = StringIO()
             retrieval_json_stdout = StringIO()
             grounding_stdout = StringIO()
             memory_stdout = StringIO()
@@ -4916,6 +4931,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-decisions", task_id]), 0)
             with redirect_stdout(canonical_registry_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry", task_id]), 0)
+            with redirect_stdout(canonical_registry_index_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-index", task_id]), 0)
             with redirect_stdout(topology_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "topology", task_id]), 0)
             with redirect_stdout(execution_site_stdout):
@@ -4954,6 +4971,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-decisions-json", task_id]), 0)
             with redirect_stdout(canonical_registry_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-json", task_id]), 0)
+            with redirect_stdout(canonical_registry_index_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-index-json", task_id]), 0)
             with redirect_stdout(retrieval_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval-json", task_id]), 0)
             with redirect_stdout(grounding_stdout):
@@ -4972,6 +4991,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Knowledge Policy Report", knowledge_policy_stdout.getvalue())
         self.assertIn("Knowledge Decision Record", knowledge_decisions_stdout.getvalue())
         self.assertIn("Canonical Knowledge Registry", canonical_registry_stdout.getvalue())
+        self.assertIn("Canonical Knowledge Registry Index", canonical_registry_index_stdout.getvalue())
         self.assertIn("Topology Report", topology_stdout.getvalue())
         self.assertIn("Execution Site Report", execution_site_stdout.getvalue())
         self.assertIn("Dispatch Report", dispatch_stdout.getvalue())
@@ -4995,6 +5015,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"status"', knowledge_policy_json_stdout.getvalue())
         self.assertIn("[", knowledge_decisions_json_stdout.getvalue())
         self.assertIn("[", canonical_registry_json_stdout.getvalue())
+        self.assertIn('"count"', canonical_registry_index_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())

@@ -55,3 +55,40 @@ def build_canonical_registry_report(records: list[dict[str, object]]) -> str:
             ]
         )
     return "\n".join(lines)
+
+
+def build_canonical_registry_index(records: list[dict[str, object]]) -> dict[str, object]:
+    by_task: dict[str, int] = {}
+    artifact_backed_count = 0
+    for record in records:
+        source_task_id = str(record.get("source_task_id", "unknown"))
+        by_task[source_task_id] = by_task.get(source_task_id, 0) + 1
+        if str(record.get("artifact_ref", "")).strip():
+            artifact_backed_count += 1
+    latest = records[-1] if records else {}
+    return {
+        "refreshed_at": utc_now(),
+        "count": len(records),
+        "source_task_count": len(by_task),
+        "artifact_backed_count": artifact_backed_count,
+        "latest_canonical_id": latest.get("canonical_id", "") if records else "",
+        "latest_source_task_id": latest.get("source_task_id", "") if records else "",
+        "latest_source_object_id": latest.get("source_object_id", "") if records else "",
+        "latest_promoted_at": latest.get("promoted_at", "") if records else "",
+    }
+
+
+def build_canonical_registry_index_report(index_record: dict[str, object]) -> str:
+    lines = [
+        "# Canonical Knowledge Registry Index",
+        "",
+        f"- refreshed_at: {index_record.get('refreshed_at', 'unknown')}",
+        f"- count: {index_record.get('count', 0)}",
+        f"- source_task_count: {index_record.get('source_task_count', 0)}",
+        f"- artifact_backed_count: {index_record.get('artifact_backed_count', 0)}",
+        f"- latest_canonical_id: {index_record.get('latest_canonical_id', '') or '-'}",
+        f"- latest_source_task_id: {index_record.get('latest_source_task_id', '') or '-'}",
+        f"- latest_source_object_id: {index_record.get('latest_source_object_id', '') or '-'}",
+        f"- latest_promoted_at: {index_record.get('latest_promoted_at', '') or '-'}",
+    ]
+    return "\n".join(lines)
