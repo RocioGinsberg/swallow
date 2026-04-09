@@ -7,7 +7,12 @@ from pathlib import Path
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
-from .orchestrator import create_task, run_task
+from .orchestrator import (
+    append_task_knowledge_capture,
+    create_task,
+    run_task,
+    update_task_planning_handoff,
+)
 from .paths import (
     artifacts_dir,
     capability_assembly_path,
@@ -128,6 +133,53 @@ def build_policy_snapshot(
         f"stop_decision: {stop_policy.get('stop_decision', 'pending')}",
         f"checkpoint_kind: {stop_policy.get('checkpoint_kind', 'pending')}",
         f"escalation_level: {stop_policy.get('escalation_level', 'pending')}",
+    ]
+
+
+def build_intake_snapshot(base_dir: Path, task_id: str) -> list[str]:
+    state = load_state(base_dir, task_id)
+    task_semantics = load_json_if_exists(task_semantics_path(base_dir, task_id))
+    knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, task_id))
+    if not isinstance(knowledge_objects, list):
+        knowledge_objects = []
+    knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
+    knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
+    knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
+    for item in knowledge_objects:
+        stage = str(item.get("stage", "raw"))
+        knowledge_stage_counts[stage] = knowledge_stage_counts.get(stage, 0) + 1
+        evidence_status = str(item.get("evidence_status", "unbacked"))
+        knowledge_evidence_counts[evidence_status] = knowledge_evidence_counts.get(evidence_status, 0) + 1
+        reuse_scope = str(item.get("knowledge_reuse_scope", "task_only"))
+        knowledge_reuse_counts[reuse_scope] = knowledge_reuse_counts.get(reuse_scope, 0) + 1
+
+    return [
+        f"Task Intake: {task_id}",
+        f"title: {state.title}",
+        "",
+        "Planning Handoff",
+        f"task_semantics_source_kind: {task_semantics.get('source_kind', state.task_semantics.get('source_kind', 'none') if state.task_semantics else 'none')}",
+        f"task_semantics_source_ref: {task_semantics.get('source_ref', state.task_semantics.get('source_ref', '') if state.task_semantics else '') or '-'}",
+        f"constraints_count: {len(task_semantics.get('constraints', state.task_semantics.get('constraints', []) if state.task_semantics else []))}",
+        f"acceptance_criteria_count: {len(task_semantics.get('acceptance_criteria', state.task_semantics.get('acceptance_criteria', []) if state.task_semantics else []))}",
+        f"priority_hints_count: {len(task_semantics.get('priority_hints', state.task_semantics.get('priority_hints', []) if state.task_semantics else []))}",
+        f"next_action_proposals_count: {len(task_semantics.get('next_action_proposals', state.task_semantics.get('next_action_proposals', []) if state.task_semantics else []))}",
+        "",
+        "Staged Knowledge Capture",
+        f"knowledge_objects_count: {len(knowledge_objects)}",
+        f"knowledge_stage_counts: raw={knowledge_stage_counts.get('raw', 0)} candidate={knowledge_stage_counts.get('candidate', 0)} verified={knowledge_stage_counts.get('verified', 0)} canonical={knowledge_stage_counts.get('canonical', 0)}",
+        f"knowledge_evidence_counts: artifact_backed={knowledge_evidence_counts.get('artifact_backed', 0)} source_only={knowledge_evidence_counts.get('source_only', 0)} unbacked={knowledge_evidence_counts.get('unbacked', 0)}",
+        f"knowledge_reuse_counts: retrieval_candidate={knowledge_reuse_counts.get('retrieval_candidate', 0)} task_only={knowledge_reuse_counts.get('task_only', 0)}",
+        "",
+        "Boundary",
+        "task_semantics_role: execution_intent",
+        "knowledge_objects_role: staged_evidence",
+        "",
+        "Intake Artifacts",
+        f"task_semantics_report: {state.artifact_paths.get('task_semantics_report', '-')}",
+        f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
+        f"knowledge_partition_report: {state.artifact_paths.get('knowledge_partition_report', '-')}",
+        f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
     ]
 
 
@@ -540,6 +592,81 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Routing policy mode to persist for the task. Defaults to auto.",
     )
+    planning_handoff_parser = task_subparsers.add_parser(
+        "planning-handoff",
+        help="Attach or tighten imported planning semantics for an existing task.",
+        description="Attach or tighten imported planning semantics for an existing task.",
+    )
+    planning_handoff_parser.add_argument("task_id", help="Task identifier.")
+    planning_handoff_parser.add_argument(
+        "--planning-source",
+        default="",
+        help="Optional external planning source reference for task semantics.",
+    )
+    planning_handoff_parser.add_argument(
+        "--constraint",
+        action="append",
+        default=[],
+        help="Imported planning constraint to attach to task semantics. Repeatable.",
+    )
+    planning_handoff_parser.add_argument(
+        "--acceptance-criterion",
+        action="append",
+        default=[],
+        help="Imported acceptance criterion to attach to task semantics. Repeatable.",
+    )
+    planning_handoff_parser.add_argument(
+        "--priority-hint",
+        action="append",
+        default=[],
+        help="Imported priority hint to attach to task semantics. Repeatable.",
+    )
+    planning_handoff_parser.add_argument(
+        "--next-action-proposal",
+        action="append",
+        default=[],
+        help="Imported next action proposal to attach to task semantics. Repeatable.",
+    )
+    knowledge_capture_parser = task_subparsers.add_parser(
+        "knowledge-capture",
+        help="Attach staged knowledge objects to an existing task.",
+        description="Attach staged knowledge objects to an existing task.",
+    )
+    knowledge_capture_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_capture_parser.add_argument(
+        "--knowledge-item",
+        action="append",
+        default=[],
+        help="External knowledge fragment to attach as a staged knowledge object. Repeatable.",
+    )
+    knowledge_capture_parser.add_argument(
+        "--knowledge-stage",
+        default="raw",
+        choices=["raw", "candidate", "verified", "canonical"],
+        help="Stage for imported knowledge objects. Defaults to raw.",
+    )
+    knowledge_capture_parser.add_argument(
+        "--knowledge-source",
+        default="",
+        help="Optional external source reference for imported knowledge objects.",
+    )
+    knowledge_capture_parser.add_argument(
+        "--knowledge-artifact-ref",
+        action="append",
+        default=[],
+        help="Optional artifact-backed evidence reference for each imported knowledge object. Repeatable and aligned by order.",
+    )
+    knowledge_capture_parser.add_argument(
+        "--knowledge-retrieval-eligible",
+        action="store_true",
+        help="Declare imported knowledge objects as retrieval-eligible candidates without automatically enabling retrieval reuse.",
+    )
+    knowledge_capture_parser.add_argument(
+        "--knowledge-canonicalization-intent",
+        default="none",
+        choices=["none", "review", "promote"],
+        help="Optional canonicalization intent for imported knowledge objects. This does not promote them automatically.",
+    )
 
     run_parser = task_subparsers.add_parser("run", help="Run a task through the current workflow loop.")
     run_parser.add_argument("task_id", help="Task identifier.")
@@ -664,6 +791,12 @@ def build_parser() -> argparse.ArgumentParser:
         "control", help="Print a compact per-task recovery and control snapshot."
     )
     control_parser.add_argument("task_id", help="Task identifier.")
+    intake_parser = task_subparsers.add_parser(
+        "intake",
+        help="Print a compact planning-handoff and staged-knowledge intake snapshot.",
+        description="Print a compact planning-handoff and staged-knowledge intake snapshot.",
+    )
+    intake_parser.add_argument("task_id", help="Task identifier.")
     inspect_parser = task_subparsers.add_parser("inspect", help="Print a compact per-task overview.")
     inspect_parser.add_argument("task_id", help="Task identifier.")
     semantics_parser = task_subparsers.add_parser("semantics", help="Print the task semantics report artifact.")
@@ -860,6 +993,37 @@ def main(argv: list[str] | None = None) -> int:
         print(state.task_id)
         return 0
 
+    if args.command == "task" and args.task_command == "planning-handoff":
+        state = update_task_planning_handoff(
+            base_dir=base_dir,
+            task_id=args.task_id,
+            constraints=args.constraint,
+            acceptance_criteria=args.acceptance_criterion,
+            priority_hints=args.priority_hint,
+            next_action_proposals=args.next_action_proposal,
+            planning_source=args.planning_source,
+        )
+        print(
+            f"{state.task_id} planning_handoff_updated "
+            f"constraints={len(state.task_semantics.get('constraints', []))} "
+            f"next_actions={len(state.task_semantics.get('next_action_proposals', []))}"
+        )
+        return 0
+
+    if args.command == "task" and args.task_command == "knowledge-capture":
+        state = append_task_knowledge_capture(
+            base_dir=base_dir,
+            task_id=args.task_id,
+            knowledge_items=args.knowledge_item,
+            knowledge_stage=args.knowledge_stage,
+            knowledge_source=args.knowledge_source,
+            knowledge_artifact_refs=args.knowledge_artifact_ref,
+            knowledge_retrieval_eligible=args.knowledge_retrieval_eligible,
+            knowledge_canonicalization_intent=args.knowledge_canonicalization_intent,
+        )
+        print(f"{state.task_id} knowledge_capture_added added={len(args.knowledge_item)} total={len(state.knowledge_objects)}")
+        return 0
+
     if args.command == "task" and args.task_command == "run":
         return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
 
@@ -1010,6 +1174,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "control":
         state = load_state(base_dir, args.task_id)
         print("\n".join(build_task_control_snapshot(base_dir, state)))
+        return 0
+
+    if args.command == "task" and args.task_command == "intake":
+        print("\n".join(build_intake_snapshot(base_dir, args.task_id)))
         return 0
 
     if args.command == "task" and args.task_command == "inspect":

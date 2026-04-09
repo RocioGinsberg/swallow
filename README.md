@@ -126,7 +126,7 @@ That staged promotion model is intended to preserve evidence while avoiding poll
 
 ## Current focus
 
-The repository is currently at a **Phase 10 Resume And Recovery Loop closeout checkpoint**.
+The repository is currently at a **Phase 11 Planning And Knowledge Intake Workbench closeout checkpoint**.
 
 The implemented baseline now includes:
 
@@ -137,9 +137,10 @@ The implemented baseline now includes:
 - explicit local-first execution with route, topology, dispatch, handoff, and execution-fit artifacts
 - execution-site, attempt-ownership, handoff-contract, retry, stop, and execution-budget policy artifacts
 - an operator-facing local workbench surface with queue, control, checkpoint, attempt history/comparison, resume, retry, and rerun entrypoints
+- operator-facing planning-handoff, staged knowledge-capture, and intake inspection entrypoints for imported inputs
 - Git project files and Markdown / Obsidian notes as retrieval sources
 
-The current goal is no longer to prove a bare bootstrap loop. The repository now treats the completed executor / external-input slice, retrieval / memory-next slice, and the completed Phase 6, Phase 7, Phase 8, Phase 9, and Phase 10 baselines as stable checkpoints. The next slice should start from a fresh kickoff note rather than continuing Phase 10 by default.
+The current goal is no longer to prove a bare bootstrap loop. The repository now treats the completed executor / external-input slice, retrieval / memory-next slice, and the completed Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, and Phase 11 baselines as stable checkpoints. The next slice should start from a fresh kickoff note rather than continuing Phase 11 by default.
 
 ## Long-term direction
 
@@ -282,6 +283,11 @@ Implementation checkpoint for interrupted sessions:
 - [docs/phase10_kickoff_note.md](./docs/phase10_kickoff_note.md)
 - [docs/phase10_task_breakdown.md](./docs/phase10_task_breakdown.md)
 - [docs/phase10_closeout_note.md](./docs/phase10_closeout_note.md)
+- [docs/phase10_commit_summary.md](./docs/phase10_commit_summary.md)
+- [docs/phase11_kickoff_note.md](./docs/phase11_kickoff_note.md)
+- [docs/phase11_task_breakdown.md](./docs/phase11_task_breakdown.md)
+- [docs/phase11_closeout_note.md](./docs/phase11_closeout_note.md)
+- [docs/phase11_commit_summary.md](./docs/phase11_commit_summary.md)
 
 ## Terminology
 
@@ -343,6 +349,7 @@ swl task list --focus needs-review
 swl task queue
 swl task inspect <task-id>
 swl task control <task-id>
+swl task intake <task-id>
 swl task attempts <task-id>
 swl task compare-attempts <task-id>
 swl task capabilities <task-id>
@@ -366,6 +373,14 @@ The intended operator boundary is:
 - `rerun` is an explicit operator override that starts a fresh run
 - `checkpoint` is the compact artifact to inspect before choosing among those paths
 
+Use the current imported-input intake entrypoints:
+
+```bash
+swl task planning-handoff <task-id> --planning-source chat://session-1 --constraint "Preserve explicit task semantics"
+swl task knowledge-capture <task-id> --knowledge-stage candidate --knowledge-source chat://session-2 --knowledge-item "Imported notes should remain staged."
+swl task intake <task-id>
+```
+
 Run a minimal Codex preflight:
 
 ```bash
@@ -387,9 +402,12 @@ The current CLI implements:
 - `swl task list`
 - `swl task queue`
 - `swl task control`
+- `swl task intake`
 - `swl task checkpoint`
 - `swl task attempts`
 - `swl task compare-attempts`
+- `swl task planning-handoff`
+- `swl task knowledge-capture`
 - `swl task resume`
 - `swl task retry`
 - `swl task rerun`

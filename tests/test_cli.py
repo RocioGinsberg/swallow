@@ -196,6 +196,62 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Task Semantics Report", semantics_report)
         self.assertIn("chat://planning-session-1", semantics_report)
 
+    def test_cli_planning_handoff_updates_existing_task_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Planning handoff update",
+                        "--goal",
+                        "Attach imported planning after task creation",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "planning-handoff",
+                        task_id,
+                        "--planning-source",
+                        "chat://phase11-planning",
+                        "--constraint",
+                        "Keep imported planning explicit",
+                        "--next-action-proposal",
+                        "Promote the handoff into task semantics",
+                    ]
+                ),
+                0,
+            )
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            task_semantics = json.loads((task_dir / "task_semantics.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(task_semantics["source_kind"], "external_planning_handoff")
+        self.assertEqual(task_semantics["source_ref"], "chat://phase11-planning")
+        self.assertEqual(task_semantics["constraints"], ["Keep imported planning explicit"])
+        self.assertEqual(task_semantics["next_action_proposals"], ["Promote the handoff into task semantics"])
+        self.assertEqual(events[-1]["event_type"], "task.planning_handoff_added")
+        self.assertEqual(events[-1]["payload"]["task_semantics"]["source_ref"], "chat://phase11-planning")
+
     def test_cli_create_persists_staged_knowledge_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -248,6 +304,67 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[0]["payload"]["knowledge_stage_counts"]["candidate"], 2)
         self.assertIn("Knowledge Objects Report", knowledge_report)
         self.assertIn("candidate: 2", knowledge_report)
+
+    def test_cli_knowledge_capture_appends_staged_knowledge_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Knowledge append",
+                        "--goal",
+                        "Attach staged knowledge after task creation",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "knowledge-capture",
+                        task_id,
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://phase11-knowledge",
+                        "--knowledge-item",
+                        "Imported planning notes can become staged knowledge.",
+                        "--knowledge-retrieval-eligible",
+                        "--knowledge-canonicalization-intent",
+                        "review",
+                    ]
+                ),
+                0,
+            )
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            knowledge_objects = json.loads((task_dir / "knowledge_objects.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(knowledge_objects), 1)
+        self.assertEqual(knowledge_objects[0]["stage"], "verified")
+        self.assertEqual(knowledge_objects[0]["source_ref"], "chat://phase11-knowledge")
+        self.assertEqual(knowledge_objects[0]["retrieval_eligible"], True)
+        self.assertEqual(knowledge_objects[0]["knowledge_reuse_scope"], "retrieval_candidate")
+        self.assertEqual(knowledge_objects[0]["canonicalization_intent"], "review")
+        self.assertEqual(events[-1]["event_type"], "task.knowledge_capture_added")
+        self.assertEqual(events[-1]["payload"]["added_count"], 1)
 
     def test_cli_create_marks_artifact_backed_knowledge_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1646,6 +1763,82 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("execution_budget_policy_report:", output)
         self.assertIn("stop_policy_report:", output)
 
+    def test_task_intake_prints_planning_and_knowledge_boundary_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Intake snapshot",
+                        "--goal",
+                        "Inspect imported planning and knowledge from a compact view",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "planning-handoff",
+                        task_id,
+                        "--planning-source",
+                        "chat://intake-planning",
+                        "--constraint",
+                        "Keep imported planning explicit",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "knowledge-capture",
+                        task_id,
+                        "--knowledge-stage",
+                        "candidate",
+                        "--knowledge-source",
+                        "chat://intake-knowledge",
+                        "--knowledge-item",
+                        "Imported knowledge should remain staged.",
+                    ]
+                ),
+                0,
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "intake", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"Task Intake: {task_id}", output)
+        self.assertIn("Planning Handoff", output)
+        self.assertIn("task_semantics_source_kind: external_planning_handoff", output)
+        self.assertIn("task_semantics_source_ref: chat://intake-planning", output)
+        self.assertIn("constraints_count: 1", output)
+        self.assertIn("Staged Knowledge Capture", output)
+        self.assertIn("knowledge_objects_count: 1", output)
+        self.assertIn("knowledge_stage_counts: raw=0 candidate=1 verified=0 canonical=0", output)
+        self.assertIn("Boundary", output)
+        self.assertIn("task_semantics_role: execution_intent", output)
+        self.assertIn("knowledge_objects_role: staged_evidence", output)
+        self.assertIn("task_semantics_report:", output)
+        self.assertIn("knowledge_objects_report:", output)
+
     def test_task_artifacts_groups_paths_by_operator_concern(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -1830,7 +2023,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(raised.exception.code, 0)
         output = stdout.getvalue()
         self.assertIn("list                List tasks with compact status summaries.", output)
+        self.assertIn("planning-handoff    Attach or tighten imported planning semantics", output)
+        self.assertIn("knowledge-capture   Attach staged knowledge objects to an existing", output)
         self.assertIn("inspect             Print a compact per-task overview.", output)
+        self.assertIn("intake              Print a compact planning-handoff and staged-", output)
         self.assertIn("review              Print a review-focused task handoff summary.", output)
         self.assertIn("resume              Resume a task on the accepted run path", output)
         self.assertIn("artifacts           Print grouped task artifact paths.", output)
@@ -1924,6 +2120,21 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 0)
         self.assertIn("--capability CAPABILITY", stdout.getvalue())
+
+    def test_intake_commands_help_describes_planning_and_knowledge_paths(self) -> None:
+        command_expectations = [
+            (["task", "planning-handoff", "--help"], "Attach or tighten imported planning semantics"),
+            (["task", "knowledge-capture", "--help"], "Attach staged knowledge objects to an existing task."),
+            (["task", "intake", "--help"], "Print a compact planning-handoff and staged-knowledge intake snapshot."),
+        ]
+
+        for argv, expected in command_expectations:
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                with self.assertRaises(SystemExit) as raised:
+                    main(argv)
+            self.assertEqual(raised.exception.code, 0)
+            self.assertIn(expected, stdout.getvalue())
 
     def test_retrieval_evaluation_fixtures_cover_notes_repo_and_artifacts(self) -> None:
         fixture_root = Path(__file__).resolve().parent / "fixtures" / "retrieval_eval"

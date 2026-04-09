@@ -28,7 +28,7 @@ The repository now includes:
 
 ## Current planning state
 
-Active phase: Phase 10 Resume And Recovery Loop closeout checkpoint.
+Active phase: Phase 11 Planning And Knowledge Intake Workbench closeout checkpoint.
 
 Phase status:
 
@@ -46,6 +46,7 @@ Phase status:
 - Phase 8 baseline complete
 - Phase 9 baseline complete
 - Phase 10 baseline complete
+- Phase 11 baseline complete
 
 ## Current references
 
@@ -78,3 +79,7 @@ Phase status:
 - `/home/rocio/projects/swallow/docs/phase10_task_breakdown.md`
 - `/home/rocio/projects/swallow/docs/phase10_closeout_note.md`
 - `/home/rocio/projects/swallow/docs/phase10_commit_summary.md`
+- `/home/rocio/projects/swallow/docs/phase11_kickoff_note.md`
+- `/home/rocio/projects/swallow/docs/phase11_task_breakdown.md`
+- `/home/rocio/projects/swallow/docs/phase11_closeout_note.md`
+- `/home/rocio/projects/swallow/docs/phase11_commit_summary.md`

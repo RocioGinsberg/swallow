@@ -15,6 +15,7 @@ def build_knowledge_objects(
     artifact_refs: list[str] | None = None,
     retrieval_eligible: bool = False,
     canonicalization_intent: str = "none",
+    starting_index: int = 1,
 ) -> list[KnowledgeObject]:
     normalized_stage = stage.strip().lower() if stage else "raw"
     if normalized_stage not in KNOWLEDGE_STAGES:
@@ -23,7 +24,7 @@ def build_knowledge_objects(
 
     objects: list[KnowledgeObject] = []
     normalized_artifact_refs = [(item or "").strip() for item in (artifact_refs or [])]
-    for index, item in enumerate(items or [], start=1):
+    for index, item in enumerate(items or [], start=starting_index):
         text = item.strip()
         if not text:
             continue

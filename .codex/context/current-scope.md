@@ -71,6 +71,15 @@ The completed Phase 10 baseline established:
 - explicit phase-closeout synchronization rules for status-entry documents
 - a short phase-local commit-summary note for manual Git submission reuse
 
+The completed Phase 11 baseline established:
+
+- operator-facing planning-handoff intake for explicit task semantics
+- staged knowledge-capture intake for existing tasks
+- compact imported-input inspection through `swl task intake`
+- clearer operator-facing boundaries between task semantics and knowledge objects
+- aligned CLI help and README coverage for imported-input intake commands
+- explicit phase-closeout synchronization plus a reusable commit-summary note
+
 ## Explicit non-goals right now
 
 Do not treat these as current-slice requirements:
@@ -97,6 +106,7 @@ When planning the next task:
 - use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice
 - use `docs/phase9_closeout_note.md` as the stop/go reference for the completed `Workbench / UX` slice
 - use `docs/phase10_closeout_note.md` as the stop/go reference for completed Phase 10 work
-- use `docs/phase10_commit_summary.md` as the reusable short commit-summary note for the completed Phase 10 slice
+- use `docs/phase11_closeout_note.md` as the stop/go reference for completed Phase 11 work
+- use `docs/phase11_commit_summary.md` as the reusable short commit-summary note for the completed Phase 11 slice
 - write a fresh kickoff note before starting the next slice
 - prefer a fresh planning note over open-ended continuation

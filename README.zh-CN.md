@@ -131,7 +131,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 ## 当前阶段
 
-当前仓库正处于 **Phase 10 Resume And Recovery Loop 收口检查点**。
+当前仓库正处于 **Phase 11 Planning And Knowledge Intake Workbench 收口检查点**。
 
 当前已经实现的基线包括：
 
@@ -142,9 +142,10 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - 明确的本地优先执行路径，以及 route、topology、dispatch、handoff、execution-fit 产物
 - execution-site、attempt ownership、handoff contract、retry、stop 与 execution budget 等 policy / control 产物
 - 面向 operator 的本地 workbench 控制面，包括 queue、control、checkpoint、attempts / compare-attempts、resume、retry 与 rerun 入口
+- 面向 imported input 的 planning handoff、staged knowledge capture 与 intake inspection 入口
 - Git 项目文件与 Markdown / Obsidian 笔记检索
 
-当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把已完成的 executor / external-input 切片、retrieval / memory 下一段切片，以及已完成的 Phase 6、Phase 7、Phase 8、Phase 9、Phase 10 都视为稳定检查点。下一条切片应从新的 kickoff note 开始，而不是默认继续扩张 Phase 10。
+当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把已完成的 executor / external-input 切片、retrieval / memory 下一段切片，以及已完成的 Phase 6、Phase 7、Phase 8、Phase 9、Phase 10、Phase 11 都视为稳定检查点。下一条切片应从新的 kickoff note 开始，而不是默认继续扩张 Phase 11。
 
 ## 长期方向
 
@@ -286,6 +287,10 @@ Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-
 - [docs/phase10_task_breakdown.md](./docs/phase10_task_breakdown.md)
 - [docs/phase10_closeout_note.md](./docs/phase10_closeout_note.md)
 - [docs/phase10_commit_summary.md](./docs/phase10_commit_summary.md)
+- [docs/phase11_kickoff_note.md](./docs/phase11_kickoff_note.md)
+- [docs/phase11_task_breakdown.md](./docs/phase11_task_breakdown.md)
+- [docs/phase11_closeout_note.md](./docs/phase11_closeout_note.md)
+- [docs/phase11_commit_summary.md](./docs/phase11_commit_summary.md)
 
 ## 术语说明
 
@@ -347,6 +352,7 @@ swl task list --focus needs-review
 swl task queue
 swl task inspect <task-id>
 swl task control <task-id>
+swl task intake <task-id>
 swl task attempts <task-id>
 swl task compare-attempts <task-id>
 swl task capabilities <task-id>
@@ -369,6 +375,14 @@ swl task rerun <task-id>
 - `retry`：沿当前 accepted run path，受 retry / stop policy 约束
 - `rerun`：显式人工 override，重新开启一轮 run
 - `checkpoint`：在选择上述路径前先查看的紧凑恢复快照
+
+使用当前 imported input intake 入口：
+
+```bash
+swl task planning-handoff <task-id> --planning-source chat://session-1 --constraint "保持 task semantics 显式化"
+swl task knowledge-capture <task-id> --knowledge-stage candidate --knowledge-source chat://session-2 --knowledge-item "导入知识应先保持 staged 状态。"
+swl task intake <task-id>
+```
 
 运行测试：
 
@@ -394,6 +408,11 @@ python3 -m unittest discover -s tests
 - [docs/phase10_kickoff_note.md](./docs/phase10_kickoff_note.md)
 - [docs/phase10_task_breakdown.md](./docs/phase10_task_breakdown.md)
 - [docs/phase10_closeout_note.md](./docs/phase10_closeout_note.md)
+- [docs/phase10_commit_summary.md](./docs/phase10_commit_summary.md)
+- [docs/phase11_kickoff_note.md](./docs/phase11_kickoff_note.md)
+- [docs/phase11_task_breakdown.md](./docs/phase11_task_breakdown.md)
+- [docs/phase11_closeout_note.md](./docs/phase11_closeout_note.md)
+- [docs/phase11_commit_summary.md](./docs/phase11_commit_summary.md)
 
 ## 当前 CLI 形态
 
@@ -404,9 +423,12 @@ python3 -m unittest discover -s tests
 - `swl task list`
 - `swl task queue`
 - `swl task control`
+- `swl task intake`
 - `swl task checkpoint`
 - `swl task attempts`
 - `swl task compare-attempts`
+- `swl task planning-handoff`
+- `swl task knowledge-capture`
 - `swl task resume`
 - `swl task retry`
 - `swl task rerun`

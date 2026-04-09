@@ -1,6 +1,6 @@
 # Active Phase
 
-Current active phase: Phase 10 Resume And Recovery Loop closeout checkpoint.
+Current active phase: Phase 11 Planning And Knowledge Intake Workbench closeout checkpoint.
 
 ## Current status
 
@@ -18,6 +18,7 @@ Current active phase: Phase 10 Resume And Recovery Loop closeout checkpoint.
 - Phase 8 baseline complete
 - Phase 9 baseline complete
 - Phase 10 baseline complete
+- Phase 11 baseline complete
 
 ## Working references
 
@@ -97,6 +98,16 @@ Current active phase: Phase 10 Resume And Recovery Loop closeout checkpoint.
   - `/home/rocio/projects/swallow/docs/phase10_commit_summary.md`
 - Phase 10 phase slice:
   - `/home/rocio/projects/swallow/.codex/phases/phase10.md`
+- Phase 11 kickoff:
+  - `/home/rocio/projects/swallow/docs/phase11_kickoff_note.md`
+- Phase 11 breakdown:
+  - `/home/rocio/projects/swallow/docs/phase11_task_breakdown.md`
+- Phase 11 closeout:
+  - `/home/rocio/projects/swallow/docs/phase11_closeout_note.md`
+- Phase 11 commit summary:
+  - `/home/rocio/projects/swallow/docs/phase11_commit_summary.md`
+- Phase 11 phase slice:
+  - `/home/rocio/projects/swallow/.codex/phases/phase11.md`
 
 ## Current implementation baseline
 
@@ -125,4 +136,4 @@ The repository already has:
 
 New planning work should align with `docs/system_tracks.md` first and then the active closeout references above.
 
-New implementation work should not fall back to a generic MVP framing or continue completed Phase 8, Phase 9, or Phase 10 breadth by default. Choose the next track intentionally and write a fresh kickoff note first.
+New implementation work should not fall back to a generic MVP framing or continue completed Phase 8, Phase 9, Phase 10, or Phase 11 breadth by default. Choose the next track intentionally and write a fresh kickoff note first.

@@ -6,8 +6,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; post-Phase-2 retrieval baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; post-Phase-5 executor / external-input slice complete; post-Phase-5 retrieval / memory-next slice complete; Phase 6 baseline complete; Phase 7 baseline complete; Phase 8 baseline complete; Phase 9 baseline complete; Phase 10 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 10 Resume And Recovery Loop closeout checkpoint
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; post-Phase-2 retrieval baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; post-Phase-5 executor / external-input slice complete; post-Phase-5 retrieval / memory-next slice complete; Phase 6 baseline complete; Phase 7 baseline complete; Phase 8 baseline complete; Phase 9 baseline complete; Phase 10 baseline complete; Phase 11 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 11 Planning And Knowledge Intake Workbench closeout checkpoint
 - last checked: 2026-04-09
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -51,6 +51,11 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase10_task_breakdown.md`
   - `docs/phase10_closeout_note.md`
   - `docs/phase10_commit_summary.md`
+- phase 11 planning reference:
+  - `docs/phase11_kickoff_note.md`
+  - `docs/phase11_task_breakdown.md`
+  - `docs/phase11_closeout_note.md`
+  - `docs/phase11_commit_summary.md`
 - post-Phase-5 planning reference:
   - `docs/post_phase5_executor_and_external_input_kickoff_note.md`
   - `docs/post_phase5_executor_and_external_input_task_breakdown.md`
@@ -234,6 +239,12 @@ This file tracks the implementation status of the repository itself so work can 
   - `P10-04` interruption recovery semantics baseline is implemented with explicit checkpoint-level `recovery_semantics` and `interruption_kind` classification, plus aligned visibility across `checkpoint`, `control`, `inspect`, and `review` output for interrupted-style failures such as `timeout`, `launch_error`, and `unreachable_backend`
   - `P10-05` resume command and help alignment is implemented with clearer CLI help for `queue`, `control`, `checkpoint`, `resume`, `retry`, and `rerun`, plus README quickstart guidance that explains when each recovery path should be used
   - `P10-06` closeout, documentation synchronization, and commit-summary note is implemented with a dedicated Phase 10 closeout note, a reusable `docs/phase10_commit_summary.md`, and synchronized status-entry documents that now treat Phase 10 as a completed baseline rather than an in-progress slice
+  - `P11-01` planning-handoff intake baseline is implemented with `swl task planning-handoff`, an operator-facing path that updates explicit task-semantics records for existing tasks without routing imported planning through loose chat history
+  - `P11-02` staged knowledge-capture intake baseline is implemented with `swl task knowledge-capture`, an operator-facing path that appends staged knowledge objects to existing tasks while preserving evidence, reuse, partition, and index truth
+  - `P11-03` imported-input inspection tightening is implemented with `swl task intake`, a compact imported-input snapshot that surfaces planning handoff and staged knowledge capture without requiring raw JSON first
+  - `P11-04` task-semantics versus knowledge-object boundary tightening is implemented with intake output that makes execution intent versus staged evidence explicit instead of flattening imported inputs into one bucket
+  - `P11-05` intake command and help alignment is implemented with CLI help coverage for planning handoff, staged knowledge capture, and intake inspection plus aligned command discoverability in the current local workbench
+  - `P11-06` closeout, documentation synchronization, and commit-summary note is implemented with a dedicated Phase 11 closeout note, a reusable `docs/phase11_commit_summary.md`, and synchronized status-entry documents that now treat Phase 11 as a completed baseline rather than an in-progress slice
   - `P9-05` workbench command and help alignment is implemented with updated Phase 9 command discoverability in CLI help plus synchronized README and README.zh-CN coverage for queue, control, attempt history/comparison, and explicit retry/rerun entrypoints
   - `P9-06` closeout and status alignment is implemented with a dedicated Phase 9 closeout note and synchronized status-entry documents that now treat Phase 9 as a completed baseline rather than an active planning checkpoint
   - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
@@ -276,7 +287,8 @@ This file tracks the implementation status of the repository itself so work can 
 - The planned Phase 8 baseline is complete enough to stop open-ended `Evaluation / Policy` expansion by default.
 - Phase 9 baseline is complete enough to stop open-ended `Workbench / UX` expansion by default.
 - Phase 10 baseline is complete enough to stop open-ended `Core Loop` recovery expansion by default.
-- New work should now begin from a fresh kickoff note rather than extending completed Phase 10 work by default.
+- Phase 11 baseline is complete enough to stop open-ended imported-input workbench expansion by default.
+- New work should now begin from a fresh kickoff note rather than extending completed Phase 11 work by default.
 
 ## Known Issues
 
@@ -297,11 +309,12 @@ This file tracks the implementation status of the repository itself so work can 
 10. Use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice.
 11. Use `docs/phase9_closeout_note.md` as the stop/go reference for the completed `Workbench / UX` slice.
 12. Use `docs/phase10_closeout_note.md` as the stop/go reference for completed Phase 10 work.
-13. Use `docs/phase10_commit_summary.md` as the reusable short commit-summary note for the completed Phase 10 slice.
-14. Use `docs/system_tracks.md` to choose the next primary track intentionally.
-15. Write a fresh kickoff note before starting the next slice.
-16. Verify the editable install exposes the `swl` entrypoint correctly.
-17. Update this file after each substantial code change.
+13. Use `docs/phase11_closeout_note.md` as the stop/go reference for completed Phase 11 work.
+14. Use `docs/phase11_commit_summary.md` as the reusable short commit-summary note for the completed Phase 11 slice.
+15. Use `docs/system_tracks.md` to choose the next primary track intentionally.
+16. Write a fresh kickoff note before starting the next slice.
+17. Verify the editable install exposes the `swl` entrypoint correctly.
+18. Update this file after each substantial code change.
 
 ## Resume Command
 

@@ -38,8 +38,9 @@ This project is developed in phases.
 - Phase 8: complete the `Execution Control Policy` baseline around retry, stop/escalation, detached checkpoints, execution budget, and policy inspection.
 - Phase 9: complete the `Operator Control Workbench` baseline around action queues, task control snapshots, attempt history/comparison, and explicit retry/rerun workbench entrypoints.
 - Phase 10: complete the `Resume And Recovery Loop` baseline around checkpoint snapshots, resume semantics, interruption recovery, and explicit phase-closeout documentation sync.
+- Phase 11: complete the `Planning And Knowledge Intake Workbench` baseline around operator-facing planning handoff, staged knowledge capture, and imported-input inspection.
 
-Phase 0 through Phase 10 are already complete.
+Phase 0 through Phase 11 are already complete.
 The post-Phase-2 retrieval baseline is complete.
 The post-Phase-5 executor / external-input slice is complete.
 The post-Phase-5 retrieval / memory-next slice is complete.
@@ -61,7 +62,7 @@ Use `docs/system_tracks.md` as the top-level planning map before defining or exe
 
 ## Current planning state
 
-Current planning checkpoint: Phase 10 Resume And Recovery Loop closeout checkpoint.
+Current planning checkpoint: Phase 11 Planning And Knowledge Intake Workbench closeout checkpoint.
 
 Current implementation status:
 1. Phase 0 accepted
@@ -78,6 +79,7 @@ Current implementation status:
 12. Phase 8 baseline complete
 13. Phase 9 baseline complete
 14. Phase 10 baseline complete
+15. Phase 11 baseline complete
 
 Current planning direction:
 1. anchor new work in `docs/system_tracks.md`
@@ -91,8 +93,9 @@ Current planning direction:
 9. use `docs/phase8_closeout_note.md` as the stop/go reference for completed Phase 8 work
 10. use `docs/phase9_closeout_note.md` as the stop/go reference for completed Phase 9 work
 11. use `docs/phase10_closeout_note.md` as the stop/go reference for completed Phase 10 work
-12. use `docs/phase10_commit_summary.md` as the reusable short commit-summary note for the completed Phase 10 slice
-13. do not start the next slice without a fresh kickoff note
+12. use `docs/phase11_closeout_note.md` as the stop/go reference for completed Phase 11 work
+13. use `docs/phase11_commit_summary.md` as the reusable short commit-summary note for the completed Phase 11 slice
+14. do not start the next slice without a fresh kickoff note
 
 Do not default new work back to a generic MVP feature bundle. Start from the current system map and current closeout checkpoint.
 
@@ -110,7 +113,8 @@ Current planning should focus on:
 - treating the completed Phase 8 `Evaluation / Policy` baseline as a stable checkpoint
 - treating the completed Phase 9 `Workbench / UX` baseline as a stable checkpoint
 - treating the completed Phase 10 `Core Loop` recovery baseline as a stable checkpoint
-- planning the next slice from a fresh kickoff note rather than extending Phase 10 by default
+- treating the completed Phase 11 imported-input workbench baseline as a stable checkpoint
+- planning the next slice from a fresh kickoff note rather than extending Phase 11 by default
 - avoiding accidental open-ended continuation of `Capabilities`, execution-topology, or evaluation/policy breadth
 - keeping retrieval, routing, validation, memory, and artifact semantics inspectable
 

@@ -354,6 +354,17 @@ Secondary effect:
 - Workbench / UX through resume and checkpoint entrypoints
 - Evaluation / Policy through clearer recovery-boundary decisions
 
+### Phase 11
+
+Primary tracks:
+
+- Workbench / UX
+
+Secondary effect:
+
+- Core Loop through clearer planning-handoff task intake
+- Retrieval / Memory through staged-knowledge intake and imported-input inspection
+
 ## Planning Rule
 
 Future planning should happen in two passes:
@@ -383,14 +394,15 @@ The repository is now at a closeout checkpoint with:
 - Phase 8 baseline complete
 - Phase 9 baseline complete
 - Phase 10 baseline complete
+- Phase 11 baseline complete
 
 Current stop/go reference:
 
-- `docs/phase10_closeout_note.md`
+- `docs/phase11_closeout_note.md`
 
 Current reusable commit-summary reference:
 
-- `docs/phase10_commit_summary.md`
+- `docs/phase11_commit_summary.md`
 
 Next planning requirement:
 

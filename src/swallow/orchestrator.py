@@ -268,6 +268,126 @@ def create_task(
     return state
 
 
+def _merge_unique_items(existing: list[str] | None, incoming: list[str] | None) -> list[str]:
+    merged: list[str] = []
+    seen: set[str] = set()
+    for item in (existing or []) + (incoming or []):
+        normalized = item.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        merged.append(normalized)
+    return merged
+
+
+def update_task_planning_handoff(
+    base_dir: Path,
+    task_id: str,
+    *,
+    constraints: list[str] | None = None,
+    acceptance_criteria: list[str] | None = None,
+    priority_hints: list[str] | None = None,
+    next_action_proposals: list[str] | None = None,
+    planning_source: str | None = None,
+) -> TaskState:
+    state = load_state(base_dir, task_id)
+    current_semantics = state.task_semantics or {}
+    effective_planning_source = (planning_source or str(current_semantics.get("source_ref", ""))).strip()
+    merged_semantics = build_task_semantics(
+        title=state.title,
+        goal=state.goal,
+        constraints=_merge_unique_items(list(current_semantics.get("constraints", [])), constraints),
+        acceptance_criteria=_merge_unique_items(
+            list(current_semantics.get("acceptance_criteria", [])), acceptance_criteria
+        ),
+        priority_hints=_merge_unique_items(list(current_semantics.get("priority_hints", [])), priority_hints),
+        next_action_proposals=_merge_unique_items(
+            list(current_semantics.get("next_action_proposals", [])), next_action_proposals
+        ),
+        planning_source=effective_planning_source or None,
+    )
+    state.task_semantics = merged_semantics.to_dict()
+    save_state(base_dir, state)
+    save_task_semantics(base_dir, task_id, state.task_semantics)
+    write_artifact(base_dir, task_id, "task_semantics_report.md", build_task_semantics_report(state))
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type="task.planning_handoff_added",
+            message="Planning handoff updated.",
+            payload={
+                "task_semantics": state.task_semantics,
+                "constraints_count": len(state.task_semantics.get("constraints", [])),
+                "acceptance_criteria_count": len(state.task_semantics.get("acceptance_criteria", [])),
+                "priority_hints_count": len(state.task_semantics.get("priority_hints", [])),
+                "next_action_proposals_count": len(state.task_semantics.get("next_action_proposals", [])),
+            },
+        ),
+    )
+    return state
+
+
+def append_task_knowledge_capture(
+    base_dir: Path,
+    task_id: str,
+    *,
+    knowledge_items: list[str] | None = None,
+    knowledge_stage: str = "raw",
+    knowledge_source: str | None = None,
+    knowledge_artifact_refs: list[str] | None = None,
+    knowledge_retrieval_eligible: bool = False,
+    knowledge_canonicalization_intent: str = "none",
+) -> TaskState:
+    state = load_state(base_dir, task_id)
+    existing_objects = list(state.knowledge_objects or [])
+    new_objects = build_knowledge_objects(
+        items=knowledge_items,
+        stage=knowledge_stage,
+        source_ref=knowledge_source,
+        artifact_refs=knowledge_artifact_refs,
+        retrieval_eligible=knowledge_retrieval_eligible,
+        canonicalization_intent=knowledge_canonicalization_intent,
+        starting_index=len(existing_objects) + 1,
+    )
+    state.knowledge_objects = existing_objects + [item.to_dict() for item in new_objects]
+    knowledge_partition = build_knowledge_partition(state.knowledge_objects)
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
+    save_state(base_dir, state)
+    save_knowledge_objects(base_dir, task_id, state.knowledge_objects)
+    save_knowledge_partition(base_dir, task_id, knowledge_partition)
+    save_knowledge_index(base_dir, task_id, knowledge_index)
+    write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
+    write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
+    write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type="task.knowledge_capture_added",
+            message="Knowledge capture updated.",
+            payload={
+                "added_count": len(new_objects),
+                "knowledge_objects_count": len(state.knowledge_objects),
+                "knowledge_stage_counts": summarize_knowledge_stages(state.knowledge_objects),
+                "knowledge_evidence_counts": summarize_knowledge_evidence(state.knowledge_objects),
+                "knowledge_reuse_counts": summarize_knowledge_reuse(state.knowledge_objects),
+                "knowledge_canonicalization_counts": summarize_canonicalization(state.knowledge_objects),
+                "knowledge_partition": {
+                    "task_linked_count": knowledge_partition["task_linked_count"],
+                    "reusable_candidate_count": knowledge_partition["reusable_candidate_count"],
+                },
+                "knowledge_index": {
+                    "active_reusable_count": knowledge_index["active_reusable_count"],
+                    "inactive_reusable_count": knowledge_index["inactive_reusable_count"],
+                    "refreshed_at": knowledge_index["refreshed_at"],
+                },
+            },
+        ),
+    )
+    return state
+
+
 def _set_phase(base_dir: Path, state: TaskState, phase: str) -> None:
     state.phase = phase
     save_state(base_dir, state)
