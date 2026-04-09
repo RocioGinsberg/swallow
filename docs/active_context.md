@@ -75,12 +75,13 @@
   - `swl task canonical-registry`
   - `swl task canonical-registry-json`
 - task artifact 视图已包含 canonical registry 路径
+- inspect / review 已纳入 canonical registry 摘要
 - 相关 CLI 测试已补齐并通过
 
 ## 下一步
 
 下一步应优先完成：
 
-1. 收紧 canonical registry 在 inspect / review / queue 中的呈现边界
-2. 对齐 README / CLI help 中 canonical registry 的 operator 语义
-3. 继续评估是否需要最小 canonical registry index / summary 结构
+1. 对齐 README / CLI help 中 canonical registry 的 operator 语义
+2. 继续评估是否需要最小 canonical registry index / summary 结构
+3. 视需要把 canonical registry 摘要进一步纳入 queue / control

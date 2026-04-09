@@ -253,6 +253,15 @@ swl task knowledge-reject <task-id> <object-id> --target reuse --note "暂时保
 swl task knowledge-decisions <task-id>
 ```
 
+canonical registry 查看：
+
+```bash
+swl task canonical-registry <task-id>
+swl task canonical-registry-json <task-id>
+```
+
+canonical registry record 是显式持久化的 canonical knowledge 输出，不等于自动全局记忆，也不会自动开启广义 retrieval reuse。
+
 运行测试：
 
 ```bash

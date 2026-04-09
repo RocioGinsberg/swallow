@@ -261,6 +261,15 @@ swl task knowledge-reject <task-id> <object-id> --target reuse --note "Keep task
 swl task knowledge-decisions <task-id>
 ```
 
+Canonical registry inspection:
+
+```bash id="p13ckr"
+swl task canonical-registry <task-id>
+swl task canonical-registry-json <task-id>
+```
+
+Canonical registry records are explicit persisted outputs for promoted canonical knowledge. They are not automatic global memory and do not automatically enable broad retrieval reuse.
+
 Run the test suite:
 
 ```bash id="w0d5ha"
