@@ -276,9 +276,12 @@ def build_canonical_registry_snapshot(index_record: dict[str, object]) -> list[s
     return [
         "Canonical Registry",
         f"canonical_registry_count: {index_record.get('count', 0)}",
+        f"canonical_registry_active_count: {index_record.get('active_count', 0)}",
+        f"canonical_registry_superseded_count: {index_record.get('superseded_count', 0)}",
         f"canonical_registry_source_task_count: {index_record.get('source_task_count', 0)}",
         f"canonical_registry_artifact_backed_count: {index_record.get('artifact_backed_count', 0)}",
         f"canonical_registry_latest_id: {index_record.get('latest_canonical_id', '') or '-'}",
+        f"canonical_registry_latest_active_id: {index_record.get('latest_active_canonical_id', '') or '-'}",
         f"canonical_registry_latest_source_task: {index_record.get('latest_source_task_id', '') or '-'}",
         f"canonical_registry_latest_source_object: {index_record.get('latest_source_object_id', '') or '-'}",
     ]

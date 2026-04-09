@@ -315,20 +315,28 @@ class CliLifecycleTest(unittest.TestCase):
                 tmp_path,
                 {
                     "canonical_id": "canonical-task-1-object-1",
+                    "canonical_key": "artifact:.swl/tasks/demo/artifacts/evidence.md",
                     "source_task_id": "task-1",
                     "source_object_id": "object-1",
                     "promoted_at": "2026-04-09T00:00:00Z",
                     "decision_note": "initial",
+                    "canonical_status": "active",
+                    "superseded_by": "",
+                    "superseded_at": "",
                 },
             )
             append_canonical_record(
                 tmp_path,
                 {
                     "canonical_id": "canonical-task-1-object-1",
+                    "canonical_key": "artifact:.swl/tasks/demo/artifacts/evidence.md",
                     "source_task_id": "task-1",
                     "source_object_id": "object-1",
                     "promoted_at": "2026-04-09T01:00:00Z",
                     "decision_note": "updated",
+                    "canonical_status": "active",
+                    "superseded_by": "",
+                    "superseded_at": "",
                 },
             )
 
@@ -342,6 +350,53 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(records[0]["canonical_id"], "canonical-task-1-object-1")
         self.assertEqual(records[0]["decision_note"], "updated")
         self.assertEqual(records[0]["promoted_at"], "2026-04-09T01:00:00Z")
+        self.assertEqual(records[0]["canonical_status"], "active")
+
+    def test_append_canonical_record_supersedes_previous_trace_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            append_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": "canonical-task-1-object-1",
+                    "canonical_key": "artifact:.swl/tasks/demo/artifacts/evidence.md",
+                    "source_task_id": "task-1",
+                    "source_object_id": "object-1",
+                    "promoted_at": "2026-04-09T00:00:00Z",
+                    "decision_note": "initial",
+                    "canonical_status": "active",
+                    "superseded_by": "",
+                    "superseded_at": "",
+                },
+            )
+            append_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": "canonical-task-2-object-9",
+                    "canonical_key": "artifact:.swl/tasks/demo/artifacts/evidence.md",
+                    "source_task_id": "task-2",
+                    "source_object_id": "object-9",
+                    "promoted_at": "2026-04-09T02:00:00Z",
+                    "decision_note": "replacement",
+                    "canonical_status": "active",
+                    "superseded_by": "",
+                    "superseded_at": "",
+                },
+            )
+
+            records = [
+                json.loads(line)
+                for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(records), 2)
+        self.assertEqual(records[0]["canonical_status"], "superseded")
+        self.assertEqual(records[0]["superseded_by"], "canonical-task-2-object-9")
+        self.assertEqual(records[0]["superseded_at"], "2026-04-09T02:00:00Z")
+        self.assertEqual(records[1]["canonical_status"], "active")
+        self.assertEqual(records[1]["canonical_id"], "canonical-task-2-object-9")
 
     def test_cli_knowledge_capture_appends_staged_knowledge_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -732,6 +787,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["artifact_ref"], ".swl/tasks/demo/artifacts/evidence.md")
         self.assertIn("Canonical Registry", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_count: 1", inspect_stdout.getvalue())
+        self.assertIn("canonical_registry_active_count: 1", inspect_stdout.getvalue())
+        self.assertIn("canonical_registry_superseded_count: 0", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_source_task_count: 1", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_latest_source_task: " + task_id, inspect_stdout.getvalue())
         self.assertIn("Canonical Registry", review_stdout.getvalue())
@@ -740,10 +797,17 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Canonical Knowledge Registry Index", registry_index_stdout.getvalue())
         self.assertIn("dedupe_key: canonical_id", registry_index_stdout.getvalue())
         self.assertIn("replace_strategy: latest_record_wins", registry_index_stdout.getvalue())
+        self.assertIn("supersede_key: canonical_key", registry_index_stdout.getvalue())
+        self.assertIn("supersede_strategy: latest_active_by_trace", registry_index_stdout.getvalue())
+        self.assertIn("active_count: 1", registry_index_stdout.getvalue())
+        self.assertIn("superseded_count: 0", registry_index_stdout.getvalue())
         self.assertIn("source_task_count: 1", registry_index_stdout.getvalue())
+        self.assertIn(f"canonical_key: artifact:.swl/tasks/demo/artifacts/evidence.md", registry_stdout.getvalue())
+        self.assertIn("canonical_status: active", registry_stdout.getvalue())
         self.assertIn(f"source_task_id: {task_id}", registry_stdout.getvalue())
         self.assertIn('"canonical_id"', registry_json_stdout.getvalue())
         self.assertIn('"dedupe_key": "canonical_id"', registry_index_json_stdout.getvalue())
+        self.assertIn('"supersede_key": "canonical_key"', registry_index_json_stdout.getvalue())
         self.assertIn('"source_task_count"', registry_index_json_stdout.getvalue())
 
     def test_cli_create_marks_retrieval_eligible_knowledge_objects(self) -> None:

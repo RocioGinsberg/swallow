@@ -4,6 +4,18 @@ from .models import utc_now
 
 CANONICAL_REGISTRY_DEDUPE_KEY = "canonical_id"
 CANONICAL_REGISTRY_REPLACE_STRATEGY = "latest_record_wins"
+CANONICAL_REGISTRY_SUPERSEDE_KEY = "canonical_key"
+CANONICAL_REGISTRY_SUPERSEDE_STRATEGY = "latest_active_by_trace"
+
+
+def build_canonical_key(*, knowledge_object: dict[str, object], task_id: str, object_id: str) -> str:
+    artifact_ref = str(knowledge_object.get("artifact_ref", "")).strip()
+    if artifact_ref:
+        return f"artifact:{artifact_ref}"
+    source_ref = str(knowledge_object.get("source_ref", "")).strip()
+    if source_ref:
+        return f"source:{source_ref}"
+    return f"task-object:{task_id}:{object_id}"
 
 
 def build_canonical_record(
@@ -15,8 +27,10 @@ def build_canonical_record(
 ) -> dict[str, object]:
     decided_at = str(decision_record.get("decided_at", "")).strip() or utc_now()
     canonical_id = f"canonical-{task_id}-{object_id}"
+    canonical_key = build_canonical_key(knowledge_object=knowledge_object, task_id=task_id, object_id=object_id)
     return {
         "canonical_id": canonical_id,
+        "canonical_key": canonical_key,
         "source_task_id": task_id,
         "source_object_id": object_id,
         "promoted_at": decided_at,
@@ -28,6 +42,9 @@ def build_canonical_record(
         "text": knowledge_object.get("text", ""),
         "evidence_status": knowledge_object.get("evidence_status", "unbacked"),
         "canonical_stage": knowledge_object.get("stage", "canonical"),
+        "canonical_status": "active",
+        "superseded_by": "",
+        "superseded_at": "",
     }
 
 
@@ -47,6 +64,8 @@ def build_canonical_registry_report(records: list[dict[str, object]]) -> str:
         lines.extend(
             [
                 f"- {record.get('canonical_id', 'unknown')}",
+                f"  canonical_key: {record.get('canonical_key', 'unknown')}",
+                f"  canonical_status: {record.get('canonical_status', 'active')}",
                 f"  source_task_id: {record.get('source_task_id', 'unknown')}",
                 f"  source_object_id: {record.get('source_object_id', 'unknown')}",
                 f"  promoted_at: {record.get('promoted_at', 'unknown')}",
@@ -54,6 +73,8 @@ def build_canonical_registry_report(records: list[dict[str, object]]) -> str:
                 f"  source_ref: {record.get('source_ref', '') or 'none'}",
                 f"  artifact_ref: {record.get('artifact_ref', '') or 'none'}",
                 f"  decision_ref: {record.get('decision_ref', '') or 'none'}",
+                f"  superseded_by: {record.get('superseded_by', '') or 'none'}",
+                f"  superseded_at: {record.get('superseded_at', '') or 'none'}",
                 f"  text: {record.get('text', '') or '(empty)'}",
             ]
         )
@@ -63,23 +84,41 @@ def build_canonical_registry_report(records: list[dict[str, object]]) -> str:
 def build_canonical_registry_index(records: list[dict[str, object]]) -> dict[str, object]:
     by_task: dict[str, int] = {}
     artifact_backed_count = 0
+    active_count = 0
+    superseded_count = 0
     for record in records:
         source_task_id = str(record.get("source_task_id", "unknown"))
         by_task[source_task_id] = by_task.get(source_task_id, 0) + 1
         if str(record.get("artifact_ref", "")).strip():
             artifact_backed_count += 1
+        if str(record.get("canonical_status", "active")).strip() == "superseded":
+            superseded_count += 1
+        else:
+            active_count += 1
     latest = records[-1] if records else {}
+    latest_active = {}
+    for record in reversed(records):
+        if str(record.get("canonical_status", "active")).strip() != "superseded":
+            latest_active = record
+            break
     return {
         "refreshed_at": utc_now(),
         "dedupe_key": CANONICAL_REGISTRY_DEDUPE_KEY,
         "replace_strategy": CANONICAL_REGISTRY_REPLACE_STRATEGY,
+        "supersede_key": CANONICAL_REGISTRY_SUPERSEDE_KEY,
+        "supersede_strategy": CANONICAL_REGISTRY_SUPERSEDE_STRATEGY,
         "count": len(records),
+        "active_count": active_count,
+        "superseded_count": superseded_count,
         "source_task_count": len(by_task),
         "artifact_backed_count": artifact_backed_count,
         "latest_canonical_id": latest.get("canonical_id", "") if records else "",
         "latest_source_task_id": latest.get("source_task_id", "") if records else "",
         "latest_source_object_id": latest.get("source_object_id", "") if records else "",
         "latest_promoted_at": latest.get("promoted_at", "") if records else "",
+        "latest_active_canonical_id": latest_active.get("canonical_id", "") if latest_active else "",
+        "latest_active_source_task_id": latest_active.get("source_task_id", "") if latest_active else "",
+        "latest_active_source_object_id": latest_active.get("source_object_id", "") if latest_active else "",
     }
 
 
@@ -90,12 +129,19 @@ def build_canonical_registry_index_report(index_record: dict[str, object]) -> st
         f"- refreshed_at: {index_record.get('refreshed_at', 'unknown')}",
         f"- dedupe_key: {index_record.get('dedupe_key', CANONICAL_REGISTRY_DEDUPE_KEY)}",
         f"- replace_strategy: {index_record.get('replace_strategy', CANONICAL_REGISTRY_REPLACE_STRATEGY)}",
+        f"- supersede_key: {index_record.get('supersede_key', CANONICAL_REGISTRY_SUPERSEDE_KEY)}",
+        f"- supersede_strategy: {index_record.get('supersede_strategy', CANONICAL_REGISTRY_SUPERSEDE_STRATEGY)}",
         f"- count: {index_record.get('count', 0)}",
+        f"- active_count: {index_record.get('active_count', 0)}",
+        f"- superseded_count: {index_record.get('superseded_count', 0)}",
         f"- source_task_count: {index_record.get('source_task_count', 0)}",
         f"- artifact_backed_count: {index_record.get('artifact_backed_count', 0)}",
         f"- latest_canonical_id: {index_record.get('latest_canonical_id', '') or '-'}",
+        f"- latest_active_canonical_id: {index_record.get('latest_active_canonical_id', '') or '-'}",
         f"- latest_source_task_id: {index_record.get('latest_source_task_id', '') or '-'}",
         f"- latest_source_object_id: {index_record.get('latest_source_object_id', '') or '-'}",
+        f"- latest_active_source_task_id: {index_record.get('latest_active_source_task_id', '') or '-'}",
+        f"- latest_active_source_object_id: {index_record.get('latest_active_source_object_id', '') or '-'}",
         f"- latest_promoted_at: {index_record.get('latest_promoted_at', '') or '-'}",
     ]
     return "\n".join(lines)

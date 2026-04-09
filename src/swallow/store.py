@@ -167,6 +167,8 @@ def append_canonical_record(base_dir: Path, payload: dict[str, object]) -> None:
     registry_file = canonical_registry_path(base_dir)
     records: list[dict[str, object]] = []
     canonical_id = str(payload.get("canonical_id", "")).strip()
+    canonical_key = str(payload.get("canonical_key", "")).strip()
+    promoted_at = str(payload.get("promoted_at", "")).strip()
     replaced = False
     if registry_file.exists():
         for line in registry_file.read_text(encoding="utf-8").splitlines():
@@ -177,6 +179,17 @@ def append_canonical_record(base_dir: Path, payload: dict[str, object]) -> None:
             if canonical_id and str(record.get("canonical_id", "")).strip() == canonical_id:
                 records.append(payload)
                 replaced = True
+            elif (
+                canonical_key
+                and str(record.get("canonical_key", "")).strip() == canonical_key
+                and str(record.get("canonical_id", "")).strip() != canonical_id
+                and str(record.get("canonical_status", "active")).strip() != "superseded"
+            ):
+                updated_record = dict(record)
+                updated_record["canonical_status"] = "superseded"
+                updated_record["superseded_by"] = canonical_id
+                updated_record["superseded_at"] = promoted_at
+                records.append(updated_record)
             else:
                 records.append(record)
     if not replaced:
