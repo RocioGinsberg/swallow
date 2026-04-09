@@ -258,9 +258,14 @@ canonical registry 查看：
 ```bash
 swl task canonical-registry <task-id>
 swl task canonical-registry-json <task-id>
+swl task canonical-registry-index <task-id>
+swl task canonical-reuse <task-id>
+swl task canonical-reuse-json <task-id>
 ```
 
 canonical registry record 是显式持久化的 canonical knowledge 输出，不等于自动全局记忆，也不会自动开启广义 retrieval reuse。
+
+canonical reuse 仍然受显式 policy 控制。`canonical-reuse` 用来查看当前哪些 active canonical records 对 retrieval reuse 可见，superseded records 默认保持排除状态。
 
 运行测试：
 

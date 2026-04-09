@@ -266,9 +266,14 @@ Canonical registry inspection:
 ```bash id="p13ckr"
 swl task canonical-registry <task-id>
 swl task canonical-registry-json <task-id>
+swl task canonical-registry-index <task-id>
+swl task canonical-reuse <task-id>
+swl task canonical-reuse-json <task-id>
 ```
 
 Canonical registry records are explicit persisted outputs for promoted canonical knowledge. They are not automatic global memory and do not automatically enable broad retrieval reuse.
+
+Canonical reuse remains policy-gated. `canonical-reuse` shows which active canonical records are currently reuse-visible, while superseded canonical records stay excluded by default.
 
 Run the test suite:
 
