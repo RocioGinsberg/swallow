@@ -418,6 +418,199 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("source_only: 1", knowledge_report)
         self.assertIn(".swl/tasks/demo/artifacts/route_report.md", knowledge_report)
 
+    def test_cli_knowledge_review_queue_classifies_ready_and_blocked_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Knowledge queue",
+                        "--goal",
+                        "Classify staged knowledge review states",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://knowledge-queue",
+                        "--knowledge-item",
+                        "Artifact-backed verified knowledge should be reuse ready.",
+                        "--knowledge-item",
+                        "Source-only verified knowledge should stay blocked.",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/evidence.md",
+                        "--knowledge-retrieval-eligible",
+                        "--knowledge-canonicalization-intent",
+                        "review",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-review-queue", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("Knowledge Review Queue", output)
+        self.assertIn("promote_ready: 1", output)
+        self.assertIn("blocked: 1", output)
+        self.assertIn("recommended_action: promote-canonical", output)
+        self.assertIn("blocked_reason: evidence_not_artifact_backed", output)
+
+    def test_cli_knowledge_promote_reuse_persists_decision_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Knowledge promote",
+                        "--goal",
+                        "Promote one knowledge object for retrieval reuse",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://knowledge-promote",
+                        "--knowledge-item",
+                        "Verified artifact-backed knowledge should be promoted by operator review.",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/evidence.md",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "knowledge-promote",
+                        task_id,
+                        "knowledge-0001",
+                        "--target",
+                        "reuse",
+                        "--note",
+                        "Promote for cross-task retrieval review.",
+                    ]
+                ),
+                0,
+            )
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            knowledge_objects = json.loads((task_dir / "knowledge_objects.json").read_text(encoding="utf-8"))
+            knowledge_index = json.loads((task_dir / "knowledge_index.json").read_text(encoding="utf-8"))
+            decision_records = [
+                json.loads(line)
+                for line in (task_dir / "knowledge_decisions.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            inspect_stdout = StringIO()
+            with redirect_stdout(inspect_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(knowledge_objects[0]["knowledge_reuse_scope"], "retrieval_candidate")
+        self.assertEqual(knowledge_objects[0]["retrieval_eligible"], True)
+        self.assertEqual(knowledge_index["active_reusable_count"], 1)
+        self.assertEqual(decision_records[0]["decision_type"], "promote")
+        self.assertEqual(decision_records[0]["decision_target"], "reuse")
+        self.assertEqual(decision_records[0]["note"], "Promote for cross-task retrieval review.")
+        self.assertIn("knowledge_review_reuse_ready: 1", inspect_stdout.getvalue())
+        self.assertIn("knowledge_review_decisions_recorded: 1", inspect_stdout.getvalue())
+        self.assertEqual(events[-1]["event_type"], "knowledge.promoted")
+
+    def test_cli_knowledge_reject_canonical_clears_intent_and_reports_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Knowledge reject",
+                        "--goal",
+                        "Reject canonical promotion for one object",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://knowledge-reject",
+                        "--knowledge-item",
+                        "Verified artifact-backed knowledge may still be rejected by operator review.",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/evidence.md",
+                        "--knowledge-canonicalization-intent",
+                        "review",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "knowledge-reject",
+                        task_id,
+                        "knowledge-0001",
+                        "--target",
+                        "canonical",
+                        "--note",
+                        "Keep task-linked only for now.",
+                    ]
+                ),
+                0,
+            )
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            knowledge_objects = json.loads((task_dir / "knowledge_objects.json").read_text(encoding="utf-8"))
+            decisions_stdout = StringIO()
+            queue_stdout = StringIO()
+            review_stdout = StringIO()
+            with redirect_stdout(decisions_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-decisions", task_id]), 0)
+            with redirect_stdout(queue_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-review-queue", task_id]), 0)
+            with redirect_stdout(review_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
+
+        self.assertEqual(knowledge_objects[0]["canonicalization_intent"], "none")
+        self.assertIn("Knowledge Decision Record", decisions_stdout.getvalue())
+        self.assertIn("knowledge-0001 reject canonical", decisions_stdout.getvalue())
+        self.assertIn("queue_state: rejected", queue_stdout.getvalue())
+        self.assertIn("knowledge_review_rejected: 1", review_stdout.getvalue())
+        self.assertIn("knowledge_review_decisions_recorded: 1", review_stdout.getvalue())
+
     def test_cli_create_marks_retrieval_eligible_knowledge_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -1715,6 +1908,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_partition: task_linked=1 reusable_candidate=1", output)
         self.assertIn("knowledge_index: active_reusable=0 inactive_reusable=1", output)
         self.assertIn("knowledge_index_refreshed_at:", output)
+        self.assertIn("Knowledge Review", output)
+        self.assertIn("knowledge_review_blocked: 1", output)
+        self.assertIn("knowledge_review_blocked_reasons: evidence_not_artifact_backed", output)
+        self.assertIn("knowledge_review_decisions_recorded: 0", output)
         self.assertIn("route_name: local-mock", output)
         self.assertIn("execution_site_contract_kind: local_inline", output)
         self.assertIn("execution_site_boundary: same_process", output)
@@ -1756,6 +1953,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_objects_report:", output)
         self.assertIn("knowledge_partition_report:", output)
         self.assertIn("knowledge_index_report:", output)
+        self.assertIn("knowledge_decisions_report:", output)
         self.assertIn("summary:", output)
         self.assertIn("execution_site_report:", output)
         self.assertIn("retrieval_report:", output)
@@ -1997,12 +2195,15 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_index_inactive_reusable: 0", output)
         self.assertIn("knowledge_index_refreshed_at:", output)
         self.assertIn("reused_knowledge_in_retrieval: 0", output)
+        self.assertIn("Knowledge Review", output)
+        self.assertIn("knowledge_review_decisions_recorded: 0", output)
         self.assertIn("reused_knowledge_references: -", output)
         self.assertIn("next_operator_action:", output)
         self.assertIn("task_semantics_report:", output)
         self.assertIn("knowledge_objects_report:", output)
         self.assertIn("knowledge_partition_report:", output)
         self.assertIn("knowledge_index_report:", output)
+        self.assertIn("knowledge_decisions_report:", output)
         self.assertIn("retrieval_report:", output)
         self.assertIn("source_grounding:", output)
         self.assertIn("resume_note:", output)
@@ -2025,6 +2226,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("list                List tasks with compact status summaries.", output)
         self.assertIn("planning-handoff    Attach or tighten imported planning semantics", output)
         self.assertIn("knowledge-capture   Attach staged knowledge objects to an existing", output)
+        self.assertIn("knowledge-review-queue", output)
+        self.assertIn("knowledge-promote", output)
+        self.assertIn("knowledge-reject", output)
         self.assertIn("inspect             Print a compact per-task overview.", output)
         self.assertIn("intake              Print a compact planning-handoff and staged-", output)
         self.assertIn("review              Print a review-focused task handoff summary.", output)
@@ -2066,6 +2270,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("semantics-json      Print the task semantics record.", output)
         self.assertIn("knowledge-objects   Print the task knowledge-objects report artifact.", output)
         self.assertIn("knowledge-policy    Print the task knowledge-policy report artifact.", output)
+        self.assertIn("knowledge-decisions", output)
 
     def test_task_help_includes_phase9_workbench_commands(self) -> None:
         stdout = StringIO()
@@ -2126,6 +2331,9 @@ class CliLifecycleTest(unittest.TestCase):
             (["task", "planning-handoff", "--help"], "Attach or tighten imported planning semantics"),
             (["task", "knowledge-capture", "--help"], "Attach staged knowledge objects to an existing task."),
             (["task", "intake", "--help"], "Print a compact planning-handoff and staged-knowledge intake snapshot."),
+            (["task", "knowledge-review-queue", "--help"], "Print a compact review queue for staged knowledge objects."),
+            (["task", "knowledge-promote", "--help"], "Explicitly promote one knowledge object"),
+            (["task", "knowledge-reject", "--help"], "Explicitly reject one knowledge object"),
         ]
 
         for argv, expected in command_expectations:
@@ -4523,6 +4731,7 @@ class CliLifecycleTest(unittest.TestCase):
             knowledge_partition_stdout = StringIO()
             knowledge_index_stdout = StringIO()
             knowledge_policy_stdout = StringIO()
+            knowledge_decisions_stdout = StringIO()
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
             topology_json_stdout = StringIO()
@@ -4535,6 +4744,7 @@ class CliLifecycleTest(unittest.TestCase):
             knowledge_partition_json_stdout = StringIO()
             knowledge_index_json_stdout = StringIO()
             knowledge_policy_json_stdout = StringIO()
+            knowledge_decisions_json_stdout = StringIO()
             retrieval_json_stdout = StringIO()
             grounding_stdout = StringIO()
             memory_stdout = StringIO()
@@ -4557,6 +4767,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-index", task_id]), 0)
             with redirect_stdout(knowledge_policy_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-policy", task_id]), 0)
+            with redirect_stdout(knowledge_decisions_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-decisions", task_id]), 0)
             with redirect_stdout(topology_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "topology", task_id]), 0)
             with redirect_stdout(execution_site_stdout):
@@ -4591,6 +4803,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-index-json", task_id]), 0)
             with redirect_stdout(knowledge_policy_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-policy-json", task_id]), 0)
+            with redirect_stdout(knowledge_decisions_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "knowledge-decisions-json", task_id]), 0)
             with redirect_stdout(retrieval_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval-json", task_id]), 0)
             with redirect_stdout(grounding_stdout):
@@ -4607,6 +4821,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Knowledge Partition Report", knowledge_partition_stdout.getvalue())
         self.assertIn("Knowledge Index Report", knowledge_index_stdout.getvalue())
         self.assertIn("Knowledge Policy Report", knowledge_policy_stdout.getvalue())
+        self.assertIn("Knowledge Decision Record", knowledge_decisions_stdout.getvalue())
         self.assertIn("Topology Report", topology_stdout.getvalue())
         self.assertIn("Execution Site Report", execution_site_stdout.getvalue())
         self.assertIn("Dispatch Report", dispatch_stdout.getvalue())
@@ -4628,6 +4843,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"task_linked_count"', knowledge_partition_json_stdout.getvalue())
         self.assertIn('"active_reusable_count"', knowledge_index_json_stdout.getvalue())
         self.assertIn('"status"', knowledge_policy_json_stdout.getvalue())
+        self.assertIn("[", knowledge_decisions_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())

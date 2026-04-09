@@ -16,6 +16,7 @@ from .paths import (
     execution_fit_path,
     events_path,
     handoff_path,
+    knowledge_decisions_path,
     knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
@@ -149,6 +150,12 @@ def save_knowledge_index(base_dir: Path, task_id: str, payload: dict[str, object
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def append_knowledge_decision(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    with knowledge_decisions_path(base_dir, task_id).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload) + "\n")
 
 
 def save_capability_assembly(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:

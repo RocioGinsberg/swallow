@@ -66,6 +66,10 @@ def knowledge_index_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "knowledge_index.json"
 
 
+def knowledge_decisions_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "knowledge_decisions.jsonl"
+
+
 def capability_assembly_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "capability_assembly.json"
 

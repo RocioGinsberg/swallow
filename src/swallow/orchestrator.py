@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from dataclasses import replace
 from pathlib import Path
 from uuid import uuid4
@@ -17,6 +19,7 @@ from .knowledge_objects import (
 )
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
+from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
 from .models import Event, RetrievalRequest, TaskState
 from .paths import (
     artifacts_dir,
@@ -29,6 +32,7 @@ from .paths import (
     execution_fit_path,
     execution_budget_policy_path,
     handoff_path,
+    knowledge_decisions_path,
     knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
@@ -46,6 +50,7 @@ from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
 from .store import (
     append_event,
+    append_knowledge_decision,
     load_state,
     save_capability_assembly,
     save_capability_manifest,
@@ -199,6 +204,8 @@ def create_task(
         "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
         "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
         "knowledge_index_report": str((artifacts_dir(base_dir, task_id) / "knowledge_index_report.md").resolve()),
+        "knowledge_decisions_json": str(knowledge_decisions_path(base_dir, task_id).resolve()),
+        "knowledge_decisions_report": str((artifacts_dir(base_dir, task_id) / "knowledge_decisions_report.md").resolve()),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
     }
@@ -215,6 +222,7 @@ def create_task(
     write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
     write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
     write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
+    write_artifact(base_dir, task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report([]))
     append_event(
         base_dir,
         Event(
@@ -377,6 +385,64 @@ def append_task_knowledge_capture(
                     "task_linked_count": knowledge_partition["task_linked_count"],
                     "reusable_candidate_count": knowledge_partition["reusable_candidate_count"],
                 },
+                "knowledge_index": {
+                    "active_reusable_count": knowledge_index["active_reusable_count"],
+                    "inactive_reusable_count": knowledge_index["inactive_reusable_count"],
+                    "refreshed_at": knowledge_index["refreshed_at"],
+                },
+            },
+        ),
+    )
+    return state
+
+
+def decide_task_knowledge(
+    base_dir: Path,
+    task_id: str,
+    *,
+    object_id: str,
+    decision_type: str,
+    decision_target: str,
+    note: str = "",
+    decided_by: str = "swl_cli",
+) -> TaskState:
+    state = load_state(base_dir, task_id)
+    updated_objects, decision_record = apply_knowledge_decision(
+        list(state.knowledge_objects or []),
+        object_id=object_id,
+        decision_type=decision_type,
+        decision_target=decision_target,
+        note=note,
+        decided_by=decided_by,
+    )
+    state.knowledge_objects = updated_objects
+    knowledge_partition = build_knowledge_partition(state.knowledge_objects)
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
+    save_state(base_dir, state)
+    save_knowledge_objects(base_dir, task_id, state.knowledge_objects)
+    save_knowledge_partition(base_dir, task_id, knowledge_partition)
+    save_knowledge_index(base_dir, task_id, knowledge_index)
+    append_knowledge_decision(base_dir, task_id, decision_record)
+    decision_records = []
+    if knowledge_decisions_path(base_dir, task_id).exists():
+        for line in knowledge_decisions_path(base_dir, task_id).read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped:
+                decision_records.append(json.loads(stripped))
+    write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
+    write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
+    write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
+    write_artifact(base_dir, task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report(decision_records))
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type=f"knowledge.{'promoted' if decision_type == 'promote' else 'rejected'}",
+            message=f"Knowledge {decision_type} decision applied.",
+            payload={
+                "object_id": object_id,
+                "decision_target": decision_target,
+                "decision_record": decision_record,
                 "knowledge_index": {
                     "active_reusable_count": knowledge_index["active_reusable_count"],
                     "inactive_reusable_count": knowledge_index["inactive_reusable_count"],

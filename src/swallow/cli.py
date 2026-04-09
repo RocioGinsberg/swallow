@@ -7,9 +7,11 @@ from pathlib import Path
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
+from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .orchestrator import (
     append_task_knowledge_capture,
     create_task,
+    decide_task_knowledge,
     run_task,
     update_task_planning_handoff,
 )
@@ -24,6 +26,7 @@ from .paths import (
     execution_site_path,
     execution_fit_path,
     handoff_path,
+    knowledge_decisions_path,
     knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
@@ -48,6 +51,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_objects_report",
             "knowledge_partition_report",
             "knowledge_index_report",
+            "knowledge_decisions_report",
             "retrieval_report",
             "retrieval_json",
             "source_grounding",
@@ -86,6 +90,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_objects_json",
             "knowledge_partition_json",
             "knowledge_index_json",
+            "knowledge_decisions_json",
             "route_json",
             "topology_json",
             "execution_site_json",
@@ -180,6 +185,35 @@ def build_intake_snapshot(base_dir: Path, task_id: str) -> list[str]:
         f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
         f"knowledge_partition_report: {state.artifact_paths.get('knowledge_partition_report', '-')}",
         f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
+    ]
+
+
+def build_knowledge_review_snapshot(
+    knowledge_objects: list[dict[str, object]],
+    decisions: list[dict[str, object]],
+) -> list[str]:
+    queue = build_review_queue(knowledge_objects, decisions)
+    entries = list(queue.get("entries", []))
+    state_counts = dict(queue.get("state_counts", {}))
+    blocked_reasons = sorted(
+        {
+            str(entry.get("blocked_reason", "")).strip()
+            for entry in entries
+            if str(entry.get("blocked_reason", "")).strip()
+        }
+    )
+    latest_decisions = sum(1 for entry in entries if entry.get("latest_decision"))
+    return [
+        "Knowledge Review",
+        f"knowledge_review_pending: {state_counts.get('pending-review', 0)}",
+        f"knowledge_review_promote_ready: {state_counts.get('promote-ready', 0)}",
+        f"knowledge_review_reuse_ready: {state_counts.get('reuse-ready', 0)}",
+        f"knowledge_review_blocked: {state_counts.get('blocked', 0)}",
+        f"knowledge_review_promoted: {state_counts.get('promoted', 0)}",
+        f"knowledge_review_rejected: {state_counts.get('rejected', 0)}",
+        f"knowledge_review_blocked_reasons: {', '.join(blocked_reasons) or '-'}",
+        f"knowledge_review_decisions_recorded: {len(decisions)}",
+        f"knowledge_review_latest_decisions_visible: {latest_decisions}",
     ]
 
 
@@ -819,6 +853,44 @@ def build_parser() -> argparse.ArgumentParser:
         "knowledge-policy", help="Print the task knowledge-policy report artifact."
     )
     knowledge_policy_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_review_queue_parser = task_subparsers.add_parser(
+        "knowledge-review-queue",
+        help="Print a compact review queue for staged knowledge objects.",
+        description="Print a compact review queue for staged knowledge objects.",
+    )
+    knowledge_review_queue_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_promote_parser = task_subparsers.add_parser(
+        "knowledge-promote",
+        help="Explicitly promote one knowledge object toward reusable or canonical state.",
+        description="Explicitly promote one knowledge object toward reusable or canonical state.",
+    )
+    knowledge_promote_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_promote_parser.add_argument("object_id", help="Knowledge object identifier.")
+    knowledge_promote_parser.add_argument(
+        "--target",
+        required=True,
+        choices=["reuse", "canonical"],
+        help="Promotion target.",
+    )
+    knowledge_promote_parser.add_argument("--note", default="", help="Optional operator note for the decision record.")
+    knowledge_reject_parser = task_subparsers.add_parser(
+        "knowledge-reject",
+        help="Explicitly reject one knowledge object from reusable or canonical promotion.",
+        description="Explicitly reject one knowledge object from reusable or canonical promotion.",
+    )
+    knowledge_reject_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_reject_parser.add_argument("object_id", help="Knowledge object identifier.")
+    knowledge_reject_parser.add_argument(
+        "--target",
+        required=True,
+        choices=["reuse", "canonical"],
+        help="Rejection target.",
+    )
+    knowledge_reject_parser.add_argument("--note", default="", help="Optional operator note for the decision record.")
+    knowledge_decisions_parser = task_subparsers.add_parser(
+        "knowledge-decisions", help="Print the task knowledge decision record artifact."
+    )
+    knowledge_decisions_parser.add_argument("task_id", help="Task identifier.")
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
     checkpoint_parser = task_subparsers.add_parser(
@@ -956,6 +1028,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task knowledge-policy record.",
     )
     knowledge_policy_json_parser.add_argument("task_id", help="Task identifier.")
+    knowledge_decisions_json_parser = task_subparsers.add_parser(
+        "knowledge-decisions-json",
+        help="Print the task knowledge decision records.",
+    )
+    knowledge_decisions_json_parser.add_argument("task_id", help="Task identifier.")
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
@@ -1022,6 +1099,30 @@ def main(argv: list[str] | None = None) -> int:
             knowledge_canonicalization_intent=args.knowledge_canonicalization_intent,
         )
         print(f"{state.task_id} knowledge_capture_added added={len(args.knowledge_item)} total={len(state.knowledge_objects)}")
+        return 0
+
+    if args.command == "task" and args.task_command == "knowledge-promote":
+        state = decide_task_knowledge(
+            base_dir,
+            args.task_id,
+            object_id=args.object_id,
+            decision_type="promote",
+            decision_target=args.target,
+            note=args.note,
+        )
+        print(f"{state.task_id} knowledge_promoted object={args.object_id} target={args.target}")
+        return 0
+
+    if args.command == "task" and args.task_command == "knowledge-reject":
+        state = decide_task_knowledge(
+            base_dir,
+            args.task_id,
+            object_id=args.object_id,
+            decision_type="reject",
+            decision_target=args.target,
+            note=args.note,
+        )
+        print(f"{state.task_id} knowledge_rejected object={args.object_id} target={args.target}")
         return 0
 
     if args.command == "task" and args.task_command == "run":
@@ -1180,6 +1281,14 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(build_intake_snapshot(base_dir, args.task_id)))
         return 0
 
+    if args.command == "task" and args.task_command == "knowledge-review-queue":
+        knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
+        if not isinstance(knowledge_objects, list):
+            knowledge_objects = []
+        decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
+        print(build_review_queue_report(build_review_queue(knowledge_objects, decisions)))
+        return 0
+
     if args.command == "task" and args.task_command == "inspect":
         state = load_state(base_dir, args.task_id)
 
@@ -1196,6 +1305,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         knowledge_partition = load_json_if_exists(knowledge_partition_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
+        knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         task_semantics = load_json_if_exists(task_semantics_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
@@ -1268,6 +1378,8 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_policy_status: {knowledge_policy.get('status', 'pending')}",
             f"validation_status: {load_json_if_exists(Path(state.artifact_paths.get('validation_json', ''))).get('status', 'pending') if state.artifact_paths.get('validation_json') else 'pending'}",
             "",
+            *build_knowledge_review_snapshot(knowledge_objects, knowledge_decisions),
+            "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
             "Retrieval And Memory",
@@ -1298,6 +1410,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
             f"knowledge_partition_report: {state.artifact_paths.get('knowledge_partition_report', '-')}",
             f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
+            f"knowledge_decisions_report: {state.artifact_paths.get('knowledge_decisions_report', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"route_report: {state.artifact_paths.get('route_report', '-')}",
@@ -1354,6 +1467,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
+        knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         reused_knowledge_references = []
@@ -1415,6 +1529,11 @@ def main(argv: list[str] | None = None) -> int:
             f"reused_cross_task_knowledge: {reused_cross_task}",
             f"reused_knowledge_references: {', '.join(reused_knowledge_references) or '-'}",
             "",
+            *build_knowledge_review_snapshot(
+                knowledge_objects if isinstance(knowledge_objects, list) else [],
+                knowledge_decisions,
+            ),
+            "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
             "Review Artifacts",
@@ -1422,6 +1541,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_objects_report: {state.artifact_paths.get('knowledge_objects_report', '-')}",
             f"knowledge_partition_report: {state.artifact_paths.get('knowledge_partition_report', '-')}",
             f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
+            f"knowledge_decisions_report: {state.artifact_paths.get('knowledge_decisions_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"source_grounding: {state.artifact_paths.get('source_grounding', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
@@ -1590,6 +1710,14 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "knowledge-policy-json":
         print(json.dumps(json.loads(knowledge_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "knowledge-decisions":
+        print(build_knowledge_decisions_report(load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))))
+        return 0
+
+    if args.command == "task" and args.task_command == "knowledge-decisions-json":
+        print(json.dumps(load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":
