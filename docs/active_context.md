@@ -181,6 +181,7 @@
   - `artifacts/knowledge_decisions_report.md`
 - operator 可通过 `swl task knowledge-decisions` / `knowledge-decisions-json` 检查决策记录
 - reuse-readiness 已更直接纳入 `swl task inspect` / `swl task review`
+- knowledge review 摘要已接入 `swl task queue` / `swl task control`
 - 相关 CLI 测试已补齐并通过
 - README / README.zh-CN 已补充 intake 之后的 review / promotion 流程
 
@@ -195,6 +196,7 @@
 - [ ] 开始 feature branch 开发
 - [x] 把 reuse-readiness 更直接纳入 `inspect` / `review`
 - [x] 同步 README / CLI help 的 Phase 12 工作流说明
+- [x] 评估是否需要把 review queue 摘要进一步纳入 `task queue` 或 `control` 视图
 
 ---
 
@@ -202,6 +204,5 @@
 
 下一步应优先完成：
 
-1. 收紧 reuse-readiness inspect 路径，让 blocked reason / ready state 在 `inspect` 或 `review` 中更直接可见
-2. 切出 `feat/phase12-knowledge-promotion-review`，按 slice 做小步提交
-3. 评估是否需要把 review queue 摘要进一步纳入 `task queue` 或 `control` 视图
+1. 基于当前 queue / control 集成，判断是否要继续把 knowledge review 引入更细粒度的 operator 优先级排序
+2. 视需要补 Phase 12 closeout 所需的收口文档
