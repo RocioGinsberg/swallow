@@ -10,6 +10,10 @@ def app_root(base_dir: Path) -> Path:
     return base_dir / APP_DIR_NAME
 
 
+def canonical_registry_root(base_dir: Path) -> Path:
+    return app_root(base_dir) / "canonical_knowledge"
+
+
 def tasks_root(base_dir: Path) -> Path:
     return app_root(base_dir) / "tasks"
 
@@ -116,3 +120,7 @@ def execution_budget_policy_path(base_dir: Path, task_id: str) -> Path:
 
 def checkpoint_snapshot_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "checkpoint_snapshot.json"
+
+
+def canonical_registry_path(base_dir: Path) -> Path:
+    return canonical_registry_root(base_dir) / "registry.jsonl"

@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
+from .canonical_registry import build_canonical_record, build_canonical_registry_report
 from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
 from .knowledge_objects import (
@@ -26,6 +27,7 @@ from .paths import (
     capability_assembly_path,
     capability_manifest_path,
     checkpoint_snapshot_path,
+    canonical_registry_path,
     compatibility_path,
     dispatch_path,
     execution_site_path,
@@ -50,6 +52,7 @@ from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
 from .store import (
     append_event,
+    append_canonical_record,
     append_knowledge_decision,
     load_state,
     save_capability_assembly,
@@ -206,6 +209,8 @@ def create_task(
         "knowledge_index_report": str((artifacts_dir(base_dir, task_id) / "knowledge_index_report.md").resolve()),
         "knowledge_decisions_json": str(knowledge_decisions_path(base_dir, task_id).resolve()),
         "knowledge_decisions_report": str((artifacts_dir(base_dir, task_id) / "knowledge_decisions_report.md").resolve()),
+        "canonical_registry_json": str(canonical_registry_path(base_dir).resolve()),
+        "canonical_registry_report": str((artifacts_dir(base_dir, task_id) / "canonical_registry_report.md").resolve()),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
     }
@@ -223,6 +228,7 @@ def create_task(
     write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
     write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
     write_artifact(base_dir, task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report([]))
+    write_artifact(base_dir, task_id, "canonical_registry_report.md", build_canonical_registry_report([]))
     append_event(
         base_dir,
         Event(
@@ -433,6 +439,21 @@ def decide_task_knowledge(
     write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
     write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
     write_artifact(base_dir, task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report(decision_records))
+    canonical_records: list[dict[str, object]] = []
+    if decision_type == "promote" and decision_target == "canonical":
+        canonical_record = build_canonical_record(
+            task_id=task_id,
+            object_id=object_id,
+            knowledge_object=next(item for item in state.knowledge_objects if str(item.get("object_id", "")) == object_id),
+            decision_record=decision_record,
+        )
+        append_canonical_record(base_dir, canonical_record)
+    if canonical_registry_path(base_dir).exists():
+        for line in canonical_registry_path(base_dir).read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped:
+                canonical_records.append(json.loads(stripped))
+    write_artifact(base_dir, task_id, "canonical_registry_report.md", build_canonical_registry_report(canonical_records))
     append_event(
         base_dir,
         Event(
@@ -443,6 +464,7 @@ def decide_task_knowledge(
                 "object_id": object_id,
                 "decision_target": decision_target,
                 "decision_record": decision_record,
+                "canonical_registry_count": len(canonical_records),
                 "knowledge_index": {
                     "active_reusable_count": knowledge_index["active_reusable_count"],
                     "inactive_reusable_count": knowledge_index["inactive_reusable_count"],

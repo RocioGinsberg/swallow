@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
+from .canonical_registry import build_canonical_registry_report
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
@@ -17,6 +18,7 @@ from .orchestrator import (
 )
 from .paths import (
     artifacts_dir,
+    canonical_registry_path,
     capability_assembly_path,
     capability_manifest_path,
     checkpoint_snapshot_path,
@@ -52,6 +54,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_partition_report",
             "knowledge_index_report",
             "knowledge_decisions_report",
+            "canonical_registry_report",
             "retrieval_report",
             "retrieval_json",
             "source_grounding",
@@ -91,6 +94,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_partition_json",
             "knowledge_index_json",
             "knowledge_decisions_json",
+            "canonical_registry_json",
             "route_json",
             "topology_json",
             "execution_site_json",
@@ -958,6 +962,12 @@ def build_parser() -> argparse.ArgumentParser:
         "knowledge-decisions", help="Print the task knowledge decision record artifact."
     )
     knowledge_decisions_parser.add_argument("task_id", help="Task identifier.")
+    canonical_registry_parser = task_subparsers.add_parser(
+        "canonical-registry",
+        help="Print the canonical knowledge registry report.",
+        description="Print the canonical knowledge registry report.",
+    )
+    canonical_registry_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
     checkpoint_parser = task_subparsers.add_parser(
@@ -1100,6 +1110,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task knowledge decision records.",
     )
     knowledge_decisions_json_parser.add_argument("task_id", help="Task identifier.")
+    canonical_registry_json_parser = task_subparsers.add_parser(
+        "canonical-registry-json",
+        help="Print the canonical knowledge registry records.",
+    )
+    canonical_registry_json_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
@@ -1479,6 +1494,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_partition_report: {state.artifact_paths.get('knowledge_partition_report', '-')}",
             f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
             f"knowledge_decisions_report: {state.artifact_paths.get('knowledge_decisions_report', '-')}",
+            f"canonical_registry_report: {state.artifact_paths.get('canonical_registry_report', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"route_report: {state.artifact_paths.get('route_report', '-')}",
@@ -1610,6 +1626,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_partition_report: {state.artifact_paths.get('knowledge_partition_report', '-')}",
             f"knowledge_index_report: {state.artifact_paths.get('knowledge_index_report', '-')}",
             f"knowledge_decisions_report: {state.artifact_paths.get('knowledge_decisions_report', '-')}",
+            f"canonical_registry_report: {state.artifact_paths.get('canonical_registry_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"source_grounding: {state.artifact_paths.get('source_grounding', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
@@ -1784,8 +1801,16 @@ def main(argv: list[str] | None = None) -> int:
         print(build_knowledge_decisions_report(load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))))
         return 0
 
+    if args.command == "task" and args.task_command == "canonical-registry":
+        print(build_canonical_registry_report(load_json_lines_if_exists(canonical_registry_path(base_dir))))
+        return 0
+
     if args.command == "task" and args.task_command == "knowledge-decisions-json":
         print(json.dumps(load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id)), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "canonical-registry-json":
+        print(json.dumps(load_json_lines_if_exists(canonical_registry_path(base_dir)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":

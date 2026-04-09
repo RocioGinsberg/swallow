@@ -7,6 +7,8 @@ from typing import Iterable
 from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
 from .paths import (
     artifacts_dir,
+    canonical_registry_path,
+    canonical_registry_root,
     capability_assembly_path,
     capability_manifest_path,
     compatibility_path,
@@ -40,6 +42,7 @@ def ensure_task_layout(base_dir: Path, task_id: str) -> None:
     task_root(base_dir, task_id).mkdir(parents=True, exist_ok=True)
     artifacts_dir(base_dir, task_id).mkdir(parents=True, exist_ok=True)
     tasks_root(base_dir).mkdir(parents=True, exist_ok=True)
+    canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
 
 
 def save_state(base_dir: Path, state: TaskState) -> None:
@@ -155,6 +158,12 @@ def save_knowledge_index(base_dir: Path, task_id: str, payload: dict[str, object
 def append_knowledge_decision(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
     ensure_task_layout(base_dir, task_id)
     with knowledge_decisions_path(base_dir, task_id).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload) + "\n")
+
+
+def append_canonical_record(base_dir: Path, payload: dict[str, object]) -> None:
+    canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
+    with canonical_registry_path(base_dir).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(payload) + "\n")
 
 
