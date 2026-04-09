@@ -33,6 +33,7 @@
 - canonical promotion 与 registry persistence 的明确对应关系
 - canonical inspect / list 入口
 - canonical record 的 source task / object / evidence traceability
+- canonical record 的显式 dedupe / replace 语义
 
 ---
 
@@ -80,12 +81,13 @@
   - `swl task canonical-registry-index-json`
 - task artifact 视图已包含 canonical registry 路径
 - inspect / review 已纳入 canonical registry 摘要
+- canonical registry 已补充按 `canonical_id` 去重、latest-record-wins replace 规则
 - 相关 CLI 测试已补齐并通过
 
 ## 下一步
 
 下一步应优先完成：
 
-1. 视需要把 canonical registry 摘要进一步纳入 queue / control
-2. 继续评估 canonical registry 是否需要更明确的去重 / replace 规则
+1. 判断 canonical registry 是否还需要更强的 replace / supersede 语义，而不只是 `canonical_id` 级别 upsert
+2. 视需要把 canonical registry 摘要进一步纳入 queue / control
 3. 为 Phase 13 后续 closeout 预留 stop/go 边界
