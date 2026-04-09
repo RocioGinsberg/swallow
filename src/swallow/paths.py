@@ -132,3 +132,7 @@ def canonical_registry_index_path(base_dir: Path) -> Path:
 
 def canonical_reuse_policy_path(base_dir: Path) -> Path:
     return canonical_registry_root(base_dir) / "reuse_policy.json"
+
+
+def canonical_reuse_eval_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "canonical_reuse_eval.jsonl"

@@ -13,6 +13,13 @@ from .canonical_registry import (
     build_canonical_registry_index_report,
     build_canonical_registry_report,
 )
+from .canonical_reuse_eval import (
+    build_canonical_reuse_evaluation_record,
+    build_canonical_reuse_evaluation_report,
+    build_canonical_reuse_evaluation_summary,
+    match_retrieval_items_for_citations,
+    resolve_canonical_reuse_citations,
+)
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
@@ -36,6 +43,7 @@ from .paths import (
     canonical_registry_index_path,
     canonical_registry_path,
     canonical_reuse_policy_path,
+    canonical_reuse_eval_path,
     compatibility_path,
     dispatch_path,
     execution_site_path,
@@ -61,6 +69,7 @@ from .router import normalize_route_mode, select_route
 from .store import (
     append_event,
     append_canonical_record,
+    append_canonical_reuse_evaluation,
     append_knowledge_decision,
     load_state,
     save_capability_assembly,
@@ -225,6 +234,8 @@ def create_task(
         "canonical_registry_index_report": str((artifacts_dir(base_dir, task_id) / "canonical_registry_index_report.md").resolve()),
         "canonical_reuse_policy_json": str(canonical_reuse_policy_path(base_dir).resolve()),
         "canonical_reuse_policy_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md").resolve()),
+        "canonical_reuse_eval_json": str(canonical_reuse_eval_path(base_dir, task_id).resolve()),
+        "canonical_reuse_eval_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_eval_report.md").resolve()),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
     }
@@ -249,6 +260,12 @@ def create_task(
     empty_canonical_reuse = build_canonical_reuse_summary([])
     save_canonical_reuse_policy(base_dir, empty_canonical_reuse)
     write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(empty_canonical_reuse))
+    write_artifact(
+        base_dir,
+        task_id,
+        "canonical_reuse_eval_report.md",
+        build_canonical_reuse_evaluation_report([], build_canonical_reuse_evaluation_summary([])),
+    )
     append_event(
         base_dir,
         Event(
@@ -536,6 +553,75 @@ def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
         limit=8,
         strategy="system_baseline",
     )
+
+
+def evaluate_task_canonical_reuse(
+    base_dir: Path,
+    task_id: str,
+    *,
+    citations: list[str],
+    judgment: str,
+    note: str = "",
+    evaluated_by: str = "swl_cli",
+) -> dict[str, object]:
+    state = load_state(base_dir, task_id)
+    reuse_policy: dict[str, object] = {}
+    retrieval_items: list[dict[str, object]] = []
+    if canonical_reuse_policy_path(base_dir).exists():
+        reuse_policy = json.loads(canonical_reuse_policy_path(base_dir).read_text(encoding="utf-8"))
+    if retrieval_path(base_dir, task_id).exists():
+        loaded_retrieval = json.loads(retrieval_path(base_dir, task_id).read_text(encoding="utf-8"))
+        if isinstance(loaded_retrieval, list):
+            retrieval_items = loaded_retrieval
+    visible_records = reuse_policy.get("visible_records", []) if isinstance(reuse_policy, dict) else []
+    if not isinstance(visible_records, list):
+        visible_records = []
+    resolved_citations, unresolved_citations = resolve_canonical_reuse_citations(
+        task_id=task_id,
+        citations=citations,
+        visible_records=visible_records,
+    )
+    retrieval_matches = match_retrieval_items_for_citations(citations=citations, retrieval_items=retrieval_items)
+    record = build_canonical_reuse_evaluation_record(
+        task_id=task_id,
+        citations=citations,
+        judgment=judgment,
+        note=note,
+        evaluated_by=evaluated_by,
+        resolved_citations=resolved_citations,
+        unresolved_citations=unresolved_citations,
+        retrieval_context_ref=f".swl/tasks/{task_id}/retrieval.json" if retrieval_items else "",
+        retrieval_context_available=bool(retrieval_items),
+        retrieval_context_count=len(retrieval_items),
+        retrieval_matches=retrieval_matches,
+    )
+    append_canonical_reuse_evaluation(base_dir, task_id, record)
+    records: list[dict[str, object]] = []
+    if canonical_reuse_eval_path(base_dir, task_id).exists():
+        for line in canonical_reuse_eval_path(base_dir, task_id).read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if stripped:
+                records.append(json.loads(stripped))
+    summary = build_canonical_reuse_evaluation_summary(records)
+    write_artifact(
+        base_dir,
+        task_id,
+        "canonical_reuse_eval_report.md",
+        build_canonical_reuse_evaluation_report(records, summary),
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type="canonical_reuse.evaluated",
+            message="Canonical reuse evaluation recorded.",
+            payload={
+                "record": record,
+                "summary": summary,
+            },
+        ),
+    )
+    return {"record": record, "summary": summary, "artifact_paths": state.artifact_paths}
 
 
 def run_task(

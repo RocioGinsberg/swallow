@@ -7,6 +7,7 @@ from typing import Iterable
 from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
 from .paths import (
     canonical_reuse_policy_path,
+    canonical_reuse_eval_path,
     canonical_registry_index_path,
     artifacts_dir,
     canonical_registry_path,
@@ -215,6 +216,12 @@ def save_canonical_reuse_policy(base_dir: Path, payload: dict[str, object]) -> N
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def append_canonical_reuse_evaluation(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    with canonical_reuse_eval_path(base_dir, task_id).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload) + "\n")
 
 
 def save_capability_assembly(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:

@@ -37,7 +37,7 @@ from swallow.paths import canonical_registry_path, canonical_reuse_policy_path
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
-from swallow.store import append_canonical_record, load_state
+from swallow.store import append_canonical_record, load_state, save_retrieval
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
@@ -881,6 +881,132 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(reuse_policy["reuse_visible_count"], 1)
         self.assertTrue(any(item.metadata.get("storage_scope") == "canonical_registry" for item in records))
         self.assertTrue(any(item.metadata.get("canonical_policy") == "reuse_visible" for item in records))
+
+    def test_cli_canonical_reuse_evaluate_records_judgment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Canonical reuse evaluation",
+                        "--goal",
+                        "Record explicit evaluation for canonical reuse hits",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://canonical-eval",
+                        "--knowledge-item",
+                        "Canonical reuse evaluation should remain explicit.",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/evidence.md",
+                        "--knowledge-canonicalization-intent",
+                        "promote",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "knowledge-promote",
+                        task_id,
+                        "knowledge-0001",
+                        "--target",
+                        "canonical",
+                        "--note",
+                        "Promote into canonical registry for evaluation baseline.",
+                    ]
+                ),
+                0,
+            )
+
+            evaluation_stdout = StringIO()
+            evaluation_report_stdout = StringIO()
+            evaluation_json_stdout = StringIO()
+            inspect_stdout = StringIO()
+            review_stdout = StringIO()
+            citation = ".swl/canonical_knowledge/reuse_policy.json#canonical-" + task_id + "-knowledge-0001"
+            save_retrieval(
+                tmp_path,
+                task_id,
+                [
+                    RetrievalItem(
+                        path=".swl/canonical_knowledge/reuse_policy.json",
+                        source_type="knowledge",
+                        score=11,
+                        preview="Canonical reuse evaluation should remain explicit.",
+                        chunk_id="canonical-" + task_id + "-knowledge-0001",
+                        title="Canonical reuse evaluation",
+                        citation=citation,
+                        matched_terms=["canonical", "evaluation"],
+                        score_breakdown={"coverage_hits": 2},
+                        metadata={
+                            "storage_scope": "canonical_registry",
+                            "canonical_id": "canonical-" + task_id + "-knowledge-0001",
+                            "canonical_policy": "reuse_visible",
+                            "source_ref": "chat://canonical-eval",
+                            "artifact_ref": ".swl/tasks/demo/artifacts/evidence.md",
+                            "knowledge_task_relation": "current_task",
+                        },
+                    )
+                ],
+            )
+            with redirect_stdout(evaluation_stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "canonical-reuse-evaluate",
+                            task_id,
+                            "--citation",
+                            citation,
+                            "--judgment",
+                            "useful",
+                            "--note",
+                            "Useful canonical reuse hit.",
+                        ]
+                    ),
+                    0,
+                )
+            with redirect_stdout(evaluation_report_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval", task_id]), 0)
+            with redirect_stdout(evaluation_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval-json", task_id]), 0)
+            with redirect_stdout(inspect_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
+            with redirect_stdout(review_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
+
+        self.assertIn("canonical_reuse_evaluated judgment=useful citations=1", evaluation_stdout.getvalue())
+        self.assertIn("Canonical Reuse Evaluation", evaluation_report_stdout.getvalue())
+        self.assertIn("useful_count: 1", evaluation_report_stdout.getvalue())
+        self.assertIn("resolved_citation_count: 1", evaluation_report_stdout.getvalue())
+        self.assertIn("retrieval_match_count: 1", evaluation_report_stdout.getvalue())
+        self.assertIn(".swl/tasks/" + task_id + "/retrieval.json", evaluation_report_stdout.getvalue())
+        self.assertIn(citation, evaluation_report_stdout.getvalue())
+        self.assertIn('"judgment": "useful"', evaluation_json_stdout.getvalue())
+        self.assertIn('"resolved_citation_count": 1', evaluation_json_stdout.getvalue())
+        self.assertIn('"retrieval_match_count": 1', evaluation_json_stdout.getvalue())
+        self.assertIn('"canonical_id": "canonical-' + task_id + '-knowledge-0001"', evaluation_json_stdout.getvalue())
+        self.assertIn("canonical_reuse_eval_count: 1", inspect_stdout.getvalue())
+        self.assertIn("canonical_reuse_eval_resolved: 1", inspect_stdout.getvalue())
+        self.assertIn("canonical_reuse_eval_retrieval_matches: 1", inspect_stdout.getvalue())
+        self.assertIn("canonical_reuse_eval_latest_judgment: useful", inspect_stdout.getvalue())
+        self.assertIn("canonical_reuse_eval_count: 1", review_stdout.getvalue())
 
     def test_retrieval_reports_surface_canonical_reuse_traceability(self) -> None:
         state = TaskState(
@@ -2718,6 +2844,8 @@ class CliLifecycleTest(unittest.TestCase):
             (["task", "canonical-registry", "--help"], "Print the canonical knowledge registry report."),
             (["task", "canonical-registry-index", "--help"], "Print the canonical knowledge registry index report."),
             (["task", "canonical-reuse", "--help"], "Print the canonical reuse policy report."),
+            (["task", "canonical-reuse-eval", "--help"], "Print the canonical reuse evaluation report."),
+            (["task", "canonical-reuse-evaluate", "--help"], "Record an explicit canonical reuse evaluation judgment"),
         ]
 
         for argv, expected in command_expectations:
@@ -5118,6 +5246,7 @@ class CliLifecycleTest(unittest.TestCase):
             knowledge_decisions_stdout = StringIO()
             canonical_registry_stdout = StringIO()
             canonical_registry_index_stdout = StringIO()
+            canonical_reuse_eval_stdout = StringIO()
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
             topology_json_stdout = StringIO()
@@ -5133,6 +5262,7 @@ class CliLifecycleTest(unittest.TestCase):
             knowledge_decisions_json_stdout = StringIO()
             canonical_registry_json_stdout = StringIO()
             canonical_registry_index_json_stdout = StringIO()
+            canonical_reuse_eval_json_stdout = StringIO()
             retrieval_json_stdout = StringIO()
             grounding_stdout = StringIO()
             memory_stdout = StringIO()
@@ -5161,6 +5291,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry", task_id]), 0)
             with redirect_stdout(canonical_registry_index_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-index", task_id]), 0)
+            with redirect_stdout(canonical_reuse_eval_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval", task_id]), 0)
             with redirect_stdout(topology_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "topology", task_id]), 0)
             with redirect_stdout(execution_site_stdout):
@@ -5201,6 +5333,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-json", task_id]), 0)
             with redirect_stdout(canonical_registry_index_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-index-json", task_id]), 0)
+            with redirect_stdout(canonical_reuse_eval_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval-json", task_id]), 0)
             with redirect_stdout(retrieval_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval-json", task_id]), 0)
             with redirect_stdout(grounding_stdout):
@@ -5220,6 +5354,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Knowledge Decision Record", knowledge_decisions_stdout.getvalue())
         self.assertIn("Canonical Knowledge Registry", canonical_registry_stdout.getvalue())
         self.assertIn("Canonical Knowledge Registry Index", canonical_registry_index_stdout.getvalue())
+        self.assertIn("Canonical Reuse Evaluation", canonical_reuse_eval_stdout.getvalue())
         self.assertIn("Topology Report", topology_stdout.getvalue())
         self.assertIn("Execution Site Report", execution_site_stdout.getvalue())
         self.assertIn("Dispatch Report", dispatch_stdout.getvalue())
@@ -5244,6 +5379,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("[", knowledge_decisions_json_stdout.getvalue())
         self.assertIn("[", canonical_registry_json_stdout.getvalue())
         self.assertIn('"count"', canonical_registry_index_json_stdout.getvalue())
+        self.assertIn("[", canonical_reuse_eval_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())
