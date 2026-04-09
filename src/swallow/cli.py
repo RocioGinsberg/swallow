@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .canonical_reuse import build_canonical_reuse_report
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .canonical_registry import build_canonical_registry_index_report, build_canonical_registry_report
 from .doctor import diagnose_codex, format_codex_doctor_result
@@ -20,6 +21,7 @@ from .paths import (
     artifacts_dir,
     canonical_registry_index_path,
     canonical_registry_path,
+    canonical_reuse_policy_path,
     capability_assembly_path,
     capability_manifest_path,
     checkpoint_snapshot_path,
@@ -57,6 +59,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_decisions_report",
             "canonical_registry_report",
             "canonical_registry_index_report",
+            "canonical_reuse_policy_report",
             "retrieval_report",
             "retrieval_json",
             "source_grounding",
@@ -98,6 +101,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "knowledge_decisions_json",
             "canonical_registry_json",
             "canonical_registry_index_json",
+            "canonical_reuse_policy_json",
             "route_json",
             "topology_json",
             "execution_site_json",
@@ -284,6 +288,18 @@ def build_canonical_registry_snapshot(index_record: dict[str, object]) -> list[s
         f"canonical_registry_latest_active_id: {index_record.get('latest_active_canonical_id', '') or '-'}",
         f"canonical_registry_latest_source_task: {index_record.get('latest_source_task_id', '') or '-'}",
         f"canonical_registry_latest_source_object: {index_record.get('latest_source_object_id', '') or '-'}",
+    ]
+
+
+def build_canonical_reuse_snapshot(policy_record: dict[str, object]) -> list[str]:
+    return [
+        "Canonical Reuse",
+        f"canonical_reuse_policy: {policy_record.get('policy_name', '-')}",
+        f"canonical_reuse_visible_count: {policy_record.get('reuse_visible_count', 0)}",
+        f"canonical_reuse_hidden_count: {policy_record.get('reuse_hidden_count', 0)}",
+        f"canonical_reuse_latest_visible_id: {policy_record.get('latest_visible_canonical_id', '') or '-'}",
+        f"canonical_reuse_latest_visible_source_task: {policy_record.get('latest_visible_source_task_id', '') or '-'}",
+        f"canonical_reuse_latest_visible_source_object: {policy_record.get('latest_visible_source_object_id', '') or '-'}",
     ]
 
 
@@ -992,6 +1008,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Print the canonical knowledge registry index report.",
     )
     canonical_registry_index_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
+    canonical_reuse_parser = task_subparsers.add_parser(
+        "canonical-reuse",
+        help="Print the canonical reuse policy report.",
+        description="Print the canonical reuse policy report.",
+    )
+    canonical_reuse_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
     checkpoint_parser = task_subparsers.add_parser(
@@ -1144,6 +1166,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the canonical knowledge registry index record.",
     )
     canonical_registry_index_json_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
+    canonical_reuse_json_parser = task_subparsers.add_parser(
+        "canonical-reuse-json",
+        help="Print the canonical reuse policy record.",
+    )
+    canonical_reuse_json_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
@@ -1419,6 +1446,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
+        canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         task_semantics = load_json_if_exists(task_semantics_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
@@ -1495,6 +1523,8 @@ def main(argv: list[str] | None = None) -> int:
             "",
             *build_canonical_registry_snapshot(canonical_registry_index),
             "",
+            *build_canonical_reuse_snapshot(canonical_reuse_policy),
+            "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
             "Retrieval And Memory",
@@ -1528,6 +1558,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_decisions_report: {state.artifact_paths.get('knowledge_decisions_report', '-')}",
             f"canonical_registry_report: {state.artifact_paths.get('canonical_registry_report', '-')}",
             f"canonical_registry_index_report: {state.artifact_paths.get('canonical_registry_index_report', '-')}",
+            f"canonical_reuse_policy_report: {state.artifact_paths.get('canonical_reuse_policy_report', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"route_report: {state.artifact_paths.get('route_report', '-')}",
@@ -1586,6 +1617,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
+        canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         reused_knowledge_references = []
@@ -1654,6 +1686,8 @@ def main(argv: list[str] | None = None) -> int:
             "",
             *build_canonical_registry_snapshot(canonical_registry_index),
             "",
+            *build_canonical_reuse_snapshot(canonical_reuse_policy),
+            "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
             "Review Artifacts",
@@ -1664,6 +1698,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_decisions_report: {state.artifact_paths.get('knowledge_decisions_report', '-')}",
             f"canonical_registry_report: {state.artifact_paths.get('canonical_registry_report', '-')}",
             f"canonical_registry_index_report: {state.artifact_paths.get('canonical_registry_index_report', '-')}",
+            f"canonical_reuse_policy_report: {state.artifact_paths.get('canonical_reuse_policy_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"source_grounding: {state.artifact_paths.get('source_grounding', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
@@ -1846,6 +1881,10 @@ def main(argv: list[str] | None = None) -> int:
         print(build_canonical_registry_index_report(load_json_if_exists(canonical_registry_index_path(base_dir))))
         return 0
 
+    if args.command == "task" and args.task_command == "canonical-reuse":
+        print(build_canonical_reuse_report(load_json_if_exists(canonical_reuse_policy_path(base_dir))))
+        return 0
+
     if args.command == "task" and args.task_command == "knowledge-decisions-json":
         print(json.dumps(load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id)), indent=2))
         return 0
@@ -1856,6 +1895,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "canonical-registry-index-json":
         print(json.dumps(load_json_if_exists(canonical_registry_index_path(base_dir)), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "canonical-reuse-json":
+        print(json.dumps(load_json_if_exists(canonical_reuse_policy_path(base_dir)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":

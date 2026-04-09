@@ -13,6 +13,7 @@ from .canonical_registry import (
     build_canonical_registry_index_report,
     build_canonical_registry_report,
 )
+from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .executor import normalize_executor_name
 from .harness import run_execution, run_retrieval, write_task_artifacts
 from .knowledge_objects import (
@@ -34,6 +35,7 @@ from .paths import (
     checkpoint_snapshot_path,
     canonical_registry_index_path,
     canonical_registry_path,
+    canonical_reuse_policy_path,
     compatibility_path,
     dispatch_path,
     execution_site_path,
@@ -63,6 +65,7 @@ from .store import (
     load_state,
     save_capability_assembly,
     save_capability_manifest,
+    save_canonical_reuse_policy,
     save_canonical_registry_index,
     save_knowledge_index,
     save_knowledge_objects,
@@ -220,6 +223,8 @@ def create_task(
         "canonical_registry_report": str((artifacts_dir(base_dir, task_id) / "canonical_registry_report.md").resolve()),
         "canonical_registry_index_json": str(canonical_registry_index_path(base_dir).resolve()),
         "canonical_registry_index_report": str((artifacts_dir(base_dir, task_id) / "canonical_registry_index_report.md").resolve()),
+        "canonical_reuse_policy_json": str(canonical_reuse_policy_path(base_dir).resolve()),
+        "canonical_reuse_policy_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md").resolve()),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
     }
@@ -241,6 +246,9 @@ def create_task(
     empty_canonical_index = build_canonical_registry_index([])
     save_canonical_registry_index(base_dir, empty_canonical_index)
     write_artifact(base_dir, task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(empty_canonical_index))
+    empty_canonical_reuse = build_canonical_reuse_summary([])
+    save_canonical_reuse_policy(base_dir, empty_canonical_reuse)
+    write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(empty_canonical_reuse))
     append_event(
         base_dir,
         Event(
@@ -467,8 +475,11 @@ def decide_task_knowledge(
                 canonical_records.append(json.loads(stripped))
     canonical_index = build_canonical_registry_index(canonical_records)
     save_canonical_registry_index(base_dir, canonical_index)
+    canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
+    save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
     write_artifact(base_dir, task_id, "canonical_registry_report.md", build_canonical_registry_report(canonical_records))
     write_artifact(base_dir, task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(canonical_index))
+    write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(canonical_reuse_summary))
     append_event(
         base_dir,
         Event(
@@ -481,6 +492,11 @@ def decide_task_knowledge(
                 "decision_record": decision_record,
                 "canonical_registry_count": len(canonical_records),
                 "canonical_registry_index": canonical_index,
+                "canonical_reuse_policy": {
+                    "reuse_visible_count": canonical_reuse_summary["reuse_visible_count"],
+                    "reuse_hidden_count": canonical_reuse_summary["reuse_hidden_count"],
+                    "policy_name": canonical_reuse_summary["policy_name"],
+                },
                 "knowledge_index": {
                     "active_reusable_count": knowledge_index["active_reusable_count"],
                     "inactive_reusable_count": knowledge_index["inactive_reusable_count"],
@@ -641,7 +657,9 @@ def run_task(
         "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
         "knowledge_index_report": str((artifacts_dir(base_dir, task_id) / "knowledge_index_report.md").resolve()),
         "knowledge_policy_json": str(knowledge_policy_path(base_dir, task_id).resolve()),
+        "canonical_reuse_policy_json": str(canonical_reuse_policy_path(base_dir).resolve()),
         "knowledge_policy_report": str((artifacts_dir(base_dir, task_id) / "knowledge_policy_report.md").resolve()),
+        "canonical_reuse_policy_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md").resolve()),
         "summary": str((artifacts_dir(base_dir, task_id) / "summary.md").resolve()),
         "resume_note": str((artifacts_dir(base_dir, task_id) / "resume_note.md").resolve()),
         "route_report": str((artifacts_dir(base_dir, task_id) / "route_report.md").resolve()),

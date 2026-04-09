@@ -5,8 +5,10 @@ import re
 from pathlib import Path
 from typing import Any
 
+from .canonical_reuse import is_canonical_reuse_visible
 from .knowledge_objects import is_retrieval_reuse_ready
 from .models import RetrievalItem, RetrievalRequest
+from .paths import canonical_reuse_policy_path
 from .retrieval_adapters import select_retrieval_adapter
 
 STOPWORDS = {
@@ -229,17 +231,58 @@ def build_knowledge_item_metadata(
     }
 
 
+def build_canonical_reuse_item_metadata(
+    canonical_record: dict[str, Any],
+    query_plan: dict[str, Any],
+    current_task_id: str,
+) -> dict[str, Any]:
+    knowledge_task_id = str(canonical_record.get("source_task_id", ""))
+    task_relation = "unknown_task"
+    if current_task_id:
+        task_relation = "current_task" if knowledge_task_id == current_task_id else "cross_task"
+    return {
+        "extension": ".json",
+        "adapter_name": "canonical_registry_records",
+        "chunk_kind": "canonical_record",
+        "line_start": 1,
+        "line_end": 1,
+        "title_source": "canonical_record",
+        "query_token_count": query_plan["token_count"],
+        "storage_scope": "canonical_registry",
+        "knowledge_object_id": canonical_record.get("source_object_id", ""),
+        "knowledge_stage": canonical_record.get("canonical_stage", "canonical"),
+        "knowledge_reuse_scope": "canonical_registry",
+        "evidence_status": canonical_record.get("evidence_status", ""),
+        "artifact_ref": canonical_record.get("artifact_ref", ""),
+        "source_ref": canonical_record.get("source_ref", ""),
+        "task_linked": False,
+        "retrieval_eligible": True,
+        "knowledge_task_id": knowledge_task_id,
+        "knowledge_task_relation": task_relation,
+        "canonical_id": canonical_record.get("canonical_id", ""),
+        "canonical_key": canonical_record.get("canonical_key", ""),
+        "canonical_status": canonical_record.get("canonical_status", "active"),
+        "canonical_policy": "reuse_visible",
+    }
+
+
 def summarize_reused_knowledge(retrieval_items: list[RetrievalItem]) -> dict[str, Any]:
     knowledge_items = [item for item in retrieval_items if item.source_type == KNOWLEDGE_SOURCE_TYPE]
     evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
+    storage_scope_counts = {"task_knowledge": 0, "canonical_registry": 0}
     for item in knowledge_items:
         evidence_status = str(item.metadata.get("evidence_status", "unbacked"))
         evidence_counts[evidence_status] = evidence_counts.get(evidence_status, 0) + 1
+        storage_scope = str(item.metadata.get("storage_scope", "task_knowledge"))
+        storage_scope_counts[storage_scope] = storage_scope_counts.get(storage_scope, 0) + 1
     return {
         "count": len(knowledge_items),
         "references": [item.reference() for item in knowledge_items[:5]],
         "object_ids": [str(item.metadata.get("knowledge_object_id", item.chunk_id)) for item in knowledge_items[:5]],
         "evidence_counts": evidence_counts,
+        "storage_scope_counts": storage_scope_counts,
+        "canonical_registry_count": storage_scope_counts.get("canonical_registry", 0),
+        "task_knowledge_count": storage_scope_counts.get("task_knowledge", 0),
         "current_task_count": sum(
             1 for item in knowledge_items if str(item.metadata.get("knowledge_task_relation", "")) == "current_task"
         ),
@@ -321,6 +364,65 @@ def iter_verified_knowledge_items(
     return items
 
 
+def iter_canonical_reuse_items(
+    workspace_root: Path,
+    request: RetrievalRequest,
+    query_plan: dict[str, Any],
+) -> list[RetrievalItem]:
+    policy_path = canonical_reuse_policy_path(workspace_root)
+    if not policy_path.exists():
+        return []
+    try:
+        payload = json.loads(policy_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    visible_records = payload.get("visible_records", [])
+    if not isinstance(visible_records, list):
+        return []
+
+    items: list[RetrievalItem] = []
+    for canonical_record in visible_records:
+        if not isinstance(canonical_record, dict):
+            continue
+        if not is_canonical_reuse_visible(canonical_record):
+            continue
+        knowledge_text = str(canonical_record.get("text", "")).strip()
+        if not knowledge_text:
+            continue
+        relative_path = ".swl/canonical_knowledge/reuse_policy.json"
+        canonical_id = str(canonical_record.get("canonical_id", "canonical-record"))
+        title = f"Canonical {canonical_id}"
+        score, score_breakdown, matched_terms = score_chunk(
+            query_plan=query_plan,
+            relative_path=relative_path,
+            path_name="reuse_policy.json",
+            title=title,
+            chunk_text=knowledge_text[:4000],
+        )
+        if score <= 0:
+            continue
+        preview = " ".join(knowledge_text.split())[:220]
+        items.append(
+            RetrievalItem(
+                path=relative_path,
+                source_type=KNOWLEDGE_SOURCE_TYPE,
+                score=score,
+                preview=preview,
+                chunk_id=canonical_id,
+                title=title,
+                citation=f"{relative_path}#{canonical_id}",
+                matched_terms=matched_terms,
+                score_breakdown=score_breakdown,
+                metadata=build_canonical_reuse_item_metadata(
+                    canonical_record=canonical_record,
+                    query_plan=query_plan,
+                    current_task_id=request.current_task_id,
+                ),
+            )
+        )
+    return items
+
+
 def retrieve_context(
     workspace_root: Path,
     query: str | None = None,
@@ -335,6 +437,13 @@ def retrieve_context(
         workspace_root=workspace_root,
         request=retrieval_request,
         query_plan=query_plan,
+    )
+    items.extend(
+        iter_canonical_reuse_items(
+            workspace_root=workspace_root,
+            request=retrieval_request,
+            query_plan=query_plan,
+        )
     )
 
     for path in sorted(workspace_root.rglob("*")):

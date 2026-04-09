@@ -6,6 +6,7 @@ from typing import Iterable
 
 from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
 from .paths import (
+    canonical_reuse_policy_path,
     canonical_registry_index_path,
     artifacts_dir,
     canonical_registry_path,
@@ -203,6 +204,14 @@ def append_canonical_record(base_dir: Path, payload: dict[str, object]) -> None:
 def save_canonical_registry_index(base_dir: Path, payload: dict[str, object]) -> None:
     canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
     canonical_registry_index_path(base_dir).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_canonical_reuse_policy(base_dir: Path, payload: dict[str, object]) -> None:
+    canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
+    canonical_reuse_policy_path(base_dir).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )
