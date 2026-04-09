@@ -1,326 +1,127 @@
-# Current Agent State
+# Current State
 
-## Purpose
+## 文档目的
 
-This file tracks the implementation status of the repository itself so work can resume quickly if the terminal session is interrupted.
+本文件用于在终端会话中断、重新打开仓库或切换设备后，**快速恢复到当前稳定工作位置**。
 
-## Current Status
+它回答的问题是：
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; post-Phase-2 retrieval baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; post-Phase-5 executor / external-input slice complete; post-Phase-5 retrieval / memory-next slice complete; Phase 6 baseline complete; Phase 7 baseline complete; Phase 8 baseline complete; Phase 9 baseline complete; Phase 10 baseline complete; Phase 11 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 11 Planning And Knowledge Intake Workbench closeout checkpoint
-- last checked: 2026-04-09
-- phase exit reference:
-  - `docs/phase0_exit_checklist.md`
-- phase 1 planning reference:
-  - `docs/phase1_kickoff_plan.md`
-  - `docs/phase1_task_breakdown.md`
-- phase 2 planning reference:
-  - `docs/phase2_kickoff_note.md`
-  - `docs/phase2_closeout_note.md`
-  - `docs/phase2_task_breakdown.md`
-- phase 3 planning reference:
-  - `docs/phase3_kickoff_note.md`
-  - `docs/phase3_task_breakdown.md`
-  - `docs/phase3_closeout_note.md`
-- phase 4 planning reference:
-  - `docs/phase4_kickoff_note.md`
-  - `docs/phase4_task_breakdown.md`
-  - `docs/phase4_closeout_note.md`
-- phase 5 planning reference:
-  - `docs/phase5_kickoff_note.md`
-  - `docs/phase5_task_breakdown.md`
-  - `docs/phase5_closeout_note.md`
-- phase 6 planning reference:
-  - `docs/phase6_kickoff_note.md`
-  - `docs/phase6_task_breakdown.md`
-  - `docs/phase6_closeout_note.md`
-- phase 7 planning reference:
-  - `docs/phase7_kickoff_note.md`
-  - `docs/phase7_task_breakdown.md`
-  - `docs/phase7_closeout_note.md`
-- phase 8 planning reference:
-  - `docs/phase8_kickoff_note.md`
-  - `docs/phase8_task_breakdown.md`
-  - `docs/phase8_closeout_note.md`
-- phase 9 planning reference:
-  - `docs/phase9_kickoff_note.md`
-  - `docs/phase9_task_breakdown.md`
-  - `docs/phase9_closeout_note.md`
-- phase 10 planning reference:
-  - `docs/phase10_kickoff_note.md`
-  - `docs/phase10_task_breakdown.md`
-  - `docs/phase10_closeout_note.md`
-  - `docs/phase10_commit_summary.md`
-- phase 11 planning reference:
-  - `docs/phase11_kickoff_note.md`
-  - `docs/phase11_task_breakdown.md`
-  - `docs/phase11_closeout_note.md`
-  - `docs/phase11_commit_summary.md`
-- post-Phase-5 planning reference:
-  - `docs/post_phase5_executor_and_external_input_kickoff_note.md`
-  - `docs/post_phase5_executor_and_external_input_task_breakdown.md`
-  - `docs/post_phase5_executor_and_external_input_closeout_note.md`
-- post-Phase-5 retrieval/memory-next planning reference:
-  - `docs/post_phase5_retrieval_memory_next_kickoff_note.md`
-  - `docs/post_phase5_retrieval_memory_next_task_breakdown.md`
-  - `docs/post_phase5_retrieval_memory_next_closeout_note.md`
-- system planning reference:
-  - `docs/system_tracks.md`
-- post-Phase-2 retrieval planning reference:
-  - `docs/post_phase2_retrieval_kickoff_note.md`
-  - `docs/post_phase2_retrieval_task_breakdown.md`
-  - `docs/post_phase2_retrieval_closeout_note.md`
-- verification:
-  - `python3 -m unittest discover -s tests`
-  - `PYTHONPATH=src python3 -m swallow.cli --help`
-  - `AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m swallow.cli --base-dir /tmp/aiwf-exec-real task run <task-id>`
+- 当前最近的稳定 checkpoint 是什么
+- 当前默认应从哪里继续
+- 恢复前需要先看哪些文件
+- 最小验证命令是什么
+- 当前已知问题是什么
 
-## Completed
+本文件不是：
 
-- Added a Python package under `src/swallow/`.
-- Added a minimal CLI with:
-  - `swl task create`
-  - `swl task run`
-  - `swl task list`
-  - `swl task queue`
-  - `swl task control`
-  - `swl task checkpoint`
-  - `swl task attempts`
-  - `swl task compare-attempts`
-  - `swl task resume`
-  - `swl task retry`
-  - `swl task rerun`
-  - `swl task inspect`
-  - `swl task artifacts`
-  - `swl task review`
-  - `swl task summarize`
-  - `swl task resume-note`
-  - `swl task compatibility`
-  - `swl task validation`
-  - `swl task grounding`
-  - `swl task memory`
-  - `swl task compatibility-json`
-  - `swl task route`
-  - `swl task route-json`
-  - `swl doctor codex`
-- Added explicit modules for:
-  - orchestrator
-  - harness runtime
-  - retrieval
-  - state/event/artifact storage
-- Updated the main README files with quickstart and CLI shape.
-- Unified the repo and package references around `swallow`.
-- Switched the documented test command to `unittest` so it matches the current dependency-light setup.
-- Added a narrow `codex exec` adapter with:
-  - mock mode for tests
-  - timeout handling
-  - executor prompt/output artifacts
-  - terminal failure recording when executor runs stall or fail
-- Improved the live executor adapter by:
-  - using `codex exec --output-last-message` for more stable result capture
-  - using `--ephemeral` and `--color never` for cleaner non-interactive runs
-  - preserving partial stdout/stderr on timeout for diagnosis
-  - generating a structured fallback note on live executor failure without marking the task as successful
-  - classifying failures into small explicit kinds such as `timeout`, `unreachable_backend`, `launch_error`, and `generic_failure`
-  - giving `unreachable_backend` failures more specific recovery guidance in persisted artifacts
-  - saving `executor_stdout.txt` and `executor_stderr.txt` as first-class diagnostic artifacts
-  - adding `AIWF_EXECUTOR_MODE=note-only` for explicit non-live continuation-note generation
+- 完整开发编年史
+- 当前高频状态板
+- 当前 phase 的详细 breakdown
+- 历史 phase 索引页
 
-## Current Behavior
+当前高频状态请看：
 
-- Tasks are stored under `.swl/tasks/<task-id>/`.
-- The run loop performs:
-  - retrieval
-  - executor prompt construction
-  - explicit executor selection (`codex`, `local`, `mock`, or `note-only`)
-  - validation over run outputs and artifact completeness
-  - source-grounding and task-memory persistence for later review and reruns
-  - summary, resume note, and validation artifact generation
-- Failed executor runs now end in `status=failed` instead of leaving the task stuck in `running`.
-- Task state semantics now match real execution timing:
-  - `status` is lifecycle state, while `phase` is the current or last real workflow step
-  - phase transitions happen only when retrieval, execution, or summarize actually start
-  - final `completed` or `failed` is written only after `summary.md` and `resume_note.md` are persisted
-- Event semantics are now clearer and more resume-friendly:
-  - each run attempt starts with `task.run_started`
-  - repeated `swl task run` calls append a new run segment to `events.jsonl`
-  - retrieval, executor, artifact, and terminal task events now carry small structured payloads
-- Artifact semantics are now clearer:
-  - `summary.md` records what happened in the run
-  - `resume_note.md` records what the next operator/session should do next
-  - `route_report.md` records the selected route, route reason, and capability summary in a dedicated readable artifact
-  - `compatibility_report.md` records whether the selected route matches the requested route policy baseline
-  - `validation_report.md` records validator findings in a human-readable form
-  - `source_grounding.md` records the retrieval-backed citations and score context that grounded the run
-  - `memory.json` records a compact reusable task-memory packet for later runs
-  - route records now also declare execution-site metadata such as `execution_site`, `remote_capable`, and `transport_kind` so later remote execution can be added without changing the current local behavior
-- Phase 1 progress:
-  - `P1-01` retrieval result shape and metadata baseline is implemented
-  - `P1-02` source-aware chunking and ranking baseline is implemented for markdown notes and repo line chunks
-  - `P1-03` harness retrieval boundary cleanup is implemented with explicit retrieval requests
-  - `P1-04` executor selection seam baseline is implemented with explicit task-level selection and a second built-in executor path (`local`)
-  - `P1-05` validator and execution-policy baseline is implemented with persisted validation results, validation events, and validator-driven terminal failure on blocking inconsistencies
-  - `P1-06` artifact and memory tightening is implemented with persisted source grounding, reusable task memory, and rerun prompts that surface prior task artifacts
-- Phase 2 progress:
-  - `P2-01` route declaration and selection baseline is implemented with a small built-in router, declared route capabilities, and persisted route provenance in task state, events, summaries, resume notes, prompts, and task memory
-  - `P2-02` richer route policy inputs are implemented with persisted `route_mode` policy selection and run-time route-mode overrides for `auto`, `live`, `deterministic`, `offline`, and `summary`
-  - `P2-03` capability declaration refinement is implemented with a structured capability schema covering execution kind, tool-loop support, filesystem access, network access, determinism, and resumability
-  - `P2-04` route provenance and artifact tightening is implemented with persisted `route.json`, readable `route_report.md`, route CLI inspection commands, and tighter route links inside summary, resume note, memory, and artifact indexes
-  - `P2-05` backend-compatibility policy baseline is implemented with persisted `compatibility.json`, readable `compatibility_report.md`, compatibility events, route-policy fit checks, CLI inspection commands, and terminal failure on blocking compatibility mismatches
-  - `P2-06` remote-ready hook baseline is implemented with explicit route execution-site metadata in route declarations, state, events, route artifacts, prompts, summaries, resume notes, and task memory while keeping all current routes local-only
-  - Phase 2 closeout judgment is documented in `docs/phase2_closeout_note.md`, and no additional Phase 2 breadth should be added by default without a fresh planning note
-- Post-Phase-2 retrieval planning:
-  - `docs/post_phase2_retrieval_kickoff_note.md` defines the next retrieval direction: preserve the current local task loop and artifact semantics while improving retrieval quality, source coverage, and memory reuse
-  - `docs/post_phase2_retrieval_task_breakdown.md` breaks that direction into `R1-01` through `R1-06`
-  - `docs/post_phase2_retrieval_closeout_note.md` records the stop/go judgment for the completed retrieval baseline
-  - `R1-01` retrieval adapter seam baseline is implemented with a dedicated retrieval-adapter module, explicit source-adapter selection for markdown notes and repo text, and additive `adapter_name` retrieval metadata while preserving current retrieval result and artifact semantics
-  - `R1-02` query shaping and rerank baseline is implemented with explicit query preparation, stopword trimming, phrase and coverage-aware rerank signals, and additive scoring metadata while preserving current retrieval and grounding semantics
-  - `R1-03` local source coverage expansion is implemented with explicit task-artifact retrieval support under `.swl/tasks/...`, a new `artifacts` source type, and additive artifact-scope metadata while keeping default retrieval behavior unchanged unless artifacts are explicitly requested
-  - `R1-04` retrieval-memory reuse tightening is implemented with explicit retrieval snapshot fields in `memory.json`, persisted `retrieval.json` artifact paths in task memory, and rerun prompts that surface prior retrieval count, top references, grounding artifact, and retrieval record paths without hiding fresh retrieval behind an implicit cache
-  - `R1-05` retrieval artifact indexing cleanup is implemented with a readable `retrieval_report.md`, explicit retrieval artifact links in summary/resume/memory, and CLI inspection commands for both `retrieval_report.md` and `retrieval.json`
-  - `R1-06` retrieval evaluation fixture baseline is implemented with local fixture-based regression tests that cover note, repo, and task-artifact retrieval expectations without introducing a heavyweight evaluation framework
-  - The post-Phase-2 retrieval closeout judgment is documented in `docs/post_phase2_retrieval_closeout_note.md`, and no additional retrieval breadth should be added by default without a fresh planning note
-- System planning:
-  - `docs/system_tracks.md` defines the repository’s long-running tracks so future phases can be scoped against a stable system map instead of treating each phase as a mixed bundle
-  - `docs/phase3_kickoff_note.md` defines the next planned primary slice on the `Execution Topology` track
-  - `docs/phase3_task_breakdown.md` breaks that direction into `P3-01` through `P3-06`
-  - `docs/phase3_closeout_note.md` records the stop/go judgment for the completed Phase 3 baseline
-  - `docs/phase4_kickoff_note.md` defines the next planned primary slice on the `Workbench / UX` track
-  - `docs/phase4_task_breakdown.md` breaks that direction into `P4-01` through `P4-06`
-  - `docs/phase4_closeout_note.md` records the stop/go judgment for the completed Phase 4 baseline
-  - `docs/phase5_kickoff_note.md` defines the next planned primary slice on the `Capabilities` track
-  - `docs/phase5_task_breakdown.md` breaks that direction into `P5-01` through `P5-06`
-  - `P5-01` capability manifest baseline is implemented with a small `CapabilityManifest` shape, a local-first default manifest, repeatable `--capability kind:ref` task-create inputs, and persisted capability manifest fields in task state and `task.created` events
-  - `P5-02` capability assembly record baseline is implemented with deterministic local-first assembly, persisted `capability_assembly.json`, and explicit separation between requested manifest and effective assembly in task state and `task.created` events
-  - `P5-03` task-level capability selection baseline is implemented with repeatable `swl task run --capability kind:ref` overrides that update persisted capability manifest and capability assembly before `task.run_started`
-  - `P5-04` capability inspection path baseline is implemented with `swl task capabilities` and `swl task capabilities-json`, separating requested capability manifest from effective assembly in operator-facing inspection flows
-  - `P5-05` capability validation baseline is implemented with a small local-first known-capability allowlist; unknown capability refs now fail clearly during task creation or run-time override
-  - `P5-06` capability closeout tightening is implemented with capability-aware CLI help, README quickstart alignment for create/run/inspect flows, and test coverage for capability help text
-  - `docs/phase5_closeout_note.md` records the stop/go judgment for the completed Phase 5 baseline
-  - `docs/post_phase5_executor_and_external_input_kickoff_note.md` defines the next planning direction around executor-family distinction and external-input ingestion without changing the accepted Phase 5 closeout state
-  - `docs/post_phase5_executor_and_external_input_task_breakdown.md` turns that post-Phase-5 direction into executable slices without changing the accepted Phase 5 closeout state
-  - `X1-01` executor family declaration baseline is implemented with explicit `executor_family` fields in route selection, task state, topology, dispatch, handoff, memory, prompt context, and operator-facing reports while preserving the current local-first executor behavior
-  - `X1-02` task-semantics ingestion baseline is implemented with explicit imported-planning fields, persisted `task_semantics.json`, readable `task_semantics_report.md`, and task-linked semantics carried through task state, creation events, prompt context, summary, resume note, memory, and compact inspection flows
-  - `X1-03` staged knowledge-object record baseline is implemented with explicit staged knowledge records, persisted `knowledge_objects.json`, readable `knowledge_objects_report.md`, and knowledge-object context carried through task state, creation events, prompt context, summary, resume note, memory, and compact inspection without yet enabling default retrieval reuse or automated promotion
-  - `X1-04` artifact-backed external knowledge capture baseline is implemented with explicit evidence fields such as `artifact_ref`, `captured_at`, and `evidence_status`, plus artifact-backed/source-only/unbacked counts carried through creation events, prompt context, summary, resume note, memory, compact inspection, and `knowledge_objects_report.md`
-  - `X1-05` promotion and verification policy baseline is implemented with explicit `knowledge_policy` evaluation, persisted `knowledge_policy.json`, readable `knowledge_policy_report.md`, policy-aware terminal status gating on blocking failures, and operator-facing policy status carried through summary, resume note, handoff, memory, compact inspection, and review flows
-  - `X1-06` inspection and closeout tightening is implemented with explicit CLI inspection commands for task semantics, knowledge objects, and knowledge policy, review-flow visibility for imported task and knowledge records, and aligned closeout references for the completed post-Phase-5 slice
-  - `R2-01` retrieval-eligible knowledge declaration baseline is implemented with explicit `retrieval_eligible` and `knowledge_reuse_scope` fields on knowledge objects, task-create declaration of retrieval eligibility, and operator-facing reuse visibility through events, reports, summary, resume note, prompt context, task memory, and compact inspection without yet enabling retrieval reuse
-  - `R2-02` task-linked versus reusable knowledge partition baseline is implemented with explicit `knowledge_partition.json`, readable `knowledge_partition_report.md`, and partition-aware visibility across creation events, task inspection, review artifacts, grouped artifact indexes, task memory, and dedicated CLI inspection commands while preserving the current task-local retrieval baseline
-  - `R2-03` verified-knowledge retrieval source baseline is implemented with an explicit opt-in `knowledge` source type that surfaces only `verified` reusable knowledge objects, preserves `knowledge_objects.json#<object_id>` citations plus artifact/source metadata, and keeps the default retrieval baseline unchanged unless knowledge reuse is explicitly requested
-  - `R2-04` reuse-aware retrieval memory tightening is implemented with explicit reused-knowledge summaries in retrieval completion events, `retrieval_report.md`, `memory.json`, summary output, resume notes, and rerun prompt context so later runs can distinguish fresh retrieval from previously reused verified knowledge
-  - `R2-05` knowledge-reuse policy and verification tightening is implemented with an explicit reuse gate: only `verified`, `artifact_backed`, `retrieval_candidate` knowledge records are reusable by the current retrieval baseline, while source-only verified candidates remain warning-level and non-verified reuse candidates fail policy explicitly
-  - `R2-06` inspection and closeout tightening is implemented with reusable-knowledge visibility in `swl task inspect` and `swl task review`, retrieval-backed reused-knowledge references in operator inspection flows, and a dedicated retrieval/memory-next closeout note for this completed slice
-  - `P6-01` reusable-knowledge index baseline is implemented with a derived `knowledge_index.json`, readable `knowledge_index_report.md`, event-level active-reusable counts, artifact-path persistence, and CLI inspection commands that expose current reuse-ready knowledge records without changing default retrieval behavior
-  - `P6-02` refresh and invalidation semantics baseline is implemented with derived `knowledge_index` refresh timestamps, explicit active-versus-inactive reusable partitions, invalidation reasons for non-reuse-ready candidates, and operator-facing refresh visibility across inspect/review, summary/resume, task memory, and index artifacts without introducing a background indexing service
-  - `P6-03` canonicalization-boundary baseline is implemented with explicit `canonicalization_intent` declarations on knowledge objects, derived canonicalization readiness and blocking states, knowledge-policy findings that keep `verified` separate from `canonical`, and operator-facing visibility across reports, prompt context, summary/resume, task memory, inspect/review, and knowledge-index records
-  - `P6-04` cross-task retrieval reuse baseline is implemented by binding reusable knowledge selection to explicit retrieval context layers, distinguishing current-task versus cross-task reusable knowledge through `knowledge_task_id` and `knowledge_task_relation`, and surfacing those reuse boundaries across retrieval events, reports, prompt context, task memory, summary/resume artifacts, and inspect/review flows while leaving the default `repo + notes` task retrieval baseline unchanged
-  - `P6-05` reusable-knowledge evaluation tightening is implemented with fixture-based retrieval regression coverage for current-task reuse, cross-task reuse, and blocked reusable knowledge boundaries so retrieval/memory operationalization remains protected by local, inspectable evaluation cases
-  - `P6-06` inspection and closeout tightening is implemented with aligned operator-facing reusable-knowledge inspection, a dedicated Phase 6 closeout note, and synchronized status-entry documents that now treat Phase 6 as a completed baseline rather than an active planning checkpoint
-  - `P7-01` execution-site contract baseline is implemented with explicit execution-site records, dedicated execution-site artifacts, and aligned visibility across state, events, summaries, resume notes, memory, inspect, review, and grouped artifact indexes
-  - `P7-02` attempt ownership baseline is implemented with explicit attempt owner, owner-kind, ownership status, assignment timing, and transfer-reason fields across run state, events, dispatch, handoff, memory, summary, resume, inspect, and review flows
-  - `P7-03` handoff-contract tightening is implemented with contract status, contract kind, contract reason, required-inputs, expected-outputs, and next-owner fields so handoff records act as execution contracts instead of only operator summaries
-  - `P7-04` local-detached execution baseline is implemented with a real child-process local execution boundary, detached route-mode selection, detached dispatch truth, and continued artifact-backed persistence without introducing hosted supervisors
-  - `P7-05` family-aware execution-fit policy tightening is implemented with route-versus-topology executor-family alignment checks, explicit support for current `cli` family behavior, explicit failure for unsupported future families, and detached-local transport acceptance in execution-fit findings
-  - `P7-06` inspection and closeout tightening is implemented with aligned operator-facing execution-site, ownership, and handoff-contract inspection plus a dedicated Phase 7 closeout note and synchronized status-entry documents
-  - `P8-01` retry-policy baseline is implemented with explicit retry-policy records, human-readable retry policy reports, operator-gated retry eligibility findings, and aligned visibility across handoff, memory, summary, resume, inspect, review, and dedicated CLI inspection commands
-  - `P8-02` stop and escalation policy baseline is implemented with explicit stop-policy records, clear checkpoint-versus-stop decisions, and operator-facing escalation visibility across execution artifacts, summaries, reviews, and CLI inspection commands
-  - `P8-03` detached-execution checkpoint baseline is implemented with detached-specific stop-policy decisions, checkpoint kinds, and escalation levels that keep `local_detached` distinct from inline execution during review and recovery flows
-  - `P8-04` execution budget and timeout policy baseline is implemented with explicit timeout and attempt-budget records, dedicated budget-policy artifacts, and operator-facing budget visibility without changing the current executor lifecycle
-  - `P8-05` policy inspection and review tightening is implemented with a unified `Policy Controls` inspection view, grouped execution-control artifacts, and a compact `swl task policy` command for operator-facing policy review
-  - `P8-06` closeout and status alignment is implemented with a dedicated Phase 8 closeout note and synchronized status-entry documents that now treat Phase 8 as a completed baseline rather than an active planning checkpoint
-  - `P9-01` operator action queue baseline is implemented with `swl task queue`, a compact action-needed task view derived from persisted state, handoff, retry-policy, and stop-policy truth so operators can identify run, retry, review, inspect, and monitor actions without opening raw task directories
-  - `P9-02` task control snapshot baseline is implemented with `swl task control`, a concise per-task control view that summarizes recommended action, retry/review/rerun readiness, current policy state, and the most relevant control commands and artifacts without replacing inspect, review, or policy commands
-  - `P9-03` attempt history and comparison baseline is implemented with `swl task attempts` and `swl task compare-attempts`, giving operators a compact per-task attempt history plus a narrow side-by-side comparison of outcome, lifecycle, retrieval count, handoff status, and policy-relevant result changes across attempts
-  - `P9-04` rerun and retry entrypoint tightening is implemented with `swl task retry` and `swl task rerun`, keeping both actions on the accepted `task run` path while gating retry by persisted retry/stop policy truth and preserving explicit operator-triggered rerun behavior
-  - `P10-01` checkpoint snapshot baseline is implemented with explicit `checkpoint_snapshot` records, readable checkpoint snapshot reports, and compact `swl task checkpoint` inspection paths that derive recovery truth from persisted handoff and policy state without introducing a second lifecycle model
-  - `P10-02` resume entrypoint baseline is implemented with `swl task resume`, an operator-gated resume path that stays on the accepted `task run` flow and blocks explicitly when checkpoint truth does not allow recovery
-  - `P10-03` resume-versus-retry-versus-rerun boundary tightening is implemented with compact control-boundary output, clearer blocked-path messaging, and checkpoint-backed operator guidance inside `swl task control`
-  - `P10-04` interruption recovery semantics baseline is implemented with explicit checkpoint-level `recovery_semantics` and `interruption_kind` classification, plus aligned visibility across `checkpoint`, `control`, `inspect`, and `review` output for interrupted-style failures such as `timeout`, `launch_error`, and `unreachable_backend`
-  - `P10-05` resume command and help alignment is implemented with clearer CLI help for `queue`, `control`, `checkpoint`, `resume`, `retry`, and `rerun`, plus README quickstart guidance that explains when each recovery path should be used
-  - `P10-06` closeout, documentation synchronization, and commit-summary note is implemented with a dedicated Phase 10 closeout note, a reusable `docs/phase10_commit_summary.md`, and synchronized status-entry documents that now treat Phase 10 as a completed baseline rather than an in-progress slice
-  - `P11-01` planning-handoff intake baseline is implemented with `swl task planning-handoff`, an operator-facing path that updates explicit task-semantics records for existing tasks without routing imported planning through loose chat history
-  - `P11-02` staged knowledge-capture intake baseline is implemented with `swl task knowledge-capture`, an operator-facing path that appends staged knowledge objects to existing tasks while preserving evidence, reuse, partition, and index truth
-  - `P11-03` imported-input inspection tightening is implemented with `swl task intake`, a compact imported-input snapshot that surfaces planning handoff and staged knowledge capture without requiring raw JSON first
-  - `P11-04` task-semantics versus knowledge-object boundary tightening is implemented with intake output that makes execution intent versus staged evidence explicit instead of flattening imported inputs into one bucket
-  - `P11-05` intake command and help alignment is implemented with CLI help coverage for planning handoff, staged knowledge capture, and intake inspection plus aligned command discoverability in the current local workbench
-  - `P11-06` closeout, documentation synchronization, and commit-summary note is implemented with a dedicated Phase 11 closeout note, a reusable `docs/phase11_commit_summary.md`, and synchronized status-entry documents that now treat Phase 11 as a completed baseline rather than an in-progress slice
-  - `P9-05` workbench command and help alignment is implemented with updated Phase 9 command discoverability in CLI help plus synchronized README and README.zh-CN coverage for queue, control, attempt history/comparison, and explicit retry/rerun entrypoints
-  - `P9-06` closeout and status alignment is implemented with a dedicated Phase 9 closeout note and synchronized status-entry documents that now treat Phase 9 as a completed baseline rather than an active planning checkpoint
-  - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
-  - `P4-02` task inspect and overview baseline is implemented with `swl task inspect`, a compact per-task overview of the latest attempt, route/topology, policy status, retrieval/memory availability, operator guidance, and key artifact links
-  - `P4-03` artifact index tightening is implemented with `swl task artifacts`, grouped artifact-path presentation by operator concern while preserving existing artifact paths and file layout
-  - `P4-04` review-focused resume path tightening is implemented with `swl task review`, a compact handoff-oriented summary of latest attempt outcome, blocking reason, next operator action, and canonical review artifacts without replacing `resume_note.md`
-  - `P4-05` operator filter and attention baseline is implemented through `swl task list --focus ... [--limit N]`, with explicit state-driven views for `all`, `active`, `failed`, `needs-review`, and `recent`
-  - `P4-06` CLI workbench closeout tightening is implemented with clearer help text, README quickstart alignment for the workbench commands, and test coverage for help output and list filters
-  - `P3-01` execution-topology contract baseline is implemented with explicit topology fields in task state, persisted `topology.json`, readable `topology_report.md`, topology-aware event payloads, and separate route-versus-topology provenance in summaries, resume notes, and task memory
-  - `P3-02` dispatch record and attempt identity baseline is implemented with stable per-run `attempt_id` sequencing, persisted `dispatch.json`, readable `dispatch_report.md`, dispatch timestamps, and attempt-aware event, summary, resume-note, state, and memory records
-  - `P3-03` handoff artifact baseline is implemented with persisted `handoff.json`, readable `handoff_report.md`, explicit blocking reason and next-operator-action fields, and handoff links carried through summary, resume note, artifact paths, and task memory
-  - `P3-04` topology-aware lifecycle semantics are implemented with explicit `execution_lifecycle` state, event, summary, resume-note, topology, dispatch, handoff, and memory fields so prepared, dispatched, and terminal execution states are recorded separately from task `status` and `phase`
-  - `P3-05` execution-fit policy baseline is implemented with `execution_fit.json`, readable `execution_fit_report.md`, `execution_fit.completed` events, execution-fit status in terminal task payloads, and execution-fit links carried through summary, resume note, handoff, and task memory
-  - `P3-06` operator inspection path tightening is implemented with dedicated CLI commands for topology, dispatch, handoff, and execution-fit artifacts and records, plus README updates so Phase 3 execution-topology outputs are inspectable without reading files manually
+- `docs/active_context.md`
 
-## Acceptance Result
+当前 phase 计划请看：
 
-- Phase 0 acceptance passed on 2026-04-07.
-- Verified through:
-  - unit test coverage
-  - successful mock acceptance workflow
-  - failed executor acceptance workflow
-  - rerun validation showing append-only event history
-- Acceptance confirmed that:
-  - `state.json` truthfully reflects lifecycle status and real phase progression
-  - `events.jsonl` truthfully reflects run boundaries and step ordering
-  - `summary.md` works as the run record
-  - `resume_note.md` works as the hand-off artifact
+- `docs/plans/<active-phase>/kickoff.md`
+- `docs/plans/<active-phase>/breakdown.md`
+- `docs/plans/<active-phase>/closeout.md`
 
-## Phase Boundary
+---
 
-- Phase 0 is complete enough to stop Phase 0-only cleanup work by default.
-- Phase 1 is complete enough to stop Phase 1-only expansion work by default.
-- The planned Phase 2 baseline is complete enough to stop open-ended Phase 2 backend expansion by default.
-- The planned Phase 3 baseline is complete enough to stop open-ended execution-topology expansion by default.
-- The planned Phase 4 baseline is complete enough to stop open-ended Workbench / UX expansion by default.
-- The planned Phase 5 baseline is complete enough to stop open-ended `Capabilities` expansion by default.
-- The planned Phase 6 baseline is complete enough to stop open-ended `Retrieval / Memory Operationalization` expansion by default.
-- The planned Phase 7 baseline is complete enough to stop open-ended `Execution Topology` expansion by default.
-- The planned Phase 8 baseline is complete enough to stop open-ended `Evaluation / Policy` expansion by default.
-- Phase 9 baseline is complete enough to stop open-ended `Workbench / UX` expansion by default.
-- Phase 10 baseline is complete enough to stop open-ended `Core Loop` recovery expansion by default.
-- Phase 11 baseline is complete enough to stop open-ended imported-input workbench expansion by default.
-- New work should now begin from a fresh kickoff note rather than extending completed Phase 11 work by default.
+## 当前稳定 checkpoint
 
-## Known Issues
+- repository_state: `runnable`
+- latest_completed_phase: `Phase 11`
+- latest_completed_slice: `Planning And Knowledge Intake Workbench`
+- checkpoint_type: `phase_closeout`
+- last_checked: `2026-04-09`
 
-- A real `codex exec` run can still fail in this environment because outbound network/WebSocket connections are denied, so the adapter is structurally correct but not yet operationally reliable.
-- Some deeper design and historical documents still describe earlier phases intentionally; user-facing entrypoints should stay aligned with the current post-Phase-2 baseline.
+说明：
 
-## Next Resume Step
+- Phase 0 到 Phase 11 已完成并形成稳定 checkpoint
+- post-Phase-2 retrieval baseline 已完成
+- post-Phase-5 executor / external-input slice 已完成
+- post-Phase-5 retrieval / memory-next slice 已完成
+- 当前默认不再继续这些已收口阶段，而是从新的 kickoff 开始下一轮工作
 
-1. Re-run the test suite.
-2. Use `docs/system_tracks.md` as the system-map reference before starting new implementation.
-3. Use `docs/phase3_closeout_note.md` as the execution-topology stop/go reference.
-4. Use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference.
-5. Use `docs/post_phase2_retrieval_closeout_note.md` as the current retrieval stop/go decision reference.
-6. Use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference.
-7. Use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the current stop/go reference for the completed post-Phase-5 executor/external-input slice.
-8. Use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval/memory-next slice.
-9. Use `docs/phase7_closeout_note.md` as the stop/go reference for the completed `Execution Topology` slice.
-10. Use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice.
-11. Use `docs/phase9_closeout_note.md` as the stop/go reference for the completed `Workbench / UX` slice.
-12. Use `docs/phase10_closeout_note.md` as the stop/go reference for completed Phase 10 work.
-13. Use `docs/phase11_closeout_note.md` as the stop/go reference for completed Phase 11 work.
-14. Use `docs/phase11_commit_summary.md` as the reusable short commit-summary note for the completed Phase 11 slice.
-15. Use `docs/system_tracks.md` to choose the next primary track intentionally.
-16. Write a fresh kickoff note before starting the next slice.
-17. Verify the editable install exposes the `swl` entrypoint correctly.
-18. Update this file after each substantial code change.
+---
 
-## Resume Command
+## 当前默认继续方向
 
-Use this first after reopening the terminal:
+当前推荐从以下方向继续：
 
+- active_track: `Retrieval / Memory`
+- active_phase: `Phase 12`
+- active_slice: `Knowledge Promotion And Reuse Review`
+
+说明：
+
+- 当前默认重点不是扩大 intake，而是补齐 intake 之后的 review / promotion / reuse review 闭环
+- 当前 phase 的正式边界以 `docs/plans/phase12/` 中的文档为准
+
+---
+
+## 恢复时优先读取
+
+恢复工作时，优先按以下顺序阅读：
+
+1. `AGENTS.md`
+2. `docs/active_context.md`
+3. `docs/system_tracks.md`
+4. `docs/plans/phase12/kickoff.md`
+5. `docs/plans/phase12/breakdown.md`
+
+仅在需要时再读取：
+
+- `docs/plans/phase12/closeout.md`
+- `docs/archive/*`
+- 历史 phase closeout
+- 旧 `post-phase-*` 归档材料
+
+---
+
+## 最小验证命令
+
+恢复工作前，建议至少执行以下检查：
+
+```bash
+python3 -m unittest discover -s tests
+PYTHONPATH=src python3 -m swallow.cli --help
+# 如需确认当前运行环境下的真实 executor 行为，可按需补充：
+AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m swallow.cli --base-dir /tmp/aiwf-exec-real task run <task-id>
+```
+
+---
+
+## 当前已知问题
+- 真实 codex exec 在当前环境中仍可能因 outbound network / WebSocket 受限而失败。
+- 一些旧设计与历史文档仍保留了较重的 phase 历史叙述，后续应逐步收拢到 archive，不再作为默认读取入口。
+- 当前 current_state.md 已重新定义为恢复入口，后续不应再把高频状态或完整历史继续堆回本文件。
+
+## 当前收口规则
+- 在 phase 或 major slice 收口时，本文件才需要更新。
+- 平时开发过程中，不应把高频状态写入本文件。
+
+- 本文件更新时，通常检查以下内容是否变化：
+  - 最新稳定 checkpoint
+  - 最近完成的 phase
+  - 当前默认继续方向
+  - 恢复时优先读取文件
+  - 最小验证命令
+  - 已知问题
+
+如果这些内容没有变化，不需要更新本文件。
+
+## 恢复命令
+
+重新打开仓库后，可先执行：
 ```bash
 cd /home/rocio/projects/swallow
 sed -n '1,220p' current_state.md
 ```
+然后按“恢复时优先读取”的顺序进入当前工作上下文。
+
+---

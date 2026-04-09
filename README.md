@@ -2,301 +2,193 @@
 
 [中文](./README.zh-CN.md) | English
 
-**A stateful AI workflow system for real project work, centered on orchestration, harnessed execution, reusable capabilities, and persistent task memory.**
+**A stateful AI workflow system for real project work.**
 
-- **Coordinate real project tasks** through an explicit orchestrator instead of one-shot chat turns
-- **Execute work through a harness runtime** that binds models, tools, permissions, hooks, and outputs
-- **Reuse capabilities** as tools, skills, profiles, workflows, and validators
-- **Persist state, memory, and artifacts** across code, notes, retrieval, and execution
+swallow is not aimed at one-shot chat, and it is not only a wrapper around a code agent.  
+It is meant to bring the following capabilities into one system that can sustain real work over time:
+
+- task orchestration
+- retrieval and context organization
+- executor integration
+- state, event, and artifact persistence
+- review, recovery, and retry
+- reusable capabilities and knowledge-object management
+
+---
+
+## Positioning
+
+swallow is built for **real project workflows**, not single-turn interaction.
+
+It is concerned with questions like:
+
+- can a task continue across multiple steps and sessions
+- can relevant context be retrieved from the workspace, not only from the current prompt
+- can code work and knowledge work live in the same task flow
+- can execution be recorded as state, events, and artifacts
+- can external planning and external knowledge enter the system without polluting long-term memory
+- can executors remain replaceable instead of being tied to one platform
+
+So it is not:
+
+- a generic chatbot
+- a pure RAG project
+- a thin wrapper around one executor
+- a multi-agent demo for its own sake
+
+It is closer to an **AI workbench / AI workflow system** for real project work.
+
+---
 
 ## Why this project exists
 
-Real project context is fragmented across many places:
+Real project context is usually scattered across many places:
 
 - code repositories and Git history
-- Obsidian / Markdown notes
-- docs, summaries, resume notes, and prior task outputs
-- diffs, patches, test logs, and intermediate artifacts
+- Markdown / Obsidian notes
+- task summaries, phase notes, and recovery docs
+- retrieval outputs, test logs, and execution artifacts
+- planning discussions and knowledge distilled from external AI tools
 
-The problem is usually not that information does not exist, but that it cannot be retrieved, executed against, and consolidated at the right moment. Typical AI tools are often good at isolated responses but weak at sustained task execution, local project interaction, and long-term result reuse.
+The problem is usually not that information does not exist. The problem is:
 
-This project aims to unify:
+> **the right information is hard to retrieve, act on, and consolidate at the right moment.**
 
-- task orchestration over real project work
-- harnessed local and cloud execution
-- retrieval over the workspace
-- state, event, and artifact persistence
-- reusable capabilities and workflow packs
+Many AI tools are already strong at single responses, but they are still weak at:
 
-## What problem it solves
+- sustaining multi-step task progress
+- working across code and knowledge material
+- preserving recoverable task state
+- leaving inspectable execution artifacts
+- turning past work into reusable future knowledge
 
-This system is built to address a set of related pain points:
+swallow is built to address that layer.
 
-- **fragmented context**: useful information is spread across code, notes, docs, and history
-- **one-shot AI interaction**: many AI tools respond well once, but do not sustain multi-step work over time
-- **split workflows**: code work and knowledge work are often handled in separate tools
-- **poor traceability**: AI execution often lacks recoverable state, event history, and artifact tracking
-- **weak knowledge reuse**: prior work is hard to recover and turn into reusable task memory
-- **capability sprawl**: tools, skills, and workflows are hard to standardize and reuse across tasks
+---
 
-The goal is to make AI not only answer, but also orchestrate, retrieve, execute, track, validate, and consolidate work around real projects.
+## System Overview
 
-## Why not just use Codex, Claude Code, or Gemini CLI?
+swallow is organized around five long-running layers:
 
-Tools like Codex, Claude Code, and Gemini CLI are powerful local or semi-local code agents. They are excellent at repository reading, code editing, and command execution.
-
-However, this project is not trying to replace them. It is trying to solve a different layer of the problem.
-
-Those tools are primarily **executors**.
-This system is intended to provide the surrounding **orchestration, harness, memory, and organization layer**.
-
-In practice, that means:
-
-- a task should continue across multiple steps and sessions
-- relevant context should be retrieved from the whole workspace, not just the current prompt
-- code work and note-based knowledge work should be connected
-- progress should be recorded as state, events, and artifacts
-- outputs should become reusable assets, not disappear into chat history
-- capabilities should remain structured and reusable instead of being re-described ad hoc each time
-- executors should remain replaceable rather than hard-wired
-
-So the relationship is:
-
-- **Codex / Claude Code / Gemini CLI** → strong execution engines
-- **this project** → the stateful system that organizes orchestration, harnessed execution, retrieval, memory, and outputs around real work
-
-## System positioning
-
-Architecturally, this project is organized around five core layers:
-
-- **Orchestrator**: decides what to do, in what order, and with which agent profile or workflow
-- **Harness Runtime**: runs the task loop, assembles context, executes tools, applies permissions and hooks, and writes results back into state
+- **Orchestrator**: decides what to do and in what order
+- **Harness Runtime**: runs retrieval, executor calls, recording, and artifact generation
 - **Capabilities**: reusable tools, skills, profiles, workflows, and validators
-- **State / Memory / Artifacts**: tasks, events, artifacts, Git truth, retrieval memory, and resume note outputs
-- **Provider Router**: model, executor, provider, and auth-path routing
+- **State / Memory / Artifacts**: task truth, event history, memory, and outputs
+- **Provider Routing**: route, executor family, backend, and capability fit
 
-So it is not just a chatbot, not just a RAG project, and not just a multi-agent demo.
+At the executor layer, the system distinguishes between:
 
-It is closer to an **AI workbench / AI workflow operating system** for real project work.
+- **API executor**: better suited for planning, summarization, structured reasoning, and route judgment
+- **CLI executor**: better suited for repository work, file editing, command execution, and environment-bound actions
 
-Within that system shape, an executor is not a single fixed category. The current architecture already distinguishes model, runtime backend, and executor, and the next planning direction further refines executor families:
+In other words, swallow is not only about “which model to call.”  
+It is about:
 
-- **API executor**: intended for cognitive work such as discussion, planning, summarization, route judgment, retrieval-backed synthesis, and structured output generation
-- **CLI executor**: intended for operational work such as repository reading, file editing, command execution, local tool use, and environment-bound actions
+- how a task progresses
+- how execution is constrained
+- how results are recorded
+- how knowledge becomes reusable
+- how an operator can inspect and recover work
 
-Both executor families should remain routable parts of the system. The intended direction is that:
+---
 
-- API executors integrate more naturally with official model APIs or deeper hosted interfaces
-- CLI executors integrate more naturally with local or semi-local code-agent shells
-- future routing should target executor family and declared capability, not only vendor or tool name
+## Current Implementation Snapshot
 
-## Core principles
+The repository already has stable baselines for:
 
-This system is built around five core capabilities:
+- Phase 0 through Phase 11
+- post-Phase-2 retrieval baseline
+- post-Phase-5 executor / external-input slice
+- post-Phase-5 retrieval / memory-next slice
 
-- **Retrievable**: bring back the most relevant context from the workspace
-- **Harnessed**: execute through an explicit runtime, not a loose prompt-only loop
-- **Composable**: package reusable tools, skills, profiles, workflows, and validators as capabilities
-- **Stateful**: continue work through task state instead of one-off chat turns
-- **Traceable**: preserve events, artifacts, summaries, and evolution over time
+The current system already includes:
 
-## Retrieval and Context Direction
+- a local-first task loop
+- explicit route, topology, dispatch, handoff, and execution-fit records
+- retry, stop, budget, and checkpoint policy artifacts
+- operator-facing queue, control, inspect, review, resume, retry, and rerun entrypoints
+- planning handoff, staged knowledge capture, and intake inspection
+- retrieval over repository files and Markdown / Obsidian notes
+- inspectable knowledge objects, knowledge partition, knowledge index, and knowledge policy structures
 
-Retrieval in this project is a system-level capability, not a helper attached to a single executor. The retrieval and context layer should remain external, traceable, and orchestrator-controlled even when vendor built-in retrieval from tools like Codex, Claude, or Gemini can be reused as a shortcut.
+The focus is no longer to prove a minimal runnable demo.  
+The focus is to keep the existing baseline stable while continuing with later phases.
 
-The intended direction is to strengthen enhanced retrieval first, then add light agentic retrieval where orchestration benefits from dynamic retrieval decisions. GraphRAG is optional and should be introduced only when multi-hop relationships or broader document structure clearly justify it.
+---
 
-This also means context should not be reduced to only the current prompt. The system should continue to distinguish session context, workspace context, task context, and historical context, while keeping retrieval results reusable across state, memory, and artifacts instead of consuming them only once inside a single run.
+## Documentation Structure
 
-Domain-specific behavior should live in domain packs or capability packs rather than being hard-coded into one-off prompts. That applies to retrieval behavior as much as to tools, workflows, or validators.
+The repository documentation is organized into four layers.
 
-The same principle applies to external AI input. External planning, discussion, and knowledge capture are valid inputs to the system, but chat history should not become the system of record. The intended direction is to normalize outside inputs into explicit system objects:
+### 1. Public documentation
+- `README.md`
+- `README.zh-CN.md`
 
-- **task objects** for external planning handoff, task intent, and executable task semantics
-- **knowledge objects** for captured notes, research fragments, summaries, evidence bundles, and later retrieval reuse
+Used for:
+- project positioning
+- structure overview
+- quickstart
 
-Those objects should remain traceable, task-linked where appropriate, and backed by artifacts or source references. The long-term goal is not to archive raw conversation indiscriminately. The long-term goal is staged distillation:
+### 2. Current execution layer
+- `AGENTS.md`
+- `docs/active_context.md`
+- `current_state.md`
 
-- `raw`
-- `candidate`
-- `verified`
-- `canonical`
+Used for:
+- `AGENTS.md`: entry control surface and long-lived rules
+- `docs/active_context.md`: the only high-frequency status document
+- `current_state.md`: recovery entrypoint
 
-That staged promotion model is intended to preserve evidence while avoiding pollution of the long-term knowledge layer.
+### 3. Phase planning layer
+- `docs/plans/<phase>/kickoff.md`
+- `docs/plans/<phase>/breakdown.md`
+- `docs/plans/<phase>/closeout.md`
+- `docs/plans/<phase>/commit_summary.md` (optional)
 
-## Current focus
+Used for:
+- phase goals
+- phase breakdown
+- phase closeout
 
-The repository is currently at a **Phase 11 Planning And Knowledge Intake Workbench closeout checkpoint**.
+### 4. Codex control layer
+- `.codex/session_bootstrap.md`
+- `.codex/rules.md`
+- `.codex/templates/*`
 
-The implemented baseline now includes:
+Used for:
+- Codex loading order
+- Codex working rules
+- phase and context templates
 
-- an explicit **orchestrator** for task intake, phase progression, and route selection
-- a **harness runtime** for retrieve → execute → record → summarize
-- structured route and capability declarations
-- compatibility checks and route provenance artifacts
-- explicit local-first execution with route, topology, dispatch, handoff, and execution-fit artifacts
-- execution-site, attempt-ownership, handoff-contract, retry, stop, and execution-budget policy artifacts
-- an operator-facing local workbench surface with queue, control, checkpoint, attempt history/comparison, resume, retry, and rerun entrypoints
-- operator-facing planning-handoff, staged knowledge-capture, and intake inspection entrypoints for imported inputs
-- Git project files and Markdown / Obsidian notes as retrieval sources
+---
 
-The current goal is no longer to prove a bare bootstrap loop. The repository now treats the completed executor / external-input slice, retrieval / memory-next slice, and the completed Phase 6, Phase 7, Phase 8, Phase 9, Phase 10, and Phase 11 baselines as stable checkpoints. The next slice should start from a fresh kickoff note rather than continuing Phase 11 by default.
+## Recommended Working Style
 
-## Long-term direction
+The repository follows this default rhythm:
 
-The longer-term system is expected to evolve toward:
+- **phase** defines development cadence
+- **track** defines long-running system direction
+- **slice** defines the current semantic goal
+- **feature branch** carries the current phase
+- **small commits** record slice-level progress
 
-- richer workflow orchestration
-- multiple replaceable executors
-- improved retrieval quality and memory
-- stronger state and artifact management
-- reusable capability packs for coding and research work
-- optional provider routing and cost-aware execution policies
-- broader source adapters and a more complete workbench interface
+The default documentation and Git rhythm is:
 
-That direction also includes:
+- high-frequency state goes only into `docs/active_context.md`
+- `current_state.md` is updated only when closeout or recovery semantics change
+- `AGENTS.md` is updated only when entry rules or active direction change
+- README files are updated only when the public structure or user-visible workflow changes
 
-- clearer API-executor versus CLI-executor routing
-- external planning handoff that becomes task semantics instead of loose chat residue
-- external knowledge capture that becomes staged, citable knowledge objects
-- stronger separation between short-lived interaction history and long-lived system records
+New work should no longer default to new `post-phase-*` naming.  
+New work should be organized as:
 
+- a formal phase
+- a clear track
+- a clear slice
 
-## Runtime Shape
-
-This project currently prioritizes **high-frequency personal workflows** and follows a **local workbench + optional remote heavy execution** model.
-
-The default operating model is:
-
-* The **local workbench** handles day-to-day interaction, including desktop UI, lightweight CLI usage, task initiation, result review, file access, and small-scale local processing.
-* The **remote execution environment** is reserved for high-cost workloads such as long-running workflows, heavy RAG pipelines, large repository analysis, multi-step agent execution, and persistent background services.
-* The architecture explicitly separates the **interaction layer** from the **execution layer**, avoiding tight coupling between the UI, orchestrator, and executors.
-
-This means:
-
-* Lightweight tasks can run locally.
-* Heavy tasks can later be moved to a server.
-* Even when the current version runs in a local-first way, the architecture remains compatible with remote expansion.
-
-### Goals for the Current Phase
-
-The current phase is not focused on building a full multi-user platform. Instead, it is intended to validate whether the following capabilities truly improve personal productivity:
-
-* whether workflow orchestration creates real value;
-* whether multi-agent or multi-executor collaboration is actually necessary;
-* whether the RAG and memory layers reduce context switching across documents and tools;
-* whether state, event, and artifact persistence create long-term reuse.
-
-### Non-Goals for the Current Phase
-
-The current phase does not prioritize the following:
-
-* multi-tenant architecture and complex permission systems;
-* high-concurrency distributed worker clusters;
-* large-scale hosted infrastructure;
-* full commercial deployment concerns.
-
-The immediate priority is to make the system **reliably useful for a single user while preserving clean boundaries for future expansion**.
-
-### Backend Compatibility Principle
-
-This project may allow multiple harness backends in the future, but **multiple backends do not imply universal compatibility**.
-
-A backend is not the same thing as a model, and it is not the same thing as an executor.
-
-The system should distinguish between three layers:
-
-* **Model**: the underlying reasoning provider, such as OpenAI, Anthropic, Gemini, or routed providers
-* **Runtime backend**: the agent or workflow runtime used inside the harness
-* **Executor**: the concrete execution unit used for code, commands, or other task actions
-
-Within the executor layer, the next planning direction should also distinguish between:
-
-* **API executors** for cognitive work, synthesis, planning, and structured output
-* **CLI executors** for repository, filesystem, command, and tool-loop execution inside an environment
-
-Because of that, the project should not assume that:
-
-* every model supports the same agent capabilities
-* every runtime backend supports the same handoff semantics
-* every executor can participate in every workflow step
-* every backend can support code execution, tool loops, structured handoff, or resumable runs equally
-* every executor family should be used for both discussion-heavy and environment-heavy work equally
-
-Instead, the system should follow this rule:
-
-> **The harness may expose a unified backend interface, but each backend must declare its own capability level.**
-
-For example, a backend may or may not support:
-
-* structured handoff packets
-* tool loops
-* multi-step runtime sessions
-* code execution
-* resumable execution after failure
-* tracing or richer runtime metadata
-
-This means the architecture should aim for **routable compatibility**, not universal compatibility.
-
-In practice:
-
-* the **Orchestrator** chooses a backend or executor according to task needs
-* the **Harness Runtime** provides a stable integration boundary
-* each backend declares what it can actually do
-* workflow design should target role, executor family, and capability, not hard-code specific model vendors
-
-This principle matters because the project is not trying to become a thin wrapper around a single agent framework. Its core value lies in its own orchestration, retrieval, state, artifact, and execution design 
-
-So the intended direction is:
-
-* keep the project’s own orchestration and persistence semantics stable
-* allow multiple backends later where useful
-* avoid assuming that “supporting many models” automatically means “supporting all agent behaviors”
-
-A practical interpretation is:
-
-> **Unified interface at the harness boundary, capability-based routing underneath.**
-
-## Status
-
-Phase 0 accepted, Phase 1 complete, Phase 2 baseline complete, post-Phase-2 retrieval baseline complete, Phase 3 baseline complete, Phase 4 baseline complete, Phase 5 baseline complete, post-Phase-5 executor / external-input slice complete, post-Phase-5 retrieval / memory-next slice complete, Phase 6 baseline complete, Phase 7 baseline complete, Phase 8 baseline complete, Phase 9 baseline complete, and Phase 10 baseline complete.
-
-Implementation checkpoint for interrupted sessions:
-
-- [current_state.md](./current_state.md)
-- [docs/phase3_closeout_note.md](./docs/phase3_closeout_note.md)
-- [docs/phase4_closeout_note.md](./docs/phase4_closeout_note.md)
-- [docs/phase5_task_breakdown.md](./docs/phase5_task_breakdown.md)
-- [docs/phase5_closeout_note.md](./docs/phase5_closeout_note.md)
-- [docs/post_phase5_executor_and_external_input_kickoff_note.md](./docs/post_phase5_executor_and_external_input_kickoff_note.md)
-- [docs/post_phase5_executor_and_external_input_task_breakdown.md](./docs/post_phase5_executor_and_external_input_task_breakdown.md)
-- [docs/post_phase5_executor_and_external_input_closeout_note.md](./docs/post_phase5_executor_and_external_input_closeout_note.md)
-- [docs/post_phase5_retrieval_memory_next_kickoff_note.md](./docs/post_phase5_retrieval_memory_next_kickoff_note.md)
-- [docs/post_phase5_retrieval_memory_next_task_breakdown.md](./docs/post_phase5_retrieval_memory_next_task_breakdown.md)
-- [docs/post_phase5_retrieval_memory_next_closeout_note.md](./docs/post_phase5_retrieval_memory_next_closeout_note.md)
-- [docs/phase6_closeout_note.md](./docs/phase6_closeout_note.md)
-- [docs/phase7_closeout_note.md](./docs/phase7_closeout_note.md)
-- [docs/phase8_closeout_note.md](./docs/phase8_closeout_note.md)
-- [docs/phase9_kickoff_note.md](./docs/phase9_kickoff_note.md)
-- [docs/phase9_task_breakdown.md](./docs/phase9_task_breakdown.md)
-- [docs/phase9_closeout_note.md](./docs/phase9_closeout_note.md)
-- [docs/phase10_kickoff_note.md](./docs/phase10_kickoff_note.md)
-- [docs/phase10_task_breakdown.md](./docs/phase10_task_breakdown.md)
-- [docs/phase10_closeout_note.md](./docs/phase10_closeout_note.md)
-- [docs/phase10_commit_summary.md](./docs/phase10_commit_summary.md)
-- [docs/phase11_kickoff_note.md](./docs/phase11_kickoff_note.md)
-- [docs/phase11_task_breakdown.md](./docs/phase11_task_breakdown.md)
-- [docs/phase11_closeout_note.md](./docs/phase11_closeout_note.md)
-- [docs/phase11_commit_summary.md](./docs/phase11_commit_summary.md)
-
-## Terminology
-
-- `agent handoff`: a future runtime delegation step where the orchestrator or harness runtime passes work to another agent or backend
-- `resume note`: a persisted continuation artifact written after a run so a later agent or human can recover, continue, or inspect the task state
+---
 
 ## Quickstart
-
-This repository includes a runnable CLI for the current local-first workflow baseline.
 
 Install in editable mode:
 
@@ -306,7 +198,7 @@ python3 -m pip install -e .
 
 Create a task:
 
-```bash
+```bash id="77sowp"
 swl task create \
   --title "Design orchestrator" \
   --goal "Tighten the harness runtime boundary" \
@@ -316,272 +208,101 @@ swl task create \
   --executor local
 ```
 
-Run the task:
+Run a task:
 
-```bash
+```bash id="5e7lgb"
 swl task run <task-id>
 swl task run <task-id> --capability validator:strict_validation
 swl task run <task-id> --executor codex
 ```
 
-Print the generated artifacts:
+Inspect tasks and artifacts:
 
-```bash
-swl task summarize <task-id>
-swl task resume-note <task-id>
-swl task compatibility <task-id>
-swl task validation <task-id>
-swl task grounding <task-id>
-swl task topology <task-id>
-swl task dispatch <task-id>
-swl task handoff <task-id>
-swl task execution-fit <task-id>
-swl task policy <task-id>
-swl task memory <task-id>
-swl task route <task-id>
-```
-
-Use the current workbench-style review flow:
-
-```bash
+```bash id="n08n7n"
 swl task list
-swl task list --focus needs-review
 swl task queue
 swl task inspect <task-id>
-swl task control <task-id>
-swl task intake <task-id>
-swl task attempts <task-id>
-swl task compare-attempts <task-id>
-swl task capabilities <task-id>
 swl task review <task-id>
+swl task control <task-id>
 swl task artifacts <task-id>
+swl task summarize <task-id>
+swl task resume-note <task-id>
+swl task route <task-id>
+swl task topology <task-id>
+swl task handoff <task-id>
+swl task policy <task-id>
+swl task memory <task-id>
 ```
 
-Use the current recovery and rerun entrypoints:
+Recovery and retry entrypoints:
 
-```bash
+```bash id="ga9xot"
 swl task checkpoint <task-id>
 swl task resume <task-id>
 swl task retry <task-id>
 swl task rerun <task-id>
 ```
 
-The intended operator boundary is:
+Planning and knowledge intake:
 
-- `resume` follows checkpoint-backed recovery from the current failed context
-- `retry` follows retry and stop-policy truth on the accepted run path
-- `rerun` is an explicit operator override that starts a fresh run
-- `checkpoint` is the compact artifact to inspect before choosing among those paths
-
-Use the current imported-input intake entrypoints:
-
-```bash
-swl task planning-handoff <task-id> --planning-source chat://session-1 --constraint "Preserve explicit task semantics"
-swl task knowledge-capture <task-id> --knowledge-stage candidate --knowledge-source chat://session-2 --knowledge-item "Imported notes should remain staged."
+```bash id="0iww4p"
+swl task planning-handoff <task-id> --planning-source chat://session-1 --constraint "Keep task semantics explicit"
+swl task knowledge-capture <task-id> --knowledge-stage candidate --knowledge-source chat://session-2 --knowledge-item "Imported knowledge should remain staged first."
 swl task intake <task-id>
-```
-
-Run a minimal Codex preflight:
-
-```bash
-swl doctor codex
 ```
 
 Run the test suite:
 
-```bash
+```bash id="w0d5ha"
 python3 -m unittest discover -s tests
 ```
 
+---
+
 ## Current CLI Shape
 
-The current CLI implements:
+The current CLI should be understood as:
 
-- `swl task create`
-- `swl task run`
-- `swl task list`
-- `swl task queue`
-- `swl task control`
-- `swl task intake`
-- `swl task checkpoint`
-- `swl task attempts`
-- `swl task compare-attempts`
-- `swl task planning-handoff`
-- `swl task knowledge-capture`
-- `swl task resume`
-- `swl task retry`
-- `swl task rerun`
-- `swl task inspect`
-- `swl task semantics`
-- `swl task capabilities`
-- `swl task knowledge-objects`
-- `swl task knowledge-policy`
-- `swl task review`
-- `swl task policy`
-- `swl task artifacts`
-- `swl task summarize`
-- `swl task resume-note`
-- `swl task compatibility`
-- `swl task validation`
-- `swl task grounding`
-- `swl task retrieval`
-- `swl task topology`
-- `swl task execution-site`
-- `swl task dispatch`
-- `swl task handoff`
-- `swl task execution-fit`
-- `swl task retry-policy`
-- `swl task execution-budget-policy`
-- `swl task stop-policy`
-- `swl task memory`
-- `swl task compatibility-json`
-- `swl task route`
-- `swl task route-json`
-- `swl task topology-json`
-- `swl task execution-site-json`
-- `swl task dispatch-json`
-- `swl task handoff-json`
-- `swl task execution-fit-json`
-- `swl task retry-policy-json`
-- `swl task execution-budget-policy-json`
-- `swl task stop-policy-json`
-- `swl task checkpoint-json`
-- `swl task capabilities-json`
-- `swl task semantics-json`
-- `swl task knowledge-objects-json`
-- `swl task knowledge-policy-json`
-- `swl task retrieval-json`
-- `swl doctor codex`
+* a task workbench
+* an artifact inspection surface
+* an operator control layer
+* a recovery and comparison entrypoint set
 
-Task state and artifacts are written under:
+Detailed current working boundaries are documented in:
 
-```text
-.swl/
-  tasks/
-    <task-id>/
-      state.json
-      events.jsonl
-      retrieval.json
-      task_semantics.json
-      knowledge_objects.json
-      knowledge_partition.json
-      knowledge_index.json
-      knowledge_policy.json
-      retry_policy.json
-      execution_budget_policy.json
-      stop_policy.json
-      compatibility.json
-      execution_fit.json
-      validation.json
-      route.json
-      topology.json
-      execution_site.json
-      dispatch.json
-      handoff.json
-      memory.json
-      artifacts/
-        summary.md
-        task_semantics_report.md
-        knowledge_objects_report.md
-        knowledge_partition_report.md
-        knowledge_index_report.md
-        knowledge_policy_report.md
-        resume_note.md
-        retry_policy_report.md
-        execution_budget_policy_report.md
-        stop_policy_report.md
-        compatibility_report.md
-        execution_fit_report.md
-        route_report.md
-        topology_report.md
-        execution_site_report.md
-        dispatch_report.md
-        handoff_report.md
-        retrieval_report.md
-        source_grounding.md
-        validation_report.md
-        executor_stdout.txt
-        executor_stderr.txt
-```
+* `AGENTS.md`
+* `docs/active_context.md`
 
-The current `run` command performs retrieval, invokes the selected executor, evaluates route compatibility, evaluates execution-fit against the active topology baseline, evaluates imported-knowledge policy, evaluates retry / budget / stop policy, runs validation, records state and events, persists task memory, and writes executor, summary, resume note, task-semantics, knowledge-object, grounding, route, topology, execution-site, dispatch, handoff, execution-fit, compatibility, execution-control policy, knowledge-policy, and validation artifacts.
+---
 
-Current task-state semantics are intentionally small and explicit:
+## Non-Goals
 
-- `status` is the lifecycle result: `created`, `running`, `completed`, or `failed`
-- `phase` is the current or last real workflow step: `intake`, `retrieval`, `executing`, or `summarize`
-- a task only switches phase when that step actually begins
-- final `completed` or `failed` is written only after `summary.md` and `resume_note.md` have been persisted
+Unless a phase explicitly requires them, the project does not currently prioritize:
 
-`events.jsonl` is append-only and records run-attempt boundaries explicitly. A normal successful run looks like:
+* multi-tenant architecture
+* distributed worker clusters
+* large-scale hosted infrastructure
+* broad plugin marketplaces
+* implicit global memory
+* automatic knowledge promotion
+* unbounded workbench UI expansion
+* platform-level complexity introduced only because it may be useful later
 
-```text
-task.created
-task.run_started
-task.phase        # retrieval
-retrieval.completed
-task.phase        # executing
-executor.completed
-task.phase        # summarize
-compatibility.completed
-execution_fit.completed
-knowledge_policy.completed
-validation.completed
-artifacts.written
-task.completed
-```
+The immediate priority is:
 
-Repeated `swl task run` calls append another `task.run_started -> ... -> task.completed|task.failed` segment instead of rewriting prior history.
+> **make the single-user workflow genuinely useful while preserving clean boundaries for later expansion.**
 
-The current implementation now includes an explicit executor selection seam with a small built-in executor set:
+---
 
-- task-level selection: set `--executor` on `swl task create` or `swl task run`
-- `codex`: run `codex exec` against the task workspace
-- `local`: write a deterministic local execution update so executor replaceability is testable without a live backend
-- `mock`: deterministic test executor for local verification
-- `note-only`: skip live execution and directly write a structured continuation note
-- legacy compatibility: `AIWF_EXECUTOR_MODE` still works as a fallback when the task itself stays on the default `codex` executor
-- timeout control: set `AIWF_EXECUTOR_TIMEOUT_SECONDS` to bound non-interactive executor runs
-- fallback control: `AIWF_EXECUTOR_FALLBACK=structured-note` by default, or set it to `off` to disable fallback note generation
-- execution artifacts:
-  - `executor_prompt.md`
-  - `executor_output.md`
-  - `executor_stdout.txt`
-  - `executor_stderr.txt`
+## Terminology
 
-When live `codex exec` fails, the task still remains failed. The fallback does not pretend execution succeeded; it only writes a structured persisted note into `executor_output.md` so the run is easier to resume or inspect.
+* **task semantics**: explicit task-intent and planning-handoff objects that carry execution intent and constraints
+* **knowledge objects**: staged knowledge records used for imported knowledge, reusable evidence, and later retrieval
+* **resume note**: a hand-off note written after a run so the next session can continue correctly
+* **handoff**: an explicit record of execution boundary, ownership, and next operator action
+* **checkpoint**: a compact recovery snapshot reviewed before resume, retry, or rerun
 
-Current executor failures are classified into small, explicit categories such as `timeout`, `unreachable_backend`, `launch_error`, and `generic_failure`.
-
-For `unreachable_backend`, the persisted fallback guidance now explicitly points the operator to check outbound network and websocket access before retrying live execution.
-
-The raw `executor_stdout.txt` and `executor_stderr.txt` artifacts are preserved so operators can distinguish between code-path failures and environment/backend failures without relying only on summarized notes.
-
-Artifact roles are also intentionally distinct:
-
-- `summary.md` is the run record: task, final state, retrieved context, executor result, and executor output
-- `resume_note.md` is the hand-off note: ready state, latest executor message, and suggested next actions
-- `route_report.md` is the readable route provenance artifact: selected route, declared backend, execution-site metadata, and route reason
-- `route.json` is the structured route record for later automation or inspection
-- `compatibility_report.md` is the human-readable route-policy compatibility result for the run
-- `compatibility.json` is the structured compatibility record for later automation or inspection
-- `source_grounding.md` is the retrieval-grounding artifact: citations, scores, matched terms, and previews for the run
-- `validation_report.md` is the human-readable validation result for the run
-- `validation.json` is the structured validation record for later automation
-- `memory.json` is the compact task-memory packet reused by later runs and later review
-- `executor_output.md` remains the persisted execution result or fallback note, while `executor_stdout.txt` and `executor_stderr.txt` preserve diagnostic streams
-
-`swl doctor codex` is a minimal preflight. It can distinguish between:
-
-- binary not found
-- local launch failure
-- local binary is launchable, while live backend reachability remains unknown
-
-## Working Convention
-
-To make interrupted terminal sessions recoverable, keep the repo-level checkpoint updated here:
-
-- [current_state.md](./current_state.md)
+---
 
 ## License
 
