@@ -34,18 +34,18 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 11`
-- latest_completed_slice: `Planning And Knowledge Intake Workbench`
+- latest_completed_phase: `Phase 12`
+- latest_completed_slice: `Knowledge Promotion And Reuse Review`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-09`
 
 说明：
 
-- Phase 0 到 Phase 11 已完成并形成稳定 checkpoint
+- Phase 0 到 Phase 12 已完成并形成稳定 checkpoint
 - post-Phase-2 retrieval baseline 已完成
 - post-Phase-5 executor / external-input slice 已完成
 - post-Phase-5 retrieval / memory-next slice 已完成
-- 当前默认不再继续这些已收口阶段，而是从新的 kickoff 开始下一轮工作
+- 当前默认不再继续这些已收口阶段，而应从新的 kickoff 选择下一轮工作
 
 ---
 
@@ -53,14 +53,14 @@
 
 当前推荐从以下方向继续：
 
-- active_track: `Retrieval / Memory`
-- active_phase: `Phase 12`
-- active_slice: `Knowledge Promotion And Reuse Review`
+- active_track: `to_be_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
 
 说明：
 
-- 当前默认重点不是扩大 intake，而是补齐 intake 之后的 review / promotion / reuse review 闭环
-- 当前 phase 的正式边界以 `docs/plans/phase12/` 中的文档为准
+- 当前默认不再继续扩张已完成的 Phase 12，而应先重新选择下一轮 primary track
+- 当前最近完成的 stop/go 边界以 `docs/plans/phase12/closeout.md` 为准
 
 ---
 
@@ -70,13 +70,14 @@
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/system_tracks.md`
-4. `docs/plans/phase12/kickoff.md`
-5. `docs/plans/phase12/breakdown.md`
+3. `current_state.md`
+4. `docs/system_tracks.md`
+5. `docs/plans/phase12/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase12/closeout.md`
+- `docs/plans/phase12/kickoff.md`
+- `docs/plans/phase12/breakdown.md`
 - `docs/archive/*`
 - 历史 phase closeout
 - 旧 `post-phase-*` 归档材料

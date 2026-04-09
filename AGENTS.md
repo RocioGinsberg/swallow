@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 11 基线
+- Phase 0 到 Phase 12 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -37,13 +37,13 @@
 
 ## 当前 active 方向
 
-当前推荐进入的下一轮工作为：
+当前最近完成的 phase 为：
 
-- **Active Track**：`Retrieval / Memory`
-- **Active Phase**：`Phase 12`
-- **Active Slice**：`Knowledge Promotion And Reuse Review`
+- **Latest Completed Track**：`Retrieval / Memory`
+- **Latest Completed Phase**：`Phase 12`
+- **Latest Completed Slice**：`Knowledge Promotion And Reuse Review`
 
-本轮工作的核心目标是：
+Phase 12 已完成的核心内容包括：
 
 - 给 staged knowledge 建立显式 review / promote / reject 路径
 - 明确 task-linked knowledge 与 reusable knowledge 的 operator 决策入口
@@ -51,7 +51,7 @@
 - 不做自动 promotion
 - 不做隐式全局记忆
 
-本轮工作不应默认扩张到：
+当前默认不应继续无边界扩张到：
 
 - 新的 intake 宽度扩展
 - 大范围 Workbench / UX 扩张
@@ -141,11 +141,13 @@
 1. `AGENTS.md`
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
-4. `docs/plans/phase12/kickoff.md`
-5. `docs/plans/phase12/breakdown.md`
+4. `current_state.md`
+5. `docs/plans/phase12/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase12/kickoff.md`
+- `docs/plans/phase12/breakdown.md`
 - `current_state.md`
 - `docs/plans/<older-phase>/closeout.md`
 - `docs/archive/*`
@@ -242,36 +244,24 @@
 - branch 负责承载该轮开发
 - commit 负责记录 slice 内的小步变更
 
-对于当前 `Phase 12 / Retrieval / Memory / Knowledge Promotion And Reuse Review`，推荐节奏为：
+对于已完成的 `Phase 12 / Retrieval / Memory / Knowledge Promotion And Reuse Review`，当前收口结果包括：
 
-1. 写 `kickoff.md`
-2. 写 `breakdown.md`
-3. 切出 feature branch
-4. 先完成 review queue 与 promote/reject entrypoints 的最小闭环
-5. 高频只更新 `docs/active_context.md`
-6. 完成 reuse-readiness inspect tightening
-7. phase 收口时写 `closeout.md`
-8. 必要时同步 `current_state.md`、README、AGENTS
-9. 合并回 `main`
-10. 需要时写 tag
+1. `kickoff.md` 已完成
+2. `breakdown.md` 已完成
+3. feature branch 已切出并承载实现
+4. review queue 与 promote/reject entrypoints 已完成最小闭环
+5. reuse-readiness inspect tightening 已完成
+6. `closeout.md` 已完成
+
+下一轮工作应重新选择 active track / phase / slice，而不是默认继续扩张 Phase 12。
 
 ---
 
-## 当前 Phase 12 的默认任务边界
+## 下一轮工作的默认边界判断
 
-Phase 12 默认应围绕以下方向推进：
+如果某项改动不直接服务于已完成的 Phase 12 closeout 之后的新 kickoff，应先判断：
 
-- knowledge review queue
-- knowledge promote entrypoint
-- knowledge reject entrypoint
-- promotion decision record / artifact
-- reuse-readiness inspection tightening
-- help / README alignment
-- closeout
-
-如果某项改动不直接服务于以上边界，应先判断：
-
-- 它是否属于当前 active slice 的自然子任务
+- 它是否属于下一轮新 slice 的自然子任务
 - 它是否应推迟到下一 phase
 - 它是否只是当前实现内部的局部 refactor
 
