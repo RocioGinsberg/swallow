@@ -126,7 +126,7 @@ That staged promotion model is intended to preserve evidence while avoiding poll
 
 ## Current focus
 
-The repository is currently at a **Phase 9 Operator Control Workbench closeout checkpoint**.
+The repository is currently at a **Phase 10 Resume And Recovery Loop closeout checkpoint**.
 
 The implemented baseline now includes:
 
@@ -136,10 +136,10 @@ The implemented baseline now includes:
 - compatibility checks and route provenance artifacts
 - explicit local-first execution with route, topology, dispatch, handoff, and execution-fit artifacts
 - execution-site, attempt-ownership, handoff-contract, retry, stop, and execution-budget policy artifacts
-- an operator-facing local workbench surface with queue, control, attempt history/comparison, retry, and rerun entrypoints
+- an operator-facing local workbench surface with queue, control, checkpoint, attempt history/comparison, resume, retry, and rerun entrypoints
 - Git project files and Markdown / Obsidian notes as retrieval sources
 
-The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve the accepted local baselines, treat the completed executor / external-input slice, retrieval / memory-next slice, and the completed Phase 6, Phase 7, Phase 8, and Phase 9 baselines as stable checkpoints, and start any new work from a fresh planning note instead of continuing Phase 9 breadth by default.
+The current goal is no longer to prove a bare bootstrap loop. The repository now treats the completed executor / external-input slice, retrieval / memory-next slice, and the completed Phase 6, Phase 7, Phase 8, Phase 9, and Phase 10 baselines as stable checkpoints. The next slice should start from a fresh kickoff note rather than continuing Phase 10 by default.
 
 ## Long-term direction
 
@@ -258,7 +258,7 @@ A practical interpretation is:
 
 ## Status
 
-Phase 0 accepted, Phase 1 complete, Phase 2 baseline complete, post-Phase-2 retrieval baseline complete, Phase 3 baseline complete, Phase 4 baseline complete, Phase 5 baseline complete, post-Phase-5 executor / external-input slice complete, post-Phase-5 retrieval / memory-next slice complete, Phase 6 baseline complete, Phase 7 baseline complete, Phase 8 baseline complete, and Phase 9 baseline complete.
+Phase 0 accepted, Phase 1 complete, Phase 2 baseline complete, post-Phase-2 retrieval baseline complete, Phase 3 baseline complete, Phase 4 baseline complete, Phase 5 baseline complete, post-Phase-5 executor / external-input slice complete, post-Phase-5 retrieval / memory-next slice complete, Phase 6 baseline complete, Phase 7 baseline complete, Phase 8 baseline complete, Phase 9 baseline complete, and Phase 10 baseline complete.
 
 Implementation checkpoint for interrupted sessions:
 
@@ -279,6 +279,9 @@ Implementation checkpoint for interrupted sessions:
 - [docs/phase9_kickoff_note.md](./docs/phase9_kickoff_note.md)
 - [docs/phase9_task_breakdown.md](./docs/phase9_task_breakdown.md)
 - [docs/phase9_closeout_note.md](./docs/phase9_closeout_note.md)
+- [docs/phase10_kickoff_note.md](./docs/phase10_kickoff_note.md)
+- [docs/phase10_task_breakdown.md](./docs/phase10_task_breakdown.md)
+- [docs/phase10_closeout_note.md](./docs/phase10_closeout_note.md)
 
 ## Terminology
 
@@ -347,12 +350,21 @@ swl task review <task-id>
 swl task artifacts <task-id>
 ```
 
-Use the current explicit retry and rerun entrypoints:
+Use the current recovery and rerun entrypoints:
 
 ```bash
+swl task checkpoint <task-id>
+swl task resume <task-id>
 swl task retry <task-id>
 swl task rerun <task-id>
 ```
+
+The intended operator boundary is:
+
+- `resume` follows checkpoint-backed recovery from the current failed context
+- `retry` follows retry and stop-policy truth on the accepted run path
+- `rerun` is an explicit operator override that starts a fresh run
+- `checkpoint` is the compact artifact to inspect before choosing among those paths
 
 Run a minimal Codex preflight:
 
@@ -375,8 +387,10 @@ The current CLI implements:
 - `swl task list`
 - `swl task queue`
 - `swl task control`
+- `swl task checkpoint`
 - `swl task attempts`
 - `swl task compare-attempts`
+- `swl task resume`
 - `swl task retry`
 - `swl task rerun`
 - `swl task inspect`
@@ -413,6 +427,7 @@ The current CLI implements:
 - `swl task retry-policy-json`
 - `swl task execution-budget-policy-json`
 - `swl task stop-policy-json`
+- `swl task checkpoint-json`
 - `swl task capabilities-json`
 - `swl task semantics-json`
 - `swl task knowledge-objects-json`

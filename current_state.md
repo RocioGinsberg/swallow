@@ -6,8 +6,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; post-Phase-2 retrieval baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; post-Phase-5 executor / external-input slice complete; post-Phase-5 retrieval / memory-next slice complete; Phase 6 baseline complete; Phase 7 baseline complete; Phase 8 baseline complete; Phase 9 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 9 Operator Control Workbench closeout checkpoint
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; post-Phase-2 retrieval baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; post-Phase-5 executor / external-input slice complete; post-Phase-5 retrieval / memory-next slice complete; Phase 6 baseline complete; Phase 7 baseline complete; Phase 8 baseline complete; Phase 9 baseline complete; Phase 10 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 10 Resume And Recovery Loop closeout checkpoint
 - last checked: 2026-04-09
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -46,6 +46,11 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase9_kickoff_note.md`
   - `docs/phase9_task_breakdown.md`
   - `docs/phase9_closeout_note.md`
+- phase 10 planning reference:
+  - `docs/phase10_kickoff_note.md`
+  - `docs/phase10_task_breakdown.md`
+  - `docs/phase10_closeout_note.md`
+  - `docs/phase10_commit_summary.md`
 - post-Phase-5 planning reference:
   - `docs/post_phase5_executor_and_external_input_kickoff_note.md`
   - `docs/post_phase5_executor_and_external_input_task_breakdown.md`
@@ -72,6 +77,14 @@ This file tracks the implementation status of the repository itself so work can 
   - `swl task create`
   - `swl task run`
   - `swl task list`
+  - `swl task queue`
+  - `swl task control`
+  - `swl task checkpoint`
+  - `swl task attempts`
+  - `swl task compare-attempts`
+  - `swl task resume`
+  - `swl task retry`
+  - `swl task rerun`
   - `swl task inspect`
   - `swl task artifacts`
   - `swl task review`
@@ -215,6 +228,12 @@ This file tracks the implementation status of the repository itself so work can 
   - `P9-02` task control snapshot baseline is implemented with `swl task control`, a concise per-task control view that summarizes recommended action, retry/review/rerun readiness, current policy state, and the most relevant control commands and artifacts without replacing inspect, review, or policy commands
   - `P9-03` attempt history and comparison baseline is implemented with `swl task attempts` and `swl task compare-attempts`, giving operators a compact per-task attempt history plus a narrow side-by-side comparison of outcome, lifecycle, retrieval count, handoff status, and policy-relevant result changes across attempts
   - `P9-04` rerun and retry entrypoint tightening is implemented with `swl task retry` and `swl task rerun`, keeping both actions on the accepted `task run` path while gating retry by persisted retry/stop policy truth and preserving explicit operator-triggered rerun behavior
+  - `P10-01` checkpoint snapshot baseline is implemented with explicit `checkpoint_snapshot` records, readable checkpoint snapshot reports, and compact `swl task checkpoint` inspection paths that derive recovery truth from persisted handoff and policy state without introducing a second lifecycle model
+  - `P10-02` resume entrypoint baseline is implemented with `swl task resume`, an operator-gated resume path that stays on the accepted `task run` flow and blocks explicitly when checkpoint truth does not allow recovery
+  - `P10-03` resume-versus-retry-versus-rerun boundary tightening is implemented with compact control-boundary output, clearer blocked-path messaging, and checkpoint-backed operator guidance inside `swl task control`
+  - `P10-04` interruption recovery semantics baseline is implemented with explicit checkpoint-level `recovery_semantics` and `interruption_kind` classification, plus aligned visibility across `checkpoint`, `control`, `inspect`, and `review` output for interrupted-style failures such as `timeout`, `launch_error`, and `unreachable_backend`
+  - `P10-05` resume command and help alignment is implemented with clearer CLI help for `queue`, `control`, `checkpoint`, `resume`, `retry`, and `rerun`, plus README quickstart guidance that explains when each recovery path should be used
+  - `P10-06` closeout, documentation synchronization, and commit-summary note is implemented with a dedicated Phase 10 closeout note, a reusable `docs/phase10_commit_summary.md`, and synchronized status-entry documents that now treat Phase 10 as a completed baseline rather than an in-progress slice
   - `P9-05` workbench command and help alignment is implemented with updated Phase 9 command discoverability in CLI help plus synchronized README and README.zh-CN coverage for queue, control, attempt history/comparison, and explicit retry/rerun entrypoints
   - `P9-06` closeout and status alignment is implemented with a dedicated Phase 9 closeout note and synchronized status-entry documents that now treat Phase 9 as a completed baseline rather than an active planning checkpoint
   - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
@@ -256,7 +275,8 @@ This file tracks the implementation status of the repository itself so work can 
 - The planned Phase 7 baseline is complete enough to stop open-ended `Execution Topology` expansion by default.
 - The planned Phase 8 baseline is complete enough to stop open-ended `Evaluation / Policy` expansion by default.
 - Phase 9 baseline is complete enough to stop open-ended `Workbench / UX` expansion by default.
-- New work should now begin from a fresh planning note rather than assuming more Phase 9 work exists by default.
+- Phase 10 baseline is complete enough to stop open-ended `Core Loop` recovery expansion by default.
+- New work should now begin from a fresh kickoff note rather than extending completed Phase 10 work by default.
 
 ## Known Issues
 
@@ -276,9 +296,12 @@ This file tracks the implementation status of the repository itself so work can 
 9. Use `docs/phase7_closeout_note.md` as the stop/go reference for the completed `Execution Topology` slice.
 10. Use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice.
 11. Use `docs/phase9_closeout_note.md` as the stop/go reference for the completed `Workbench / UX` slice.
-12. Write a fresh kickoff note before opening the next primary track.
-13. Verify the editable install exposes the `swl` entrypoint correctly.
-14. Update this file after each substantial code change.
+12. Use `docs/phase10_closeout_note.md` as the stop/go reference for completed Phase 10 work.
+13. Use `docs/phase10_commit_summary.md` as the reusable short commit-summary note for the completed Phase 10 slice.
+14. Use `docs/system_tracks.md` to choose the next primary track intentionally.
+15. Write a fresh kickoff note before starting the next slice.
+16. Verify the editable install exposes the `swl` entrypoint correctly.
+17. Update this file after each substantial code change.
 
 ## Resume Command
 

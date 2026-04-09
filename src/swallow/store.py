@@ -10,6 +10,7 @@ from .paths import (
     capability_assembly_path,
     capability_manifest_path,
     compatibility_path,
+    checkpoint_snapshot_path,
     dispatch_path,
     execution_site_path,
     execution_fit_path,
@@ -233,6 +234,14 @@ def save_stop_policy(base_dir: Path, task_id: str, payload: dict[str, object]) -
 def save_execution_budget_policy(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
     ensure_task_layout(base_dir, task_id)
     execution_budget_policy_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_checkpoint_snapshot(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    checkpoint_snapshot_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )

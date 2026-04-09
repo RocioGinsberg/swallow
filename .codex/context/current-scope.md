@@ -62,6 +62,15 @@ The completed Phase 9 baseline established:
 - explicit retry and rerun entrypoints that stay on the accepted run path
 - aligned operator-facing help and README coverage for the local workbench control surface
 
+The completed Phase 10 baseline established:
+
+- explicit checkpoint snapshot records and recovery inspection paths
+- an operator-gated `swl task resume` entrypoint
+- clearer resume versus retry versus rerun control boundaries
+- interruption-oriented recovery semantics that stay artifact-backed and inspectable
+- explicit phase-closeout synchronization rules for status-entry documents
+- a short phase-local commit-summary note for manual Git submission reuse
+
 ## Explicit non-goals right now
 
 Do not treat these as current-slice requirements:
@@ -87,4 +96,7 @@ When planning the next task:
 - use `docs/phase7_closeout_note.md` before deciding whether to continue the completed `Execution Topology` slice
 - use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice
 - use `docs/phase9_closeout_note.md` as the stop/go reference for the completed `Workbench / UX` slice
+- use `docs/phase10_closeout_note.md` as the stop/go reference for completed Phase 10 work
+- use `docs/phase10_commit_summary.md` as the reusable short commit-summary note for the completed Phase 10 slice
+- write a fresh kickoff note before starting the next slice
 - prefer a fresh planning note over open-ended continuation

@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from .checkpoint_snapshot import build_checkpoint_snapshot_report, evaluate_checkpoint_snapshot
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
 from .execution_budget_policy import build_execution_budget_policy_report, evaluate_execution_budget_policy
 from .execution_fit import build_execution_fit_report, evaluate_execution_fit
@@ -35,6 +36,7 @@ from .stop_policy import build_stop_policy_report, evaluate_stop_policy
 from .store import (
     append_event,
     save_compatibility,
+    save_checkpoint_snapshot,
     save_dispatch,
     save_execution_budget_policy,
     save_execution_site,
@@ -409,6 +411,34 @@ def write_task_artifacts(
         "handoff_report.md",
         build_handoff_report(handoff_record),
     )
+    checkpoint_snapshot_result = evaluate_checkpoint_snapshot(
+        render_state,
+        handoff_record,
+        retry_policy_result.to_dict(),
+        stop_policy_result.to_dict(),
+        execution_budget_policy_result.to_dict(),
+    )
+    save_checkpoint_snapshot(base_dir, state.task_id, checkpoint_snapshot_result.to_dict())
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "checkpoint_snapshot_report.md",
+        build_checkpoint_snapshot_report(checkpoint_snapshot_result),
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="checkpoint_snapshot.completed",
+            message=checkpoint_snapshot_result.message,
+            payload={
+                "status": checkpoint_snapshot_result.status,
+                "checkpoint_state": checkpoint_snapshot_result.checkpoint_state,
+                "recommended_path": checkpoint_snapshot_result.recommended_path,
+                "resume_ready": checkpoint_snapshot_result.resume_ready,
+            },
+        ),
+    )
     save_memory(
         base_dir,
         state.task_id,
@@ -424,6 +454,7 @@ def write_task_artifacts(
             stop_policy_result,
             execution_budget_policy_result,
             handoff_record,
+            checkpoint_snapshot_result.to_dict(),
         ),
     )
     write_artifact(
@@ -615,6 +646,7 @@ def build_task_memory(
     stop_policy_result: StopPolicyResult,
     execution_budget_policy_result: ExecutionBudgetPolicyResult,
     handoff_record: dict[str, object],
+    checkpoint_snapshot: dict[str, object],
 ) -> dict[str, object]:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
@@ -685,6 +717,7 @@ def build_task_memory(
         "retry_policy": retry_policy_result.to_dict(),
         "execution_budget_policy": execution_budget_policy_result.to_dict(),
         "stop_policy": stop_policy_result.to_dict(),
+        "checkpoint_snapshot": checkpoint_snapshot,
         "knowledge_policy": knowledge_policy_result.to_dict(),
         "validation": validation_result.to_dict(),
         "retrieval": {
@@ -740,6 +773,8 @@ def build_task_memory(
             "execution_budget_policy_json": state.artifact_paths.get("execution_budget_policy_json", ""),
             "stop_policy_report": state.artifact_paths.get("stop_policy_report", ""),
             "stop_policy_json": state.artifact_paths.get("stop_policy_json", ""),
+            "checkpoint_snapshot_report": state.artifact_paths.get("checkpoint_snapshot_report", ""),
+            "checkpoint_snapshot_json": state.artifact_paths.get("checkpoint_snapshot_json", ""),
             "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
             "compatibility_json": state.artifact_paths.get("compatibility_json", ""),
             "knowledge_policy_report": state.artifact_paths.get("knowledge_policy_report", ""),
@@ -1176,6 +1211,7 @@ def build_summary(
         f"- retry_policy_status: {retry_policy_result.status if retry_policy_result else 'pending'}",
         f"- execution_budget_policy_status: {execution_budget_policy_result.status if execution_budget_policy_result else 'pending'}",
         f"- stop_policy_status: {stop_policy_result.status if stop_policy_result else 'pending'}",
+        f"- checkpoint_snapshot_report_artifact: {state.artifact_paths.get('checkpoint_snapshot_report', '') or 'pending'}",
         f"- knowledge_policy_status: {knowledge_policy_result.status if knowledge_policy_result else 'pending'}",
         f"- execution_fit_report_artifact: {state.artifact_paths.get('execution_fit_report', '') or 'pending'}",
         f"- retry_policy_report_artifact: {state.artifact_paths.get('retry_policy_report', '') or 'pending'}",
@@ -1445,6 +1481,7 @@ def build_resume_note(
         f"- retry policy status: {retry_policy_result.status if retry_policy_result else 'pending'}",
         f"- execution budget policy status: {execution_budget_policy_result.status if execution_budget_policy_result else 'pending'}",
         f"- stop policy status: {stop_policy_result.status if stop_policy_result else 'pending'}",
+        f"- checkpoint snapshot report artifact: {state.artifact_paths.get('checkpoint_snapshot_report', '') or 'pending'}",
         f"- knowledge policy status: {knowledge_policy_result.status if knowledge_policy_result else 'pending'}",
         f"- execution fit report artifact: {state.artifact_paths.get('execution_fit_report', '') or 'pending'}",
         f"- retry policy report artifact: {state.artifact_paths.get('retry_policy_report', '') or 'pending'}",

@@ -131,7 +131,7 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 
 ## 当前阶段
 
-当前仓库处于 **Phase 9 Operator Control Workbench 收口检查点**。
+当前仓库正处于 **Phase 10 Resume And Recovery Loop 收口检查点**。
 
 当前已经实现的基线包括：
 
@@ -141,10 +141,10 @@ Codex、Claude Code、Gemini CLI 这类工具本身都很强，尤其擅长：
 - compatibility 检查与 route provenance 产物
 - 明确的本地优先执行路径，以及 route、topology、dispatch、handoff、execution-fit 产物
 - execution-site、attempt ownership、handoff contract、retry、stop 与 execution budget 等 policy / control 产物
-- 面向 operator 的本地 workbench 控制面，包括 queue、control、attempts / compare-attempts、retry 与 rerun 入口
+- 面向 operator 的本地 workbench 控制面，包括 queue、control、checkpoint、attempts / compare-attempts、resume、retry 与 rerun 入口
 - Git 项目文件与 Markdown / Obsidian 笔记检索
 
-当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把已完成的 executor / external-input 切片、retrieval / memory 下一段切片，以及已完成的 Phase 6、Phase 7、Phase 8、Phase 9 都视为稳定检查点；后续新工作应从新的规划说明起步，而不是默认继续扩张 Phase 9。
+当前目标已经不是证明一个“最小 bootstrap 闭环”，而是在保持当前本地基线稳定的前提下，把已完成的 executor / external-input 切片、retrieval / memory 下一段切片，以及已完成的 Phase 6、Phase 7、Phase 8、Phase 9、Phase 10 都视为稳定检查点。下一条切片应从新的 kickoff note 开始，而不是默认继续扩张 Phase 10。
 
 ## 长期方向
 
@@ -265,7 +265,7 @@ backend 不等于模型，也不等于 executor。
 
 ## 当前状态
 
-Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-2 retrieval baseline 已完成，Phase 3 baseline 已完成，Phase 4 baseline 已完成，Phase 5 baseline 已完成，post-Phase-5 executor / external-input slice 已完成，post-Phase-5 retrieval / memory-next slice 已完成，Phase 6 baseline 已完成，Phase 7 baseline 已完成，Phase 8 baseline 已完成，Phase 9 baseline 已完成。
+Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-2 retrieval baseline 已完成，Phase 3 baseline 已完成，Phase 4 baseline 已完成，Phase 5 baseline 已完成，post-Phase-5 executor / external-input slice 已完成，post-Phase-5 retrieval / memory-next slice 已完成，Phase 6 baseline 已完成，Phase 7 baseline 已完成，Phase 8 baseline 已完成，Phase 9 baseline 已完成，Phase 10 baseline 已完成。
 
 - [current_state.md](./current_state.md)
 - [docs/phase3_closeout_note.md](./docs/phase3_closeout_note.md)
@@ -282,6 +282,10 @@ Phase 0 已验收，Phase 1 已完成，Phase 2 baseline 已完成，post-Phase-
 - [docs/phase9_kickoff_note.md](./docs/phase9_kickoff_note.md)
 - [docs/phase9_task_breakdown.md](./docs/phase9_task_breakdown.md)
 - [docs/phase9_closeout_note.md](./docs/phase9_closeout_note.md)
+- [docs/phase10_kickoff_note.md](./docs/phase10_kickoff_note.md)
+- [docs/phase10_task_breakdown.md](./docs/phase10_task_breakdown.md)
+- [docs/phase10_closeout_note.md](./docs/phase10_closeout_note.md)
+- [docs/phase10_commit_summary.md](./docs/phase10_commit_summary.md)
 
 ## 术语说明
 
@@ -350,12 +354,21 @@ swl task review <task-id>
 swl task artifacts <task-id>
 ```
 
-使用当前显式 retry / rerun 入口：
+使用当前恢复与 rerun 入口：
 
 ```bash
+swl task checkpoint <task-id>
+swl task resume <task-id>
 swl task retry <task-id>
 swl task rerun <task-id>
 ```
+
+当前建议的 operator 边界是：
+
+- `resume`：沿当前失败上下文做 checkpoint-backed recovery
+- `retry`：沿当前 accepted run path，受 retry / stop policy 约束
+- `rerun`：显式人工 override，重新开启一轮 run
+- `checkpoint`：在选择上述路径前先查看的紧凑恢复快照
 
 运行测试：
 
@@ -378,6 +391,9 @@ python3 -m unittest discover -s tests
 - [docs/phase9_kickoff_note.md](./docs/phase9_kickoff_note.md)
 - [docs/phase9_task_breakdown.md](./docs/phase9_task_breakdown.md)
 - [docs/phase9_closeout_note.md](./docs/phase9_closeout_note.md)
+- [docs/phase10_kickoff_note.md](./docs/phase10_kickoff_note.md)
+- [docs/phase10_task_breakdown.md](./docs/phase10_task_breakdown.md)
+- [docs/phase10_closeout_note.md](./docs/phase10_closeout_note.md)
 
 ## 当前 CLI 形态
 
@@ -388,8 +404,10 @@ python3 -m unittest discover -s tests
 - `swl task list`
 - `swl task queue`
 - `swl task control`
+- `swl task checkpoint`
 - `swl task attempts`
 - `swl task compare-attempts`
+- `swl task resume`
 - `swl task retry`
 - `swl task rerun`
 - `swl task inspect`
@@ -426,6 +444,7 @@ python3 -m unittest discover -s tests
 - `swl task retry-policy-json`
 - `swl task execution-budget-policy-json`
 - `swl task stop-policy-json`
+- `swl task checkpoint-json`
 - `swl task capabilities-json`
 - `swl task semantics-json`
 - `swl task knowledge-objects-json`

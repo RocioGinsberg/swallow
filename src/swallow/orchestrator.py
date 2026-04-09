@@ -22,6 +22,7 @@ from .paths import (
     artifacts_dir,
     capability_assembly_path,
     capability_manifest_path,
+    checkpoint_snapshot_path,
     compatibility_path,
     dispatch_path,
     execution_site_path,
@@ -198,6 +199,8 @@ def create_task(
         "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
         "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
         "knowledge_index_report": str((artifacts_dir(base_dir, task_id) / "knowledge_index_report.md").resolve()),
+        "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
+        "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
     }
     knowledge_partition = build_knowledge_partition(state.knowledge_objects)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
@@ -445,6 +448,8 @@ def run_task(
         "execution_budget_policy_json": str(execution_budget_policy_path(base_dir, task_id).resolve()),
         "stop_policy_report": str((artifacts_dir(base_dir, task_id) / "stop_policy_report.md").resolve()),
         "stop_policy_json": str(stop_policy_path(base_dir, task_id).resolve()),
+        "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
+        "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
     }
     (
         compatibility_result,

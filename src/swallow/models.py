@@ -362,6 +362,57 @@ class ExecutionBudgetPolicyResult:
 
 
 @dataclass(slots=True)
+class CheckpointSnapshotFinding:
+    code: str
+    level: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class CheckpointSnapshotResult:
+    status: str
+    message: str
+    checkpoint_state: str
+    checkpoint_kind: str
+    handoff_status: str
+    recovery_semantics: str
+    interruption_kind: str
+    recommended_path: str
+    recommended_reason: str
+    resume_ready: bool
+    retry_ready: bool
+    review_ready: bool
+    rerun_ready: bool
+    monitor_needed: bool
+    required_artifacts: list[str] = field(default_factory=list)
+    findings: list[CheckpointSnapshotFinding] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "status": self.status,
+            "message": self.message,
+            "checkpoint_state": self.checkpoint_state,
+            "checkpoint_kind": self.checkpoint_kind,
+            "handoff_status": self.handoff_status,
+            "recovery_semantics": self.recovery_semantics,
+            "interruption_kind": self.interruption_kind,
+            "recommended_path": self.recommended_path,
+            "recommended_reason": self.recommended_reason,
+            "resume_ready": self.resume_ready,
+            "retry_ready": self.retry_ready,
+            "review_ready": self.review_ready,
+            "rerun_ready": self.rerun_ready,
+            "monitor_needed": self.monitor_needed,
+            "required_artifacts": self.required_artifacts,
+            "findings": [finding.to_dict() for finding in self.findings],
+        }
+
+
+@dataclass(slots=True)
 class CompatibilityFinding:
     code: str
     level: str

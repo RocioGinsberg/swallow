@@ -45,6 +45,8 @@ Current status:
 - hardened through Phase 1 and Phase 2 without breaking the core loop
 - preserved through Phase 3, Phase 4, and Phase 5 while topology, workbench, and capability truth expanded
 - tightened further in Phase 7 and Phase 8 through explicit execution-site and execution-control artifacts without breaking the accepted task loop
+- preserved through Phase 9 while operator-control entrypoints expanded around the accepted run path
+- tightened further in Phase 10 through checkpoint snapshots, resume semantics, interruption-oriented recovery classification, and explicit recovery-boundary guidance
 
 Still needed for a fuller system:
 
@@ -159,7 +161,7 @@ Current status:
 - CLI is usable and artifact-driven
 - Phase 4 completed the baseline with task listing, inspect, grouped artifacts, review, and operator-attention views
 - later slices added inspection paths for capabilities, task semantics, knowledge objects, reusable knowledge, execution-site, dispatch, handoff, execution-fit, and execution-control policy
-- the current planning direction is Phase 9 `Operator Control Workbench`
+- Phase 9 completed the current operator-control baseline with queue, control, attempt history/comparison, retry, and rerun entrypoints
 
 Still needed for a fuller system:
 
@@ -341,6 +343,17 @@ Secondary effect:
 - Core Loop through rerun/retry control ergonomics
 - Evaluation / Policy through operator-facing control use of existing policy truth
 
+### Phase 10
+
+Primary tracks:
+
+- Core Loop
+
+Secondary effect:
+
+- Workbench / UX through resume and checkpoint entrypoints
+- Evaluation / Policy through clearer recovery-boundary decisions
+
 ## Planning Rule
 
 Future planning should happen in two passes:
@@ -356,7 +369,7 @@ Do not start a new phase before naming:
 
 ## Current Planning Position
 
-The repository is now at a planning checkpoint with:
+The repository is now at a closeout checkpoint with:
 
 - Phase 2 baseline complete
 - post-Phase-2 retrieval baseline complete
@@ -368,8 +381,18 @@ The repository is now at a planning checkpoint with:
 - Phase 6 baseline complete
 - Phase 7 baseline complete
 - Phase 8 baseline complete
+- Phase 9 baseline complete
+- Phase 10 baseline complete
 
-Current fresh planning reference:
+Current stop/go reference:
 
-- `docs/phase9_kickoff_note.md`
-- `docs/phase9_task_breakdown.md`
+- `docs/phase10_closeout_note.md`
+
+Current reusable commit-summary reference:
+
+- `docs/phase10_commit_summary.md`
+
+Next planning requirement:
+
+- choose the next primary track intentionally
+- write a fresh kickoff note before starting the next slice

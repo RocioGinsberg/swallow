@@ -999,6 +999,7 @@ class CliLifecycleTest(unittest.TestCase):
                     "retry_policy_report": ".swl/tasks/task-control/artifacts/retry_policy_report.md",
                     "execution_budget_policy_report": ".swl/tasks/task-control/artifacts/execution_budget_policy_report.md",
                     "stop_policy_report": ".swl/tasks/task-control/artifacts/stop_policy_report.md",
+                    "checkpoint_snapshot_report": ".swl/tasks/task-control/artifacts/checkpoint_snapshot_report.md",
                 },
             )
             task_root = tmp_path / ".swl" / "tasks" / task_id
@@ -1056,6 +1057,20 @@ class CliLifecycleTest(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
+            (task_root / "checkpoint_snapshot.json").write_text(
+                json.dumps(
+                    {
+                        "status": "warning",
+                        "checkpoint_state": "retry_ready",
+                        "recommended_path": "retry",
+                        "recommended_reason": "retry_review",
+                        "resume_ready": False,
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
 
             stdout = StringIO()
             with redirect_stdout(stdout):
@@ -1065,20 +1080,69 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn(f"Task Control: {task_id}", output)
         self.assertIn("recommended_action: retry", output)
         self.assertIn("recommended_reason: retry_review", output)
+        self.assertIn("checkpoint_state: retry_ready", output)
+        self.assertIn("resume_ready: no", output)
         self.assertIn("next_operator_action: Retry the task with the latest recovery guidance.", output)
         self.assertIn("retry_ready: yes", output)
         self.assertIn("review_ready: no", output)
         self.assertIn("rerun_ready: yes", output)
         self.assertIn("monitor_needed: no", output)
+        self.assertIn("Control Boundaries", output)
+        self.assertIn("resume_path: blocked reason=retry_ready suggested_path=retry", output)
+        self.assertIn("retry_path: allowed reason=operator_retry_available", output)
+        self.assertIn("rerun_path: allowed reason=explicit_operator_override suggested_path=retry", output)
         self.assertIn("Policy Controls", output)
         self.assertIn("retry_policy_status: warning", output)
         self.assertIn("execution_budget_policy_status: passed", output)
         self.assertIn("stop_policy_status: warning", output)
         self.assertIn(f"review: swl task review {task_id}", output)
         self.assertIn(f"policy: swl task policy {task_id}", output)
+        self.assertIn(f"checkpoint: swl task checkpoint {task_id}", output)
         self.assertIn(f"inspect: swl task inspect {task_id}", output)
         self.assertIn(f"run: swl task run {task_id}", output)
         self.assertIn("resume_note: .swl/tasks/task-control/artifacts/resume_note.md", output)
+        self.assertIn("checkpoint_snapshot_report: .swl/tasks/task-control/artifacts/checkpoint_snapshot_report.md", output)
+
+    def test_task_checkpoint_prints_checkpoint_snapshot_report_and_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\ncheckpoint snapshot\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Checkpoint task",
+                            "--goal",
+                            "Persist a checkpoint snapshot",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+                checkpoint_stdout = StringIO()
+                checkpoint_json_stdout = StringIO()
+                with redirect_stdout(checkpoint_stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "checkpoint", task_id]), 0)
+                with redirect_stdout(checkpoint_json_stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "checkpoint-json", task_id]), 0)
+
+        self.assertIn("Checkpoint Snapshot Report", checkpoint_stdout.getvalue())
+        self.assertIn("recovery_semantics: completed_run_review", checkpoint_stdout.getvalue())
+        self.assertIn("interruption_kind: none", checkpoint_stdout.getvalue())
+        self.assertIn("recommended_path: review", checkpoint_stdout.getvalue())
+        self.assertIn('"checkpoint_state": "review_ready"', checkpoint_json_stdout.getvalue())
+        self.assertIn('"recovery_semantics": "completed_run_review"', checkpoint_json_stdout.getvalue())
 
     def test_task_attempts_prints_compact_attempt_history(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1347,6 +1411,94 @@ class CliLifecycleTest(unittest.TestCase):
         run_task_mock.assert_not_called()
         self.assertIn("retry_blocked", stdout.getvalue())
         self.assertIn("retry_decision=non_retryable_failure", stdout.getvalue())
+        self.assertIn("suggested_path=rerun", stdout.getvalue())
+
+    def test_task_resume_runs_when_checkpoint_allows_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-resume-run"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Resume allowed",
+                goal="Resume through the run path",
+                workspace_root=str(tmp_path),
+                status="failed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "checkpoint_snapshot.json").write_text(
+                json.dumps(
+                    {
+                        "resume_ready": True,
+                        "checkpoint_state": "resume_ready",
+                        "recommended_path": "resume",
+                        "recommended_reason": "failure_resume",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with patch("swallow.cli.run_task") as run_task_mock:
+                run_task_mock.return_value = TaskState(
+                    task_id=task_id,
+                    title="Resume allowed",
+                    goal="Resume through the run path",
+                    workspace_root=str(tmp_path),
+                    status="completed",
+                    phase="summarize",
+                    retrieval_count=1,
+                )
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "resume", task_id]), 0)
+
+        run_task_mock.assert_called_once()
+        self.assertIn(f"{task_id} completed retrieval=1", stdout.getvalue())
+
+    def test_task_resume_blocks_when_checkpoint_disallows_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-resume-blocked"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Resume blocked",
+                goal="Do not resume",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "checkpoint_snapshot.json").write_text(
+                json.dumps(
+                    {
+                        "resume_ready": False,
+                        "checkpoint_state": "review_ready",
+                        "recommended_path": "review",
+                        "recommended_reason": "completed_run_review",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with patch("swallow.cli.run_task") as run_task_mock:
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "resume", task_id]), 1)
+
+        run_task_mock.assert_not_called()
+        self.assertIn("resume_blocked", stdout.getvalue())
+        self.assertIn("checkpoint_state=review_ready", stdout.getvalue())
+        self.assertIn("suggested_reason=completed_run_review", stdout.getvalue())
 
     def test_task_rerun_always_uses_run_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1468,6 +1620,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("handoff_status: review_completed_run", output)
         self.assertIn("handoff_contract_status: ready", output)
         self.assertIn("handoff_contract_kind: operator_review", output)
+        self.assertIn("checkpoint_state: review_ready", output)
+        self.assertIn("recovery_semantics: completed_run_review", output)
+        self.assertIn("interruption_kind: none", output)
         self.assertIn("retryable: no", output)
         self.assertIn("retry_decision: completed_no_retry", output)
         self.assertIn("remaining_attempts: 0", output)
@@ -1630,6 +1785,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("handoff_status: resume_from_failure", output)
         self.assertIn("handoff_contract_status: ready", output)
         self.assertIn("handoff_contract_kind: failure_resume", output)
+        self.assertIn("checkpoint_state: resume_ready", output)
+        self.assertIn("recovery_semantics: interruption_recovery", output)
+        self.assertIn("interruption_kind: launch_error", output)
+        self.assertIn("recommended_path: resume", output)
         self.assertIn("handoff_next_owner_kind: operator", output)
         self.assertIn("handoff_next_owner_ref: swl_cli", output)
         self.assertIn("retry_policy_status: failed", output)
@@ -1660,6 +1819,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("retry_policy_report:", output)
         self.assertIn("execution_budget_policy_report:", output)
         self.assertIn("stop_policy_report:", output)
+        self.assertIn("checkpoint_snapshot_report:", output)
 
     def test_task_help_includes_workbench_commands(self) -> None:
         stdout = StringIO()
@@ -1672,6 +1832,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("list                List tasks with compact status summaries.", output)
         self.assertIn("inspect             Print a compact per-task overview.", output)
         self.assertIn("review              Print a review-focused task handoff summary.", output)
+        self.assertIn("resume              Resume a task on the accepted run path", output)
         self.assertIn("artifacts           Print grouped task artifact paths.", output)
         self.assertIn("execution-site      Print the task execution-site report artifact.", output)
 
@@ -1718,15 +1879,33 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertEqual(raised.exception.code, 0)
         output = stdout.getvalue()
-        self.assertIn("queue               List tasks that currently need operator action.", output)
-        self.assertIn("control             Print a compact per-task control snapshot.", output)
+        self.assertIn("queue               List tasks that currently need operator action,", output)
+        self.assertIn("including resume/retry/review.", output)
+        self.assertIn("control             Print a compact per-task recovery and", output)
+        self.assertIn("snapshot.", output)
         self.assertIn("attempts            Print compact attempt history for a task.", output)
         self.assertIn("compare-attempts", output)
         self.assertIn("Compare two task attempts using compact control-", output)
-        self.assertIn("retry               Retry a task through the current run path when retry", output)
-        self.assertIn("policy allows it.", output)
-        self.assertIn("rerun               Start a new explicit operator-triggered run regardless", output)
-        self.assertIn("of retry policy state.", output)
+        self.assertIn("retry               Retry a task on the accepted run path when", output)
+        self.assertIn("stop policy allow it.", output)
+        self.assertIn("rerun               Start a new explicit operator-triggered run even", output)
+        self.assertIn("retry or resume stay", output)
+
+    def test_recovery_command_help_describes_checkpoint_boundaries(self) -> None:
+        command_expectations = [
+            (["task", "resume", "--help"], "checkpoint recovery truth allows"),
+            (["task", "retry", "--help"], "retry and stop policy allow"),
+            (["task", "rerun", "--help"], "retry or resume stay"),
+            (["task", "checkpoint", "--help"], "used for resume, retry, review, and"),
+        ]
+
+        for argv, expected in command_expectations:
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                with self.assertRaises(SystemExit) as raised:
+                    main(argv)
+            self.assertEqual(raised.exception.code, 0)
+            self.assertIn(expected, stdout.getvalue())
 
     def test_task_create_help_includes_capability_flag(self) -> None:
         stdout = StringIO()
@@ -1887,6 +2066,9 @@ class CliLifecycleTest(unittest.TestCase):
                 stop_policy_report = (tasks_dir / task_id / "artifacts" / "stop_policy_report.md").read_text(
                     encoding="utf-8"
                 )
+                checkpoint_snapshot_report = (
+                    tasks_dir / task_id / "artifacts" / "checkpoint_snapshot_report.md"
+                ).read_text(encoding="utf-8")
                 execution_site_report = (tasks_dir / task_id / "artifacts" / "execution_site_report.md").read_text(
                     encoding="utf-8"
                 )
@@ -1922,6 +2104,9 @@ class CliLifecycleTest(unittest.TestCase):
                     (tasks_dir / task_id / "execution_budget_policy.json").read_text(encoding="utf-8")
                 )
                 stop_policy = json.loads((tasks_dir / task_id / "stop_policy.json").read_text(encoding="utf-8"))
+                checkpoint_snapshot = json.loads(
+                    (tasks_dir / task_id / "checkpoint_snapshot.json").read_text(encoding="utf-8")
+                )
                 knowledge_policy = json.loads((tasks_dir / task_id / "knowledge_policy.json").read_text(encoding="utf-8"))
                 validation = json.loads((tasks_dir / task_id / "validation.json").read_text(encoding="utf-8"))
                 memory = json.loads((tasks_dir / task_id / "memory.json").read_text(encoding="utf-8"))
@@ -1975,6 +2160,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("retry_policy_status:", summary)
                 self.assertIn("execution_budget_policy_status:", summary)
                 self.assertIn("stop_policy_status:", summary)
+                self.assertIn("checkpoint_snapshot_report_artifact:", summary)
                 self.assertIn("knowledge_policy_status:", summary)
                 self.assertIn("execution_fit_report_artifact:", summary)
                 self.assertIn("retry_policy_report_artifact:", summary)
@@ -2066,6 +2252,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("retry policy status: passed", resume_note)
                 self.assertIn("execution budget policy status: passed", resume_note)
                 self.assertIn("stop policy status: warning", resume_note)
+                self.assertIn("checkpoint snapshot report artifact:", resume_note)
                 self.assertIn("knowledge policy status: passed", resume_note)
                 self.assertIn("execution fit report artifact:", resume_note)
                 self.assertIn("retry policy report artifact:", resume_note)
@@ -2084,6 +2271,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("Retry Policy Report", retry_policy_report)
                 self.assertIn("Execution Budget Policy Report", execution_budget_policy_report)
                 self.assertIn("Stop Policy Report", stop_policy_report)
+                self.assertIn("Checkpoint Snapshot Report", checkpoint_snapshot_report)
                 self.assertIn("Execution Site Report", execution_site_report)
                 self.assertIn("Knowledge Policy Report", knowledge_policy_report)
                 self.assertIn("Route Report", route_report)
@@ -2108,6 +2296,11 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(execution_budget_policy["timeout_seconds"], 20)
                 self.assertEqual(stop_policy["status"], "warning")
                 self.assertEqual(stop_policy["stop_decision"], "checkpoint_review")
+                self.assertEqual(checkpoint_snapshot["status"], "passed")
+                self.assertEqual(checkpoint_snapshot["checkpoint_state"], "review_ready")
+                self.assertEqual(checkpoint_snapshot["recommended_path"], "review")
+                self.assertTrue(checkpoint_snapshot["review_ready"])
+                self.assertFalse(checkpoint_snapshot["resume_ready"])
                 self.assertEqual(knowledge_policy["status"], "passed")
                 self.assertEqual(validation["status"], "passed")
                 self.assertEqual(route["name"], "local-mock")
@@ -2213,6 +2406,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(memory["retry_policy"]["status"], "passed")
                 self.assertEqual(memory["execution_budget_policy"]["status"], "passed")
                 self.assertEqual(memory["stop_policy"]["status"], "warning")
+                self.assertEqual(memory["checkpoint_snapshot"]["checkpoint_state"], "review_ready")
                 self.assertEqual(memory["knowledge_policy"]["status"], "passed")
                 self.assertTrue(
                     memory["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
@@ -2252,6 +2446,12 @@ class CliLifecycleTest(unittest.TestCase):
                 )
                 self.assertTrue(memory["artifact_paths"]["stop_policy_report"].endswith("stop_policy_report.md"))
                 self.assertTrue(memory["artifact_paths"]["stop_policy_json"].endswith("stop_policy.json"))
+                self.assertTrue(
+                    memory["artifact_paths"]["checkpoint_snapshot_report"].endswith("checkpoint_snapshot_report.md")
+                )
+                self.assertTrue(
+                    memory["artifact_paths"]["checkpoint_snapshot_json"].endswith("checkpoint_snapshot.json")
+                )
                 self.assertTrue(memory["artifact_paths"]["retrieval_json"].endswith("retrieval.json"))
                 self.assertTrue(memory["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
                 self.assertEqual(memory["artifact_paths"]["source_grounding"].endswith("source_grounding.md"), True)
@@ -3250,6 +3450,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "retry_policy.completed",
                 "execution_budget_policy.completed",
                 "stop_policy.completed",
+                "checkpoint_snapshot.completed",
                 "artifacts.written",
                 "task.completed",
             ],
@@ -3371,59 +3572,59 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[11]["payload"]["status"], "passed")
         self.assertEqual(events[12]["payload"]["status"], "passed")
         self.assertEqual(events[13]["payload"]["status"], "warning")
-        self.assertEqual(events[14]["payload"]["status"], "completed")
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
-        self.assertTrue(
-            events[14]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
-        )
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
-        self.assertTrue(events[14]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
         self.assertEqual(events[15]["payload"]["status"], "completed")
-        self.assertEqual(events[15]["payload"]["phase"], "summarize")
-        self.assertEqual(events[15]["payload"]["retrieval_count"], 1)
-        self.assertEqual(events[15]["payload"]["executor_status"], "completed")
-        self.assertEqual(events[15]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[15]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[15]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[15]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[15]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[15]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[15]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[15]["payload"]["attempt_owner_kind"], "local_orchestrator")
-        self.assertEqual(events[15]["payload"]["attempt_owner_ref"], "swl_cli")
-        self.assertEqual(events[15]["payload"]["attempt_ownership_status"], "owned")
-        self.assertTrue(bool(events[15]["payload"]["attempt_owner_assigned_at"]))
-        self.assertEqual(events[15]["payload"]["attempt_transfer_reason"], "")
-        self.assertEqual(events[15]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[15]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[15]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[15]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[15]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertEqual(events[15]["payload"]["execution_site_contract_kind"], "local_inline")
-        self.assertEqual(events[15]["payload"]["execution_site_boundary"], "same_process")
-        self.assertEqual(events[15]["payload"]["execution_site_contract_status"], "active")
-        self.assertEqual(events[15]["payload"]["execution_site_handoff_required"], False)
-        self.assertTrue(bool(events[15]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[15]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[15]["payload"]["execution_lifecycle"], "completed")
-        self.assertEqual(events[15]["payload"]["compatibility_status"], "passed")
-        self.assertEqual(events[15]["payload"]["execution_fit_status"], "passed")
-        self.assertEqual(events[15]["payload"]["retry_policy_status"], "passed")
-        self.assertEqual(events[15]["payload"]["execution_budget_policy_status"], "passed")
-        self.assertEqual(events[15]["payload"]["stop_policy_status"], "warning")
-        self.assertEqual(events[15]["payload"]["knowledge_policy_status"], "passed")
-        self.assertEqual(events[15]["payload"]["validation_status"], "passed")
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
+        self.assertTrue(
+            events[15]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+        )
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertTrue(events[15]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+        self.assertEqual(events[16]["payload"]["status"], "completed")
+        self.assertEqual(events[16]["payload"]["phase"], "summarize")
+        self.assertEqual(events[16]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[16]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[16]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[16]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[16]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[16]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[16]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[16]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[16]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[16]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[16]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[16]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[16]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[16]["payload"]["attempt_transfer_reason"], "")
+        self.assertEqual(events[16]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[16]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[16]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[16]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[16]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[16]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[16]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[16]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[16]["payload"]["execution_site_handoff_required"], False)
+        self.assertTrue(bool(events[16]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[16]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[16]["payload"]["execution_lifecycle"], "completed")
+        self.assertEqual(events[16]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[16]["payload"]["execution_fit_status"], "passed")
+        self.assertEqual(events[16]["payload"]["retry_policy_status"], "passed")
+        self.assertEqual(events[16]["payload"]["execution_budget_policy_status"], "passed")
+        self.assertEqual(events[16]["payload"]["stop_policy_status"], "warning")
+        self.assertEqual(events[16]["payload"]["knowledge_policy_status"], "passed")
+        self.assertEqual(events[16]["payload"]["validation_status"], "passed")
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
 
     def test_failed_task_events_include_failure_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3503,7 +3704,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[12]["payload"]["status"], "passed")
         self.assertEqual(events[13]["event_type"], "stop_policy.completed")
         self.assertEqual(events[13]["payload"]["status"], "failed")
-        self.assertEqual(events[14]["payload"]["status"], "failed")
+        self.assertEqual(events[14]["event_type"], "checkpoint_snapshot.completed")
+        self.assertEqual(events[14]["payload"]["status"], "warning")
         self.assertEqual(events[-1]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
@@ -3611,6 +3813,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "retry_policy.completed",
                 "execution_budget_policy.completed",
                 "stop_policy.completed",
+                "checkpoint_snapshot.completed",
                 "artifacts.written",
                 "task.failed",
             ],
@@ -3632,6 +3835,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "retry_policy.completed",
                 "execution_budget_policy.completed",
                 "stop_policy.completed",
+                "checkpoint_snapshot.completed",
                 "artifacts.written",
                 "task.failed",
                 "task.run_started",
@@ -3647,20 +3851,21 @@ class CliLifecycleTest(unittest.TestCase):
                 "retry_policy.completed",
                 "execution_budget_policy.completed",
                 "stop_policy.completed",
+                "checkpoint_snapshot.completed",
                 "artifacts.written",
                 "task.failed",
             ],
         )
-        self.assertEqual(final_events[16]["payload"]["previous_status"], "failed")
-        self.assertEqual(final_events[16]["payload"]["previous_phase"], "summarize")
-        self.assertEqual(final_events[16]["payload"]["status"], "running")
-        self.assertEqual(final_events[16]["payload"]["phase"], "intake")
+        self.assertEqual(final_events[17]["payload"]["previous_status"], "failed")
+        self.assertEqual(final_events[17]["payload"]["previous_phase"], "summarize")
+        self.assertEqual(final_events[17]["payload"]["status"], "running")
+        self.assertEqual(final_events[17]["payload"]["phase"], "intake")
         self.assertEqual(first_events[1]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(first_events[1]["payload"]["attempt_number"], 1)
         self.assertEqual(first_events[1]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(final_events[16]["payload"]["attempt_id"], "attempt-0002")
-        self.assertEqual(final_events[16]["payload"]["attempt_number"], 2)
-        self.assertEqual(final_events[16]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(final_events[17]["payload"]["attempt_id"], "attempt-0002")
+        self.assertEqual(final_events[17]["payload"]["attempt_number"], 2)
+        self.assertEqual(final_events[17]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(final_state["run_attempt_count"], 2)
         self.assertEqual(final_state["current_attempt_id"], "attempt-0002")
         self.assertEqual(final_state["current_attempt_number"], 2)

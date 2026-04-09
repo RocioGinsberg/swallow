@@ -4,6 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
+from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
 from .orchestrator import create_task, run_task
@@ -11,6 +12,7 @@ from .paths import (
     artifacts_dir,
     capability_assembly_path,
     capability_manifest_path,
+    checkpoint_snapshot_path,
     compatibility_path,
     dispatch_path,
     execution_budget_policy_path,
@@ -68,6 +70,8 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "execution_budget_policy_json",
             "stop_policy_report",
             "stop_policy_json",
+            "checkpoint_snapshot_report",
+            "checkpoint_snapshot_json",
         ),
     ),
     (
@@ -85,6 +89,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "retry_policy_json",
             "execution_budget_policy_json",
             "stop_policy_json",
+            "checkpoint_snapshot_json",
         ),
     ),
 )
@@ -166,6 +171,7 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
     handoff = load_json_if_exists(handoff_path(base_dir, state.task_id))
     retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
     stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
+    checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
 
     handoff_status = str(handoff.get("status", "pending"))
     next_operator_action = str(handoff.get("next_operator_action", "")).strip()
@@ -182,6 +188,9 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
     elif state.status == "running":
         action = "monitor"
         reason = state.execution_lifecycle or state.executor_status or "running"
+    elif bool(checkpoint_snapshot.get("resume_ready", False)) and str(checkpoint_snapshot.get("recommended_path", "")) == "resume":
+        action = "resume"
+        reason = str(checkpoint_snapshot.get("recommended_reason", recommended_reason_for_checkpoint(checkpoint_snapshot, handoff_status)))
     elif retryable and continue_allowed:
         action = "retry"
         reason = checkpoint_kind if checkpoint_kind != "pending" else str(retry_policy.get("retry_decision", "retryable"))
@@ -206,20 +215,106 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
     }
 
 
+def recommended_reason_for_checkpoint(checkpoint_snapshot: dict[str, object], handoff_status: str) -> str:
+    return str(
+        checkpoint_snapshot.get("recommended_reason")
+        or checkpoint_snapshot.get("checkpoint_state")
+        or handoff_status
+        or "pending"
+    )
+
+
+def path_boundary_status(
+    *,
+    path_name: str,
+    allowed: bool,
+    reason: str,
+    suggested_path: str,
+) -> str:
+    boundary = "allowed" if allowed else "blocked"
+    if suggested_path and suggested_path != path_name:
+        return f"{boundary} reason={reason} suggested_path={suggested_path}"
+    return f"{boundary} reason={reason}"
+
+
+def build_control_boundaries(
+    state: object,
+    checkpoint_snapshot: dict[str, object],
+    retry_policy: dict[str, object],
+    stop_policy: dict[str, object],
+    handoff: dict[str, object],
+) -> dict[str, str]:
+    suggested_path = str(checkpoint_snapshot.get("recommended_path", "none"))
+    suggested_reason = str(
+        checkpoint_snapshot.get("recommended_reason")
+        or checkpoint_snapshot.get("checkpoint_state")
+        or handoff.get("status", "pending")
+    )
+    retry_allowed = bool(retry_policy.get("retryable", False)) and str(stop_policy.get("checkpoint_kind", "")) in {
+        "retry_review",
+        "detached_retry_review",
+    }
+    resume_allowed = bool(checkpoint_snapshot.get("resume_ready", False)) and suggested_path == "resume"
+    rerun_allowed = state.status in {"completed", "failed"}
+    return {
+        "resume": path_boundary_status(
+            path_name="resume",
+            allowed=resume_allowed,
+            reason=suggested_reason if resume_allowed else str(checkpoint_snapshot.get("checkpoint_state", "pending")),
+            suggested_path=suggested_path,
+        ),
+        "retry": path_boundary_status(
+            path_name="retry",
+            allowed=retry_allowed,
+            reason=str(retry_policy.get("retry_decision", suggested_reason)),
+            suggested_path=suggested_path,
+        ),
+        "rerun": path_boundary_status(
+            path_name="rerun",
+            allowed=rerun_allowed,
+            reason="explicit_operator_override" if rerun_allowed else "task_not_terminal",
+            suggested_path=suggested_path,
+        ),
+    }
+
+
+def load_checkpoint_snapshot(base_dir: Path, state: object) -> dict[str, object]:
+    checkpoint_snapshot = load_json_if_exists(checkpoint_snapshot_path(base_dir, state.task_id))
+    if checkpoint_snapshot:
+        return checkpoint_snapshot
+    handoff = load_json_if_exists(handoff_path(base_dir, state.task_id))
+    retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
+    stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
+    execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, state.task_id))
+    return evaluate_checkpoint_snapshot(state, handoff, retry_policy, stop_policy, execution_budget_policy).to_dict()
+
+
 def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
     handoff = load_json_if_exists(handoff_path(base_dir, state.task_id))
     retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
     execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, state.task_id))
     stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
+    checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
     queue_entry = build_task_queue_entry(base_dir, state)
+    boundaries = build_control_boundaries(
+        state,
+        checkpoint_snapshot,
+        retry_policy,
+        stop_policy,
+        handoff,
+    )
 
     lines = [
         f"Task Control: {state.task_id}",
         f"title: {state.title}",
         "",
         "Control Snapshot",
-        f"recommended_action: {queue_entry['action'] if queue_entry else 'none'}",
-        f"recommended_reason: {queue_entry['reason'] if queue_entry else 'no_action_needed'}",
+        f"recommended_action: {checkpoint_snapshot.get('recommended_path', queue_entry['action'] if queue_entry else 'none')}",
+        f"recommended_reason: {checkpoint_snapshot.get('recommended_reason', queue_entry['reason'] if queue_entry else 'no_action_needed')}",
+        f"checkpoint_state: {checkpoint_snapshot.get('checkpoint_state', 'pending')}",
+        f"recovery_semantics: {checkpoint_snapshot.get('recovery_semantics', 'pending')}",
+        f"interruption_kind: {checkpoint_snapshot.get('interruption_kind', 'none')}",
+        f"resume_ready: {'yes' if checkpoint_snapshot.get('resume_ready', False) else 'no'}",
         f"next_operator_action: {handoff.get('next_operator_action', 'Inspect task artifacts.')}",
         f"retry_ready: {'yes' if retry_policy.get('retryable', False) and stop_policy.get('continue_allowed', False) else 'no'}",
         f"review_ready: {'yes' if handoff.get('status', '') == 'review_completed_run' else 'no'}",
@@ -228,6 +323,11 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
         f"stop_required: {'yes' if stop_policy.get('stop_required', False) else 'no'}",
         f"continue_allowed: {'yes' if stop_policy.get('continue_allowed', False) else 'no'}",
         "",
+        "Control Boundaries",
+        f"resume_path: {boundaries['resume']}",
+        f"retry_path: {boundaries['retry']}",
+        f"rerun_path: {boundaries['rerun']}",
+        "",
     ]
     lines.extend(build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy))
     lines.extend(
@@ -235,7 +335,9 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
             "",
             "Control Artifacts",
             f"review: swl task review {state.task_id}",
+            f"resume: swl task resume {state.task_id}",
             f"policy: swl task policy {state.task_id}",
+            f"checkpoint: swl task checkpoint {state.task_id}",
             f"inspect: swl task inspect {state.task_id}",
             f"run: swl task run {state.task_id}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
@@ -243,6 +345,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
             f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
             f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
             f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
+            f"checkpoint_snapshot_report: {state.artifact_paths.get('checkpoint_snapshot_report', '-')}",
         ]
     )
     return lines
@@ -458,7 +561,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Override the task routing policy mode for this run.",
     )
     retry_parser = task_subparsers.add_parser(
-        "retry", help="Retry a task through the current run path when retry policy allows it."
+        "retry",
+        help="Retry a task on the accepted run path when retry and stop policy allow it.",
+        description="Retry a task on the accepted run path when retry and stop policy allow it.",
     )
     retry_parser.add_argument("task_id", help="Task identifier.")
     retry_parser.add_argument(
@@ -478,8 +583,33 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Override the task routing policy mode for this retry.",
     )
+    resume_parser = task_subparsers.add_parser(
+        "resume",
+        help="Resume a task on the accepted run path when checkpoint recovery truth allows it.",
+        description="Resume a task on the accepted run path when checkpoint recovery truth allows it.",
+    )
+    resume_parser.add_argument("task_id", help="Task identifier.")
+    resume_parser.add_argument(
+        "--executor",
+        default=None,
+        help="Override the task executor for this resume attempt.",
+    )
+    resume_parser.add_argument(
+        "--capability",
+        action="append",
+        default=None,
+        help="Override the task capability manifest for this resume attempt with repeatable kind:ref entries.",
+    )
+    resume_parser.add_argument(
+        "--route-mode",
+        default=None,
+        choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
+        help="Override the task routing policy mode for this resume attempt.",
+    )
     rerun_parser = task_subparsers.add_parser(
-        "rerun", help="Start a new explicit operator-triggered run regardless of retry policy state."
+        "rerun",
+        help="Start a new explicit operator-triggered run even when retry or resume stay blocked.",
+        description="Start a new explicit operator-triggered run even when retry or resume stay blocked.",
     )
     rerun_parser.add_argument("task_id", help="Task identifier.")
     rerun_parser.add_argument(
@@ -513,7 +643,9 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Maximum number of tasks to print after filtering.",
     )
-    queue_parser = task_subparsers.add_parser("queue", help="List tasks that currently need operator action.")
+    queue_parser = task_subparsers.add_parser(
+        "queue", help="List tasks that currently need operator action, including resume/retry/review."
+    )
     queue_parser.add_argument(
         "--limit",
         type=int,
@@ -528,7 +660,9 @@ def build_parser() -> argparse.ArgumentParser:
     compare_attempts_parser.add_argument("task_id", help="Task identifier.")
     compare_attempts_parser.add_argument("--left", default=None, help="Left attempt id. Defaults to the prior attempt.")
     compare_attempts_parser.add_argument("--right", default=None, help="Right attempt id. Defaults to the latest attempt.")
-    control_parser = task_subparsers.add_parser("control", help="Print a compact per-task control snapshot.")
+    control_parser = task_subparsers.add_parser(
+        "control", help="Print a compact per-task recovery and control snapshot."
+    )
     control_parser.add_argument("task_id", help="Task identifier.")
     inspect_parser = task_subparsers.add_parser("inspect", help="Print a compact per-task overview.")
     inspect_parser.add_argument("task_id", help="Task identifier.")
@@ -554,6 +688,12 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge_policy_parser.add_argument("task_id", help="Task identifier.")
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
+    checkpoint_parser = task_subparsers.add_parser(
+        "checkpoint",
+        help="Print the task checkpoint snapshot report used for resume, retry, review, and rerun guidance.",
+        description="Print the task checkpoint snapshot report used for resume, retry, review, and rerun guidance.",
+    )
+    checkpoint_parser.add_argument("task_id", help="Task identifier.")
     policy_parser = task_subparsers.add_parser("policy", help="Print a compact execution-control policy summary.")
     policy_parser.add_argument("task_id", help="Task identifier.")
     artifacts_parser = task_subparsers.add_parser("artifacts", help="Print grouped task artifact paths.")
@@ -651,6 +791,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the task stop-policy record.",
     )
     stop_policy_json_parser.add_argument("task_id", help="Task identifier.")
+    checkpoint_json_parser = task_subparsers.add_parser(
+        "checkpoint-json",
+        help="Print the task checkpoint snapshot record.",
+    )
+    checkpoint_json_parser.add_argument("task_id", help="Task identifier.")
     capabilities_json_parser = task_subparsers.add_parser(
         "capabilities-json",
         help="Print the task capability assembly record.",
@@ -722,11 +867,26 @@ def main(argv: list[str] | None = None) -> int:
         state = load_state(base_dir, args.task_id)
         retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
         stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
         if not (retry_policy.get("retryable", False) and stop_policy.get("checkpoint_kind", "") in {"retry_review", "detached_retry_review"}):
             print(
                 f"{state.task_id} retry_blocked "
                 f"retry_decision={retry_policy.get('retry_decision', 'pending')} "
-                f"checkpoint_kind={stop_policy.get('checkpoint_kind', 'pending')}"
+                f"checkpoint_kind={stop_policy.get('checkpoint_kind', 'pending')} "
+                f"suggested_path={checkpoint_snapshot.get('recommended_path', 'pending')}"
+            )
+            return 1
+        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
+
+    if args.command == "task" and args.task_command == "resume":
+        state = load_state(base_dir, args.task_id)
+        checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
+        if not (checkpoint_snapshot.get("resume_ready", False) and checkpoint_snapshot.get("recommended_path", "") == "resume"):
+            print(
+                f"{state.task_id} resume_blocked "
+                f"checkpoint_state={checkpoint_snapshot.get('checkpoint_state', 'pending')} "
+                f"recommended_path={checkpoint_snapshot.get('recommended_path', 'pending')} "
+                f"suggested_reason={checkpoint_snapshot.get('recommended_reason', 'pending')}"
             )
             return 1
         return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
@@ -864,6 +1024,7 @@ def main(argv: list[str] | None = None) -> int:
         retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
         execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))
         stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         knowledge_partition = load_json_if_exists(knowledge_partition_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
@@ -955,6 +1116,10 @@ def main(argv: list[str] | None = None) -> int:
             f"handoff_status: {handoff.get('status', 'pending')}",
             f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
             f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
+            f"checkpoint_state: {checkpoint_snapshot.get('checkpoint_state', 'pending')}",
+            f"recovery_semantics: {checkpoint_snapshot.get('recovery_semantics', 'pending')}",
+            f"interruption_kind: {checkpoint_snapshot.get('interruption_kind', 'none')}",
+            f"recommended_path: {checkpoint_snapshot.get('recommended_path', 'pending')}",
             f"handoff_next_owner_kind: {handoff.get('next_owner_kind', 'pending')}",
             f"handoff_next_owner_ref: {handoff.get('next_owner_ref', 'pending')}",
             f"blocking_reason: {handoff.get('blocking_reason', '') or '-'}",
@@ -976,6 +1141,7 @@ def main(argv: list[str] | None = None) -> int:
             f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
             f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
             f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
+            f"checkpoint_snapshot_report: {state.artifact_paths.get('checkpoint_snapshot_report', '-')}",
             f"knowledge_policy_report: {state.artifact_paths.get('knowledge_policy_report', '-')}",
             f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
         ]
@@ -1016,6 +1182,7 @@ def main(argv: list[str] | None = None) -> int:
         retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
         execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))
         stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
@@ -1055,6 +1222,10 @@ def main(argv: list[str] | None = None) -> int:
             f"handoff_status: {handoff.get('status', 'pending')}",
             f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
             f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
+            f"checkpoint_state: {checkpoint_snapshot.get('checkpoint_state', 'pending')}",
+            f"recovery_semantics: {checkpoint_snapshot.get('recovery_semantics', 'pending')}",
+            f"interruption_kind: {checkpoint_snapshot.get('interruption_kind', 'none')}",
+            f"recommended_path: {checkpoint_snapshot.get('recommended_path', 'pending')}",
             f"handoff_next_owner_kind: {handoff.get('next_owner_kind', 'pending')}",
             f"handoff_next_owner_ref: {handoff.get('next_owner_ref', 'pending')}",
             f"blocking_reason: {handoff.get('blocking_reason', '') or '-'}",
@@ -1094,9 +1265,14 @@ def main(argv: list[str] | None = None) -> int:
             f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
             f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
             f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
+            f"checkpoint_snapshot_report: {state.artifact_paths.get('checkpoint_snapshot_report', '-')}",
             f"knowledge_policy_report: {state.artifact_paths.get('knowledge_policy_report', '-')}",
         ]
         print("\n".join(lines))
+        return 0
+
+    if args.command == "task" and args.task_command == "checkpoint":
+        print((artifacts_dir(base_dir, args.task_id) / "checkpoint_snapshot_report.md").read_text(encoding="utf-8"), end="")
         return 0
 
     if args.command == "task" and args.task_command == "policy":
@@ -1218,6 +1394,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "stop-policy-json":
         print(json.dumps(json.loads(stop_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "checkpoint-json":
+        print(json.dumps(json.loads(checkpoint_snapshot_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "capabilities-json":
