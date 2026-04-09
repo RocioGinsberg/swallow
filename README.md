@@ -126,7 +126,7 @@ That staged promotion model is intended to preserve evidence while avoiding poll
 
 ## Current focus
 
-The repository is currently at a **Phase 6 Retrieval / Memory Operationalization closeout checkpoint**.
+The repository is currently at a **Phase 9 Operator Control Workbench closeout checkpoint**.
 
 The implemented baseline now includes:
 
@@ -135,9 +135,11 @@ The implemented baseline now includes:
 - structured route and capability declarations
 - compatibility checks and route provenance artifacts
 - explicit local-first execution with route, topology, dispatch, handoff, and execution-fit artifacts
+- execution-site, attempt-ownership, handoff-contract, retry, stop, and execution-budget policy artifacts
+- an operator-facing local workbench surface with queue, control, attempt history/comparison, retry, and rerun entrypoints
 - Git project files and Markdown / Obsidian notes as retrieval sources
 
-The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve the accepted local baselines, treat the completed executor/external-input slice, the completed retrieval/memory-next slice, and the completed Phase 6 retrieval/memory operationalization slice as stable checkpoints, and begin new work from a fresh planning note instead of open-ended continuation.
+The current goal is no longer to prove a bare bootstrap loop. The current goal is to preserve the accepted local baselines, treat the completed executor / external-input slice, retrieval / memory-next slice, and the completed Phase 6, Phase 7, Phase 8, and Phase 9 baselines as stable checkpoints, and start any new work from a fresh planning note instead of continuing Phase 9 breadth by default.
 
 ## Long-term direction
 
@@ -256,7 +258,7 @@ A practical interpretation is:
 
 ## Status
 
-Phase 0 accepted, Phase 1 complete, Phase 2 baseline complete, post-Phase-2 retrieval baseline complete, Phase 3 baseline complete, Phase 4 baseline complete, and Phase 5 baseline complete.
+Phase 0 accepted, Phase 1 complete, Phase 2 baseline complete, post-Phase-2 retrieval baseline complete, Phase 3 baseline complete, Phase 4 baseline complete, Phase 5 baseline complete, post-Phase-5 executor / external-input slice complete, post-Phase-5 retrieval / memory-next slice complete, Phase 6 baseline complete, Phase 7 baseline complete, Phase 8 baseline complete, and Phase 9 baseline complete.
 
 Implementation checkpoint for interrupted sessions:
 
@@ -271,8 +273,12 @@ Implementation checkpoint for interrupted sessions:
 - [docs/post_phase5_retrieval_memory_next_kickoff_note.md](./docs/post_phase5_retrieval_memory_next_kickoff_note.md)
 - [docs/post_phase5_retrieval_memory_next_task_breakdown.md](./docs/post_phase5_retrieval_memory_next_task_breakdown.md)
 - [docs/post_phase5_retrieval_memory_next_closeout_note.md](./docs/post_phase5_retrieval_memory_next_closeout_note.md)
-- [docs/phase6_kickoff_note.md](./docs/phase6_kickoff_note.md)
-- [docs/phase6_task_breakdown.md](./docs/phase6_task_breakdown.md)
+- [docs/phase6_closeout_note.md](./docs/phase6_closeout_note.md)
+- [docs/phase7_closeout_note.md](./docs/phase7_closeout_note.md)
+- [docs/phase8_closeout_note.md](./docs/phase8_closeout_note.md)
+- [docs/phase9_kickoff_note.md](./docs/phase9_kickoff_note.md)
+- [docs/phase9_task_breakdown.md](./docs/phase9_task_breakdown.md)
+- [docs/phase9_closeout_note.md](./docs/phase9_closeout_note.md)
 
 ## Terminology
 
@@ -321,6 +327,7 @@ swl task topology <task-id>
 swl task dispatch <task-id>
 swl task handoff <task-id>
 swl task execution-fit <task-id>
+swl task policy <task-id>
 swl task memory <task-id>
 swl task route <task-id>
 ```
@@ -330,10 +337,21 @@ Use the current workbench-style review flow:
 ```bash
 swl task list
 swl task list --focus needs-review
+swl task queue
 swl task inspect <task-id>
+swl task control <task-id>
+swl task attempts <task-id>
+swl task compare-attempts <task-id>
 swl task capabilities <task-id>
 swl task review <task-id>
 swl task artifacts <task-id>
+```
+
+Use the current explicit retry and rerun entrypoints:
+
+```bash
+swl task retry <task-id>
+swl task rerun <task-id>
 ```
 
 Run a minimal Codex preflight:
@@ -355,12 +373,19 @@ The current CLI implements:
 - `swl task create`
 - `swl task run`
 - `swl task list`
+- `swl task queue`
+- `swl task control`
+- `swl task attempts`
+- `swl task compare-attempts`
+- `swl task retry`
+- `swl task rerun`
 - `swl task inspect`
 - `swl task semantics`
 - `swl task capabilities`
 - `swl task knowledge-objects`
 - `swl task knowledge-policy`
 - `swl task review`
+- `swl task policy`
 - `swl task artifacts`
 - `swl task summarize`
 - `swl task resume-note`
@@ -369,17 +394,25 @@ The current CLI implements:
 - `swl task grounding`
 - `swl task retrieval`
 - `swl task topology`
+- `swl task execution-site`
 - `swl task dispatch`
 - `swl task handoff`
 - `swl task execution-fit`
+- `swl task retry-policy`
+- `swl task execution-budget-policy`
+- `swl task stop-policy`
 - `swl task memory`
 - `swl task compatibility-json`
 - `swl task route`
 - `swl task route-json`
 - `swl task topology-json`
+- `swl task execution-site-json`
 - `swl task dispatch-json`
 - `swl task handoff-json`
 - `swl task execution-fit-json`
+- `swl task retry-policy-json`
+- `swl task execution-budget-policy-json`
+- `swl task stop-policy-json`
 - `swl task capabilities-json`
 - `swl task semantics-json`
 - `swl task knowledge-objects-json`
@@ -398,12 +431,18 @@ Task state and artifacts are written under:
       retrieval.json
       task_semantics.json
       knowledge_objects.json
+      knowledge_partition.json
+      knowledge_index.json
       knowledge_policy.json
+      retry_policy.json
+      execution_budget_policy.json
+      stop_policy.json
       compatibility.json
       execution_fit.json
       validation.json
       route.json
       topology.json
+      execution_site.json
       dispatch.json
       handoff.json
       memory.json
@@ -411,12 +450,18 @@ Task state and artifacts are written under:
         summary.md
         task_semantics_report.md
         knowledge_objects_report.md
+        knowledge_partition_report.md
+        knowledge_index_report.md
         knowledge_policy_report.md
         resume_note.md
+        retry_policy_report.md
+        execution_budget_policy_report.md
+        stop_policy_report.md
         compatibility_report.md
         execution_fit_report.md
         route_report.md
         topology_report.md
+        execution_site_report.md
         dispatch_report.md
         handoff_report.md
         retrieval_report.md
@@ -426,7 +471,7 @@ Task state and artifacts are written under:
         executor_stderr.txt
 ```
 
-The current `run` command performs retrieval, invokes the selected executor, evaluates route compatibility, evaluates execution-fit against the active topology baseline, evaluates imported-knowledge policy, runs validation, records state and events, persists task memory, and writes executor, summary, resume note, task-semantics, knowledge-object, grounding, route, topology, dispatch, handoff, execution-fit, compatibility, knowledge-policy, and validation artifacts.
+The current `run` command performs retrieval, invokes the selected executor, evaluates route compatibility, evaluates execution-fit against the active topology baseline, evaluates imported-knowledge policy, evaluates retry / budget / stop policy, runs validation, records state and events, persists task memory, and writes executor, summary, resume note, task-semantics, knowledge-object, grounding, route, topology, execution-site, dispatch, handoff, execution-fit, compatibility, execution-control policy, knowledge-policy, and validation artifacts.
 
 Current task-state semantics are intentionally small and explicit:
 

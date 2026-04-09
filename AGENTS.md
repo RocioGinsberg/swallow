@@ -29,9 +29,19 @@ This project is developed in phases.
 - Phase 2: introduce a broader provider-routing layer, including proxy/provider abstractions, routing policies, and broader capability/plugin extension surfaces.
 - Post-Phase-2 retrieval baseline: strengthen retrieval as a durable system layer through adapter seams, rerank/query shaping, broader local source coverage, retrieval-memory reuse, artifact indexing, and regression fixtures.
 - Phase 3: continue the system through an `Execution Topology` slice that turns remote-ready metadata into a clearer execution-site, dispatch, handoff, and attempt-ownership boundary.
+- Phase 4: establish a CLI-first `Workbench / UX` baseline for task browsing, inspection, grouped artifacts, and operator review entrypoints.
+- Phase 5: establish the baseline `Capabilities` layer with explicit capability manifests, assembly, inspection, and validation.
+- Post-Phase-5 executor / external-input slice: add executor-family declaration plus task-semantics and staged knowledge-object ingestion for imported planning and external knowledge.
+- Post-Phase-5 retrieval / memory-next slice: connect staged and reusable knowledge into retrieval with explicit reuse policy, verification boundaries, and inspection.
+- Phase 6: complete the `Retrieval / Memory Operationalization` baseline around reusable knowledge, refresh/invalidation, canonicalization boundaries, cross-task reuse, and evaluation tightening.
+- Phase 7: complete the `Execution-Site Boundary` baseline around execution-site contracts, ownership, handoff contracts, local-detached execution, and family-aware execution-fit.
+- Phase 8: complete the `Execution Control Policy` baseline around retry, stop/escalation, detached checkpoints, execution budget, and policy inspection.
+- Phase 9: complete the `Operator Control Workbench` baseline around action queues, task control snapshots, attempt history/comparison, and explicit retry/rerun workbench entrypoints.
 
-Phase 0, Phase 1, and the planned Phase 2 baseline are already complete.
-The post-Phase-2 retrieval baseline is also complete.
+Phase 0 through Phase 9 are already complete.
+The post-Phase-2 retrieval baseline is complete.
+The post-Phase-5 executor / external-input slice is complete.
+The post-Phase-5 retrieval / memory-next slice is complete.
 New implementation work should begin from the current planning checkpoint rather than treating Phase 0 as the active default.
 
 ## System tracks
@@ -50,7 +60,7 @@ Use `docs/system_tracks.md` as the top-level planning map before defining or exe
 
 ## Current planning state
 
-Current planning checkpoint: Phase 6 Retrieval / Memory Operationalization closeout.
+Current planning checkpoint: Phase 9 Operator Control Workbench closeout checkpoint.
 
 Current implementation status:
 1. Phase 0 accepted
@@ -60,18 +70,25 @@ Current implementation status:
 5. Phase 3 baseline complete
 6. Phase 4 baseline complete
 7. Phase 5 baseline complete
+8. post-Phase-5 executor / external-input slice complete
+9. post-Phase-5 retrieval / memory-next slice complete
+10. Phase 6 baseline complete
+11. Phase 7 baseline complete
+12. Phase 8 baseline complete
+13. Phase 9 baseline complete
 
 Current planning direction:
 1. anchor new work in `docs/system_tracks.md`
-2. treat `docs/phase5_closeout_note.md` as the stop/go boundary for completed `Capabilities` work
-3. use `docs/phase3_closeout_note.md` as the execution-topology stop/go reference
-4. use `docs/phase4_closeout_note.md` as the current Workbench / UX stop/go reference
-5. use `docs/phase5_closeout_note.md` as the current `Capabilities` stop/go reference
-6. use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the stop/go reference for the completed executor / external-input slice
-7. use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval / memory-next slice
-8. use `docs/phase6_kickoff_note.md` as the current fresh planning note
-9. use `docs/phase6_task_breakdown.md` as the current executable planning breakdown
-10. use `docs/phase6_closeout_note.md` as the stop/go reference for completed Phase 6 work
+2. use `docs/phase3_closeout_note.md` as the execution-topology stop/go reference
+3. use `docs/phase4_closeout_note.md` as the Workbench / UX stop/go reference for completed Phase 4 breadth
+4. use `docs/phase5_closeout_note.md` as the `Capabilities` stop/go reference
+5. use `docs/post_phase5_executor_and_external_input_closeout_note.md` as the stop/go reference for the completed executor / external-input slice
+6. use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval / memory-next slice
+7. use `docs/phase6_closeout_note.md` as the stop/go reference for completed Phase 6 work
+8. use `docs/phase7_closeout_note.md` as the stop/go reference for completed Phase 7 work
+9. use `docs/phase8_closeout_note.md` as the stop/go reference for completed Phase 8 work
+10. use `docs/phase9_closeout_note.md` as the stop/go reference for completed Phase 9 work
+11. write a fresh kickoff note before opening the next primary track
 
 Do not default new work back to a generic MVP feature bundle. Start from the current system map and current closeout checkpoint.
 
@@ -83,9 +100,12 @@ Current planning should focus on:
 - treating the completed Phase 5 baseline as a stable checkpoint
 - planning the next slice against the repository’s current system tracks
 - treating the completed post-Phase-5 executor / external-input slice as a stable checkpoint instead of continuing it by default
-- treating the completed retrieval / memory-next slice as a stable checkpoint before starting Phase 6 work
-- treating the completed Phase 6 `Retrieval / Memory Operationalization` baseline as a stable checkpoint before starting the next slice
-- avoiding accidental open-ended continuation of `Capabilities`, execution-topology, or Workbench / UX work
+- treating the completed retrieval / memory-next slice as a stable checkpoint instead of continuing it by default
+- treating the completed Phase 6 `Retrieval / Memory Operationalization` baseline as a stable checkpoint
+- treating the completed Phase 7 `Execution Topology` baseline as a stable checkpoint
+- treating the completed Phase 8 `Evaluation / Policy` baseline as a stable checkpoint
+- treating the completed Phase 9 `Workbench / UX` baseline as a stable checkpoint
+- avoiding accidental open-ended continuation of `Capabilities`, execution-topology, or evaluation/policy breadth
 - keeping retrieval, routing, validation, memory, and artifact semantics inspectable
 
 ## Current non-goals

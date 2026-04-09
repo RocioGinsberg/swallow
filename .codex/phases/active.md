@@ -1,6 +1,6 @@
 # Active Phase
 
-Current active phase: Phase 8 Execution Control Policy closeout checkpoint.
+Current active phase: Phase 9 Operator Control Workbench closeout checkpoint.
 
 ## Current status
 
@@ -16,6 +16,7 @@ Current active phase: Phase 8 Execution Control Policy closeout checkpoint.
 - Phase 6 baseline complete
 - Phase 7 baseline complete
 - Phase 8 baseline complete
+- Phase 9 baseline complete
 
 ## Working references
 
@@ -77,6 +78,14 @@ Current active phase: Phase 8 Execution Control Policy closeout checkpoint.
   - `/home/rocio/projects/swallow/docs/phase8_closeout_note.md`
 - Phase 8 phase slice:
   - `/home/rocio/projects/swallow/.codex/phases/phase8.md`
+- Phase 9 kickoff:
+  - `/home/rocio/projects/swallow/docs/phase9_kickoff_note.md`
+- Phase 9 breakdown:
+  - `/home/rocio/projects/swallow/docs/phase9_task_breakdown.md`
+- Phase 9 closeout:
+  - `/home/rocio/projects/swallow/docs/phase9_closeout_note.md`
+- Phase 9 phase slice:
+  - `/home/rocio/projects/swallow/.codex/phases/phase9.md`
 
 ## Current implementation baseline
 
@@ -105,4 +114,4 @@ The repository already has:
 
 New planning work should align with `docs/system_tracks.md` first and then the active closeout references above.
 
-New implementation work should not fall back to a generic MVP framing, resume open-ended Phase 7 execution-topology breadth, or resume open-ended Phase 8 evaluation/policy breadth by default.
+New implementation work should not fall back to a generic MVP framing, resume open-ended Phase 8 evaluation/policy breadth, or resume open-ended Phase 9 workbench breadth by default.

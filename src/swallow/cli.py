@@ -126,6 +126,24 @@ def build_policy_snapshot(
     ]
 
 
+def load_json_if_exists(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_json_lines_if_exists(path: Path) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+    items: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        items.append(json.loads(stripped))
+    return items
+
+
 def filter_task_states(states: list[object], focus: str) -> list[object]:
     if focus == "all":
         return states
@@ -142,6 +160,175 @@ def filter_task_states(states: list[object], focus: str) -> list[object]:
     if focus == "recent":
         return states
     return states
+
+
+def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | None:
+    handoff = load_json_if_exists(handoff_path(base_dir, state.task_id))
+    retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
+    stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
+
+    handoff_status = str(handoff.get("status", "pending"))
+    next_operator_action = str(handoff.get("next_operator_action", "")).strip()
+    checkpoint_kind = str(stop_policy.get("checkpoint_kind", "pending"))
+    retryable = bool(retry_policy.get("retryable", False))
+    continue_allowed = bool(stop_policy.get("continue_allowed", False))
+    stop_required = bool(stop_policy.get("stop_required", False))
+
+    action = ""
+    reason = ""
+    if state.status == "created":
+        action = "run"
+        reason = "task_created"
+    elif state.status == "running":
+        action = "monitor"
+        reason = state.execution_lifecycle or state.executor_status or "running"
+    elif retryable and continue_allowed:
+        action = "retry"
+        reason = checkpoint_kind if checkpoint_kind != "pending" else str(retry_policy.get("retry_decision", "retryable"))
+    elif handoff_status == "review_completed_run":
+        action = "review"
+        reason = checkpoint_kind if checkpoint_kind != "pending" else handoff_status
+    elif state.status == "failed" or stop_required or handoff_status == "resume_from_failure":
+        action = "inspect"
+        reason = checkpoint_kind if checkpoint_kind != "pending" else str(stop_policy.get("stop_decision", handoff_status))
+    else:
+        return None
+
+    return {
+        "task_id": state.task_id,
+        "action": action,
+        "status": state.status,
+        "attempt": state.current_attempt_id or "-",
+        "updated_at": state.updated_at,
+        "reason": reason or "pending",
+        "next": next_operator_action or "-",
+        "title": state.title,
+    }
+
+
+def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
+    handoff = load_json_if_exists(handoff_path(base_dir, state.task_id))
+    retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
+    execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, state.task_id))
+    stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
+    queue_entry = build_task_queue_entry(base_dir, state)
+
+    lines = [
+        f"Task Control: {state.task_id}",
+        f"title: {state.title}",
+        "",
+        "Control Snapshot",
+        f"recommended_action: {queue_entry['action'] if queue_entry else 'none'}",
+        f"recommended_reason: {queue_entry['reason'] if queue_entry else 'no_action_needed'}",
+        f"next_operator_action: {handoff.get('next_operator_action', 'Inspect task artifacts.')}",
+        f"retry_ready: {'yes' if retry_policy.get('retryable', False) and stop_policy.get('continue_allowed', False) else 'no'}",
+        f"review_ready: {'yes' if handoff.get('status', '') == 'review_completed_run' else 'no'}",
+        f"rerun_ready: {'yes' if state.status in {'completed', 'failed'} else 'no'}",
+        f"monitor_needed: {'yes' if state.status == 'running' else 'no'}",
+        f"stop_required: {'yes' if stop_policy.get('stop_required', False) else 'no'}",
+        f"continue_allowed: {'yes' if stop_policy.get('continue_allowed', False) else 'no'}",
+        "",
+    ]
+    lines.extend(build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy))
+    lines.extend(
+        [
+            "",
+            "Control Artifacts",
+            f"review: swl task review {state.task_id}",
+            f"policy: swl task policy {state.task_id}",
+            f"inspect: swl task inspect {state.task_id}",
+            f"run: swl task run {state.task_id}",
+            f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
+            f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
+            f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
+            f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
+            f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
+        ]
+    )
+    return lines
+
+
+def build_attempt_summaries(base_dir: Path, task_id: str) -> list[dict[str, str]]:
+    events = load_json_lines_if_exists(base_dir / ".swl" / "tasks" / task_id / "events.jsonl")
+    attempts: dict[str, dict[str, str]] = {}
+    attempt_order: list[str] = []
+    for event in events:
+        payload = event.get("payload", {})
+        if not isinstance(payload, dict):
+            payload = {}
+        attempt_id = str(payload.get("attempt_id", "")).strip()
+        if not attempt_id:
+            continue
+        if attempt_id not in attempts:
+            attempts[attempt_id] = {
+                "attempt_id": attempt_id,
+                "attempt_number": str(payload.get("attempt_number", 0)),
+                "started_at": str(event.get("created_at", "-")),
+                "finished_at": "-",
+                "status": "running",
+                "executor_status": str(payload.get("executor_status", "pending")),
+                "execution_lifecycle": str(payload.get("execution_lifecycle", "pending")),
+                "retrieval_count": str(payload.get("retrieval_count", 0)),
+                "compatibility_status": str(payload.get("compatibility_status", "pending")),
+                "execution_fit_status": str(payload.get("execution_fit_status", "pending")),
+                "retry_policy_status": str(payload.get("retry_policy_status", "pending")),
+                "stop_policy_status": str(payload.get("stop_policy_status", "pending")),
+                "handoff_status": "pending",
+            }
+            attempt_order.append(attempt_id)
+        summary = attempts[attempt_id]
+        event_type = str(event.get("event_type", ""))
+        summary["attempt_number"] = str(payload.get("attempt_number", summary["attempt_number"]))
+        if event_type == "task.run_started":
+            summary["started_at"] = str(event.get("created_at", summary["started_at"]))
+            summary["executor_status"] = str(payload.get("executor_status", summary["executor_status"]))
+            summary["execution_lifecycle"] = str(payload.get("execution_lifecycle", summary["execution_lifecycle"]))
+        elif event_type in {"task.completed", "task.failed"}:
+            summary["finished_at"] = str(event.get("created_at", summary["finished_at"]))
+            summary["status"] = str(payload.get("status", summary["status"]))
+            summary["executor_status"] = str(payload.get("executor_status", summary["executor_status"]))
+            summary["execution_lifecycle"] = str(payload.get("execution_lifecycle", summary["execution_lifecycle"]))
+            summary["retrieval_count"] = str(payload.get("retrieval_count", summary["retrieval_count"]))
+            summary["compatibility_status"] = str(payload.get("compatibility_status", summary["compatibility_status"]))
+            summary["execution_fit_status"] = str(payload.get("execution_fit_status", summary["execution_fit_status"]))
+            summary["retry_policy_status"] = str(payload.get("retry_policy_status", summary["retry_policy_status"]))
+            summary["stop_policy_status"] = str(payload.get("stop_policy_status", summary["stop_policy_status"]))
+
+    handoff = load_json_if_exists(handoff_path(base_dir, task_id))
+    latest_handoff_attempt = str(handoff.get("attempt_id", "")).strip()
+    if latest_handoff_attempt in attempts:
+        attempts[latest_handoff_attempt]["handoff_status"] = str(handoff.get("status", "pending"))
+
+    return [attempts[attempt_id] for attempt_id in reversed(attempt_order)]
+
+
+def resolve_attempt_pair(attempts: list[dict[str, str]], left: str | None, right: str | None) -> tuple[dict[str, str], dict[str, str]]:
+    by_id = {attempt["attempt_id"]: attempt for attempt in attempts}
+    if left and right:
+        if left not in by_id or right not in by_id:
+            raise ValueError("Unknown attempt id for comparison.")
+        return by_id[left], by_id[right]
+    if len(attempts) < 2:
+        raise ValueError("At least two attempts are required for comparison.")
+    return attempts[1], attempts[0]
+
+
+def execute_task_run(
+    base_dir: Path,
+    task_id: str,
+    executor_name: str | None,
+    capability_refs: list[str] | None,
+    route_mode: str | None,
+) -> int:
+    state = run_task(
+        base_dir=base_dir,
+        task_id=task_id,
+        executor_name=executor_name,
+        capability_refs=capability_refs,
+        route_mode=route_mode,
+    )
+    print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -270,6 +457,48 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Override the task routing policy mode for this run.",
     )
+    retry_parser = task_subparsers.add_parser(
+        "retry", help="Retry a task through the current run path when retry policy allows it."
+    )
+    retry_parser.add_argument("task_id", help="Task identifier.")
+    retry_parser.add_argument(
+        "--executor",
+        default=None,
+        help="Override the task executor for this retry.",
+    )
+    retry_parser.add_argument(
+        "--capability",
+        action="append",
+        default=None,
+        help="Override the task capability manifest for this retry with repeatable kind:ref entries.",
+    )
+    retry_parser.add_argument(
+        "--route-mode",
+        default=None,
+        choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
+        help="Override the task routing policy mode for this retry.",
+    )
+    rerun_parser = task_subparsers.add_parser(
+        "rerun", help="Start a new explicit operator-triggered run regardless of retry policy state."
+    )
+    rerun_parser.add_argument("task_id", help="Task identifier.")
+    rerun_parser.add_argument(
+        "--executor",
+        default=None,
+        help="Override the task executor for this rerun.",
+    )
+    rerun_parser.add_argument(
+        "--capability",
+        action="append",
+        default=None,
+        help="Override the task capability manifest for this rerun with repeatable kind:ref entries.",
+    )
+    rerun_parser.add_argument(
+        "--route-mode",
+        default=None,
+        choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
+        help="Override the task routing policy mode for this rerun.",
+    )
 
     list_parser = task_subparsers.add_parser("list", help="List tasks with compact status summaries.")
     list_parser.add_argument(
@@ -284,6 +513,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Maximum number of tasks to print after filtering.",
     )
+    queue_parser = task_subparsers.add_parser("queue", help="List tasks that currently need operator action.")
+    queue_parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Maximum number of queue entries to print.",
+    )
+    attempts_parser = task_subparsers.add_parser("attempts", help="Print compact attempt history for a task.")
+    attempts_parser.add_argument("task_id", help="Task identifier.")
+    compare_attempts_parser = task_subparsers.add_parser(
+        "compare-attempts", help="Compare two task attempts using compact control-relevant fields."
+    )
+    compare_attempts_parser.add_argument("task_id", help="Task identifier.")
+    compare_attempts_parser.add_argument("--left", default=None, help="Left attempt id. Defaults to the prior attempt.")
+    compare_attempts_parser.add_argument("--right", default=None, help="Right attempt id. Defaults to the latest attempt.")
+    control_parser = task_subparsers.add_parser("control", help="Print a compact per-task control snapshot.")
+    control_parser.add_argument("task_id", help="Task identifier.")
     inspect_parser = task_subparsers.add_parser("inspect", help="Print a compact per-task overview.")
     inspect_parser.add_argument("task_id", help="Task identifier.")
     semantics_parser = task_subparsers.add_parser("semantics", help="Print the task semantics report artifact.")
@@ -470,15 +716,23 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "task" and args.task_command == "run":
-        state = run_task(
-            base_dir=base_dir,
-            task_id=args.task_id,
-            executor_name=args.executor,
-            capability_refs=args.capability,
-            route_mode=args.route_mode,
-        )
-        print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
-        return 0
+        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
+
+    if args.command == "task" and args.task_command == "retry":
+        state = load_state(base_dir, args.task_id)
+        retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
+        stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        if not (retry_policy.get("retryable", False) and stop_policy.get("checkpoint_kind", "") in {"retry_review", "detached_retry_review"}):
+            print(
+                f"{state.task_id} retry_blocked "
+                f"retry_decision={retry_policy.get('retry_decision', 'pending')} "
+                f"checkpoint_kind={stop_policy.get('checkpoint_kind', 'pending')}"
+            )
+            return 1
+        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
+
+    if args.command == "task" and args.task_command == "rerun":
+        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
 
     if args.command == "task" and args.task_command == "list":
         states = sorted(
@@ -506,13 +760,100 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
 
+    if args.command == "task" and args.task_command == "queue":
+        states = sorted(
+            iter_task_states(base_dir),
+            key=lambda state: (state.updated_at, state.task_id),
+            reverse=True,
+        )
+        queue_entries = [entry for state in states if (entry := build_task_queue_entry(base_dir, state)) is not None]
+        if args.limit is not None:
+            queue_entries = queue_entries[: max(args.limit, 0)]
+        print("task_id\taction\tstatus\tattempt\tupdated_at\treason\tnext\ttitle")
+        for entry in queue_entries:
+            print(
+                "\t".join(
+                    [
+                        entry["task_id"],
+                        entry["action"],
+                        entry["status"],
+                        entry["attempt"],
+                        entry["updated_at"],
+                        entry["reason"],
+                        entry["next"],
+                        entry["title"],
+                    ]
+                )
+            )
+        return 0
+
+    if args.command == "task" and args.task_command == "attempts":
+        state = load_state(base_dir, args.task_id)
+        attempts = build_attempt_summaries(base_dir, args.task_id)
+        print("attempt_id\tattempt_number\tstatus\texecutor_status\texecution_lifecycle\tretrieval_count\thandoff_status\tstarted_at\tfinished_at")
+        for attempt in attempts:
+            print(
+                "\t".join(
+                    [
+                        attempt["attempt_id"],
+                        attempt["attempt_number"],
+                        attempt["status"],
+                        attempt["executor_status"],
+                        attempt["execution_lifecycle"],
+                        attempt["retrieval_count"],
+                        attempt["handoff_status"],
+                        attempt["started_at"],
+                        attempt["finished_at"],
+                    ]
+                )
+            )
+        if not attempts and state.current_attempt_id:
+            print(
+                "\t".join(
+                    [
+                        state.current_attempt_id,
+                        str(state.current_attempt_number or 0),
+                        state.status,
+                        state.executor_status,
+                        state.execution_lifecycle,
+                        str(state.retrieval_count),
+                        "pending",
+                        state.updated_at,
+                        "-",
+                    ]
+                )
+            )
+        return 0
+
+    if args.command == "task" and args.task_command == "compare-attempts":
+        attempts = build_attempt_summaries(base_dir, args.task_id)
+        left_attempt, right_attempt = resolve_attempt_pair(attempts, args.left, args.right)
+        lines = [
+            f"Task Attempt Compare: {args.task_id}",
+            f"left_attempt: {left_attempt['attempt_id']}",
+            f"right_attempt: {right_attempt['attempt_id']}",
+            "",
+            "Comparison",
+            f"status: {left_attempt['status']} -> {right_attempt['status']}",
+            f"executor_status: {left_attempt['executor_status']} -> {right_attempt['executor_status']}",
+            f"execution_lifecycle: {left_attempt['execution_lifecycle']} -> {right_attempt['execution_lifecycle']}",
+            f"retrieval_count: {left_attempt['retrieval_count']} -> {right_attempt['retrieval_count']}",
+            f"handoff_status: {left_attempt['handoff_status']} -> {right_attempt['handoff_status']}",
+            f"compatibility_status: {left_attempt['compatibility_status']} -> {right_attempt['compatibility_status']}",
+            f"execution_fit_status: {left_attempt['execution_fit_status']} -> {right_attempt['execution_fit_status']}",
+            f"retry_policy_status: {left_attempt['retry_policy_status']} -> {right_attempt['retry_policy_status']}",
+            f"stop_policy_status: {left_attempt['stop_policy_status']} -> {right_attempt['stop_policy_status']}",
+        ]
+        print("\n".join(lines))
+        return 0
+
+    if args.command == "task" and args.task_command == "control":
+        state = load_state(base_dir, args.task_id)
+        print("\n".join(build_task_control_snapshot(base_dir, state)))
+        return 0
+
     if args.command == "task" and args.task_command == "inspect":
         state = load_state(base_dir, args.task_id)
-
-        def load_json_if_exists(path: Path) -> dict[str, object]:
-            if not path.exists():
-                return {}
-            return json.loads(path.read_text(encoding="utf-8"))
 
         compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
         topology = load_json_if_exists(topology_path(base_dir, args.task_id))
@@ -669,11 +1010,6 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "review":
         state = load_state(base_dir, args.task_id)
 
-        def load_json_if_exists(path: Path) -> dict[str, object]:
-            if not path.exists():
-                return {}
-            return json.loads(path.read_text(encoding="utf-8"))
-
         handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
         compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
         execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
@@ -765,11 +1101,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "policy":
         state = load_state(base_dir, args.task_id)
-
-        def load_json_if_exists(path: Path) -> dict[str, object]:
-            if not path.exists():
-                return {}
-            return json.loads(path.read_text(encoding="utf-8"))
 
         retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
         execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))

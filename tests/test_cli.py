@@ -848,6 +848,540 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(len(lines), 2)
         self.assertIn("task-review-1\tcompleted\tsummarize", lines[1])
 
+    def test_task_queue_surfaces_action_needed_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            entries = [
+                (
+                    "task-created",
+                    TaskState(
+                        task_id="task-created",
+                        title="Created task",
+                        goal="Needs first run",
+                        workspace_root=str(tmp_path),
+                        status="created",
+                        phase="intake",
+                        updated_at="2026-04-09T12:00:00+00:00",
+                    ),
+                    {},
+                    {},
+                    {},
+                ),
+                (
+                    "task-retry",
+                    TaskState(
+                        task_id="task-retry",
+                        title="Retry task",
+                        goal="Can retry",
+                        workspace_root=str(tmp_path),
+                        status="failed",
+                        phase="summarize",
+                        updated_at="2026-04-09T11:00:00+00:00",
+                        current_attempt_id="attempt-0002",
+                    ),
+                    {
+                        "status": "resume_from_failure",
+                        "next_operator_action": "Retry the task with the latest recovery guidance.",
+                    },
+                    {"retryable": True, "retry_decision": "operator_retry_available"},
+                    {
+                        "continue_allowed": True,
+                        "stop_required": False,
+                        "checkpoint_kind": "retry_review",
+                    },
+                ),
+                (
+                    "task-review",
+                    TaskState(
+                        task_id="task-review",
+                        title="Review task",
+                        goal="Needs review",
+                        workspace_root=str(tmp_path),
+                        status="completed",
+                        phase="summarize",
+                        updated_at="2026-04-09T10:00:00+00:00",
+                        current_attempt_id="attempt-0001",
+                    ),
+                    {
+                        "status": "review_completed_run",
+                        "next_operator_action": "Review summary.md before starting the next task iteration.",
+                    },
+                    {"retryable": False, "retry_decision": "not_applicable"},
+                    {
+                        "continue_allowed": False,
+                        "stop_required": False,
+                        "checkpoint_kind": "completed_run_review",
+                    },
+                ),
+                (
+                    "task-running",
+                    TaskState(
+                        task_id="task-running",
+                        title="Running task",
+                        goal="Still in progress",
+                        workspace_root=str(tmp_path),
+                        status="running",
+                        phase="executing",
+                        updated_at="2026-04-09T09:00:00+00:00",
+                        current_attempt_id="attempt-0003",
+                        executor_status="running",
+                        execution_lifecycle="executing",
+                    ),
+                    {},
+                    {},
+                    {},
+                ),
+                (
+                    "task-done",
+                    TaskState(
+                        task_id="task-done",
+                        title="Done task",
+                        goal="No current action",
+                        workspace_root=str(tmp_path),
+                        status="completed",
+                        phase="done",
+                        updated_at="2026-04-09T08:00:00+00:00",
+                        current_attempt_id="attempt-0001",
+                        executor_status="completed",
+                    ),
+                    {},
+                    {},
+                    {},
+                ),
+            ]
+            for task_id, state, handoff, retry_policy, stop_policy in entries:
+                task_root = tmp_path / ".swl" / "tasks" / task_id
+                task_root.mkdir(parents=True, exist_ok=True)
+                (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+                if handoff:
+                    (task_root / "handoff.json").write_text(json.dumps(handoff, indent=2) + "\n", encoding="utf-8")
+                if retry_policy:
+                    (task_root / "retry_policy.json").write_text(
+                        json.dumps(retry_policy, indent=2) + "\n", encoding="utf-8"
+                    )
+                if stop_policy:
+                    (task_root / "stop_policy.json").write_text(
+                        json.dumps(stop_policy, indent=2) + "\n", encoding="utf-8"
+                    )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "queue", "--limit", "4"]), 0)
+
+        lines = stdout.getvalue().splitlines()
+        self.assertEqual(lines[0], "task_id\taction\tstatus\tattempt\tupdated_at\treason\tnext\ttitle")
+        self.assertEqual(len(lines), 5)
+        self.assertIn("task-created\trun\tcreated\t-\t2026-04-09T12:00:00+00:00\ttask_created", lines[1])
+        self.assertIn("task-retry\tretry\tfailed\tattempt-0002\t2026-04-09T11:00:00+00:00\tretry_review", lines[2])
+        self.assertIn(
+            "task-review\treview\tcompleted\tattempt-0001\t2026-04-09T10:00:00+00:00\tcompleted_run_review",
+            lines[3],
+        )
+        self.assertIn("task-running\tmonitor\trunning\tattempt-0003\t2026-04-09T09:00:00+00:00\texecuting", lines[4])
+        self.assertNotIn("task-done", stdout.getvalue())
+
+    def test_task_control_prints_compact_control_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-control"
+            state = TaskState(
+                task_id=task_id,
+                title="Control task",
+                goal="Summarize control readiness",
+                workspace_root=str(tmp_path),
+                status="failed",
+                phase="summarize",
+                updated_at="2026-04-09T12:00:00+00:00",
+                current_attempt_id="attempt-0002",
+                artifact_paths={
+                    "resume_note": ".swl/tasks/task-control/artifacts/resume_note.md",
+                    "handoff_report": ".swl/tasks/task-control/artifacts/handoff_report.md",
+                    "retry_policy_report": ".swl/tasks/task-control/artifacts/retry_policy_report.md",
+                    "execution_budget_policy_report": ".swl/tasks/task-control/artifacts/execution_budget_policy_report.md",
+                    "stop_policy_report": ".swl/tasks/task-control/artifacts/stop_policy_report.md",
+                },
+            )
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "handoff.json").write_text(
+                json.dumps(
+                    {
+                        "status": "resume_from_failure",
+                        "next_operator_action": "Retry the task with the latest recovery guidance.",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "retry_policy.json").write_text(
+                json.dumps(
+                    {
+                        "status": "warning",
+                        "retryable": True,
+                        "retry_decision": "operator_retry_available",
+                        "remaining_attempts": 1,
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "execution_budget_policy.json").write_text(
+                json.dumps(
+                    {
+                        "status": "passed",
+                        "timeout_seconds": 20,
+                        "budget_state": "available",
+                        "timeout_state": "default",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "stop_policy.json").write_text(
+                json.dumps(
+                    {
+                        "status": "warning",
+                        "stop_required": False,
+                        "continue_allowed": True,
+                        "stop_decision": "checkpoint_before_retry",
+                        "checkpoint_kind": "retry_review",
+                        "escalation_level": "operator_retry_review",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "control", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"Task Control: {task_id}", output)
+        self.assertIn("recommended_action: retry", output)
+        self.assertIn("recommended_reason: retry_review", output)
+        self.assertIn("next_operator_action: Retry the task with the latest recovery guidance.", output)
+        self.assertIn("retry_ready: yes", output)
+        self.assertIn("review_ready: no", output)
+        self.assertIn("rerun_ready: yes", output)
+        self.assertIn("monitor_needed: no", output)
+        self.assertIn("Policy Controls", output)
+        self.assertIn("retry_policy_status: warning", output)
+        self.assertIn("execution_budget_policy_status: passed", output)
+        self.assertIn("stop_policy_status: warning", output)
+        self.assertIn(f"review: swl task review {task_id}", output)
+        self.assertIn(f"policy: swl task policy {task_id}", output)
+        self.assertIn(f"inspect: swl task inspect {task_id}", output)
+        self.assertIn(f"run: swl task run {task_id}", output)
+        self.assertIn("resume_note: .swl/tasks/task-control/artifacts/resume_note.md", output)
+
+    def test_task_attempts_prints_compact_attempt_history(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-attempts"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Attempt history",
+                goal="Inspect repeated attempts",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+                current_attempt_id="attempt-0002",
+                current_attempt_number=2,
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            events = [
+                {
+                    "task_id": task_id,
+                    "event_type": "task.run_started",
+                    "created_at": "2026-04-09T12:00:00+00:00",
+                    "payload": {
+                        "attempt_id": "attempt-0001",
+                        "attempt_number": 1,
+                        "executor_status": "running",
+                        "execution_lifecycle": "prepared",
+                    },
+                },
+                {
+                    "task_id": task_id,
+                    "event_type": "task.failed",
+                    "created_at": "2026-04-09T12:01:00+00:00",
+                    "payload": {
+                        "attempt_id": "attempt-0001",
+                        "attempt_number": 1,
+                        "status": "failed",
+                        "executor_status": "failed",
+                        "execution_lifecycle": "failed",
+                        "retrieval_count": 1,
+                        "compatibility_status": "passed",
+                        "execution_fit_status": "passed",
+                        "retry_policy_status": "warning",
+                        "stop_policy_status": "warning",
+                    },
+                },
+                {
+                    "task_id": task_id,
+                    "event_type": "task.run_started",
+                    "created_at": "2026-04-09T12:05:00+00:00",
+                    "payload": {
+                        "attempt_id": "attempt-0002",
+                        "attempt_number": 2,
+                        "executor_status": "running",
+                        "execution_lifecycle": "prepared",
+                    },
+                },
+                {
+                    "task_id": task_id,
+                    "event_type": "task.completed",
+                    "created_at": "2026-04-09T12:06:00+00:00",
+                    "payload": {
+                        "attempt_id": "attempt-0002",
+                        "attempt_number": 2,
+                        "status": "completed",
+                        "executor_status": "completed",
+                        "execution_lifecycle": "completed",
+                        "retrieval_count": 2,
+                        "compatibility_status": "passed",
+                        "execution_fit_status": "passed",
+                        "retry_policy_status": "passed",
+                        "stop_policy_status": "warning",
+                    },
+                },
+            ]
+            (task_root / "events.jsonl").write_text(
+                "\n".join(json.dumps(item) for item in events) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "handoff.json").write_text(
+                json.dumps({"attempt_id": "attempt-0002", "status": "review_completed_run"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "attempts", task_id]), 0)
+
+        lines = stdout.getvalue().splitlines()
+        self.assertEqual(
+            lines[0],
+            "attempt_id\tattempt_number\tstatus\texecutor_status\texecution_lifecycle\tretrieval_count\thandoff_status\tstarted_at\tfinished_at",
+        )
+        self.assertIn(
+            "attempt-0002\t2\tcompleted\tcompleted\tcompleted\t2\treview_completed_run\t2026-04-09T12:05:00+00:00\t2026-04-09T12:06:00+00:00",
+            lines[1],
+        )
+        self.assertIn(
+            "attempt-0001\t1\tfailed\tfailed\tfailed\t1\tpending\t2026-04-09T12:00:00+00:00\t2026-04-09T12:01:00+00:00",
+            lines[2],
+        )
+
+    def test_task_compare_attempts_prints_compact_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-compare"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Attempt compare",
+                goal="Compare two attempts",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+                current_attempt_id="attempt-0002",
+                current_attempt_number=2,
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            events = [
+                {
+                    "task_id": task_id,
+                    "event_type": "task.run_started",
+                    "created_at": "2026-04-09T12:00:00+00:00",
+                    "payload": {"attempt_id": "attempt-0001", "attempt_number": 1},
+                },
+                {
+                    "task_id": task_id,
+                    "event_type": "task.failed",
+                    "created_at": "2026-04-09T12:01:00+00:00",
+                    "payload": {
+                        "attempt_id": "attempt-0001",
+                        "attempt_number": 1,
+                        "status": "failed",
+                        "executor_status": "failed",
+                        "execution_lifecycle": "failed",
+                        "retrieval_count": 1,
+                        "compatibility_status": "passed",
+                        "execution_fit_status": "passed",
+                        "retry_policy_status": "warning",
+                        "stop_policy_status": "warning",
+                    },
+                },
+                {
+                    "task_id": task_id,
+                    "event_type": "task.run_started",
+                    "created_at": "2026-04-09T12:05:00+00:00",
+                    "payload": {"attempt_id": "attempt-0002", "attempt_number": 2},
+                },
+                {
+                    "task_id": task_id,
+                    "event_type": "task.completed",
+                    "created_at": "2026-04-09T12:06:00+00:00",
+                    "payload": {
+                        "attempt_id": "attempt-0002",
+                        "attempt_number": 2,
+                        "status": "completed",
+                        "executor_status": "completed",
+                        "execution_lifecycle": "completed",
+                        "retrieval_count": 2,
+                        "compatibility_status": "passed",
+                        "execution_fit_status": "passed",
+                        "retry_policy_status": "passed",
+                        "stop_policy_status": "warning",
+                    },
+                },
+            ]
+            (task_root / "events.jsonl").write_text(
+                "\n".join(json.dumps(item) for item in events) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "handoff.json").write_text(
+                json.dumps({"attempt_id": "attempt-0002", "status": "review_completed_run"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "compare-attempts", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"Task Attempt Compare: {task_id}", output)
+        self.assertIn("left_attempt: attempt-0001", output)
+        self.assertIn("right_attempt: attempt-0002", output)
+        self.assertIn("status: failed -> completed", output)
+        self.assertIn("executor_status: failed -> completed", output)
+        self.assertIn("retrieval_count: 1 -> 2", output)
+        self.assertIn("handoff_status: pending -> review_completed_run", output)
+        self.assertIn("retry_policy_status: warning -> passed", output)
+
+    def test_task_retry_runs_when_retry_policy_allows_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-retry-run"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Retry allowed",
+                goal="Retry through the run path",
+                workspace_root=str(tmp_path),
+                status="failed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "retry_policy.json").write_text(
+                json.dumps({"retryable": True, "retry_decision": "operator_retry_available"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "stop_policy.json").write_text(
+                json.dumps({"checkpoint_kind": "retry_review"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with patch("swallow.cli.run_task") as run_task_mock:
+                run_task_mock.return_value = TaskState(
+                    task_id=task_id,
+                    title="Retry allowed",
+                    goal="Retry through the run path",
+                    workspace_root=str(tmp_path),
+                    status="completed",
+                    phase="summarize",
+                    retrieval_count=1,
+                )
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retry", task_id]), 0)
+
+        run_task_mock.assert_called_once()
+        self.assertIn(f"{task_id} completed retrieval=1", stdout.getvalue())
+
+    def test_task_retry_blocks_when_retry_policy_disallows_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-retry-blocked"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Retry blocked",
+                goal="Do not retry",
+                workspace_root=str(tmp_path),
+                status="failed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "retry_policy.json").write_text(
+                json.dumps({"retryable": False, "retry_decision": "non_retryable_failure"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "stop_policy.json").write_text(
+                json.dumps({"checkpoint_kind": "blocking_failure_review"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with patch("swallow.cli.run_task") as run_task_mock:
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retry", task_id]), 1)
+
+        run_task_mock.assert_not_called()
+        self.assertIn("retry_blocked", stdout.getvalue())
+        self.assertIn("retry_decision=non_retryable_failure", stdout.getvalue())
+
+    def test_task_rerun_always_uses_run_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-rerun"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Rerun task",
+                goal="Allow explicit rerun",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="done",
+                updated_at="2026-04-09T12:10:00+00:00",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+
+            stdout = StringIO()
+            with patch("swallow.cli.run_task") as run_task_mock:
+                run_task_mock.return_value = TaskState(
+                    task_id=task_id,
+                    title="Rerun task",
+                    goal="Allow explicit rerun",
+                    workspace_root=str(tmp_path),
+                    status="completed",
+                    phase="summarize",
+                    retrieval_count=2,
+                )
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "task", "rerun", task_id]), 0)
+
+        run_task_mock.assert_called_once()
+        self.assertIn(f"{task_id} completed retrieval=2", stdout.getvalue())
+
     def test_task_inspect_shows_compact_overview_for_latest_attempt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -1175,6 +1709,24 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("semantics-json      Print the task semantics record.", output)
         self.assertIn("knowledge-objects   Print the task knowledge-objects report artifact.", output)
         self.assertIn("knowledge-policy    Print the task knowledge-policy report artifact.", output)
+
+    def test_task_help_includes_phase9_workbench_commands(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["task", "--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        output = stdout.getvalue()
+        self.assertIn("queue               List tasks that currently need operator action.", output)
+        self.assertIn("control             Print a compact per-task control snapshot.", output)
+        self.assertIn("attempts            Print compact attempt history for a task.", output)
+        self.assertIn("compare-attempts", output)
+        self.assertIn("Compare two task attempts using compact control-", output)
+        self.assertIn("retry               Retry a task through the current run path when retry", output)
+        self.assertIn("policy allows it.", output)
+        self.assertIn("rerun               Start a new explicit operator-triggered run regardless", output)
+        self.assertIn("of retry policy state.", output)
 
     def test_task_create_help_includes_capability_flag(self) -> None:
         stdout = StringIO()

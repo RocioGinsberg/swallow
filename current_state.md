@@ -6,8 +6,8 @@ This file tracks the implementation status of the repository itself so work can 
 
 ## Current Status
 
-- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; Phase 6 baseline complete; Phase 7 baseline complete; Phase 8 baseline complete
-- overall state: runnable, acceptance-validated, and at a Phase 8 Execution Control Policy closeout checkpoint
+- phase: Phase 0 accepted; Phase 1 complete; Phase 2 baseline complete; post-Phase-2 retrieval baseline complete; Phase 3 baseline complete; Phase 4 baseline complete; Phase 5 baseline complete; post-Phase-5 executor / external-input slice complete; post-Phase-5 retrieval / memory-next slice complete; Phase 6 baseline complete; Phase 7 baseline complete; Phase 8 baseline complete; Phase 9 baseline complete
+- overall state: runnable, acceptance-validated, and at a Phase 9 Operator Control Workbench closeout checkpoint
 - last checked: 2026-04-09
 - phase exit reference:
   - `docs/phase0_exit_checklist.md`
@@ -42,6 +42,10 @@ This file tracks the implementation status of the repository itself so work can 
   - `docs/phase8_kickoff_note.md`
   - `docs/phase8_task_breakdown.md`
   - `docs/phase8_closeout_note.md`
+- phase 9 planning reference:
+  - `docs/phase9_kickoff_note.md`
+  - `docs/phase9_task_breakdown.md`
+  - `docs/phase9_closeout_note.md`
 - post-Phase-5 planning reference:
   - `docs/post_phase5_executor_and_external_input_kickoff_note.md`
   - `docs/post_phase5_executor_and_external_input_task_breakdown.md`
@@ -207,6 +211,12 @@ This file tracks the implementation status of the repository itself so work can 
   - `P8-04` execution budget and timeout policy baseline is implemented with explicit timeout and attempt-budget records, dedicated budget-policy artifacts, and operator-facing budget visibility without changing the current executor lifecycle
   - `P8-05` policy inspection and review tightening is implemented with a unified `Policy Controls` inspection view, grouped execution-control artifacts, and a compact `swl task policy` command for operator-facing policy review
   - `P8-06` closeout and status alignment is implemented with a dedicated Phase 8 closeout note and synchronized status-entry documents that now treat Phase 8 as a completed baseline rather than an active planning checkpoint
+  - `P9-01` operator action queue baseline is implemented with `swl task queue`, a compact action-needed task view derived from persisted state, handoff, retry-policy, and stop-policy truth so operators can identify run, retry, review, inspect, and monitor actions without opening raw task directories
+  - `P9-02` task control snapshot baseline is implemented with `swl task control`, a concise per-task control view that summarizes recommended action, retry/review/rerun readiness, current policy state, and the most relevant control commands and artifacts without replacing inspect, review, or policy commands
+  - `P9-03` attempt history and comparison baseline is implemented with `swl task attempts` and `swl task compare-attempts`, giving operators a compact per-task attempt history plus a narrow side-by-side comparison of outcome, lifecycle, retrieval count, handoff status, and policy-relevant result changes across attempts
+  - `P9-04` rerun and retry entrypoint tightening is implemented with `swl task retry` and `swl task rerun`, keeping both actions on the accepted `task run` path while gating retry by persisted retry/stop policy truth and preserving explicit operator-triggered rerun behavior
+  - `P9-05` workbench command and help alignment is implemented with updated Phase 9 command discoverability in CLI help plus synchronized README and README.zh-CN coverage for queue, control, attempt history/comparison, and explicit retry/rerun entrypoints
+  - `P9-06` closeout and status alignment is implemented with a dedicated Phase 9 closeout note and synchronized status-entry documents that now treat Phase 9 as a completed baseline rather than an active planning checkpoint
   - `P4-01` task list and summary baseline is implemented with `swl task list`, compact cross-task status summaries, stable most-recent-first ordering, and test coverage for empty and multi-task cases
   - `P4-02` task inspect and overview baseline is implemented with `swl task inspect`, a compact per-task overview of the latest attempt, route/topology, policy status, retrieval/memory availability, operator guidance, and key artifact links
   - `P4-03` artifact index tightening is implemented with `swl task artifacts`, grouped artifact-path presentation by operator concern while preserving existing artifact paths and file layout
@@ -245,7 +255,8 @@ This file tracks the implementation status of the repository itself so work can 
 - The planned Phase 6 baseline is complete enough to stop open-ended `Retrieval / Memory Operationalization` expansion by default.
 - The planned Phase 7 baseline is complete enough to stop open-ended `Execution Topology` expansion by default.
 - The planned Phase 8 baseline is complete enough to stop open-ended `Evaluation / Policy` expansion by default.
-- New work should now begin from a fresh planning note rather than assuming more Phase 8 work exists by default.
+- Phase 9 baseline is complete enough to stop open-ended `Workbench / UX` expansion by default.
+- New work should now begin from a fresh planning note rather than assuming more Phase 9 work exists by default.
 
 ## Known Issues
 
@@ -264,9 +275,10 @@ This file tracks the implementation status of the repository itself so work can 
 8. Use `docs/post_phase5_retrieval_memory_next_closeout_note.md` as the stop/go reference for the completed retrieval/memory-next slice.
 9. Use `docs/phase7_closeout_note.md` as the stop/go reference for the completed `Execution Topology` slice.
 10. Use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice.
-11. Write a fresh kickoff note before opening the next primary track.
-12. Verify the editable install exposes the `swl` entrypoint correctly.
-13. Update this file after each substantial code change.
+11. Use `docs/phase9_closeout_note.md` as the stop/go reference for the completed `Workbench / UX` slice.
+12. Write a fresh kickoff note before opening the next primary track.
+13. Verify the editable install exposes the `swl` entrypoint correctly.
+14. Update this file after each substantial code change.
 
 ## Resume Command
 

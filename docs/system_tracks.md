@@ -43,6 +43,8 @@ Current status:
 - strong local-first baseline implemented
 - accepted lifecycle semantics established in Phase 0
 - hardened through Phase 1 and Phase 2 without breaking the core loop
+- preserved through Phase 3, Phase 4, and Phase 5 while topology, workbench, and capability truth expanded
+- tightened further in Phase 7 and Phase 8 through explicit execution-site and execution-control artifacts without breaking the accepted task loop
 
 Still needed for a fuller system:
 
@@ -77,6 +79,8 @@ Current status:
   - retrieval-memory reuse tightening
   - retrieval artifact indexing cleanup
   - fixture-based regression coverage
+- external planning ingestion and staged knowledge-object handling completed in the post-Phase-5 executor / external-input slice
+- reusable-knowledge retrieval, verification, refresh, invalidation, canonicalization boundaries, cross-task reuse, and fixture-backed evaluation tightening completed in Phase 6
 
 Still needed for a fuller system:
 
@@ -105,13 +109,15 @@ Current status:
 
 - executor seam baseline completed in Phase 1
 - route, policy, compatibility, and remote-ready metadata baselines completed in Phase 2
+- execution-site, dispatch, handoff, execution-fit, and attempt-identity baselines completed in Phase 3
+- execution-site contract, attempt ownership, handoff contract, local-detached execution, and family-aware execution-fit tightening completed in Phase 7
 
 Still needed for a fuller system:
 
-- real local/remote execution boundary
-- transport or job handoff semantics
+- real remote execution boundary beyond the current local-inline and local-detached baselines
+- transport or job handoff semantics across machines
 - longer-running or resumable execution-site behavior
-- clearer family-aware routing between API executors and CLI executors
+- broader family-aware routing between API executors and CLI executors
 - explicit integration rules for hosted API execution versus local or semi-local CLI shells
 
 ### 4. Capabilities
@@ -129,7 +135,8 @@ Current status:
 
 - small local-first capability surface exists
 - validators and route capability declarations are explicit
-- skills and profiles exist, but the capability system is still intentionally light
+- Phase 5 completed the baseline with explicit requested manifests, effective assembly records, task-level selection, inspection paths, and clear failure for unknown capability references
+- the capability system remains intentionally light rather than marketplace-oriented
 
 Still needed for a fuller system:
 
@@ -150,12 +157,14 @@ Owns:
 Current status:
 
 - CLI is usable and artifact-driven
-- summary, resume, route, compatibility, grounding, retrieval, and memory inspection paths exist
+- Phase 4 completed the baseline with task listing, inspect, grouped artifacts, review, and operator-attention views
+- later slices added inspection paths for capabilities, task semantics, knowledge objects, reusable knowledge, execution-site, dispatch, handoff, execution-fit, and execution-control policy
+- the current planning direction is Phase 9 `Operator Control Workbench`
 
 Still needed for a fuller system:
 
-- better task browsing and review workflows
-- more operator-friendly artifact navigation
+- better action-oriented task browsing and review workflows
+- more operator-friendly control entrypoints around retry, rerun, and repeated attempts
 - future workbench interface beyond raw CLI
 - clearer operator-facing entrypoints for external planning and external knowledge capture without collapsing those concerns into chat history
 
@@ -173,6 +182,8 @@ Current status:
 - validator baseline completed in Phase 1
 - route compatibility baseline completed in Phase 2
 - retrieval regression fixtures completed in the post-Phase-2 retrieval baseline
+- knowledge-policy checks completed in the post-Phase-5 executor / external-input and retrieval / memory-next slices
+- execution-control policy baseline completed in Phase 8 through retry, stop, escalation, detached-checkpoint, and execution-budget records plus operator-facing inspection paths
 
 Still needed for a fuller system:
 
@@ -285,15 +296,50 @@ Secondary effect:
 
 ### Phase 6
 
-Planned primary track:
+Primary track:
 
 - Retrieval / Memory
 
-Planned secondary effect:
+Secondary effect:
 
 - Evaluation / Policy
 - Workbench / UX
 - Capabilities
+
+### Phase 7
+
+Primary tracks:
+
+- Execution Topology
+
+Secondary effect:
+
+- Evaluation / Policy through execution-fit and ownership tightening
+- Workbench / UX through execution-site and handoff-contract inspection paths
+- Core Loop preserved while a real local-detached boundary was added
+
+### Phase 8
+
+Primary tracks:
+
+- Evaluation / Policy
+
+Secondary effect:
+
+- Workbench / UX through policy-focused inspect, review, and grouped artifact views
+- Execution Topology preserved while detached execution gained explicit checkpoint policy
+- Core Loop preserved while retry, stop, and budget truth became explicit
+
+### Phase 9
+
+Primary tracks:
+
+- Workbench / UX
+
+Secondary effect:
+
+- Core Loop through rerun/retry control ergonomics
+- Evaluation / Policy through operator-facing control use of existing policy truth
 
 ## Planning Rule
 
@@ -319,8 +365,11 @@ The repository is now at a planning checkpoint with:
 - Phase 5 baseline complete
 - post-Phase-5 executor / external-input slice complete
 - post-Phase-5 retrieval / memory-next slice complete
+- Phase 6 baseline complete
+- Phase 7 baseline complete
+- Phase 8 baseline complete
 
 Current fresh planning reference:
 
-- `docs/phase6_kickoff_note.md`
-- `docs/phase6_task_breakdown.md`
+- `docs/phase9_kickoff_note.md`
+- `docs/phase9_task_breakdown.md`

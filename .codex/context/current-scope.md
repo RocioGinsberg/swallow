@@ -54,6 +54,14 @@ The completed Phase 8 baseline established:
 - policy-state visibility across handoff, memory, summary, resume, inspect, review, and grouped artifact lists
 - a compact operator-facing `swl task policy` inspection path
 
+The completed Phase 9 baseline established:
+
+- an explicit action queue for action-needed tasks
+- a compact per-task control snapshot
+- compact attempt-history and attempt-comparison entrypoints
+- explicit retry and rerun entrypoints that stay on the accepted run path
+- aligned operator-facing help and README coverage for the local workbench control surface
+
 ## Explicit non-goals right now
 
 Do not treat these as current-slice requirements:
@@ -78,4 +86,5 @@ When planning the next task:
 - use `docs/phase6_closeout_note.md` before deciding whether to continue the completed `Retrieval / Memory Operationalization` baseline
 - use `docs/phase7_closeout_note.md` before deciding whether to continue the completed `Execution Topology` slice
 - use `docs/phase8_closeout_note.md` as the stop/go reference for the completed `Evaluation / Policy` slice
+- use `docs/phase9_closeout_note.md` as the stop/go reference for the completed `Workbench / UX` slice
 - prefer a fresh planning note over open-ended continuation
