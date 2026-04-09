@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from .models import utc_now
 
+CANONICAL_REGISTRY_DEDUPE_KEY = "canonical_id"
+CANONICAL_REGISTRY_REPLACE_STRATEGY = "latest_record_wins"
+
 
 def build_canonical_record(
     *,
@@ -68,6 +71,8 @@ def build_canonical_registry_index(records: list[dict[str, object]]) -> dict[str
     latest = records[-1] if records else {}
     return {
         "refreshed_at": utc_now(),
+        "dedupe_key": CANONICAL_REGISTRY_DEDUPE_KEY,
+        "replace_strategy": CANONICAL_REGISTRY_REPLACE_STRATEGY,
         "count": len(records),
         "source_task_count": len(by_task),
         "artifact_backed_count": artifact_backed_count,
@@ -83,6 +88,8 @@ def build_canonical_registry_index_report(index_record: dict[str, object]) -> st
         "# Canonical Knowledge Registry Index",
         "",
         f"- refreshed_at: {index_record.get('refreshed_at', 'unknown')}",
+        f"- dedupe_key: {index_record.get('dedupe_key', CANONICAL_REGISTRY_DEDUPE_KEY)}",
+        f"- replace_strategy: {index_record.get('replace_strategy', CANONICAL_REGISTRY_REPLACE_STRATEGY)}",
         f"- count: {index_record.get('count', 0)}",
         f"- source_task_count: {index_record.get('source_task_count', 0)}",
         f"- artifact_backed_count: {index_record.get('artifact_backed_count', 0)}",

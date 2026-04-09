@@ -33,9 +33,11 @@ from swallow.harness import build_resume_note
 from swallow.knowledge_policy import evaluate_knowledge_policy
 from swallow.models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskState, ValidationResult
 from swallow.orchestrator import build_task_retrieval_request, create_task, run_task
+from swallow.paths import canonical_registry_path
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
+from swallow.store import append_canonical_record
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
@@ -304,6 +306,42 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[0]["payload"]["knowledge_stage_counts"]["candidate"], 2)
         self.assertIn("Knowledge Objects Report", knowledge_report)
         self.assertIn("candidate: 2", knowledge_report)
+
+    def test_append_canonical_record_replaces_existing_canonical_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            append_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": "canonical-task-1-object-1",
+                    "source_task_id": "task-1",
+                    "source_object_id": "object-1",
+                    "promoted_at": "2026-04-09T00:00:00Z",
+                    "decision_note": "initial",
+                },
+            )
+            append_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": "canonical-task-1-object-1",
+                    "source_task_id": "task-1",
+                    "source_object_id": "object-1",
+                    "promoted_at": "2026-04-09T01:00:00Z",
+                    "decision_note": "updated",
+                },
+            )
+
+            records = [
+                json.loads(line)
+                for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["canonical_id"], "canonical-task-1-object-1")
+        self.assertEqual(records[0]["decision_note"], "updated")
+        self.assertEqual(records[0]["promoted_at"], "2026-04-09T01:00:00Z")
 
     def test_cli_knowledge_capture_appends_staged_knowledge_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -700,9 +738,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("canonical_registry_count: 1", review_stdout.getvalue())
         self.assertIn("Canonical Knowledge Registry", registry_stdout.getvalue())
         self.assertIn("Canonical Knowledge Registry Index", registry_index_stdout.getvalue())
+        self.assertIn("dedupe_key: canonical_id", registry_index_stdout.getvalue())
+        self.assertIn("replace_strategy: latest_record_wins", registry_index_stdout.getvalue())
         self.assertIn("source_task_count: 1", registry_index_stdout.getvalue())
         self.assertIn(f"source_task_id: {task_id}", registry_stdout.getvalue())
         self.assertIn('"canonical_id"', registry_json_stdout.getvalue())
+        self.assertIn('"dedupe_key": "canonical_id"', registry_index_json_stdout.getvalue())
         self.assertIn('"source_task_count"', registry_index_json_stdout.getvalue())
 
     def test_cli_create_marks_retrieval_eligible_knowledge_objects(self) -> None:

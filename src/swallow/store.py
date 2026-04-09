@@ -164,8 +164,27 @@ def append_knowledge_decision(base_dir: Path, task_id: str, payload: dict[str, o
 
 def append_canonical_record(base_dir: Path, payload: dict[str, object]) -> None:
     canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
-    with canonical_registry_path(base_dir).open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(payload) + "\n")
+    registry_file = canonical_registry_path(base_dir)
+    records: list[dict[str, object]] = []
+    canonical_id = str(payload.get("canonical_id", "")).strip()
+    replaced = False
+    if registry_file.exists():
+        for line in registry_file.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            record = json.loads(stripped)
+            if canonical_id and str(record.get("canonical_id", "")).strip() == canonical_id:
+                records.append(payload)
+                replaced = True
+            else:
+                records.append(record)
+    if not replaced:
+        records.append(payload)
+    registry_file.write_text(
+        "".join(json.dumps(record) + "\n" for record in records),
+        encoding="utf-8",
+    )
 
 
 def save_canonical_registry_index(base_dir: Path, payload: dict[str, object]) -> None:
