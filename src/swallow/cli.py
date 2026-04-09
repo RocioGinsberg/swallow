@@ -269,6 +269,18 @@ def summarize_knowledge_attention(base_dir: Path, task_id: str) -> dict[str, str
     }
 
 
+def build_canonical_registry_snapshot(records: list[dict[str, object]]) -> list[str]:
+    latest = records[-1] if records else {}
+    return [
+        "Canonical Registry",
+        f"canonical_registry_count: {len(records)}",
+        f"canonical_registry_latest_id: {latest.get('canonical_id', '-') if records else '-'}",
+        f"canonical_registry_latest_source_task: {latest.get('source_task_id', '-') if records else '-'}",
+        f"canonical_registry_latest_source_object: {latest.get('source_object_id', '-') if records else '-'}",
+        f"canonical_registry_latest_artifact_ref: {latest.get('artifact_ref', '-') or '-'}",
+    ]
+
+
 def load_json_if_exists(path: Path) -> dict[str, object]:
     if not path.exists():
         return {}
@@ -1389,6 +1401,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_partition = load_json_if_exists(knowledge_partition_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
+        canonical_registry = load_json_lines_if_exists(canonical_registry_path(base_dir))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         task_semantics = load_json_if_exists(task_semantics_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
@@ -1462,6 +1475,8 @@ def main(argv: list[str] | None = None) -> int:
             f"validation_status: {load_json_if_exists(Path(state.artifact_paths.get('validation_json', ''))).get('status', 'pending') if state.artifact_paths.get('validation_json') else 'pending'}",
             "",
             *build_knowledge_review_snapshot(knowledge_objects, knowledge_decisions),
+            "",
+            *build_canonical_registry_snapshot(canonical_registry),
             "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
@@ -1552,6 +1567,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
+        canonical_registry = load_json_lines_if_exists(canonical_registry_path(base_dir))
         canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         reused_knowledge_references = []
@@ -1617,6 +1633,8 @@ def main(argv: list[str] | None = None) -> int:
                 knowledge_objects if isinstance(knowledge_objects, list) else [],
                 knowledge_decisions,
             ),
+            "",
+            *build_canonical_registry_snapshot(canonical_registry),
             "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",

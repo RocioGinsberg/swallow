@@ -669,8 +669,14 @@ class CliLifecycleTest(unittest.TestCase):
                 for line in (tmp_path / ".swl" / "canonical_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
+            inspect_stdout = StringIO()
+            review_stdout = StringIO()
             registry_stdout = StringIO()
             registry_json_stdout = StringIO()
+            with redirect_stdout(inspect_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
+            with redirect_stdout(review_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
             with redirect_stdout(registry_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry", task_id]), 0)
             with redirect_stdout(registry_json_stdout):
@@ -680,6 +686,11 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["source_task_id"], task_id)
         self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0001")
         self.assertEqual(canonical_records[0]["artifact_ref"], ".swl/tasks/demo/artifacts/evidence.md")
+        self.assertIn("Canonical Registry", inspect_stdout.getvalue())
+        self.assertIn("canonical_registry_count: 1", inspect_stdout.getvalue())
+        self.assertIn("canonical_registry_latest_source_task: " + task_id, inspect_stdout.getvalue())
+        self.assertIn("Canonical Registry", review_stdout.getvalue())
+        self.assertIn("canonical_registry_count: 1", review_stdout.getvalue())
         self.assertIn("Canonical Knowledge Registry", registry_stdout.getvalue())
         self.assertIn(f"source_task_id: {task_id}", registry_stdout.getvalue())
         self.assertIn('"canonical_id"', registry_json_stdout.getvalue())
