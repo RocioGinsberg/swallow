@@ -217,6 +217,54 @@ def build_knowledge_review_snapshot(
     ]
 
 
+def summarize_knowledge_attention(base_dir: Path, task_id: str) -> dict[str, str]:
+    knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, task_id))
+    if not isinstance(knowledge_objects, list):
+        knowledge_objects = []
+    decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, task_id))
+    queue = build_review_queue(knowledge_objects, decisions)
+    state_counts = dict(queue.get("state_counts", {}))
+    needs_attention = any(
+        state_counts.get(key, 0) > 0 for key in ("pending-review", "promote-ready", "reuse-ready", "blocked")
+    )
+    summary_parts = []
+    for label, key in (
+        ("pending", "pending-review"),
+        ("promote_ready", "promote-ready"),
+        ("reuse_ready", "reuse-ready"),
+        ("blocked", "blocked"),
+        ("rejected", "rejected"),
+    ):
+        count = state_counts.get(key, 0)
+        if count:
+            summary_parts.append(f"{label}={count}")
+    entries = list(queue.get("entries", []))
+    blocked_reasons = sorted(
+        {
+            str(entry.get("blocked_reason", "")).strip()
+            for entry in entries
+            if str(entry.get("blocked_reason", "")).strip()
+        }
+    )
+    if state_counts.get("promote-ready", 0) > 0:
+        recommended_reason = "knowledge_promote_ready"
+    elif state_counts.get("reuse-ready", 0) > 0:
+        recommended_reason = "knowledge_reuse_ready"
+    elif state_counts.get("blocked", 0) > 0:
+        recommended_reason = "knowledge_blocked_review"
+    elif state_counts.get("pending-review", 0) > 0:
+        recommended_reason = "knowledge_pending_review"
+    else:
+        recommended_reason = "knowledge_no_action"
+    return {
+        "needs_attention": "yes" if needs_attention else "no",
+        "summary": ", ".join(summary_parts) or "-",
+        "blocked_reasons": ", ".join(blocked_reasons) or "-",
+        "recommended_reason": recommended_reason,
+        "recommended_command": f"swl task knowledge-review-queue {task_id}",
+    }
+
+
 def load_json_if_exists(path: Path) -> dict[str, object]:
     if not path.exists():
         return {}
@@ -258,6 +306,7 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
     retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
     stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
     checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
+    knowledge_attention = summarize_knowledge_attention(base_dir, state.task_id)
 
     handoff_status = str(handoff.get("status", "pending"))
     next_operator_action = str(handoff.get("next_operator_action", "")).strip()
@@ -286,8 +335,16 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
     elif state.status == "failed" or stop_required or handoff_status == "resume_from_failure":
         action = "inspect"
         reason = checkpoint_kind if checkpoint_kind != "pending" else str(stop_policy.get("stop_decision", handoff_status))
+    elif knowledge_attention["needs_attention"] == "yes":
+        action = "knowledge-review"
+        reason = knowledge_attention["recommended_reason"]
+        next_operator_action = f"Inspect staged knowledge via {knowledge_attention['recommended_command']}."
     else:
         return None
+
+    if knowledge_attention["needs_attention"] == "yes" and action != "knowledge-review":
+        knowledge_next = f"Knowledge review pending via {knowledge_attention['recommended_command']}."
+        next_operator_action = f"{next_operator_action} {knowledge_next}".strip()
 
     return {
         "task_id": state.task_id,
@@ -296,6 +353,7 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
         "attempt": state.current_attempt_id or "-",
         "updated_at": state.updated_at,
         "reason": reason or "pending",
+        "knowledge": knowledge_attention["summary"],
         "next": next_operator_action or "-",
         "title": state.title,
     }
@@ -382,6 +440,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
     stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
     checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
     queue_entry = build_task_queue_entry(base_dir, state)
+    knowledge_attention = summarize_knowledge_attention(base_dir, state.task_id)
     boundaries = build_control_boundaries(
         state,
         checkpoint_snapshot,
@@ -409,6 +468,13 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
         f"stop_required: {'yes' if stop_policy.get('stop_required', False) else 'no'}",
         f"continue_allowed: {'yes' if stop_policy.get('continue_allowed', False) else 'no'}",
         "",
+        "Knowledge Control",
+        f"knowledge_review_needed: {knowledge_attention['needs_attention']}",
+        f"knowledge_review_summary: {knowledge_attention['summary']}",
+        f"knowledge_review_blocked_reasons: {knowledge_attention['blocked_reasons']}",
+        f"knowledge_review_reason: {knowledge_attention['recommended_reason']}",
+        f"knowledge_review_command: {knowledge_attention['recommended_command']}",
+        "",
         "Control Boundaries",
         f"resume_path: {boundaries['resume']}",
         f"retry_path: {boundaries['retry']}",
@@ -421,6 +487,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
             "",
             "Control Artifacts",
             f"review: swl task review {state.task_id}",
+            f"knowledge_review: swl task knowledge-review-queue {state.task_id}",
             f"resume: swl task resume {state.task_id}",
             f"policy: swl task policy {state.task_id}",
             f"checkpoint: swl task checkpoint {state.task_id}",
@@ -1194,7 +1261,7 @@ def main(argv: list[str] | None = None) -> int:
         queue_entries = [entry for state in states if (entry := build_task_queue_entry(base_dir, state)) is not None]
         if args.limit is not None:
             queue_entries = queue_entries[: max(args.limit, 0)]
-        print("task_id\taction\tstatus\tattempt\tupdated_at\treason\tnext\ttitle")
+        print("task_id\taction\tstatus\tattempt\tupdated_at\treason\tknowledge\tnext\ttitle")
         for entry in queue_entries:
             print(
                 "\t".join(
@@ -1205,6 +1272,7 @@ def main(argv: list[str] | None = None) -> int:
                         entry["attempt"],
                         entry["updated_at"],
                         entry["reason"],
+                        entry["knowledge"],
                         entry["next"],
                         entry["title"],
                     ]

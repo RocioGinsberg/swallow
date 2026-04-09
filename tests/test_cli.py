@@ -1279,16 +1279,67 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "queue", "--limit", "4"]), 0)
 
         lines = stdout.getvalue().splitlines()
-        self.assertEqual(lines[0], "task_id\taction\tstatus\tattempt\tupdated_at\treason\tnext\ttitle")
+        self.assertEqual(lines[0], "task_id\taction\tstatus\tattempt\tupdated_at\treason\tknowledge\tnext\ttitle")
         self.assertEqual(len(lines), 5)
-        self.assertIn("task-created\trun\tcreated\t-\t2026-04-09T12:00:00+00:00\ttask_created", lines[1])
-        self.assertIn("task-retry\tretry\tfailed\tattempt-0002\t2026-04-09T11:00:00+00:00\tretry_review", lines[2])
+        self.assertIn("task-created\trun\tcreated\t-\t2026-04-09T12:00:00+00:00\ttask_created\t-", lines[1])
+        self.assertIn("task-retry\tretry\tfailed\tattempt-0002\t2026-04-09T11:00:00+00:00\tretry_review\t-", lines[2])
         self.assertIn(
-            "task-review\treview\tcompleted\tattempt-0001\t2026-04-09T10:00:00+00:00\tcompleted_run_review",
+            "task-review\treview\tcompleted\tattempt-0001\t2026-04-09T10:00:00+00:00\tcompleted_run_review\t-",
             lines[3],
         )
-        self.assertIn("task-running\tmonitor\trunning\tattempt-0003\t2026-04-09T09:00:00+00:00\texecuting", lines[4])
+        self.assertIn("task-running\tmonitor\trunning\tattempt-0003\t2026-04-09T09:00:00+00:00\texecuting\t-", lines[4])
         self.assertNotIn("task-done", stdout.getvalue())
+
+    def test_task_queue_includes_knowledge_review_attention_when_no_run_action_is_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-knowledge-review"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Knowledge attention",
+                goal="Surface knowledge review in the operator queue",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="done",
+                updated_at="2026-04-09T12:30:00+00:00",
+                current_attempt_id="attempt-0001",
+                executor_status="completed",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "knowledge_objects.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Verified source-only knowledge still needs explicit review.",
+                            "stage": "verified",
+                            "source_kind": "external_knowledge_capture",
+                            "source_ref": "chat://knowledge-queue",
+                            "task_linked": True,
+                            "captured_at": "2026-04-09T12:00:00+00:00",
+                            "evidence_status": "source_only",
+                            "artifact_ref": "",
+                            "retrieval_eligible": True,
+                            "knowledge_reuse_scope": "retrieval_candidate",
+                            "canonicalization_intent": "none",
+                        }
+                    ],
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "queue"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("task-knowledge-review\tknowledge-review\tcompleted\tattempt-0001", output)
+        self.assertIn("knowledge_blocked_review\tblocked=1", output)
+        self.assertIn("swl task knowledge-review-queue task-knowledge-review", output)
 
     def test_task_control_prints_compact_control_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1397,6 +1448,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("review_ready: no", output)
         self.assertIn("rerun_ready: yes", output)
         self.assertIn("monitor_needed: no", output)
+        self.assertIn("Knowledge Control", output)
+        self.assertIn("knowledge_review_needed: no", output)
+        self.assertIn("knowledge_review_summary: -", output)
+        self.assertIn("knowledge_review_command: swl task knowledge-review-queue task-control", output)
         self.assertIn("Control Boundaries", output)
         self.assertIn("resume_path: blocked reason=retry_ready suggested_path=retry", output)
         self.assertIn("retry_path: allowed reason=operator_retry_available", output)
@@ -1406,6 +1461,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("execution_budget_policy_status: passed", output)
         self.assertIn("stop_policy_status: warning", output)
         self.assertIn(f"review: swl task review {task_id}", output)
+        self.assertIn(f"knowledge_review: swl task knowledge-review-queue {task_id}", output)
         self.assertIn(f"policy: swl task policy {task_id}", output)
         self.assertIn(f"checkpoint: swl task checkpoint {task_id}", output)
         self.assertIn(f"inspect: swl task inspect {task_id}", output)
