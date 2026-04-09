@@ -34,14 +34,14 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 14`
-- latest_completed_slice: `Canonical Reuse Policy Baseline`
+- latest_completed_phase: `Phase 15`
+- latest_completed_slice: `Canonical Reuse Evaluation Baseline`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-10`
 
 说明：
 
-- Phase 0 到 Phase 14 已完成并形成稳定 checkpoint
+- Phase 0 到 Phase 15 已完成并形成稳定 checkpoint
 - post-Phase-2 retrieval baseline 已完成
 - post-Phase-5 executor / external-input slice 已完成
 - post-Phase-5 retrieval / memory-next slice 已完成
@@ -59,8 +59,8 @@
 
 说明：
 
-- 当前默认不再继续扩张已完成的 Phase 14，而应先重新选择下一轮 primary track
-- 当前最近完成的 stop/go 边界以 `docs/plans/phase14/closeout.md` 为准
+- 当前默认不再继续扩张已完成的 Phase 15，而应先重新选择下一轮 primary track
+- 当前最近完成的 stop/go 边界以 `docs/plans/phase15/closeout.md` 为准
 
 ---
 
@@ -72,10 +72,12 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase14/closeout.md`
+5. `docs/plans/phase15/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase15/kickoff.md`
+- `docs/plans/phase15/breakdown.md`
 - `docs/plans/phase14/kickoff.md`
 - `docs/plans/phase14/breakdown.md`
 - `docs/plans/phase13/kickoff.md`
@@ -105,6 +107,7 @@ AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m swallow.cli --base-di
 - 真实 codex exec 在当前环境中仍可能因 outbound network / WebSocket 受限而失败。
 - 一些旧设计与历史文档仍保留了较重的 phase 历史叙述，后续应逐步收拢到 archive，不再作为默认读取入口。
 - 当前 current_state.md 已重新定义为恢复入口，后续不应再把高频状态或完整历史继续堆回本文件。
+- Phase 15 的 canonical reuse evaluation provenance 只在任务已有 `retrieval.json` 时附带，不应误解为当前 run loop 的强制前置条件。
 
 ## 当前收口规则
 - 在 phase 或 major slice 收口时，本文件才需要更新。

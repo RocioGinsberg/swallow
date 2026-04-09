@@ -6,15 +6,15 @@
 - active_phase: `Phase 15`
 - active_slice: `Canonical Reuse Evaluation Baseline`
 - active_branch: `feat/phase15-canonical-reuse-evaluation`
-- status: `planning`
+- status: `completed`
 
 ---
 
 ## 当前目标
 
-当前默认目标是建立显式 canonical reuse evaluation baseline，并把已有 canonical reuse 路径接到最小 evaluation / judgment 结构。
+当前默认目标已完成：仓库已经建立显式 canonical reuse evaluation baseline，并把已有 canonical reuse 路径接到最小 evaluation / judgment 结构。
 
-当前重点不是继续扩 ranking 平台、自动策略学习或 freshness workflow，而是先建立 canonical reuse 的 evaluation truth。
+当前默认不应继续无边界扩张当前 phase，而应把 Phase 15 视为已完成 checkpoint，并在继续前重新选择下一轮 kickoff。
 
 ---
 
@@ -27,12 +27,13 @@
 - canonical promotion write-through、dedupe、trace-based supersede
 - canonical reuse policy / retrieval integration / traceability baseline
 
-当前最需要明确的是：
+Phase 15 已经明确并落地：
 
-- canonical reuse evaluation record schema
+- canonical reuse evaluation record schema 与 judgment vocabulary
 - evaluation summary / judgment distribution 的最小表达
-- retrieval hit provenance 与 evaluation judgment 的显式对应关系
-- operator 如何检查当前 canonical reuse evaluation baseline
+- canonical citation resolution 与 evaluation judgment 的显式对应关系
+- retrieval context 已存在时的 provenance attachment
+- operator-facing inspect / review / report path
 
 ---
 
@@ -66,12 +67,17 @@
 - Phase 14 `Canonical Reuse Policy Baseline` 已完成
 - 下一轮 primary track 已选择为 `Evaluation / Policy`
 - Phase 15 `Canonical Reuse Evaluation Baseline` kickoff / breakdown 已建立
-- 当前已进入新一轮 planning 状态
+- canonical reuse evaluation record / summary / report baseline 已实现
+- CLI 已新增 `canonical-reuse-evaluate`、`canonical-reuse-eval`、`canonical-reuse-eval-json`
+- `inspect` / `review` 已接入 canonical reuse evaluation 摘要
+- evaluation record 已解析 canonical citation，并在存在 `retrieval.json` 时附带 retrieval provenance
+- `python3 -m unittest tests.test_cli` 已通过（115 tests）
+- `docs/plans/phase15/closeout.md` 已完成
 
 ## 下一步
 
 下一步应优先完成：
 
-1. 明确 canonical reuse evaluation 的最小 schema / summary 结构
-2. 切出 `feat/phase15-canonical-reuse-evaluation`
-3. 从 evaluation baseline 开始实现
+1. 将当前 Phase 15 分支作为稳定成果整理提交
+2. 判断是否将 `feat/phase15-canonical-reuse-evaluation` 合并回 `main`
+3. 基于 `docs/system_tracks.md` 为下一轮 phase 做 fresh kickoff
