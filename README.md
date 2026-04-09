@@ -251,6 +251,16 @@ swl task knowledge-capture <task-id> --knowledge-stage candidate --knowledge-sou
 swl task intake <task-id>
 ```
 
+Knowledge review and promotion:
+
+```bash id="q2m9kb"
+swl task knowledge-review-queue <task-id>
+swl task knowledge-promote <task-id> <object-id> --target reuse --note "Promote for retrieval reuse."
+swl task knowledge-promote <task-id> <object-id> --target canonical --note "Promote to canonical after review."
+swl task knowledge-reject <task-id> <object-id> --target reuse --note "Keep task-linked only."
+swl task knowledge-decisions <task-id>
+```
+
 Run the test suite:
 
 ```bash id="w0d5ha"

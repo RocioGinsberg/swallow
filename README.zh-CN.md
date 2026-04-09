@@ -243,6 +243,16 @@ swl task knowledge-capture <task-id> --knowledge-stage candidate --knowledge-sou
 swl task intake <task-id>
 ```
 
+knowledge review 与 promote / reject：
+
+```bash
+swl task knowledge-review-queue <task-id>
+swl task knowledge-promote <task-id> <object-id> --target reuse --note "提升到 retrieval reuse。"
+swl task knowledge-promote <task-id> <object-id> --target canonical --note "审查后提升为 canonical。"
+swl task knowledge-reject <task-id> <object-id> --target reuse --note "暂时保持 task-linked。"
+swl task knowledge-decisions <task-id>
+```
+
 运行测试：
 
 ```bash

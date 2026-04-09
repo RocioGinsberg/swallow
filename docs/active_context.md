@@ -6,7 +6,7 @@
 - active_phase: `Phase 12`
 - active_slice: `Knowledge Promotion And Reuse Review`
 - active_branch: `feat/phase12-knowledge-promotion-review`（建议）
-- status: `planning`
+- status: `in_progress`
 
 ---
 
@@ -167,15 +167,34 @@
 
 ---
 
+## 当前推进
+
+已完成：
+
+- `Phase 12` kickoff / breakdown 文档已确认
+- review queue baseline 已落地，新增 `swl task knowledge-review-queue`
+- promote / reject entrypoints 已落地，新增：
+  - `swl task knowledge-promote`
+  - `swl task knowledge-reject`
+- decision record 已落地：
+  - `knowledge_decisions.jsonl`
+  - `artifacts/knowledge_decisions_report.md`
+- operator 可通过 `swl task knowledge-decisions` / `knowledge-decisions-json` 检查决策记录
+- reuse-readiness 已更直接纳入 `swl task inspect` / `swl task review`
+- 相关 CLI 测试已补齐并通过
+- README / README.zh-CN 已补充 intake 之后的 review / promotion 流程
+
 ## 当前待办
 
-- [ ] 确认 `Phase 12` 的 kickoff 文档
-- [ ] 确认 `Phase 12` 的 breakdown 文档
-- [ ] 确认 review queue 的最小输出形态
-- [ ] 确认 promote / reject 的命令边界
-- [ ] 确认 decision record 应落在哪类 artifact / record
-- [ ] 确认 reuse-readiness 应优先进入哪个 inspect 路径
+- [x] 确认 `Phase 12` 的 kickoff 文档
+- [x] 确认 `Phase 12` 的 breakdown 文档
+- [x] 确认 review queue 的最小输出形态
+- [x] 确认 promote / reject 的命令边界
+- [x] 确认 decision record 应落在哪类 artifact / record
+- [x] 确认 reuse-readiness 应优先进入哪个 inspect 路径
 - [ ] 开始 feature branch 开发
+- [x] 把 reuse-readiness 更直接纳入 `inspect` / `review`
+- [x] 同步 README / CLI help 的 Phase 12 工作流说明
 
 ---
 
@@ -183,7 +202,6 @@
 
 下一步应优先完成：
 
-1. `docs/plans/phase12/kickoff.md`
-2. `docs/plans/phase12/breakdown.md`
-
-在 kickoff 与 breakdown 明确后，再开始具体实现与 Git 小步提交。
+1. 收紧 reuse-readiness inspect 路径，让 blocked reason / ready state 在 `inspect` 或 `review` 中更直接可见
+2. 切出 `feat/phase12-knowledge-promotion-review`，按 slice 做小步提交
+3. 评估是否需要把 review queue 摘要进一步纳入 `task queue` 或 `control` 视图
