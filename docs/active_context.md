@@ -6,13 +6,13 @@
 - active_phase: `Phase 13`
 - active_slice: `Canonical Knowledge Registry Baseline`
 - active_branch: `feat/phase13-canonical-knowledge-registry`
-- status: `planning`
+- status: `in_progress`
 
 ---
 
 ## 当前目标
 
-当前默认目标是把 Phase 12 已建立的 canonical promotion gate，推进到显式 canonical registry baseline。
+当前默认目标是建立显式 canonical knowledge registry baseline，并把现有 canonical promotion 接到 task 外持久化路径。
 
 当前重点不是继续扩 queue / control / review 宽度，而是补齐 canonical destination、inspect path 和 source traceability。
 
@@ -63,10 +63,24 @@
 5. docs / help alignment
 6. phase closeout
 
+## 当前推进
+
+已完成：
+
+- canonical record schema baseline 已落地
+- canonical registry persistence 已落地：
+  - `.swl/canonical_knowledge/registry.jsonl`
+- canonical promotion 已接入 registry write-through
+- 新增 operator inspect 入口：
+  - `swl task canonical-registry`
+  - `swl task canonical-registry-json`
+- task artifact 视图已包含 canonical registry 路径
+- 相关 CLI 测试已补齐并通过
+
 ## 下一步
 
 下一步应优先完成：
 
-1. `docs/plans/phase13/breakdown.md`
-2. 确认 canonical registry 的最小存储位置
-3. 从 canonical registry schema / persistence baseline 开始实现
+1. 收紧 canonical registry 在 inspect / review / queue 中的呈现边界
+2. 对齐 README / CLI help 中 canonical registry 的 operator 语义
+3. 继续评估是否需要最小 canonical registry index / summary 结构
