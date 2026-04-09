@@ -34,14 +34,14 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 12`
-- latest_completed_slice: `Knowledge Promotion And Reuse Review`
+- latest_completed_phase: `Phase 13`
+- latest_completed_slice: `Canonical Knowledge Registry Baseline`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-09`
 
 说明：
 
-- Phase 0 到 Phase 12 已完成并形成稳定 checkpoint
+- Phase 0 到 Phase 13 已完成并形成稳定 checkpoint
 - post-Phase-2 retrieval baseline 已完成
 - post-Phase-5 executor / external-input slice 已完成
 - post-Phase-5 retrieval / memory-next slice 已完成
@@ -59,8 +59,8 @@
 
 说明：
 
-- 当前默认不再继续扩张已完成的 Phase 12，而应先重新选择下一轮 primary track
-- 当前最近完成的 stop/go 边界以 `docs/plans/phase12/closeout.md` 为准
+- 当前默认不再继续扩张已完成的 Phase 13，而应先重新选择下一轮 primary track
+- 当前最近完成的 stop/go 边界以 `docs/plans/phase13/closeout.md` 为准
 
 ---
 
@@ -72,10 +72,12 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase12/closeout.md`
+5. `docs/plans/phase13/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase13/kickoff.md`
+- `docs/plans/phase13/breakdown.md`
 - `docs/plans/phase12/kickoff.md`
 - `docs/plans/phase12/breakdown.md`
 - `docs/archive/*`

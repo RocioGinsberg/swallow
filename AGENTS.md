@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 12 基线
+- Phase 0 到 Phase 13 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -40,24 +40,24 @@
 当前最近完成的 phase 为：
 
 - **Latest Completed Track**：`Retrieval / Memory`
-- **Latest Completed Phase**：`Phase 12`
-- **Latest Completed Slice**：`Knowledge Promotion And Reuse Review`
+- **Latest Completed Phase**：`Phase 13`
+- **Latest Completed Slice**：`Canonical Knowledge Registry Baseline`
 
-Phase 12 已完成的核心内容包括：
+Phase 13 已完成的核心内容包括：
 
-- 给 staged knowledge 建立显式 review / promote / reject 路径
-- 明确 task-linked knowledge 与 reusable knowledge 的 operator 决策入口
-- 让 imported knowledge 从“已记录”走向“可复用”，但保持显式 gate
-- 不做自动 promotion
-- 不做隐式全局记忆
+- 建立 task 外部 canonical knowledge registry baseline
+- 把 canonical promotion 接到显式 registry persistence 路径
+- 提供 canonical registry / index inspect 入口
+- 保持 canonical traceability、显式 dedupe 与 trace-based supersede
+- 不做自动全局记忆，也不做隐式 retrieval reuse 开关
 
 当前默认不应继续无边界扩张到：
 
-- 新的 intake 宽度扩展
-- 大范围 Workbench / UX 扩张
-- remote ingestion / sync
-- 自动 knowledge promotion
-- 让 imported planning 直接自动驱动执行主循环
+- 自动 canonical reuse 或 semantic merge automation
+- 大范围 canonical governance workflow 扩张
+- remote registry / sync
+- 隐式全局记忆
+- 让 canonical registry 直接绕过显式 retrieval / policy gate
 
 ---
 
@@ -142,10 +142,12 @@ Phase 12 已完成的核心内容包括：
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
 4. `current_state.md`
-5. `docs/plans/phase12/closeout.md`
+5. `docs/plans/phase13/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase13/kickoff.md`
+- `docs/plans/phase13/breakdown.md`
 - `docs/plans/phase12/kickoff.md`
 - `docs/plans/phase12/breakdown.md`
 - `current_state.md`
@@ -201,7 +203,7 @@ Phase 12 已完成的核心内容包括：
 
 当前推荐分支命名方式：
 
-- `feat/phase12-knowledge-promotion-review`
+- `feat/<phase-or-slice>`
 
 ### 提交规则
 
@@ -244,16 +246,16 @@ Phase 12 已完成的核心内容包括：
 - branch 负责承载该轮开发
 - commit 负责记录 slice 内的小步变更
 
-对于已完成的 `Phase 12 / Retrieval / Memory / Knowledge Promotion And Reuse Review`，当前收口结果包括：
+对于已完成的 `Phase 13 / Retrieval / Memory / Canonical Knowledge Registry Baseline`，当前收口结果包括：
 
 1. `kickoff.md` 已完成
 2. `breakdown.md` 已完成
 3. feature branch 已切出并承载实现
-4. review queue 与 promote/reject entrypoints 已完成最小闭环
-5. reuse-readiness inspect tightening 已完成
+4. canonical registry / index persistence 已完成
+5. canonical promotion write-through、inspect path、traceability 已完成
 6. `closeout.md` 已完成
 
-下一轮工作应重新选择 active track / phase / slice，而不是默认继续扩张 Phase 12。
+下一轮工作应重新选择 active track / phase / slice，而不是默认继续扩张 Phase 13。
 
 ---
 
