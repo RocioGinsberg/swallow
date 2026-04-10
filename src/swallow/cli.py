@@ -1854,6 +1854,7 @@ def main(argv: list[str] | None = None) -> int:
         canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
         canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
         regression_attention = build_canonical_reuse_regression_attention(base_dir, args.task_id)
+        remote_handoff_attention = build_remote_handoff_attention(base_dir, args.task_id)
         canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
         canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
@@ -1904,6 +1905,14 @@ def main(argv: list[str] | None = None) -> int:
             f"canonical_reuse_regression_mismatch_count: {regression_attention['mismatch_count']}",
             f"canonical_reuse_regression_mismatches: {regression_attention['mismatches']}",
             f"canonical_reuse_regression_command: {regression_attention['recommended_command']}",
+            f"remote_handoff_needed: {remote_handoff_attention['needs_attention']}",
+            f"remote_handoff_summary: {remote_handoff_attention['summary']}",
+            f"remote_handoff_contract_kind: {remote_handoff_attention['contract_kind']}",
+            f"remote_handoff_contract_status: {remote_handoff_attention['contract_status']}",
+            f"remote_handoff_boundary: {remote_handoff_attention['handoff_boundary']}",
+            f"remote_handoff_dispatch_readiness: {remote_handoff_attention['dispatch_readiness']}",
+            f"remote_handoff_operator_ack_required: {remote_handoff_attention['operator_ack_required']}",
+            f"remote_handoff_command: {remote_handoff_attention['recommended_command']}",
             "",
             "Checks",
             f"compatibility_status: {compatibility.get('status', 'pending')}",
@@ -1952,6 +1961,7 @@ def main(argv: list[str] | None = None) -> int:
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
+            f"remote_handoff_contract_report: {state.artifact_paths.get('remote_handoff_contract_report', '-')}",
             f"validation_report: {state.artifact_paths.get('validation_report', '-')}",
             f"compatibility_report: {state.artifact_paths.get('compatibility_report', '-')}",
             f"execution_fit_report: {state.artifact_paths.get('execution_fit_report', '-')}",

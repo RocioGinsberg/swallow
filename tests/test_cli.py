@@ -2616,6 +2616,65 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("canonical_reuse_regression_mismatch_count: 4", output)
         self.assertIn("canonical_reuse_regression_command: swl task canonical-reuse-regression task-regression-review", output)
 
+    def test_task_review_surfaces_remote_handoff_attention(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-remote-review"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Remote review",
+                goal="Surface remote handoff attention in review",
+                workspace_root=str(tmp_path),
+                status="created",
+                phase="intake",
+                updated_at="2026-04-10T10:10:00+00:00",
+                current_attempt_id="attempt-0001",
+                artifact_paths={
+                    "remote_handoff_contract_report": ".swl/tasks/task-remote-review/artifacts/remote_handoff_contract_report.md",
+                },
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "handoff.json").write_text(
+                json.dumps({"status": "pending", "next_operator_action": "Review resume_note.md and summary.md."}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "checkpoint_snapshot.json").write_text(
+                json.dumps({"checkpoint_state": "planned", "recommended_path": "review", "recommended_reason": "remote_handoff_contract_required", "resume_ready": False}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "remote_handoff_contract.json").write_text(
+                json.dumps(
+                    {
+                        "contract_kind": "remote_handoff_candidate",
+                        "contract_status": "planned",
+                        "handoff_boundary": "cross_site_candidate",
+                        "dispatch_readiness": "contract_required",
+                        "operator_ack_required": True,
+                        "recommended_next_action": "Review the remote handoff contract before treating this task as ready for remote dispatch.",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("remote_handoff_needed: yes", output)
+        self.assertIn("remote_handoff_summary: planned:cross_site_candidate:contract_required", output)
+        self.assertIn("remote_handoff_contract_kind: remote_handoff_candidate", output)
+        self.assertIn("remote_handoff_contract_status: planned", output)
+        self.assertIn("remote_handoff_boundary: cross_site_candidate", output)
+        self.assertIn("remote_handoff_dispatch_readiness: contract_required", output)
+        self.assertIn("remote_handoff_operator_ack_required: yes", output)
+        self.assertIn("remote_handoff_command: swl task remote-handoff task-remote-review", output)
+        self.assertIn("remote_handoff_contract_report: .swl/tasks/task-remote-review/artifacts/remote_handoff_contract_report.md", output)
+
     def test_task_checkpoint_prints_checkpoint_snapshot_report_and_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
