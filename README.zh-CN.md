@@ -95,7 +95,7 @@ swallow 长期围绕五层组织：
 
 当前仓库已经完成的稳定基线包括：
 
-- Phase 0 到 Phase 11
+- Phase 0 到 Phase 18
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -143,7 +143,6 @@ swallow 长期围绕五层组织：
 - `docs/plans/<phase>/kickoff.md`
 - `docs/plans/<phase>/breakdown.md`
 - `docs/plans/<phase>/closeout.md`
-- `docs/plans/<phase>/commit_summary.md`（可选）
 
 用于：
 - 当前 phase 的目标、拆解、收口

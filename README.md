@@ -96,7 +96,7 @@ It is about:
 
 The repository already has stable baselines for:
 
-- Phase 0 through Phase 11
+- Phase 0 through Phase 18
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -147,7 +147,6 @@ Used for:
 - `docs/plans/<phase>/kickoff.md`
 - `docs/plans/<phase>/breakdown.md`
 - `docs/plans/<phase>/closeout.md`
-- `docs/plans/<phase>/commit_summary.md` (optional)
 
 Used for:
 - phase goals

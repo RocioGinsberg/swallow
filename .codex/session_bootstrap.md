@@ -18,8 +18,8 @@
 1. `AGENTS.md`
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
-4. `docs/plans/phase12/kickoff.md`
-5. `docs/plans/phase12/breakdown.md`
+4. `docs/plans/<active-phase>/kickoff.md`
+5. `docs/plans/<active-phase>/breakdown.md`
 
 如果以上文件已经足够回答“当前在做什么、为什么做、边界是什么、下一步是什么”，则不要继续扩大读取范围。
 
@@ -36,7 +36,7 @@
 - 需要确认当前恢复命令、最小验证命令、已知问题
 - 需要快速理解最近阶段收口后的整体状态
 
-### 读取 `docs/plans/phase12/closeout.md`
+### 读取 `docs/plans/<active-phase>/closeout.md`
 适用情况：
 
 - 当前 phase 已经接近收口
@@ -78,7 +78,7 @@
 当前默认工作方向为：
 
 - active_track: `Retrieval / Memory`
-- active_phase: `Phase 12`
+- active_phase: `Phase 18`
 - active_slice: `Knowledge Promotion And Reuse Review`
 
 当前默认分支建议：
@@ -188,8 +188,8 @@
 
 - [ ] 已读取 `AGENTS.md`
 - [ ] 已读取 `docs/active_context.md`
-- [ ] 已读取 `docs/plans/phase12/kickoff.md`
-- [ ] 已读取 `docs/plans/phase12/breakdown.md`
+- [ ] 已读取 `docs/plans/<active-phase>/kickoff.md`
+- [ ] 已读取 `docs/plans/<active-phase>/breakdown.md`
 - [ ] 已确认当前分支命名是否与当前 phase 对齐
 - [ ] 已确认当前任务没有无意扩张到 phase 外范围
 

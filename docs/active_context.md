@@ -8,7 +8,7 @@
 - active_track: `to_be_selected`
 - active_phase: `none_selected`
 - active_slice: `fresh_kickoff_required`
-- active_branch: `feat/phase18-remote-handoff-contract`
+- active_branch: `main`
 - status: `phase18_closed`
 
 ---
@@ -30,7 +30,7 @@ Phase 18 已完成的收口结果以 `docs/plans/phase18/closeout.md` 为准。
 - canonical promotion write-through、dedupe、trace-based supersede
 - canonical reuse policy / retrieval integration / traceability baseline
 
-截至 Phase 17 已经明确并落地：
+已经明确并落地：
 
 - canonical reuse evaluation record schema 与 judgment vocabulary
 - evaluation summary / judgment distribution 的最小表达
