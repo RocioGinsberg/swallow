@@ -5,19 +5,19 @@
 - latest_completed_track: `Workbench / UX`
 - latest_completed_phase: `Phase 17`
 - latest_completed_slice: `Canonical Reuse Regression Control Baseline`
-- active_track: `to_be_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `feat/phase17-canonical-reuse-regression-control`
-- status: `phase17_closed`
+- active_track: `Execution Topology`
+- active_phase: `Phase 18`
+- active_slice: `Remote Handoff Contract Baseline`
+- active_branch: `feat/phase18-remote-handoff-contract`
+- status: `kickoff`
 
 ---
 
 ## 当前目标
 
-当前默认目标不是继续扩张已完成的 Phase 17，而是把它视为稳定 checkpoint，并在下一轮实现前重新选择新的 active track / phase / slice。
+当前默认目标是在不直接做 remote executor 平台化的前提下，把 remote-capable route 背后的 handoff / transport / ownership contract 做成显式 baseline。
 
-Phase 17 已完成的收口结果以 `docs/plans/phase17/closeout.md` 为准。
+Phase 17 已完成的收口结果仍以 `docs/plans/phase17/closeout.md` 为准；Phase 18 以 fresh kickoff 重新定义边界。
 
 ---
 
@@ -41,11 +41,11 @@ Phase 17 已完成的收口结果以 `docs/plans/phase17/closeout.md` 为准。
 - baseline 与当前 evaluation summary 的 compare path
 - regression snapshot 在 `inspect` / `review` 中的可见面
 
-当前待解决的不是补做 Phase 17 基线，而是为下一轮工作重新确定：
+当前待解决的问题是：
 
-- primary track
-- fresh kickoff 边界
-- 对应的 feature branch
+- remote-capable route 出现时，系统如何显式描述 handoff contract、transport contract 与 ownership truth
+- 当前 execution-site / dispatch / handoff 记录如何从 local baseline 平滑扩展到 remote candidate baseline
+- 如何保持 remote handoff 显式、可检查，而不假装当前系统已经支持真实 remote execution
 
 ---
 
@@ -55,12 +55,16 @@ Phase 17 已完成的收口结果以 `docs/plans/phase17/closeout.md` 为准。
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `current_state.md`
-4. `docs/system_tracks.md`
+3. `docs/system_tracks.md`
+4. `current_state.md`
 5. `docs/plans/phase17/closeout.md`
+6. `docs/plans/phase18/kickoff.md`
+7. `docs/plans/phase18/breakdown.md`
 
 需要恢复历史上下文时再读取：
 
+- `docs/plans/phase18/kickoff.md`
+- `docs/plans/phase18/breakdown.md`
 - `docs/plans/phase17/kickoff.md`
 - `docs/plans/phase17/breakdown.md`
 - `docs/plans/phase16/kickoff.md`
@@ -106,11 +110,12 @@ Phase 17 已完成的收口结果以 `docs/plans/phase17/closeout.md` 为准。
 - regression control baseline 已有针对性 CLI 测试覆盖
 - `README.md` / `README.zh-CN.md` 已同步 regression control workflow
 - `docs/plans/phase17/closeout.md` 已完成
+- Phase 18 `Remote Handoff Contract Baseline` 已完成 kickoff / breakdown 规划
 
 ## 下一步
 
 下一步应优先完成：
 
-1. 基于 `docs/system_tracks.md` 选择下一轮 primary track
-2. 为新一轮 phase 编写 fresh kickoff，明确目标、非目标与验收边界
-3. 按新 slice 切出对应的 `feat/<phase-or-slice>` 分支
+1. 先把 remote handoff contract record 的最小字段与 artifact 结构做出来
+2. 再接 execution-site / dispatch / handoff 的 operator-facing report surface
+3. 最后补 route selection 与 control path 的语义对齐
