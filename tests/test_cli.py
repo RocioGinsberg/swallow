@@ -3158,6 +3158,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("route_report:", output)
         self.assertIn("execution_site_report:", output)
         self.assertIn("handoff_report:", output)
+        self.assertIn("remote_handoff_contract_report:", output)
         self.assertIn("retrieval_report:", output)
         self.assertIn("validation_report:", output)
         self.assertIn("compatibility_report:", output)
@@ -3315,6 +3316,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("resume              Resume a task on the accepted run path", output)
         self.assertIn("artifacts           Print grouped task artifact paths.", output)
         self.assertIn("execution-site      Print the task execution-site report artifact.", output)
+        self.assertIn("remote-handoff", output)
+        self.assertIn("Print the task remote handoff contract report", output)
 
     def test_task_list_help_includes_focus_and_limit(self) -> None:
         stdout = StringIO()
@@ -3596,6 +3599,9 @@ class CliLifecycleTest(unittest.TestCase):
                 handoff_report = (tasks_dir / task_id / "artifacts" / "handoff_report.md").read_text(
                     encoding="utf-8"
                 )
+                remote_handoff_report = (
+                    tasks_dir / task_id / "artifacts" / "remote_handoff_contract_report.md"
+                ).read_text(encoding="utf-8")
                 retrieval_report = (tasks_dir / task_id / "artifacts" / "retrieval_report.md").read_text(
                     encoding="utf-8"
                 )
@@ -3624,6 +3630,9 @@ class CliLifecycleTest(unittest.TestCase):
                 topology = json.loads((tasks_dir / task_id / "topology.json").read_text(encoding="utf-8"))
                 dispatch = json.loads((tasks_dir / task_id / "dispatch.json").read_text(encoding="utf-8"))
                 handoff = json.loads((tasks_dir / task_id / "handoff.json").read_text(encoding="utf-8"))
+                remote_handoff = json.loads(
+                    (tasks_dir / task_id / "remote_handoff_contract.json").read_text(encoding="utf-8")
+                )
 
                 self.assertIn("Summary for", summary)
                 self.assertIn("notes.md", summary)
@@ -3787,12 +3796,18 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("Topology Report", topology_report)
                 self.assertIn("Dispatch Report", dispatch_report)
                 self.assertIn("Handoff Report", handoff_report)
+                self.assertIn("Remote Handoff Contract Report", remote_handoff_report)
+                self.assertIn("## Remote Handoff Contract", execution_site_report)
+                self.assertIn("## Remote Handoff Contract", dispatch_report)
+                self.assertIn("remote_handoff_contract_kind: not_applicable", handoff_report)
                 self.assertIn("contract_status: ready", handoff_report)
                 self.assertIn("contract_kind: operator_review", handoff_report)
                 self.assertIn("next_owner_kind: operator", handoff_report)
                 self.assertIn("next_owner_ref: swl_cli", handoff_report)
                 self.assertIn("## Required Inputs", handoff_report)
                 self.assertIn("## Expected Outputs", handoff_report)
+                self.assertIn("contract_kind: not_applicable", remote_handoff_report)
+                self.assertIn("handoff_boundary: local_baseline", remote_handoff_report)
                 self.assertIn("Retrieval Report", retrieval_report)
                 self.assertIn("reused_knowledge_count: 0", retrieval_report)
                 self.assertIn("Source Grounding", source_grounding)
@@ -3841,6 +3856,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(dispatch["transport_kind"], "local_process")
                 self.assertEqual(dispatch["dispatch_status"], "local_dispatched")
                 self.assertEqual(dispatch["execution_lifecycle"], "dispatched")
+                self.assertEqual(dispatch["remote_handoff_contract_kind"], "not_applicable")
+                self.assertEqual(dispatch["remote_handoff_dispatch_readiness"], "not_applicable")
                 self.assertTrue(bool(dispatch["dispatch_requested_at"]))
                 self.assertTrue(bool(dispatch["dispatch_started_at"]))
                 self.assertEqual(handoff["status"], "review_completed_run")
@@ -3865,8 +3882,15 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(handoff["execution_site"], "local")
                 self.assertEqual(handoff["executor_family"], "cli")
                 self.assertEqual(handoff["dispatch_status"], "local_dispatched")
+                self.assertEqual(handoff["remote_handoff_contract_kind"], "not_applicable")
+                self.assertEqual(handoff["remote_handoff_contract_status"], "not_needed")
+                self.assertEqual(handoff["remote_handoff_boundary"], "local_baseline")
                 self.assertEqual(handoff["blocking_reason"], "")
                 self.assertIn("Review summary.md", handoff["next_operator_action"])
+                self.assertEqual(remote_handoff["contract_kind"], "not_applicable")
+                self.assertEqual(remote_handoff["contract_status"], "not_needed")
+                self.assertEqual(remote_handoff["handoff_boundary"], "local_baseline")
+                self.assertEqual(remote_handoff["transport_truth"], "local_only")
                 self.assertIn("task_semantics", memory)
                 self.assertIn("knowledge_objects", memory)
                 self.assertEqual(memory["executor"]["name"], "mock")
@@ -5815,6 +5839,7 @@ class CliLifecycleTest(unittest.TestCase):
             execution_site_stdout = StringIO()
             dispatch_stdout = StringIO()
             handoff_stdout = StringIO()
+            remote_handoff_stdout = StringIO()
             execution_fit_stdout = StringIO()
             semantics_stdout = StringIO()
             knowledge_objects_stdout = StringIO()
@@ -5832,6 +5857,7 @@ class CliLifecycleTest(unittest.TestCase):
             execution_site_json_stdout = StringIO()
             dispatch_json_stdout = StringIO()
             handoff_json_stdout = StringIO()
+            remote_handoff_json_stdout = StringIO()
             execution_fit_json_stdout = StringIO()
             semantics_json_stdout = StringIO()
             knowledge_objects_json_stdout = StringIO()
@@ -5880,6 +5906,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "dispatch", task_id]), 0)
             with redirect_stdout(handoff_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "handoff", task_id]), 0)
+            with redirect_stdout(remote_handoff_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "remote-handoff", task_id]), 0)
             with redirect_stdout(execution_fit_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "execution-fit", task_id]), 0)
             with redirect_stdout(compatibility_json_stdout):
@@ -5894,6 +5922,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "dispatch-json", task_id]), 0)
             with redirect_stdout(handoff_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "handoff-json", task_id]), 0)
+            with redirect_stdout(remote_handoff_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "remote-handoff-json", task_id]), 0)
             with redirect_stdout(execution_fit_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "execution-fit-json", task_id]), 0)
             with redirect_stdout(semantics_json_stdout):
@@ -5940,6 +5970,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Execution Site Report", execution_site_stdout.getvalue())
         self.assertIn("Dispatch Report", dispatch_stdout.getvalue())
         self.assertIn("Handoff Report", handoff_stdout.getvalue())
+        self.assertIn("Remote Handoff Contract Report", remote_handoff_stdout.getvalue())
         self.assertIn("Execution Fit Report", execution_fit_stdout.getvalue())
         self.assertIn('"status"', compatibility_json_stdout.getvalue())
         self.assertIn('"name"', route_json_stdout.getvalue())
@@ -5951,6 +5982,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"next_operator_action"', handoff_json_stdout.getvalue())
         self.assertIn('"required_inputs"', handoff_json_stdout.getvalue())
         self.assertIn('"expected_outputs"', handoff_json_stdout.getvalue())
+        self.assertIn('"handoff_boundary"', remote_handoff_json_stdout.getvalue())
+        self.assertIn('"transport_truth"', remote_handoff_json_stdout.getvalue())
         self.assertIn('"findings"', execution_fit_json_stdout.getvalue())
         self.assertIn('"source_kind"', semantics_json_stdout.getvalue())
         self.assertIn("[", knowledge_objects_json_stdout.getvalue())

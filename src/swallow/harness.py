@@ -881,6 +881,7 @@ def build_topology_report(state: TaskState) -> str:
 
 
 def build_execution_site_record(state: TaskState) -> dict[str, object]:
+    remote_handoff = build_remote_handoff_contract_record(state)
     return {
         "contract_kind": state.execution_site_contract_kind,
         "boundary": state.execution_site_boundary,
@@ -893,10 +894,16 @@ def build_execution_site_record(state: TaskState) -> dict[str, object]:
         "remote_capable_intent": state.topology_remote_capable_intent,
         "dispatch_status": state.topology_dispatch_status,
         "execution_lifecycle": state.execution_lifecycle,
+        "remote_handoff_contract_kind": remote_handoff["contract_kind"],
+        "remote_handoff_contract_status": remote_handoff["contract_status"],
+        "remote_handoff_boundary": remote_handoff["handoff_boundary"],
+        "remote_handoff_dispatch_readiness": remote_handoff["dispatch_readiness"],
+        "remote_handoff_operator_ack_required": remote_handoff["operator_ack_required"],
     }
 
 
 def build_execution_site_report(state: TaskState) -> str:
+    remote_handoff = build_remote_handoff_contract_record(state)
     return "\n".join(
         [
             "# Execution Site Report",
@@ -912,11 +919,21 @@ def build_execution_site_report(state: TaskState) -> str:
             f"- remote_capable_intent: {'yes' if state.topology_remote_capable_intent else 'no'}",
             f"- dispatch_status: {state.topology_dispatch_status}",
             f"- execution_lifecycle: {state.execution_lifecycle}",
+            "",
+            "## Remote Handoff Contract",
+            f"- contract_kind: {remote_handoff['contract_kind']}",
+            f"- contract_status: {remote_handoff['contract_status']}",
+            f"- handoff_boundary: {remote_handoff['handoff_boundary']}",
+            f"- transport_truth: {remote_handoff['transport_truth']}",
+            f"- ownership_required: {remote_handoff['ownership_required']}",
+            f"- dispatch_readiness: {remote_handoff['dispatch_readiness']}",
+            f"- operator_ack_required: {'yes' if remote_handoff['operator_ack_required'] else 'no'}",
         ]
     )
 
 
 def build_dispatch_record(state: TaskState) -> dict[str, object]:
+    remote_handoff = build_remote_handoff_contract_record(state)
     return {
         "attempt_id": state.current_attempt_id,
         "attempt_number": state.current_attempt_number,
@@ -935,10 +952,18 @@ def build_dispatch_record(state: TaskState) -> dict[str, object]:
         "dispatch_requested_at": state.dispatch_requested_at,
         "dispatch_started_at": state.dispatch_started_at,
         "execution_lifecycle": state.execution_lifecycle,
+        "remote_handoff_contract_kind": remote_handoff["contract_kind"],
+        "remote_handoff_contract_status": remote_handoff["contract_status"],
+        "remote_handoff_boundary": remote_handoff["handoff_boundary"],
+        "remote_handoff_transport_truth": remote_handoff["transport_truth"],
+        "remote_handoff_ownership_required": remote_handoff["ownership_required"],
+        "remote_handoff_dispatch_readiness": remote_handoff["dispatch_readiness"],
+        "remote_handoff_operator_ack_required": remote_handoff["operator_ack_required"],
     }
 
 
 def build_dispatch_report(state: TaskState) -> str:
+    remote_handoff = build_remote_handoff_contract_record(state)
     return "\n".join(
         [
             "# Dispatch Report",
@@ -960,6 +985,15 @@ def build_dispatch_report(state: TaskState) -> str:
             f"- dispatch_requested_at: {state.dispatch_requested_at or 'pending'}",
             f"- dispatch_started_at: {state.dispatch_started_at or 'pending'}",
             f"- execution_lifecycle: {state.execution_lifecycle}",
+            "",
+            "## Remote Handoff Contract",
+            f"- contract_kind: {remote_handoff['contract_kind']}",
+            f"- contract_status: {remote_handoff['contract_status']}",
+            f"- handoff_boundary: {remote_handoff['handoff_boundary']}",
+            f"- transport_truth: {remote_handoff['transport_truth']}",
+            f"- ownership_required: {remote_handoff['ownership_required']}",
+            f"- dispatch_readiness: {remote_handoff['dispatch_readiness']}",
+            f"- operator_ack_required: {'yes' if remote_handoff['operator_ack_required'] else 'no'}",
         ]
     )
 
@@ -1067,6 +1101,7 @@ def build_handoff_record(
     stop_policy_result: StopPolicyResult,
     execution_budget_policy_result: ExecutionBudgetPolicyResult,
 ) -> dict[str, object]:
+    remote_handoff = build_remote_handoff_contract_record(state)
     required_inputs = [
         state.artifact_paths.get("summary", ""),
         state.artifact_paths.get("resume_note", ""),
@@ -1128,6 +1163,13 @@ def build_handoff_record(
         "executor_family": state.topology_executor_family,
         "dispatch_status": state.topology_dispatch_status,
         "execution_lifecycle": state.execution_lifecycle,
+        "remote_handoff_contract_kind": remote_handoff["contract_kind"],
+        "remote_handoff_contract_status": remote_handoff["contract_status"],
+        "remote_handoff_boundary": remote_handoff["handoff_boundary"],
+        "remote_handoff_transport_truth": remote_handoff["transport_truth"],
+        "remote_handoff_ownership_required": remote_handoff["ownership_required"],
+        "remote_handoff_dispatch_readiness": remote_handoff["dispatch_readiness"],
+        "remote_handoff_operator_ack_required": remote_handoff["operator_ack_required"],
         "required_inputs": required_inputs,
         "expected_outputs": expected_outputs,
         "next_owner_kind": next_owner_kind,
@@ -1185,6 +1227,13 @@ def build_handoff_report(handoff_record: dict[str, object]) -> str:
         f"- executor_family: {handoff_record.get('executor_family', 'pending')}",
         f"- dispatch_status: {handoff_record.get('dispatch_status', 'pending')}",
         f"- execution_lifecycle: {handoff_record.get('execution_lifecycle', 'pending')}",
+        f"- remote_handoff_contract_kind: {handoff_record.get('remote_handoff_contract_kind', 'pending')}",
+        f"- remote_handoff_contract_status: {handoff_record.get('remote_handoff_contract_status', 'pending')}",
+        f"- remote_handoff_boundary: {handoff_record.get('remote_handoff_boundary', 'pending')}",
+        f"- remote_handoff_transport_truth: {handoff_record.get('remote_handoff_transport_truth', 'pending')}",
+        f"- remote_handoff_ownership_required: {handoff_record.get('remote_handoff_ownership_required', 'pending')}",
+        f"- remote_handoff_dispatch_readiness: {handoff_record.get('remote_handoff_dispatch_readiness', 'pending')}",
+        f"- remote_handoff_operator_ack_required: {'yes' if handoff_record.get('remote_handoff_operator_ack_required', False) else 'no'}",
         f"- executor_status: {handoff_record.get('executor_status', 'pending')}",
         f"- failure_kind: {handoff_record.get('failure_kind', '') or 'none'}",
         f"- compatibility_status: {handoff_record.get('compatibility_status', 'pending')}",

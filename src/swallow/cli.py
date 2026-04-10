@@ -47,6 +47,7 @@ from .paths import (
     knowledge_partition_path,
     knowledge_policy_path,
     memory_path,
+    remote_handoff_contract_path,
     retry_policy_path,
     stop_policy_path,
     task_semantics_path,
@@ -59,7 +60,17 @@ from .store import iter_task_states, load_state
 
 ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("Core Run Record", ("task_semantics_report", "summary", "resume_note", "executor_output", "executor_prompt")),
-    ("Routing And Topology", ("route_report", "topology_report", "execution_site_report", "dispatch_report", "handoff_report")),
+    (
+        "Routing And Topology",
+        (
+            "route_report",
+            "topology_report",
+            "execution_site_report",
+            "dispatch_report",
+            "handoff_report",
+            "remote_handoff_contract_report",
+        ),
+    ),
     (
         "Retrieval And Grounding",
         (
@@ -1181,6 +1192,11 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch_parser.add_argument("task_id", help="Task identifier.")
     handoff_parser = task_subparsers.add_parser("handoff", help="Print the task handoff report artifact.")
     handoff_parser.add_argument("task_id", help="Task identifier.")
+    remote_handoff_parser = task_subparsers.add_parser(
+        "remote-handoff",
+        help="Print the task remote handoff contract report artifact.",
+    )
+    remote_handoff_parser.add_argument("task_id", help="Task identifier.")
     execution_fit_parser = task_subparsers.add_parser(
         "execution-fit",
         help="Print the task execution-fit report artifact.",
@@ -1223,6 +1239,11 @@ def build_parser() -> argparse.ArgumentParser:
     dispatch_json_parser.add_argument("task_id", help="Task identifier.")
     handoff_json_parser = task_subparsers.add_parser("handoff-json", help="Print the task handoff record.")
     handoff_json_parser.add_argument("task_id", help="Task identifier.")
+    remote_handoff_json_parser = task_subparsers.add_parser(
+        "remote-handoff-json",
+        help="Print the task remote handoff contract record.",
+    )
+    remote_handoff_json_parser.add_argument("task_id", help="Task identifier.")
     execution_fit_json_parser = task_subparsers.add_parser(
         "execution-fit-json",
         help="Print the task execution-fit record.",
@@ -1936,6 +1957,7 @@ def main(argv: list[str] | None = None) -> int:
         "execution-site",
         "dispatch",
         "handoff",
+        "remote-handoff",
         "execution-fit",
         "retry-policy",
         "execution-budget-policy",
@@ -1958,6 +1980,7 @@ def main(argv: list[str] | None = None) -> int:
             "execution-site": "execution_site_report.md",
             "dispatch": "dispatch_report.md",
             "handoff": "handoff_report.md",
+            "remote-handoff": "remote_handoff_contract_report.md",
             "execution-fit": "execution_fit_report.md",
             "retry-policy": "retry_policy_report.md",
             "execution-budget-policy": "execution_budget_policy_report.md",
@@ -1993,6 +2016,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "handoff-json":
         print(json.dumps(json.loads(handoff_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "remote-handoff-json":
+        print(json.dumps(json.loads(remote_handoff_contract_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "execution-fit-json":
