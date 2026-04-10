@@ -29,11 +29,21 @@ from swallow.executor import (
     resolve_executor_name,
     run_codex_executor,
 )
-from swallow.harness import build_resume_note, build_retrieval_report, build_source_grounding
+from swallow.harness import (
+    build_remote_handoff_contract_record,
+    build_resume_note,
+    build_retrieval_report,
+    build_source_grounding,
+)
 from swallow.knowledge_policy import evaluate_knowledge_policy
 from swallow.models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskState, ValidationResult
 from swallow.orchestrator import build_task_retrieval_request, create_task, run_task
-from swallow.paths import canonical_registry_path, canonical_reuse_policy_path, canonical_reuse_regression_path
+from swallow.paths import (
+    canonical_registry_path,
+    canonical_reuse_policy_path,
+    canonical_reuse_regression_path,
+    remote_handoff_contract_path,
+)
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
@@ -95,6 +105,74 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(state.capability_assembly, build_capability_assembly(DEFAULT_CAPABILITY_MANIFEST).to_dict())
         self.assertEqual(persisted["capability_manifest"], DEFAULT_CAPABILITY_MANIFEST.to_dict())
         self.assertEqual(capability_assembly["effective"], DEFAULT_CAPABILITY_MANIFEST.to_dict())
+
+    def test_create_task_initializes_remote_handoff_contract_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Remote handoff baseline",
+                goal="Persist baseline remote handoff contract truth",
+                workspace_root=tmp_path,
+            )
+            contract = json.loads(remote_handoff_contract_path(tmp_path, state.task_id).read_text(encoding="utf-8"))
+            report = (
+                tmp_path / ".swl" / "tasks" / state.task_id / "artifacts" / "remote_handoff_contract_report.md"
+            ).read_text(encoding="utf-8")
+
+        self.assertEqual(contract["contract_kind"], "not_applicable")
+        self.assertEqual(contract["contract_status"], "not_needed")
+        self.assertEqual(contract["handoff_boundary"], "local_baseline")
+        self.assertEqual(contract["transport_truth"], "local_only")
+        self.assertEqual(contract["ownership_required"], "no")
+        self.assertEqual(contract["dispatch_readiness"], "not_applicable")
+        self.assertFalse(contract["remote_candidate"])
+        self.assertFalse(contract["operator_ack_required"])
+        self.assertEqual(contract["next_owner_kind"], "local_orchestrator")
+        self.assertTrue(state.artifact_paths["remote_handoff_contract_json"].endswith("remote_handoff_contract.json"))
+        self.assertTrue(
+            state.artifact_paths["remote_handoff_contract_report"].endswith("remote_handoff_contract_report.md")
+        )
+        self.assertIn("Remote Handoff Contract Report", report)
+        self.assertIn("contract_kind: not_applicable", report)
+        self.assertIn("handoff_boundary: local_baseline", report)
+
+    def test_remote_handoff_contract_record_marks_cross_site_candidate_truth(self) -> None:
+        state = TaskState(
+            task_id="task-remote",
+            title="Remote candidate",
+            goal="Describe remote handoff contract",
+            workspace_root="/tmp/workspace",
+            route_name="remote-prototype",
+            route_execution_site="remote",
+            route_remote_capable=True,
+            route_transport_kind="remote_transport_candidate",
+            topology_route_name="remote-prototype",
+            topology_execution_site="remote",
+            topology_transport_kind="remote_transport_candidate",
+            topology_remote_capable_intent=True,
+            topology_dispatch_status="planned",
+            execution_site_contract_kind="remote_candidate",
+            execution_site_boundary="cross_site_candidate",
+            execution_site_contract_status="planned",
+            execution_site_handoff_required=True,
+        )
+
+        contract = build_remote_handoff_contract_record(state)
+
+        self.assertEqual(contract["contract_kind"], "remote_handoff_candidate")
+        self.assertEqual(contract["contract_status"], "planned")
+        self.assertEqual(contract["handoff_boundary"], "cross_site_candidate")
+        self.assertEqual(contract["transport_truth"], "explicit_remote_transport_required")
+        self.assertEqual(contract["ownership_required"], "yes")
+        self.assertEqual(contract["ownership_truth"], "transfer_required_before_remote_dispatch")
+        self.assertEqual(contract["dispatch_readiness"], "contract_required")
+        self.assertEqual(contract["dispatch_truth"], "planned")
+        self.assertTrue(contract["remote_candidate"])
+        self.assertTrue(contract["remote_capable_intent"])
+        self.assertTrue(contract["operator_ack_required"])
+        self.assertEqual(contract["next_owner_kind"], "remote_executor")
+        self.assertEqual(contract["next_owner_ref"], "unassigned")
 
     def test_cli_create_persists_explicit_capability_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

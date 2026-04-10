@@ -45,6 +45,7 @@ from .store import (
     save_knowledge_index,
     save_knowledge_policy,
     save_memory,
+    save_remote_handoff_contract,
     save_retrieval,
     save_retry_policy,
     save_route,
@@ -163,6 +164,8 @@ def write_task_artifacts(
     save_topology(base_dir, state.task_id, build_topology_record(state))
     save_execution_site(base_dir, state.task_id, build_execution_site_record(state))
     save_dispatch(base_dir, state.task_id, build_dispatch_record(state))
+    remote_handoff_contract_record = build_remote_handoff_contract_record(state)
+    save_remote_handoff_contract(base_dir, state.task_id, remote_handoff_contract_record)
     write_artifact(
         base_dir,
         state.task_id,
@@ -186,6 +189,12 @@ def write_task_artifacts(
         state.task_id,
         "dispatch_report.md",
         build_dispatch_report(state),
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "remote_handoff_contract_report.md",
+        build_remote_handoff_contract_report(remote_handoff_contract_record),
     )
     write_artifact(
         base_dir,
@@ -951,6 +960,98 @@ def build_dispatch_report(state: TaskState) -> str:
             f"- dispatch_requested_at: {state.dispatch_requested_at or 'pending'}",
             f"- dispatch_started_at: {state.dispatch_started_at or 'pending'}",
             f"- execution_lifecycle: {state.execution_lifecycle}",
+        ]
+    )
+
+
+def build_remote_handoff_contract_record(state: TaskState) -> dict[str, object]:
+    remote_candidate = (
+        state.execution_site_contract_kind == "remote_candidate"
+        or state.execution_site_boundary == "cross_site_candidate"
+        or state.topology_execution_site != "local"
+        or state.topology_transport_kind not in {"local_process", "local_detached_process"}
+        or state.topology_remote_capable_intent
+    )
+    if not remote_candidate:
+        return {
+            "contract_kind": "not_applicable",
+            "contract_status": "not_needed",
+            "handoff_boundary": "local_baseline",
+            "contract_reason": "Current route remains inside the local execution baseline and does not require remote handoff planning.",
+            "remote_candidate": False,
+            "remote_capable_intent": state.topology_remote_capable_intent,
+            "execution_site": state.topology_execution_site,
+            "execution_site_contract_kind": state.execution_site_contract_kind,
+            "execution_site_contract_status": state.execution_site_contract_status,
+            "transport_kind": state.topology_transport_kind,
+            "transport_truth": "local_only",
+            "ownership_required": "no",
+            "ownership_truth": "local_orchestrator_owned",
+            "dispatch_readiness": "not_applicable",
+            "dispatch_truth": state.topology_dispatch_status or "not_requested",
+            "operator_ack_required": False,
+            "next_owner_kind": state.current_attempt_owner_kind,
+            "next_owner_ref": state.current_attempt_owner_ref,
+            "blocking_reason": "",
+            "recommended_next_action": "Continue through the existing local execution path.",
+        }
+
+    return {
+        "contract_kind": "remote_handoff_candidate",
+        "contract_status": "planned",
+        "handoff_boundary": "cross_site_candidate",
+        "contract_reason": (
+            "Current route declares a remote-capable or cross-site execution boundary, so an explicit remote handoff contract"
+            " is required before any non-local dispatch."
+        ),
+        "remote_candidate": True,
+        "remote_capable_intent": state.topology_remote_capable_intent,
+        "execution_site": state.topology_execution_site,
+        "execution_site_contract_kind": state.execution_site_contract_kind,
+        "execution_site_contract_status": state.execution_site_contract_status,
+        "transport_kind": state.topology_transport_kind,
+        "transport_truth": "explicit_remote_transport_required",
+        "ownership_required": "yes",
+        "ownership_truth": "transfer_required_before_remote_dispatch",
+        "dispatch_readiness": "contract_required",
+        "dispatch_truth": state.topology_dispatch_status or "not_requested",
+        "operator_ack_required": True,
+        "next_owner_kind": "remote_executor",
+        "next_owner_ref": "unassigned",
+        "blocking_reason": (
+            "Remote candidate execution cannot proceed until transport, ownership, and dispatch contract details are made explicit."
+        ),
+        "recommended_next_action": (
+            "Review the remote handoff contract before treating this task as ready for remote dispatch."
+        ),
+    }
+
+
+def build_remote_handoff_contract_report(record: dict[str, object]) -> str:
+    return "\n".join(
+        [
+            "# Remote Handoff Contract Report",
+            "",
+            f"- contract_kind: {record.get('contract_kind', 'pending')}",
+            f"- contract_status: {record.get('contract_status', 'pending')}",
+            f"- handoff_boundary: {record.get('handoff_boundary', 'pending')}",
+            f"- contract_reason: {record.get('contract_reason', 'pending')}",
+            f"- remote_candidate: {'yes' if record.get('remote_candidate', False) else 'no'}",
+            f"- remote_capable_intent: {'yes' if record.get('remote_capable_intent', False) else 'no'}",
+            f"- execution_site: {record.get('execution_site', 'pending')}",
+            f"- execution_site_contract_kind: {record.get('execution_site_contract_kind', 'pending')}",
+            f"- execution_site_contract_status: {record.get('execution_site_contract_status', 'pending')}",
+            f"- transport_kind: {record.get('transport_kind', 'pending')}",
+            f"- transport_truth: {record.get('transport_truth', 'pending')}",
+            f"- ownership_required: {record.get('ownership_required', 'pending')}",
+            f"- ownership_truth: {record.get('ownership_truth', 'pending')}",
+            f"- dispatch_readiness: {record.get('dispatch_readiness', 'pending')}",
+            f"- dispatch_truth: {record.get('dispatch_truth', 'pending')}",
+            f"- operator_ack_required: {'yes' if record.get('operator_ack_required', False) else 'no'}",
+            f"- next_owner_kind: {record.get('next_owner_kind', 'pending')}",
+            f"- next_owner_ref: {record.get('next_owner_ref', 'pending')}",
+            f"- blocking_reason: {record.get('blocking_reason', '') or 'none'}",
+            f"- recommended_next_action: {record.get('recommended_next_action', 'pending')}",
         ]
     )
 
