@@ -34,14 +34,14 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 16`
-- latest_completed_slice: `Canonical Reuse Regression Baseline`
+- latest_completed_phase: `Phase 17`
+- latest_completed_slice: `Canonical Reuse Regression Control Baseline`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-10`
 
 说明：
 
-- Phase 0 到 Phase 16 已完成并形成稳定 checkpoint
+- Phase 0 到 Phase 17 已完成并形成稳定 checkpoint
 - post-Phase-2 retrieval baseline 已完成
 - post-Phase-5 executor / external-input slice 已完成
 - post-Phase-5 retrieval / memory-next slice 已完成
@@ -59,8 +59,8 @@
 
 说明：
 
-- 当前默认不再继续扩张已完成的 Phase 16，而应先重新选择下一轮 primary track
-- 当前最近完成的 stop/go 边界以 `docs/plans/phase16/closeout.md` 为准
+- 当前默认不再继续扩张已完成的 Phase 17，而应先重新选择下一轮 primary track
+- 当前最近完成的 stop/go 边界以 `docs/plans/phase17/closeout.md` 为准
 
 ---
 
@@ -72,10 +72,12 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase16/closeout.md`
+5. `docs/plans/phase17/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase17/kickoff.md`
+- `docs/plans/phase17/breakdown.md`
 - `docs/plans/phase16/kickoff.md`
 - `docs/plans/phase16/breakdown.md`
 - `docs/plans/phase15/kickoff.md`
@@ -111,6 +113,7 @@ AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m swallow.cli --base-di
 - 当前 current_state.md 已重新定义为恢复入口，后续不应再把高频状态或完整历史继续堆回本文件。
 - Phase 15 的 canonical reuse evaluation provenance 只在任务已有 `retrieval.json` 时附带，不应误解为当前 run loop 的强制前置条件。
 - Phase 16 的 regression compare 目前仍是 task-local CLI/report surface，不应误解为当前系统已经建立全局 regression gate。
+- Phase 17 的 regression attention 目前仍是 operator-facing CLI surface，不应误解为当前系统已经建立自动 mismatch gate。
 
 ## 当前收口规则
 - 在 phase 或 major slice 收口时，本文件才需要更新。
