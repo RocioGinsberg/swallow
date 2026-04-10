@@ -9,7 +9,7 @@
 - active_phase: `Phase 16`
 - active_slice: `Canonical Reuse Regression Baseline`
 - active_branch: `feat/phase16-canonical-reuse-regression`
-- status: `kickoff`
+- status: `in_progress`
 
 ---
 
@@ -87,11 +87,15 @@ Phase 15 已经明确并落地：
 - `docs/plans/phase15/closeout.md` 已完成
 - 当前 `main` 已回到 Phase 15 收口后的稳定状态
 - Phase 16 `Canonical Reuse Regression Baseline` 已完成 kickoff / breakdown 规划
+- Phase 16 已落地 task-local `canonical_reuse_regression.json` baseline artifact
+- `inspect` / `review` 已接入 canonical reuse regression snapshot
+- CLI 已新增 `canonical-reuse-regression-json`
+- regression baseline 已有针对性 CLI 测试覆盖
 
 ## 下一步
 
 下一步应优先完成：
 
-1. 切出 `feat/phase16-canonical-reuse-regression`
-2. 先实现 regression baseline artifact / compare path 的最小骨架
-3. 再补 CLI inspect / report 对齐与测试覆盖
+1. 增加 baseline 与当前 summary 的显式 compare path
+2. 为 regression delta / mismatch indicator 补 CLI 输出与测试覆盖
+3. 视完成度决定是否同步 README 中的 operator 入口

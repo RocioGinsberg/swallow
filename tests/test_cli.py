@@ -33,7 +33,7 @@ from swallow.harness import build_resume_note, build_retrieval_report, build_sou
 from swallow.knowledge_policy import evaluate_knowledge_policy
 from swallow.models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskState, ValidationResult
 from swallow.orchestrator import build_task_retrieval_request, create_task, run_task
-from swallow.paths import canonical_registry_path, canonical_reuse_policy_path
+from swallow.paths import canonical_registry_path, canonical_reuse_policy_path, canonical_reuse_regression_path
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
@@ -935,6 +935,7 @@ class CliLifecycleTest(unittest.TestCase):
             evaluation_stdout = StringIO()
             evaluation_report_stdout = StringIO()
             evaluation_json_stdout = StringIO()
+            regression_json_stdout = StringIO()
             inspect_stdout = StringIO()
             review_stdout = StringIO()
             citation = ".swl/canonical_knowledge/reuse_policy.json#canonical-" + task_id + "-knowledge-0001"
@@ -986,10 +987,14 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval", task_id]), 0)
             with redirect_stdout(evaluation_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval-json", task_id]), 0)
+            with redirect_stdout(regression_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-regression-json", task_id]), 0)
             with redirect_stdout(inspect_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
             with redirect_stdout(review_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
+
+            regression_baseline = json.loads(canonical_reuse_regression_path(tmp_path, task_id).read_text(encoding="utf-8"))
 
         self.assertIn("canonical_reuse_evaluated judgment=useful citations=1", evaluation_stdout.getvalue())
         self.assertIn("Canonical Reuse Evaluation", evaluation_report_stdout.getvalue())
@@ -1002,11 +1007,58 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"resolved_citation_count": 1', evaluation_json_stdout.getvalue())
         self.assertIn('"retrieval_match_count": 1', evaluation_json_stdout.getvalue())
         self.assertIn('"canonical_id": "canonical-' + task_id + '-knowledge-0001"', evaluation_json_stdout.getvalue())
+        self.assertIn('"evaluation_count": 1', regression_json_stdout.getvalue())
+        self.assertIn('"latest_judgment": "useful"', regression_json_stdout.getvalue())
         self.assertIn("canonical_reuse_eval_count: 1", inspect_stdout.getvalue())
         self.assertIn("canonical_reuse_eval_resolved: 1", inspect_stdout.getvalue())
         self.assertIn("canonical_reuse_eval_retrieval_matches: 1", inspect_stdout.getvalue())
         self.assertIn("canonical_reuse_eval_latest_judgment: useful", inspect_stdout.getvalue())
+        self.assertIn("canonical_reuse_regression_eval_count: 1", inspect_stdout.getvalue())
+        self.assertIn("canonical_reuse_regression_latest_judgment: useful", inspect_stdout.getvalue())
         self.assertIn("canonical_reuse_eval_count: 1", review_stdout.getvalue())
+        self.assertIn("canonical_reuse_regression_eval_count: 1", review_stdout.getvalue())
+        self.assertEqual(regression_baseline["task_id"], task_id)
+        self.assertEqual(regression_baseline["evaluation_count"], 1)
+        self.assertEqual(regression_baseline["judgment_counts"]["useful"], 1)
+        self.assertEqual(regression_baseline["resolved_citation_count"], 1)
+        self.assertEqual(regression_baseline["retrieval_match_count"], 1)
+        self.assertEqual(regression_baseline["latest_judgment"], "useful")
+        self.assertEqual(regression_baseline["latest_citations"], [citation])
+        self.assertEqual(regression_baseline["latest_retrieval_context_ref"], f".swl/tasks/{task_id}/retrieval.json")
+
+    def test_create_task_initializes_empty_canonical_reuse_regression_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Regression baseline init",
+                        "--goal",
+                        "Create an empty canonical reuse regression baseline artifact",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            regression_baseline = json.loads(canonical_reuse_regression_path(tmp_path, task_id).read_text(encoding="utf-8"))
+            state = load_state(tmp_path, task_id)
+
+        self.assertEqual(regression_baseline["task_id"], task_id)
+        self.assertEqual(regression_baseline["evaluation_count"], 0)
+        self.assertEqual(regression_baseline["judgment_counts"], {"useful": 0, "noisy": 0, "needs_review": 0})
+        self.assertEqual(regression_baseline["resolved_citation_count"], 0)
+        self.assertEqual(regression_baseline["unresolved_citation_count"], 0)
+        self.assertEqual(regression_baseline["retrieval_match_count"], 0)
+        self.assertEqual(regression_baseline["latest_judgment"], "")
+        self.assertEqual(state.artifact_paths["canonical_reuse_regression_json"], str(canonical_reuse_regression_path(tmp_path, task_id).resolve()))
 
     def test_retrieval_reports_surface_canonical_reuse_traceability(self) -> None:
         state = TaskState(
@@ -2846,6 +2898,7 @@ class CliLifecycleTest(unittest.TestCase):
             (["task", "canonical-reuse", "--help"], "Print the canonical reuse policy report."),
             (["task", "canonical-reuse-eval", "--help"], "Print the canonical reuse evaluation report."),
             (["task", "canonical-reuse-evaluate", "--help"], "Record an explicit canonical reuse evaluation judgment"),
+            (["task", "canonical-reuse-regression-json", "--help"], "Print the canonical reuse regression baseline record."),
         ]
 
         for argv, expected in command_expectations:
@@ -5247,6 +5300,7 @@ class CliLifecycleTest(unittest.TestCase):
             canonical_registry_stdout = StringIO()
             canonical_registry_index_stdout = StringIO()
             canonical_reuse_eval_stdout = StringIO()
+            canonical_reuse_regression_json_stdout = StringIO()
             compatibility_json_stdout = StringIO()
             route_json_stdout = StringIO()
             topology_json_stdout = StringIO()
@@ -5335,6 +5389,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-registry-index-json", task_id]), 0)
             with redirect_stdout(canonical_reuse_eval_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval-json", task_id]), 0)
+            with redirect_stdout(canonical_reuse_regression_json_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-regression-json", task_id]), 0)
             with redirect_stdout(retrieval_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retrieval-json", task_id]), 0)
             with redirect_stdout(grounding_stdout):
@@ -5380,6 +5436,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("[", canonical_registry_json_stdout.getvalue())
         self.assertIn('"count"', canonical_registry_index_json_stdout.getvalue())
         self.assertIn("[", canonical_reuse_eval_json_stdout.getvalue())
+        self.assertIn('"evaluation_count"', canonical_reuse_regression_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
         self.assertIn("Source Grounding", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())

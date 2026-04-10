@@ -16,6 +16,7 @@ from .canonical_registry import (
 from .canonical_reuse_eval import (
     build_canonical_reuse_evaluation_record,
     build_canonical_reuse_evaluation_report,
+    build_canonical_reuse_regression_baseline,
     build_canonical_reuse_evaluation_summary,
     match_retrieval_items_for_citations,
     resolve_canonical_reuse_citations,
@@ -44,6 +45,7 @@ from .paths import (
     canonical_registry_path,
     canonical_reuse_policy_path,
     canonical_reuse_eval_path,
+    canonical_reuse_regression_path,
     compatibility_path,
     dispatch_path,
     execution_site_path,
@@ -75,6 +77,7 @@ from .store import (
     save_capability_assembly,
     save_capability_manifest,
     save_canonical_reuse_policy,
+    save_canonical_reuse_regression,
     save_canonical_registry_index,
     save_knowledge_index,
     save_knowledge_objects,
@@ -236,6 +239,7 @@ def create_task(
         "canonical_reuse_policy_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md").resolve()),
         "canonical_reuse_eval_json": str(canonical_reuse_eval_path(base_dir, task_id).resolve()),
         "canonical_reuse_eval_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_eval_report.md").resolve()),
+        "canonical_reuse_regression_json": str(canonical_reuse_regression_path(base_dir, task_id).resolve()),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
     }
@@ -265,6 +269,14 @@ def create_task(
         task_id,
         "canonical_reuse_eval_report.md",
         build_canonical_reuse_evaluation_report([], build_canonical_reuse_evaluation_summary([])),
+    )
+    save_canonical_reuse_regression(
+        base_dir,
+        task_id,
+        build_canonical_reuse_regression_baseline(
+            task_id=task_id,
+            summary=build_canonical_reuse_evaluation_summary([]),
+        ),
     )
     append_event(
         base_dir,
@@ -603,6 +615,8 @@ def evaluate_task_canonical_reuse(
             if stripped:
                 records.append(json.loads(stripped))
     summary = build_canonical_reuse_evaluation_summary(records)
+    regression_baseline = build_canonical_reuse_regression_baseline(task_id=task_id, summary=summary)
+    save_canonical_reuse_regression(base_dir, task_id, regression_baseline)
     write_artifact(
         base_dir,
         task_id,
@@ -618,6 +632,7 @@ def evaluate_task_canonical_reuse(
             payload={
                 "record": record,
                 "summary": summary,
+                "regression_baseline": regression_baseline,
             },
         ),
     )

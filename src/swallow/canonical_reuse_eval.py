@@ -216,3 +216,30 @@ def build_canonical_reuse_evaluation_report(
                     f"knowledge_task_relation={match.get('knowledge_task_relation', 'unknown')})"
                 )
     return "\n".join(lines)
+
+
+def build_canonical_reuse_regression_baseline(
+    *,
+    task_id: str,
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    judgment_counts = summary.get("judgment_counts", {})
+    if not isinstance(judgment_counts, dict):
+        judgment_counts = {}
+    return {
+        "baseline_generated_at": utc_now(),
+        "task_id": task_id,
+        "evaluation_count": int(summary.get("evaluation_count", 0) or 0),
+        "judgment_counts": {
+            "useful": int(judgment_counts.get("useful", 0) or 0),
+            "noisy": int(judgment_counts.get("noisy", 0) or 0),
+            "needs_review": int(judgment_counts.get("needs_review", 0) or 0),
+        },
+        "resolved_citation_count": int(summary.get("resolved_citation_count", 0) or 0),
+        "unresolved_citation_count": int(summary.get("unresolved_citation_count", 0) or 0),
+        "retrieval_match_count": int(summary.get("retrieval_match_count", 0) or 0),
+        "latest_judgment": str(summary.get("latest_judgment", "") or ""),
+        "latest_task_id": str(summary.get("latest_task_id", "") or ""),
+        "latest_citations": list(summary.get("latest_citations", []) or []),
+        "latest_retrieval_context_ref": str(summary.get("latest_retrieval_context_ref", "") or ""),
+    }
