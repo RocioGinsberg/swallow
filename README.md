@@ -112,6 +112,8 @@ The current system already includes:
 - inspectable knowledge objects, knowledge partition, knowledge index, and knowledge policy structures
 - canonical reuse evaluation and regression inspection paths
 - regression mismatch attention surfaces in queue, control, inspect, and review
+- task-local remote handoff contract records and reports
+- remote handoff attention surfaces in execution-site, dispatch, handoff, control, and inspect
 
 The focus is no longer to prove a minimal runnable demo.  
 The focus is to keep the existing baseline stable while continuing with later phases.
@@ -232,6 +234,7 @@ swl task resume-note <task-id>
 swl task route <task-id>
 swl task topology <task-id>
 swl task handoff <task-id>
+swl task remote-handoff <task-id>
 swl task policy <task-id>
 swl task memory <task-id>
 ```
@@ -284,6 +287,10 @@ Canonical reuse remains policy-gated. `canonical-reuse` shows which active canon
 Canonical reuse evaluation also remains explicit and operator-driven. `canonical-reuse-evaluate` records a task-local judgment, `canonical-reuse-eval` shows the evaluation summary, and `canonical-reuse-regression` compares the saved regression baseline against the current evaluation summary so an operator can quickly spot drift or stale baseline state.
 
 Canonical reuse regression control also remains operator-facing rather than automatic. Queue, control, inspect, and review now surface regression mismatch attention and point back to `canonical-reuse-regression` instead of mutating policy or blocking task flow automatically.
+
+Execution topology now also keeps remote handoff contract truth explicit and operator-facing. `remote-handoff` shows the task-local remote handoff contract baseline, while execution-site, dispatch, handoff, control, and inspect surface the same readiness summary so an operator can see when a route has crossed into a remote-candidate boundary.
+
+This remains a contract baseline, not real remote execution support. It does not implement cross-machine transport, remote worker dispatch, or hosted orchestration.
 
 Run the test suite:
 

@@ -22,6 +22,7 @@ from .paths import (
     execution_fit_path,
     events_path,
     handoff_path,
+    remote_handoff_contract_path,
     knowledge_decisions_path,
     knowledge_index_path,
     knowledge_objects_path,
@@ -284,6 +285,14 @@ def save_dispatch(base_dir: Path, task_id: str, payload: dict[str, object]) -> N
 def save_handoff(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
     ensure_task_layout(base_dir, task_id)
     handoff_path(base_dir, task_id).write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def save_remote_handoff_contract(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    ensure_task_layout(base_dir, task_id)
+    remote_handoff_contract_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",
         encoding="utf-8",
     )

@@ -23,7 +23,13 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .executor import normalize_executor_name
-from .harness import run_execution, run_retrieval, write_task_artifacts
+from .harness import (
+    build_remote_handoff_contract_record,
+    build_remote_handoff_contract_report,
+    run_execution,
+    run_retrieval,
+    write_task_artifacts,
+)
 from .knowledge_objects import (
     build_knowledge_objects,
     canonicalization_status_for,
@@ -62,6 +68,7 @@ from .paths import (
     stop_policy_path,
     task_semantics_path,
     retrieval_path,
+    remote_handoff_contract_path,
     route_path,
     topology_path,
     validation_path,
@@ -82,6 +89,7 @@ from .store import (
     save_knowledge_index,
     save_knowledge_objects,
     save_knowledge_partition,
+    save_remote_handoff_contract,
     save_state,
     save_task_semantics,
     write_artifact,
@@ -240,6 +248,10 @@ def create_task(
         "canonical_reuse_eval_json": str(canonical_reuse_eval_path(base_dir, task_id).resolve()),
         "canonical_reuse_eval_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_eval_report.md").resolve()),
         "canonical_reuse_regression_json": str(canonical_reuse_regression_path(base_dir, task_id).resolve()),
+        "remote_handoff_contract_json": str(remote_handoff_contract_path(base_dir, task_id).resolve()),
+        "remote_handoff_contract_report": str(
+            (artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md").resolve()
+        ),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
     }
@@ -277,6 +289,14 @@ def create_task(
             task_id=task_id,
             summary=build_canonical_reuse_evaluation_summary([]),
         ),
+    )
+    remote_handoff_contract_record = build_remote_handoff_contract_record(state)
+    save_remote_handoff_contract(base_dir, task_id, remote_handoff_contract_record)
+    write_artifact(
+        base_dir,
+        task_id,
+        "remote_handoff_contract_report.md",
+        build_remote_handoff_contract_report(remote_handoff_contract_record),
     )
     append_event(
         base_dir,
@@ -783,6 +803,10 @@ def run_task(
         "dispatch_json": str(dispatch_path(base_dir, task_id).resolve()),
         "handoff_report": str((artifacts_dir(base_dir, task_id) / "handoff_report.md").resolve()),
         "handoff_json": str(handoff_path(base_dir, task_id).resolve()),
+        "remote_handoff_contract_report": str(
+            (artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md").resolve()
+        ),
+        "remote_handoff_contract_json": str(remote_handoff_contract_path(base_dir, task_id).resolve()),
         "execution_fit_report": str((artifacts_dir(base_dir, task_id) / "execution_fit_report.md").resolve()),
         "execution_fit_json": str(execution_fit_path(base_dir, task_id).resolve()),
         "retry_policy_report": str((artifacts_dir(base_dir, task_id) / "retry_policy_report.md").resolve()),
