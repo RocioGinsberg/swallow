@@ -355,6 +355,32 @@ def build_canonical_reuse_regression_snapshot(baseline: dict[str, object]) -> li
     ]
 
 
+def build_canonical_reuse_regression_attention(base_dir: Path, task_id: str) -> dict[str, str]:
+    baseline = load_json_if_exists(canonical_reuse_regression_path(base_dir, task_id))
+    records = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, task_id))
+    current = build_canonical_reuse_regression_current(
+        task_id=task_id,
+        summary=build_canonical_reuse_evaluation_summary(records),
+    )
+    comparison = compare_canonical_reuse_regression(baseline=baseline, current=current)
+    status = str(comparison.get("status", "match") or "match")
+    mismatches = [str(item).strip() for item in comparison.get("mismatches", []) if str(item).strip()]
+    mismatch_summary = ", ".join(mismatches[:3]) if mismatches else "-"
+    return {
+        "status": status,
+        "mismatch_count": str(comparison.get("mismatch_count", 0)),
+        "summary": "match" if status == "match" else f"mismatch:{comparison.get('mismatch_count', 0)}",
+        "mismatches": mismatch_summary,
+        "recommended_reason": "canonical_reuse_regression_mismatch" if status != "match" else "canonical_reuse_regression_match",
+        "recommended_command": f"swl task canonical-reuse-regression {task_id}",
+        "next_operator_action": (
+            f"Inspect canonical reuse regression via swl task canonical-reuse-regression {task_id}."
+            if status != "match"
+            else "No regression mismatch currently detected."
+        ),
+    }
+
+
 def load_json_if_exists(path: Path) -> dict[str, object]:
     if not path.exists():
         return {}
@@ -397,6 +423,7 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
     stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
     checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
     knowledge_attention = summarize_knowledge_attention(base_dir, state.task_id)
+    regression_attention = build_canonical_reuse_regression_attention(base_dir, state.task_id)
 
     handoff_status = str(handoff.get("status", "pending"))
     next_operator_action = str(handoff.get("next_operator_action", "")).strip()
@@ -407,7 +434,11 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
 
     action = ""
     reason = ""
-    if state.status == "created":
+    if regression_attention["status"] != "match":
+        action = "inspect"
+        reason = regression_attention["recommended_reason"]
+        next_operator_action = regression_attention["next_operator_action"]
+    elif state.status == "created":
         action = "run"
         reason = "task_created"
     elif state.status == "running":
@@ -443,6 +474,7 @@ def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | No
         "attempt": state.current_attempt_id or "-",
         "updated_at": state.updated_at,
         "reason": reason or "pending",
+        "regression": regression_attention["summary"],
         "knowledge": knowledge_attention["summary"],
         "next": next_operator_action or "-",
         "title": state.title,
@@ -531,6 +563,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
     checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
     queue_entry = build_task_queue_entry(base_dir, state)
     knowledge_attention = summarize_knowledge_attention(base_dir, state.task_id)
+    regression_attention = build_canonical_reuse_regression_attention(base_dir, state.task_id)
     boundaries = build_control_boundaries(
         state,
         checkpoint_snapshot,
@@ -565,6 +598,13 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
         f"knowledge_review_reason: {knowledge_attention['recommended_reason']}",
         f"knowledge_review_command: {knowledge_attention['recommended_command']}",
         "",
+        "Regression Control",
+        f"canonical_reuse_regression_status: {regression_attention['status']}",
+        f"canonical_reuse_regression_mismatch_count: {regression_attention['mismatch_count']}",
+        f"canonical_reuse_regression_mismatches: {regression_attention['mismatches']}",
+        f"canonical_reuse_regression_reason: {regression_attention['recommended_reason']}",
+        f"canonical_reuse_regression_command: {regression_attention['recommended_command']}",
+        "",
         "Control Boundaries",
         f"resume_path: {boundaries['resume']}",
         f"retry_path: {boundaries['retry']}",
@@ -578,6 +618,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
             "Control Artifacts",
             f"review: swl task review {state.task_id}",
             f"knowledge_review: swl task knowledge-review-queue {state.task_id}",
+            f"canonical_reuse_regression: swl task canonical-reuse-regression {state.task_id}",
             f"resume: swl task resume {state.task_id}",
             f"policy: swl task policy {state.task_id}",
             f"checkpoint: swl task checkpoint {state.task_id}",
@@ -1426,7 +1467,7 @@ def main(argv: list[str] | None = None) -> int:
         queue_entries = [entry for state in states if (entry := build_task_queue_entry(base_dir, state)) is not None]
         if args.limit is not None:
             queue_entries = queue_entries[: max(args.limit, 0)]
-        print("task_id\taction\tstatus\tattempt\tupdated_at\treason\tknowledge\tnext\ttitle")
+        print("task_id\taction\tstatus\tattempt\tupdated_at\treason\tregression\tknowledge\tnext\ttitle")
         for entry in queue_entries:
             print(
                 "\t".join(
@@ -1437,6 +1478,7 @@ def main(argv: list[str] | None = None) -> int:
                         entry["attempt"],
                         entry["updated_at"],
                         entry["reason"],
+                        entry["regression"],
                         entry["knowledge"],
                         entry["next"],
                         entry["title"],
@@ -1554,6 +1596,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
         canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
+        regression_attention = build_canonical_reuse_regression_attention(base_dir, args.task_id)
         canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
         canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
@@ -1662,6 +1705,10 @@ def main(argv: list[str] | None = None) -> int:
             f"handoff_next_owner_ref: {handoff.get('next_owner_ref', 'pending')}",
             f"blocking_reason: {handoff.get('blocking_reason', '') or '-'}",
             f"next_operator_action: {handoff.get('next_operator_action', 'Inspect task artifacts.')}",
+            f"canonical_reuse_regression_status: {regression_attention['status']}",
+            f"canonical_reuse_regression_mismatch_count: {regression_attention['mismatch_count']}",
+            f"canonical_reuse_regression_mismatches: {regression_attention['mismatches']}",
+            f"canonical_reuse_regression_command: {regression_attention['recommended_command']}",
             "",
             "Artifacts",
             f"task_semantics_report: {state.artifact_paths.get('task_semantics_report', '-')}",
@@ -1733,6 +1780,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
         canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
+        regression_attention = build_canonical_reuse_regression_attention(base_dir, args.task_id)
         canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
         canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
@@ -1779,6 +1827,10 @@ def main(argv: list[str] | None = None) -> int:
             f"handoff_next_owner_ref: {handoff.get('next_owner_ref', 'pending')}",
             f"blocking_reason: {handoff.get('blocking_reason', '') or '-'}",
             f"next_operator_action: {handoff.get('next_operator_action', 'Review resume_note.md and summary.md.')}",
+            f"canonical_reuse_regression_status: {regression_attention['status']}",
+            f"canonical_reuse_regression_mismatch_count: {regression_attention['mismatch_count']}",
+            f"canonical_reuse_regression_mismatches: {regression_attention['mismatches']}",
+            f"canonical_reuse_regression_command: {regression_attention['recommended_command']}",
             "",
             "Checks",
             f"compatibility_status: {compatibility.get('status', 'pending')}",

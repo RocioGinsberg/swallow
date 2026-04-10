@@ -1896,15 +1896,15 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "queue", "--limit", "4"]), 0)
 
         lines = stdout.getvalue().splitlines()
-        self.assertEqual(lines[0], "task_id\taction\tstatus\tattempt\tupdated_at\treason\tknowledge\tnext\ttitle")
+        self.assertEqual(lines[0], "task_id\taction\tstatus\tattempt\tupdated_at\treason\tregression\tknowledge\tnext\ttitle")
         self.assertEqual(len(lines), 5)
-        self.assertIn("task-created\trun\tcreated\t-\t2026-04-09T12:00:00+00:00\ttask_created\t-", lines[1])
-        self.assertIn("task-retry\tretry\tfailed\tattempt-0002\t2026-04-09T11:00:00+00:00\tretry_review\t-", lines[2])
+        self.assertIn("task-created\trun\tcreated\t-\t2026-04-09T12:00:00+00:00\ttask_created\tmatch\t-", lines[1])
+        self.assertIn("task-retry\tretry\tfailed\tattempt-0002\t2026-04-09T11:00:00+00:00\tretry_review\tmatch\t-", lines[2])
         self.assertIn(
-            "task-review\treview\tcompleted\tattempt-0001\t2026-04-09T10:00:00+00:00\tcompleted_run_review\t-",
+            "task-review\treview\tcompleted\tattempt-0001\t2026-04-09T10:00:00+00:00\tcompleted_run_review\tmatch\t-",
             lines[3],
         )
-        self.assertIn("task-running\tmonitor\trunning\tattempt-0003\t2026-04-09T09:00:00+00:00\texecuting\t-", lines[4])
+        self.assertIn("task-running\tmonitor\trunning\tattempt-0003\t2026-04-09T09:00:00+00:00\texecuting\tmatch\t-", lines[4])
         self.assertNotIn("task-done", stdout.getvalue())
 
     def test_task_queue_includes_knowledge_review_attention_when_no_run_action_is_pending(self) -> None:
@@ -1955,7 +1955,7 @@ class CliLifecycleTest(unittest.TestCase):
 
         output = stdout.getvalue()
         self.assertIn("task-knowledge-review\tknowledge-review\tcompleted\tattempt-0001", output)
-        self.assertIn("knowledge_blocked_review\tblocked=1", output)
+        self.assertIn("knowledge_blocked_review\tmatch\tblocked=1", output)
         self.assertIn("swl task knowledge-review-queue task-knowledge-review", output)
 
     def test_task_control_prints_compact_control_snapshot(self) -> None:
@@ -2069,6 +2069,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_review_needed: no", output)
         self.assertIn("knowledge_review_summary: -", output)
         self.assertIn("knowledge_review_command: swl task knowledge-review-queue task-control", output)
+        self.assertIn("Regression Control", output)
+        self.assertIn("canonical_reuse_regression_status: match", output)
+        self.assertIn("canonical_reuse_regression_mismatch_count: 0", output)
+        self.assertIn("canonical_reuse_regression_command: swl task canonical-reuse-regression task-control", output)
         self.assertIn("Control Boundaries", output)
         self.assertIn("resume_path: blocked reason=retry_ready suggested_path=retry", output)
         self.assertIn("retry_path: allowed reason=operator_retry_available", output)
@@ -2085,6 +2089,328 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn(f"run: swl task run {task_id}", output)
         self.assertIn("resume_note: .swl/tasks/task-control/artifacts/resume_note.md", output)
         self.assertIn("checkpoint_snapshot_report: .swl/tasks/task-control/artifacts/checkpoint_snapshot_report.md", output)
+
+    def test_task_queue_surfaces_regression_mismatch_attention(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-regression-queue"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Regression queue",
+                goal="Surface regression mismatch in the queue",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="done",
+                updated_at="2026-04-09T12:30:00+00:00",
+                current_attempt_id="attempt-0001",
+                executor_status="completed",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "canonical_reuse_regression.json").write_text(
+                json.dumps(
+                    {
+                        "baseline_generated_at": "2026-04-09T12:00:00+00:00",
+                        "task_id": task_id,
+                        "evaluation_count": 0,
+                        "judgment_counts": {"useful": 0, "noisy": 0, "needs_review": 0},
+                        "resolved_citation_count": 0,
+                        "unresolved_citation_count": 0,
+                        "retrieval_match_count": 0,
+                        "latest_judgment": "",
+                        "latest_task_id": task_id,
+                        "latest_citations": [],
+                        "latest_retrieval_context_ref": "",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "canonical_reuse_eval.jsonl").write_text(
+                json.dumps(
+                    {
+                        "task_id": task_id,
+                        "evaluated_at": "2026-04-09T12:10:00+00:00",
+                        "evaluated_by": "swl_cli",
+                        "judgment": "useful",
+                        "citations": [".swl/canonical_knowledge/reuse_policy.json#canonical-demo"],
+                        "citation_count": 1,
+                        "resolved_citations": [],
+                        "resolved_citation_count": 0,
+                        "unresolved_citations": [],
+                        "unresolved_citation_count": 0,
+                        "retrieval_context_ref": "",
+                        "retrieval_context_available": False,
+                        "retrieval_context_count": 0,
+                        "retrieval_matches": [],
+                        "retrieval_match_count": 0,
+                        "note": "",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "queue"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("task-regression-queue\tinspect\tcompleted\tattempt-0001", output)
+        self.assertIn("canonical_reuse_regression_mismatch\tmismatch:4", output)
+        self.assertIn("swl task canonical-reuse-regression task-regression-queue", output)
+
+    def test_task_control_surfaces_regression_mismatch_attention(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-regression-control"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Regression control",
+                goal="Surface regression mismatch in control",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+                current_attempt_id="attempt-0001",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "handoff.json").write_text(
+                json.dumps({"status": "review_completed_run", "next_operator_action": "Review run output."}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "retry_policy.json").write_text(
+                json.dumps({"status": "passed", "retryable": False, "retry_decision": "no_retry"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "execution_budget_policy.json").write_text(
+                json.dumps({"status": "passed", "timeout_seconds": 20, "budget_state": "available", "timeout_state": "default"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "stop_policy.json").write_text(
+                json.dumps({"status": "passed", "stop_required": False, "continue_allowed": False, "stop_decision": "review", "checkpoint_kind": "review_completed_run", "escalation_level": "operator_review"}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "checkpoint_snapshot.json").write_text(
+                json.dumps({"status": "passed", "checkpoint_state": "review_ready", "recommended_path": "review", "recommended_reason": "completed_run_review", "resume_ready": False}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "canonical_reuse_regression.json").write_text(
+                json.dumps(
+                    {
+                        "baseline_generated_at": "2026-04-09T12:00:00+00:00",
+                        "task_id": task_id,
+                        "evaluation_count": 0,
+                        "judgment_counts": {"useful": 0, "noisy": 0, "needs_review": 0},
+                        "resolved_citation_count": 0,
+                        "unresolved_citation_count": 0,
+                        "retrieval_match_count": 0,
+                        "latest_judgment": "",
+                        "latest_task_id": task_id,
+                        "latest_citations": [],
+                        "latest_retrieval_context_ref": "",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "canonical_reuse_eval.jsonl").write_text(
+                json.dumps(
+                    {
+                        "task_id": task_id,
+                        "evaluated_at": "2026-04-09T12:10:00+00:00",
+                        "evaluated_by": "swl_cli",
+                        "judgment": "useful",
+                        "citations": [".swl/canonical_knowledge/reuse_policy.json#canonical-demo"],
+                        "citation_count": 1,
+                        "resolved_citations": [],
+                        "resolved_citation_count": 0,
+                        "unresolved_citations": [],
+                        "unresolved_citation_count": 0,
+                        "retrieval_context_ref": "",
+                        "retrieval_context_available": False,
+                        "retrieval_context_count": 0,
+                        "retrieval_matches": [],
+                        "retrieval_match_count": 0,
+                        "note": "",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "control", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("recommended_action: review", output)
+        self.assertIn("recommended_reason: completed_run_review", output)
+        self.assertIn("Regression Control", output)
+        self.assertIn("canonical_reuse_regression_status: mismatch", output)
+        self.assertIn("canonical_reuse_regression_mismatch_count: 4", output)
+        self.assertIn("canonical_reuse_regression_reason: canonical_reuse_regression_mismatch", output)
+        self.assertIn("canonical_reuse_regression_command: swl task canonical-reuse-regression task-regression-control", output)
+
+    def test_task_inspect_surfaces_regression_mismatch_attention(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-regression-inspect"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            artifacts_root = task_root / "artifacts"
+            artifacts_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Regression inspect",
+                goal="Surface regression mismatch in inspect",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+                current_attempt_id="attempt-0001",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "handoff.json").write_text(
+                json.dumps({"status": "review_completed_run", "next_operator_action": "Inspect task artifacts."}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "canonical_reuse_regression.json").write_text(
+                json.dumps(
+                    {
+                        "baseline_generated_at": "2026-04-09T12:00:00+00:00",
+                        "task_id": task_id,
+                        "evaluation_count": 0,
+                        "judgment_counts": {"useful": 0, "noisy": 0, "needs_review": 0},
+                        "resolved_citation_count": 0,
+                        "unresolved_citation_count": 0,
+                        "retrieval_match_count": 0,
+                        "latest_judgment": "",
+                        "latest_task_id": task_id,
+                        "latest_citations": [],
+                        "latest_retrieval_context_ref": "",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "canonical_reuse_eval.jsonl").write_text(
+                json.dumps(
+                    {
+                        "task_id": task_id,
+                        "evaluated_at": "2026-04-09T12:10:00+00:00",
+                        "evaluated_by": "swl_cli",
+                        "judgment": "useful",
+                        "citations": [".swl/canonical_knowledge/reuse_policy.json#canonical-demo"],
+                        "citation_count": 1,
+                        "resolved_citations": [],
+                        "resolved_citation_count": 0,
+                        "unresolved_citations": [],
+                        "unresolved_citation_count": 0,
+                        "retrieval_context_ref": "",
+                        "retrieval_context_available": False,
+                        "retrieval_context_count": 0,
+                        "retrieval_matches": [],
+                        "retrieval_match_count": 0,
+                        "note": "",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("canonical_reuse_regression_status: mismatch", output)
+        self.assertIn("canonical_reuse_regression_mismatch_count: 4", output)
+        self.assertIn("canonical_reuse_regression_command: swl task canonical-reuse-regression task-regression-inspect", output)
+
+    def test_task_review_surfaces_regression_mismatch_attention(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-regression-review"
+            task_root = tmp_path / ".swl" / "tasks" / task_id
+            task_root.mkdir(parents=True, exist_ok=True)
+            state = TaskState(
+                task_id=task_id,
+                title="Regression review",
+                goal="Surface regression mismatch in review",
+                workspace_root=str(tmp_path),
+                status="completed",
+                phase="summarize",
+                updated_at="2026-04-09T12:10:00+00:00",
+                current_attempt_id="attempt-0001",
+            )
+            (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
+            (task_root / "handoff.json").write_text(
+                json.dumps({"status": "review_completed_run", "next_operator_action": "Review run output."}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "checkpoint_snapshot.json").write_text(
+                json.dumps({"checkpoint_state": "review_ready", "recommended_path": "review", "recommended_reason": "completed_run_review", "resume_ready": False}, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "canonical_reuse_regression.json").write_text(
+                json.dumps(
+                    {
+                        "baseline_generated_at": "2026-04-09T12:00:00+00:00",
+                        "task_id": task_id,
+                        "evaluation_count": 0,
+                        "judgment_counts": {"useful": 0, "noisy": 0, "needs_review": 0},
+                        "resolved_citation_count": 0,
+                        "unresolved_citation_count": 0,
+                        "retrieval_match_count": 0,
+                        "latest_judgment": "",
+                        "latest_task_id": task_id,
+                        "latest_citations": [],
+                        "latest_retrieval_context_ref": "",
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            (task_root / "canonical_reuse_eval.jsonl").write_text(
+                json.dumps(
+                    {
+                        "task_id": task_id,
+                        "evaluated_at": "2026-04-09T12:10:00+00:00",
+                        "evaluated_by": "swl_cli",
+                        "judgment": "useful",
+                        "citations": [".swl/canonical_knowledge/reuse_policy.json#canonical-demo"],
+                        "citation_count": 1,
+                        "resolved_citations": [],
+                        "resolved_citation_count": 0,
+                        "unresolved_citations": [],
+                        "unresolved_citation_count": 0,
+                        "retrieval_context_ref": "",
+                        "retrieval_context_available": False,
+                        "retrieval_context_count": 0,
+                        "retrieval_matches": [],
+                        "retrieval_match_count": 0,
+                        "note": "",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("canonical_reuse_regression_status: mismatch", output)
+        self.assertIn("canonical_reuse_regression_mismatch_count: 4", output)
+        self.assertIn("canonical_reuse_regression_command: swl task canonical-reuse-regression task-regression-review", output)
 
     def test_task_checkpoint_prints_checkpoint_snapshot_report_and_json(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
