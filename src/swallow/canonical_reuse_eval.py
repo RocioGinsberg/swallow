@@ -243,3 +243,135 @@ def build_canonical_reuse_regression_baseline(
         "latest_citations": list(summary.get("latest_citations", []) or []),
         "latest_retrieval_context_ref": str(summary.get("latest_retrieval_context_ref", "") or ""),
     }
+
+
+def build_canonical_reuse_regression_current(
+    *,
+    task_id: str,
+    summary: dict[str, Any],
+) -> dict[str, Any]:
+    current = build_canonical_reuse_regression_baseline(task_id=task_id, summary=summary)
+    current["current_generated_at"] = current.pop("baseline_generated_at", "")
+    return current
+
+
+def compare_canonical_reuse_regression(
+    *,
+    baseline: dict[str, Any],
+    current: dict[str, Any],
+) -> dict[str, Any]:
+    baseline_judgment_counts = baseline.get("judgment_counts", {})
+    if not isinstance(baseline_judgment_counts, dict):
+        baseline_judgment_counts = {}
+    current_judgment_counts = current.get("judgment_counts", {})
+    if not isinstance(current_judgment_counts, dict):
+        current_judgment_counts = {}
+
+    deltas = {
+        "evaluation_count_delta": int(current.get("evaluation_count", 0) or 0) - int(baseline.get("evaluation_count", 0) or 0),
+        "useful_delta": int(current_judgment_counts.get("useful", 0) or 0) - int(baseline_judgment_counts.get("useful", 0) or 0),
+        "noisy_delta": int(current_judgment_counts.get("noisy", 0) or 0) - int(baseline_judgment_counts.get("noisy", 0) or 0),
+        "needs_review_delta": int(current_judgment_counts.get("needs_review", 0) or 0)
+        - int(baseline_judgment_counts.get("needs_review", 0) or 0),
+        "resolved_citation_delta": int(current.get("resolved_citation_count", 0) or 0)
+        - int(baseline.get("resolved_citation_count", 0) or 0),
+        "unresolved_citation_delta": int(current.get("unresolved_citation_count", 0) or 0)
+        - int(baseline.get("unresolved_citation_count", 0) or 0),
+        "retrieval_match_delta": int(current.get("retrieval_match_count", 0) or 0)
+        - int(baseline.get("retrieval_match_count", 0) or 0),
+    }
+
+    mismatches: list[str] = []
+    if deltas["evaluation_count_delta"] != 0:
+        mismatches.append("evaluation_count")
+    if deltas["useful_delta"] != 0:
+        mismatches.append("judgment_useful")
+    if deltas["noisy_delta"] != 0:
+        mismatches.append("judgment_noisy")
+    if deltas["needs_review_delta"] != 0:
+        mismatches.append("judgment_needs_review")
+    if deltas["resolved_citation_delta"] != 0:
+        mismatches.append("resolved_citation_count")
+    if deltas["unresolved_citation_delta"] != 0:
+        mismatches.append("unresolved_citation_count")
+    if deltas["retrieval_match_delta"] != 0:
+        mismatches.append("retrieval_match_count")
+    if list(baseline.get("latest_citations", []) or []) != list(current.get("latest_citations", []) or []):
+        mismatches.append("latest_citations")
+    if str(baseline.get("latest_judgment", "") or "") != str(current.get("latest_judgment", "") or ""):
+        mismatches.append("latest_judgment")
+    if str(baseline.get("latest_retrieval_context_ref", "") or "") != str(current.get("latest_retrieval_context_ref", "") or ""):
+        mismatches.append("latest_retrieval_context_ref")
+
+    return {
+        "comparison_generated_at": utc_now(),
+        "baseline_task_id": str(baseline.get("task_id", "") or ""),
+        "current_task_id": str(current.get("task_id", "") or ""),
+        "status": "match" if not mismatches else "mismatch",
+        "mismatch_count": len(mismatches),
+        "mismatches": mismatches,
+        "deltas": deltas,
+    }
+
+
+def build_canonical_reuse_regression_report(
+    *,
+    baseline: dict[str, Any],
+    current: dict[str, Any],
+    comparison: dict[str, Any],
+) -> str:
+    baseline_judgment_counts = baseline.get("judgment_counts", {})
+    if not isinstance(baseline_judgment_counts, dict):
+        baseline_judgment_counts = {}
+    current_judgment_counts = current.get("judgment_counts", {})
+    if not isinstance(current_judgment_counts, dict):
+        current_judgment_counts = {}
+    deltas = comparison.get("deltas", {})
+    if not isinstance(deltas, dict):
+        deltas = {}
+    lines = [
+        "# Canonical Reuse Regression",
+        "",
+        f"- comparison_generated_at: {comparison.get('comparison_generated_at', 'unknown')}",
+        f"- status: {comparison.get('status', 'unknown')}",
+        f"- mismatch_count: {comparison.get('mismatch_count', 0)}",
+        f"- mismatches: {', '.join(comparison.get('mismatches', [])) or '-'}",
+        "",
+        "## Baseline",
+        f"- generated_at: {baseline.get('baseline_generated_at', 'unknown')}",
+        f"- task_id: {baseline.get('task_id', '') or '-'}",
+        f"- evaluation_count: {baseline.get('evaluation_count', 0)}",
+        f"- useful_count: {baseline_judgment_counts.get('useful', 0)}",
+        f"- noisy_count: {baseline_judgment_counts.get('noisy', 0)}",
+        f"- needs_review_count: {baseline_judgment_counts.get('needs_review', 0)}",
+        f"- resolved_citation_count: {baseline.get('resolved_citation_count', 0)}",
+        f"- unresolved_citation_count: {baseline.get('unresolved_citation_count', 0)}",
+        f"- retrieval_match_count: {baseline.get('retrieval_match_count', 0)}",
+        f"- latest_judgment: {baseline.get('latest_judgment', '') or '-'}",
+        f"- latest_citations: {', '.join(baseline.get('latest_citations', [])) or '-'}",
+        f"- latest_retrieval_context_ref: {baseline.get('latest_retrieval_context_ref', '') or '-'}",
+        "",
+        "## Current",
+        f"- generated_at: {current.get('current_generated_at', 'unknown')}",
+        f"- task_id: {current.get('task_id', '') or '-'}",
+        f"- evaluation_count: {current.get('evaluation_count', 0)}",
+        f"- useful_count: {current_judgment_counts.get('useful', 0)}",
+        f"- noisy_count: {current_judgment_counts.get('noisy', 0)}",
+        f"- needs_review_count: {current_judgment_counts.get('needs_review', 0)}",
+        f"- resolved_citation_count: {current.get('resolved_citation_count', 0)}",
+        f"- unresolved_citation_count: {current.get('unresolved_citation_count', 0)}",
+        f"- retrieval_match_count: {current.get('retrieval_match_count', 0)}",
+        f"- latest_judgment: {current.get('latest_judgment', '') or '-'}",
+        f"- latest_citations: {', '.join(current.get('latest_citations', [])) or '-'}",
+        f"- latest_retrieval_context_ref: {current.get('latest_retrieval_context_ref', '') or '-'}",
+        "",
+        "## Delta",
+        f"- evaluation_count_delta: {deltas.get('evaluation_count_delta', 0)}",
+        f"- useful_delta: {deltas.get('useful_delta', 0)}",
+        f"- noisy_delta: {deltas.get('noisy_delta', 0)}",
+        f"- needs_review_delta: {deltas.get('needs_review_delta', 0)}",
+        f"- resolved_citation_delta: {deltas.get('resolved_citation_delta', 0)}",
+        f"- unresolved_citation_delta: {deltas.get('unresolved_citation_delta', 0)}",
+        f"- retrieval_match_delta: {deltas.get('retrieval_match_delta', 0)}",
+    ]
+    return "\n".join(lines)

@@ -7,6 +7,9 @@ from pathlib import Path
 from .canonical_reuse_eval import (
     build_canonical_reuse_evaluation_report,
     build_canonical_reuse_evaluation_summary,
+    build_canonical_reuse_regression_current,
+    build_canonical_reuse_regression_report,
+    compare_canonical_reuse_regression,
 )
 from .canonical_reuse import build_canonical_reuse_report
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
@@ -1063,6 +1066,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Print the canonical reuse policy report.",
     )
     canonical_reuse_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
+    canonical_reuse_regression_parser = task_subparsers.add_parser(
+        "canonical-reuse-regression",
+        help="Print the canonical reuse regression compare report.",
+        description="Print the canonical reuse regression compare report.",
+    )
+    canonical_reuse_regression_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     canonical_reuse_eval_parser = task_subparsers.add_parser(
         "canonical-reuse-eval",
         help="Print the canonical reuse evaluation report.",
@@ -1997,6 +2006,17 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "canonical-reuse":
         print(build_canonical_reuse_report(load_json_if_exists(canonical_reuse_policy_path(base_dir))))
+        return 0
+
+    if args.command == "task" and args.task_command == "canonical-reuse-regression":
+        baseline = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
+        records = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
+        current = build_canonical_reuse_regression_current(
+            task_id=args.task_id,
+            summary=build_canonical_reuse_evaluation_summary(records),
+        )
+        comparison = compare_canonical_reuse_regression(baseline=baseline, current=current)
+        print(build_canonical_reuse_regression_report(baseline=baseline, current=current, comparison=comparison))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-reuse-eval":

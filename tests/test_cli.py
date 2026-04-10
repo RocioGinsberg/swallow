@@ -935,6 +935,7 @@ class CliLifecycleTest(unittest.TestCase):
             evaluation_stdout = StringIO()
             evaluation_report_stdout = StringIO()
             evaluation_json_stdout = StringIO()
+            regression_report_stdout = StringIO()
             regression_json_stdout = StringIO()
             inspect_stdout = StringIO()
             review_stdout = StringIO()
@@ -987,6 +988,8 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval", task_id]), 0)
             with redirect_stdout(evaluation_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-eval-json", task_id]), 0)
+            with redirect_stdout(regression_report_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-regression", task_id]), 0)
             with redirect_stdout(regression_json_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-regression-json", task_id]), 0)
             with redirect_stdout(inspect_stdout):
@@ -1007,6 +1010,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn('"resolved_citation_count": 1', evaluation_json_stdout.getvalue())
         self.assertIn('"retrieval_match_count": 1', evaluation_json_stdout.getvalue())
         self.assertIn('"canonical_id": "canonical-' + task_id + '-knowledge-0001"', evaluation_json_stdout.getvalue())
+        self.assertIn("Canonical Reuse Regression", regression_report_stdout.getvalue())
+        self.assertIn("- status: match", regression_report_stdout.getvalue())
+        self.assertIn("- mismatch_count: 0", regression_report_stdout.getvalue())
+        self.assertIn("- evaluation_count_delta: 0", regression_report_stdout.getvalue())
         self.assertIn('"evaluation_count": 1', regression_json_stdout.getvalue())
         self.assertIn('"latest_judgment": "useful"', regression_json_stdout.getvalue())
         self.assertIn("canonical_reuse_eval_count: 1", inspect_stdout.getvalue())
@@ -1025,6 +1032,119 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(regression_baseline["latest_judgment"], "useful")
         self.assertEqual(regression_baseline["latest_citations"], [citation])
         self.assertEqual(regression_baseline["latest_retrieval_context_ref"], f".swl/tasks/{task_id}/retrieval.json")
+
+    def test_cli_canonical_reuse_regression_reports_mismatch_when_baseline_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Regression compare",
+                        "--goal",
+                        "Detect stale canonical reuse regression baseline",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://canonical-regression",
+                        "--knowledge-item",
+                        "Canonical reuse regression should detect stale baseline files.",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/evidence.md",
+                        "--knowledge-canonicalization-intent",
+                        "promote",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "knowledge-promote",
+                        task_id,
+                        "knowledge-0001",
+                        "--target",
+                        "canonical",
+                    ]
+                ),
+                0,
+            )
+
+            citation = ".swl/canonical_knowledge/reuse_policy.json#canonical-" + task_id + "-knowledge-0001"
+            save_retrieval(
+                tmp_path,
+                task_id,
+                [
+                    RetrievalItem(
+                        path=".swl/canonical_knowledge/reuse_policy.json",
+                        source_type="knowledge",
+                        score=7,
+                        preview="Canonical reuse regression should detect stale baseline files.",
+                        chunk_id="canonical-" + task_id + "-knowledge-0001",
+                        title="Canonical reuse regression",
+                        citation=citation,
+                        matched_terms=["canonical", "regression"],
+                        score_breakdown={"coverage_hits": 2},
+                        metadata={
+                            "storage_scope": "canonical_registry",
+                            "canonical_id": "canonical-" + task_id + "-knowledge-0001",
+                            "canonical_policy": "reuse_visible",
+                            "source_ref": "chat://canonical-regression",
+                            "artifact_ref": ".swl/tasks/demo/artifacts/evidence.md",
+                            "knowledge_task_relation": "current_task",
+                        },
+                    )
+                ],
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "canonical-reuse-evaluate",
+                        task_id,
+                        "--citation",
+                        citation,
+                        "--judgment",
+                        "useful",
+                    ]
+                ),
+                0,
+            )
+
+            stale_baseline = json.loads(canonical_reuse_regression_path(tmp_path, task_id).read_text(encoding="utf-8"))
+            stale_baseline["evaluation_count"] = 0
+            stale_baseline["judgment_counts"]["useful"] = 0
+            stale_baseline["latest_judgment"] = ""
+            canonical_reuse_regression_path(tmp_path, task_id).write_text(
+                json.dumps(stale_baseline, indent=2) + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "canonical-reuse-regression", task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("Canonical Reuse Regression", output)
+        self.assertIn("- status: mismatch", output)
+        self.assertIn("evaluation_count", output)
+        self.assertIn("judgment_useful", output)
+        self.assertIn("latest_judgment", output)
+        self.assertIn("- evaluation_count_delta: 1", output)
+        self.assertIn("- useful_delta: 1", output)
 
     def test_create_task_initializes_empty_canonical_reuse_regression_baseline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -2896,6 +3016,7 @@ class CliLifecycleTest(unittest.TestCase):
             (["task", "canonical-registry", "--help"], "Print the canonical knowledge registry report."),
             (["task", "canonical-registry-index", "--help"], "Print the canonical knowledge registry index report."),
             (["task", "canonical-reuse", "--help"], "Print the canonical reuse policy report."),
+            (["task", "canonical-reuse-regression", "--help"], "Print the canonical reuse regression compare report."),
             (["task", "canonical-reuse-eval", "--help"], "Print the canonical reuse evaluation report."),
             (["task", "canonical-reuse-evaluate", "--help"], "Record an explicit canonical reuse evaluation judgment"),
             (["task", "canonical-reuse-regression-json", "--help"], "Print the canonical reuse regression baseline record."),

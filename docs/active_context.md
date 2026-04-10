@@ -89,13 +89,14 @@ Phase 15 已经明确并落地：
 - Phase 16 `Canonical Reuse Regression Baseline` 已完成 kickoff / breakdown 规划
 - Phase 16 已落地 task-local `canonical_reuse_regression.json` baseline artifact
 - `inspect` / `review` 已接入 canonical reuse regression snapshot
+- CLI 已新增 `canonical-reuse-regression` compare report
 - CLI 已新增 `canonical-reuse-regression-json`
-- regression baseline 已有针对性 CLI 测试覆盖
+- regression baseline / compare path 已有针对性 CLI 测试覆盖
 
 ## 下一步
 
 下一步应优先完成：
 
-1. 增加 baseline 与当前 summary 的显式 compare path
-2. 为 regression delta / mismatch indicator 补 CLI 输出与测试覆盖
-3. 视完成度决定是否同步 README 中的 operator 入口
+1. 视完成度决定是否同步 README 中的 operator 入口
+2. 判断 Phase 16 是否还需要补更强的 compare artifact，而不是仅 CLI report
+3. 若当前边界已足够，开始准备 Phase 16 closeout
