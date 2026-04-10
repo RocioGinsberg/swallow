@@ -30,13 +30,16 @@ Phase 16 已完成的收口结果以 `docs/plans/phase16/closeout.md` 为准。
 - canonical promotion write-through、dedupe、trace-based supersede
 - canonical reuse policy / retrieval integration / traceability baseline
 
-Phase 15 已经明确并落地：
+Phase 16 已经明确并落地：
 
 - canonical reuse evaluation record schema 与 judgment vocabulary
 - evaluation summary / judgment distribution 的最小表达
 - canonical citation resolution 与 evaluation judgment 的显式对应关系
 - retrieval context 已存在时的 provenance attachment
 - operator-facing inspect / review / report path
+- task-local `canonical_reuse_regression.json` baseline artifact
+- baseline 与当前 evaluation summary 的 compare path
+- regression snapshot 在 `inspect` / `review` 中的可见面
 
 当前待解决的不是补做 Phase 16 基线，而是为下一轮工作重新确定：
 
