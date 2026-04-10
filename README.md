@@ -111,6 +111,7 @@ The current system already includes:
 - retrieval over repository files and Markdown / Obsidian notes
 - inspectable knowledge objects, knowledge partition, knowledge index, and knowledge policy structures
 - canonical reuse evaluation and regression inspection paths
+- regression mismatch attention surfaces in queue, control, inspect, and review
 
 The focus is no longer to prove a minimal runnable demo.  
 The focus is to keep the existing baseline stable while continuing with later phases.
@@ -281,6 +282,8 @@ Canonical registry records are explicit persisted outputs for promoted canonical
 Canonical reuse remains policy-gated. `canonical-reuse` shows which active canonical records are currently reuse-visible, while superseded canonical records stay excluded by default.
 
 Canonical reuse evaluation also remains explicit and operator-driven. `canonical-reuse-evaluate` records a task-local judgment, `canonical-reuse-eval` shows the evaluation summary, and `canonical-reuse-regression` compares the saved regression baseline against the current evaluation summary so an operator can quickly spot drift or stale baseline state.
+
+Canonical reuse regression control also remains operator-facing rather than automatic. Queue, control, inspect, and review now surface regression mismatch attention and point back to `canonical-reuse-regression` instead of mutating policy or blocking task flow automatically.
 
 Run the test suite:
 

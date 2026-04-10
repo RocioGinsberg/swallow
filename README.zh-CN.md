@@ -110,6 +110,7 @@ swallow 长期围绕五层组织：
 - repo 文件与 Markdown / Obsidian 笔记检索
 - knowledge objects、knowledge partition、knowledge index、knowledge policy 等可检查结构
 - canonical reuse evaluation 与 regression inspection 路径
+- queue、control、inspect、review 中的 regression mismatch attention surface
 
 当前重点已经不是继续证明“最小可运行 demo”，而是在保持已有基线稳定的前提下，继续推进后续 phase。
 
@@ -273,6 +274,8 @@ canonical registry record 是显式持久化的 canonical knowledge 输出，不
 canonical reuse 仍然受显式 policy 控制。`canonical-reuse` 用来查看当前哪些 active canonical records 对 retrieval reuse 可见，superseded records 默认保持排除状态。
 
 canonical reuse evaluation 同样保持显式、由 operator 驱动。`canonical-reuse-evaluate` 用来记录 task-local judgment，`canonical-reuse-eval` 用来查看 evaluation summary，`canonical-reuse-regression` 用来比较已保存的 regression baseline 与当前 evaluation summary，快速看出是否出现漂移或 baseline 过期。
+
+canonical reuse regression control 同样保持 operator-facing，而不是自动化 gate。现在 queue、control、inspect、review 会显式暴露 regression mismatch attention，并把 operator 引回 `canonical-reuse-regression`，而不是自动改写 policy 或阻断任务流。
 
 运行测试：
 
