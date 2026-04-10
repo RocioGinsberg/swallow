@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 17 基线
+- Phase 0 到 Phase 18 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,25 +39,26 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Workbench / UX`
-- **Latest Completed Phase**：`Phase 17`
-- **Latest Completed Slice**：`Canonical Reuse Regression Control Baseline`
+- **Latest Completed Track**：`Execution Topology`
+- **Latest Completed Phase**：`Phase 18`
+- **Latest Completed Slice**：`Remote Handoff Contract Baseline`
 
-Phase 17 已完成的核心内容包括：
+Phase 18 已完成的核心内容包括：
 
-- 建立 canonical reuse regression mismatch attention summary
-- 在 `queue`、`control`、`inspect`、`review` 中暴露 regression mismatch surface
-- 保持 regression attention 指回 `canonical-reuse-regression` compare path
-- 完成 regression control workflow 的 README / README.zh-CN 对齐
-- 保持 operator-facing control baseline，而不引入自动 policy gate
+- 建立 task-local `remote_handoff_contract.json` baseline artifact
+- 明确 local baseline 与 cross-site candidate 的 remote handoff contract truth
+- 在 `execution-site`、`dispatch`、`handoff` 中对齐 remote handoff contract summary
+- 在 `control`、`inspect`、`review` 中暴露 remote handoff readiness attention
+- 完成 remote handoff workflow 的 README / README.zh-CN 对齐
+- 保持 operator-facing contract baseline，而不引入真实 remote execution implementation
 
 当前默认不应继续无边界扩张到：
 
-- 自动 mismatch gating 或 policy mutation
-- 大范围 queue / control platform 化
-- 非 canonical source 的广义 regression orchestration
-- canonical freshness / invalidation workflow
-- remote regression sync
+- 真实 remote worker execution
+- cross-machine transport implementation
+- distributed job queue / hosted orchestration platform
+- automatic remote dispatch
+- remote handoff driven policy mutation or execution gating
 
 ---
 
@@ -142,10 +143,12 @@ Phase 17 已完成的核心内容包括：
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
 4. `current_state.md`
-5. `docs/plans/phase17/closeout.md`
+5. `docs/plans/phase18/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase18/kickoff.md`
+- `docs/plans/phase18/breakdown.md`
 - `docs/plans/phase17/kickoff.md`
 - `docs/plans/phase17/breakdown.md`
 - `docs/plans/phase16/kickoff.md`
@@ -254,16 +257,16 @@ Phase 17 已完成的核心内容包括：
 - branch 负责承载该轮开发
 - commit 负责记录 slice 内的小步变更
 
-对于已完成的 `Phase 17 / Workbench / UX / Canonical Reuse Regression Control Baseline`，当前收口结果包括：
+对于已完成的 `Phase 18 / Execution Topology / Remote Handoff Contract Baseline`，当前收口结果包括：
 
 1. `kickoff.md` 已完成
 2. `breakdown.md` 已完成
 3. feature branch 已切出并承载实现
-4. regression mismatch attention summary 已完成
-5. `queue` / `control` / `inspect` / `review` 的 regression control surface 已完成
+4. remote handoff contract record / report baseline 已完成
+5. `execution-site` / `dispatch` / `handoff` / `control` / `inspect` / `review` 的 remote handoff surface 已完成
 6. `closeout.md` 已完成
 
-下一轮工作应重新选择 active track / phase / slice，而不是默认继续扩张 Phase 15。
+下一轮工作应重新选择 active track / phase / slice，而不是默认继续扩张 Phase 18。
 
 ---
 
