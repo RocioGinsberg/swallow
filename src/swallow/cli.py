@@ -392,6 +392,34 @@ def build_canonical_reuse_regression_attention(base_dir: Path, task_id: str) -> 
     }
 
 
+def build_remote_handoff_attention(base_dir: Path, task_id: str) -> dict[str, object]:
+    contract = load_json_if_exists(remote_handoff_contract_path(base_dir, task_id))
+    contract_kind = str(contract.get("contract_kind", "not_available") or "not_available")
+    contract_status = str(contract.get("contract_status", "not_available") or "not_available")
+    handoff_boundary = str(contract.get("handoff_boundary", "unknown") or "unknown")
+    dispatch_readiness = str(contract.get("dispatch_readiness", "unknown") or "unknown")
+    operator_ack_required = bool(contract.get("operator_ack_required", False))
+    needs_attention = contract_kind == "remote_handoff_candidate"
+    return {
+        "needs_attention": "yes" if needs_attention else "no",
+        "contract_kind": contract_kind,
+        "contract_status": contract_status,
+        "handoff_boundary": handoff_boundary,
+        "dispatch_readiness": dispatch_readiness,
+        "operator_ack_required": "yes" if operator_ack_required else "no",
+        "recommended_reason": (
+            "remote_handoff_contract_required" if needs_attention else "remote_handoff_not_needed"
+        ),
+        "recommended_command": f"swl task remote-handoff {task_id}",
+        "next_operator_action": str(contract.get("recommended_next_action", "")).strip() or "Inspect task artifacts.",
+        "summary": (
+            f"{contract_status}:{handoff_boundary}:{dispatch_readiness}"
+            if needs_attention
+            else f"{contract_status}:{handoff_boundary}"
+        ),
+    }
+
+
 def load_json_if_exists(path: Path) -> dict[str, object]:
     if not path.exists():
         return {}
@@ -575,6 +603,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
     queue_entry = build_task_queue_entry(base_dir, state)
     knowledge_attention = summarize_knowledge_attention(base_dir, state.task_id)
     regression_attention = build_canonical_reuse_regression_attention(base_dir, state.task_id)
+    remote_handoff_attention = build_remote_handoff_attention(base_dir, state.task_id)
     boundaries = build_control_boundaries(
         state,
         checkpoint_snapshot,
@@ -616,6 +645,17 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
         f"canonical_reuse_regression_reason: {regression_attention['recommended_reason']}",
         f"canonical_reuse_regression_command: {regression_attention['recommended_command']}",
         "",
+        "Remote Handoff Control",
+        f"remote_handoff_needed: {remote_handoff_attention['needs_attention']}",
+        f"remote_handoff_summary: {remote_handoff_attention['summary']}",
+        f"remote_handoff_contract_kind: {remote_handoff_attention['contract_kind']}",
+        f"remote_handoff_contract_status: {remote_handoff_attention['contract_status']}",
+        f"remote_handoff_boundary: {remote_handoff_attention['handoff_boundary']}",
+        f"remote_handoff_dispatch_readiness: {remote_handoff_attention['dispatch_readiness']}",
+        f"remote_handoff_operator_ack_required: {remote_handoff_attention['operator_ack_required']}",
+        f"remote_handoff_reason: {remote_handoff_attention['recommended_reason']}",
+        f"remote_handoff_command: {remote_handoff_attention['recommended_command']}",
+        "",
         "Control Boundaries",
         f"resume_path: {boundaries['resume']}",
         f"retry_path: {boundaries['retry']}",
@@ -630,6 +670,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
             f"review: swl task review {state.task_id}",
             f"knowledge_review: swl task knowledge-review-queue {state.task_id}",
             f"canonical_reuse_regression: swl task canonical-reuse-regression {state.task_id}",
+            f"remote_handoff: swl task remote-handoff {state.task_id}",
             f"resume: swl task resume {state.task_id}",
             f"policy: swl task policy {state.task_id}",
             f"checkpoint: swl task checkpoint {state.task_id}",
@@ -637,6 +678,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
             f"run: swl task run {state.task_id}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
+            f"remote_handoff_contract_report: {state.artifact_paths.get('remote_handoff_contract_report', '-')}",
             f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
             f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
             f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
@@ -1618,6 +1660,7 @@ def main(argv: list[str] | None = None) -> int:
         canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
         canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
         regression_attention = build_canonical_reuse_regression_attention(base_dir, args.task_id)
+        remote_handoff_attention = build_remote_handoff_attention(base_dir, args.task_id)
         canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
         canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
@@ -1730,6 +1773,14 @@ def main(argv: list[str] | None = None) -> int:
             f"canonical_reuse_regression_mismatch_count: {regression_attention['mismatch_count']}",
             f"canonical_reuse_regression_mismatches: {regression_attention['mismatches']}",
             f"canonical_reuse_regression_command: {regression_attention['recommended_command']}",
+            f"remote_handoff_needed: {remote_handoff_attention['needs_attention']}",
+            f"remote_handoff_summary: {remote_handoff_attention['summary']}",
+            f"remote_handoff_contract_kind: {remote_handoff_attention['contract_kind']}",
+            f"remote_handoff_contract_status: {remote_handoff_attention['contract_status']}",
+            f"remote_handoff_boundary: {remote_handoff_attention['handoff_boundary']}",
+            f"remote_handoff_dispatch_readiness: {remote_handoff_attention['dispatch_readiness']}",
+            f"remote_handoff_operator_ack_required: {remote_handoff_attention['operator_ack_required']}",
+            f"remote_handoff_command: {remote_handoff_attention['recommended_command']}",
             "",
             "Artifacts",
             f"task_semantics_report: {state.artifact_paths.get('task_semantics_report', '-')}",
@@ -1749,6 +1800,7 @@ def main(argv: list[str] | None = None) -> int:
             f"execution_site_report: {state.artifact_paths.get('execution_site_report', '-')}",
             f"dispatch_report: {state.artifact_paths.get('dispatch_report', '-')}",
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
+            f"remote_handoff_contract_report: {state.artifact_paths.get('remote_handoff_contract_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
             f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
