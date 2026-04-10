@@ -136,3 +136,7 @@ def canonical_reuse_policy_path(base_dir: Path) -> Path:
 
 def canonical_reuse_eval_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "canonical_reuse_eval.jsonl"
+
+
+def canonical_reuse_regression_path(base_dir: Path, task_id: str) -> Path:
+    return task_root(base_dir, task_id) / "canonical_reuse_regression.json"

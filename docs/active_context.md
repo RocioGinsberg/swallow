@@ -3,21 +3,21 @@
 ## 当前轮次
 
 - latest_completed_track: `Evaluation / Policy`
-- latest_completed_phase: `Phase 15`
-- latest_completed_slice: `Canonical Reuse Evaluation Baseline`
+- latest_completed_phase: `Phase 16`
+- latest_completed_slice: `Canonical Reuse Regression Baseline`
 - active_track: `to_be_selected`
 - active_phase: `none_selected`
 - active_slice: `fresh_kickoff_required`
-- active_branch: `main`
-- status: `phase15_closed`
+- active_branch: `feat/phase16-canonical-reuse-regression`
+- status: `phase16_closed`
 
 ---
 
 ## 当前目标
 
-当前默认目标不是继续扩张已完成的 Phase 15，而是把它视为稳定 checkpoint，并在下一轮实现前重新选择新的 active track / phase / slice。
+当前默认目标不是继续扩张已完成的 Phase 16，而是把它视为稳定 checkpoint，并在下一轮实现前重新选择新的 active track / phase / slice。
 
-Phase 15 已完成的收口结果以 `docs/plans/phase15/closeout.md` 为准。
+Phase 16 已完成的收口结果以 `docs/plans/phase16/closeout.md` 为准。
 
 ---
 
@@ -30,15 +30,18 @@ Phase 15 已完成的收口结果以 `docs/plans/phase15/closeout.md` 为准。
 - canonical promotion write-through、dedupe、trace-based supersede
 - canonical reuse policy / retrieval integration / traceability baseline
 
-Phase 15 已经明确并落地：
+Phase 16 已经明确并落地：
 
 - canonical reuse evaluation record schema 与 judgment vocabulary
 - evaluation summary / judgment distribution 的最小表达
 - canonical citation resolution 与 evaluation judgment 的显式对应关系
 - retrieval context 已存在时的 provenance attachment
 - operator-facing inspect / review / report path
+- task-local `canonical_reuse_regression.json` baseline artifact
+- baseline 与当前 evaluation summary 的 compare path
+- regression snapshot 在 `inspect` / `review` 中的可见面
 
-当前待解决的不是补做 Phase 15 基线，而是为下一轮工作重新确定：
+当前待解决的不是补做 Phase 16 基线，而是为下一轮工作重新确定：
 
 - primary track
 - fresh kickoff 边界
@@ -54,10 +57,12 @@ Phase 15 已经明确并落地：
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase15/closeout.md`
+5. `docs/plans/phase16/closeout.md`
 
 需要恢复历史上下文时再读取：
 
+- `docs/plans/phase16/kickoff.md`
+- `docs/plans/phase16/breakdown.md`
 - `docs/plans/phase15/kickoff.md`
 - `docs/plans/phase15/breakdown.md`
 - `docs/plans/phase14/closeout.md`
@@ -84,6 +89,14 @@ Phase 15 已经明确并落地：
 - `python3 -m unittest tests.test_cli` 已通过（115 tests）
 - `docs/plans/phase15/closeout.md` 已完成
 - 当前 `main` 已回到 Phase 15 收口后的稳定状态
+- Phase 16 `Canonical Reuse Regression Baseline` 已完成 kickoff / breakdown 规划
+- Phase 16 已落地 task-local `canonical_reuse_regression.json` baseline artifact
+- `inspect` / `review` 已接入 canonical reuse regression snapshot
+- CLI 已新增 `canonical-reuse-regression` compare report
+- CLI 已新增 `canonical-reuse-regression-json`
+- regression baseline / compare path 已有针对性 CLI 测试覆盖
+- `README.md` / `README.zh-CN.md` 已同步 regression workflow operator 入口
+- `docs/plans/phase16/closeout.md` 已完成
 
 ## 下一步
 

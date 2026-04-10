@@ -7,6 +7,9 @@ from pathlib import Path
 from .canonical_reuse_eval import (
     build_canonical_reuse_evaluation_report,
     build_canonical_reuse_evaluation_summary,
+    build_canonical_reuse_regression_current,
+    build_canonical_reuse_regression_report,
+    compare_canonical_reuse_regression,
 )
 from .canonical_reuse import build_canonical_reuse_report
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
@@ -28,6 +31,7 @@ from .paths import (
     canonical_registry_path,
     canonical_reuse_policy_path,
     canonical_reuse_eval_path,
+    canonical_reuse_regression_path,
     capability_assembly_path,
     capability_manifest_path,
     checkpoint_snapshot_path,
@@ -110,6 +114,7 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "canonical_registry_index_json",
             "canonical_reuse_policy_json",
             "canonical_reuse_eval_json",
+            "canonical_reuse_regression_json",
             "route_json",
             "topology_json",
             "execution_site_json",
@@ -326,6 +331,27 @@ def build_canonical_reuse_eval_snapshot(records: list[dict[str, object]]) -> lis
         f"canonical_reuse_eval_latest_task: {summary.get('latest_task_id', '') or '-'}",
         f"canonical_reuse_eval_latest_citations: {', '.join(summary.get('latest_citations', [])) or '-'}",
         f"canonical_reuse_eval_latest_retrieval_context: {summary.get('latest_retrieval_context_ref', '') or '-'}",
+    ]
+
+
+def build_canonical_reuse_regression_snapshot(baseline: dict[str, object]) -> list[str]:
+    judgment_counts = baseline.get("judgment_counts", {})
+    if not isinstance(judgment_counts, dict):
+        judgment_counts = {}
+    return [
+        "Canonical Reuse Regression",
+        f"canonical_reuse_regression_generated_at: {baseline.get('baseline_generated_at', '-')}",
+        f"canonical_reuse_regression_task: {baseline.get('task_id', '') or '-'}",
+        f"canonical_reuse_regression_eval_count: {baseline.get('evaluation_count', 0)}",
+        f"canonical_reuse_regression_useful: {judgment_counts.get('useful', 0)}",
+        f"canonical_reuse_regression_noisy: {judgment_counts.get('noisy', 0)}",
+        f"canonical_reuse_regression_needs_review: {judgment_counts.get('needs_review', 0)}",
+        f"canonical_reuse_regression_resolved: {baseline.get('resolved_citation_count', 0)}",
+        f"canonical_reuse_regression_unresolved: {baseline.get('unresolved_citation_count', 0)}",
+        f"canonical_reuse_regression_retrieval_matches: {baseline.get('retrieval_match_count', 0)}",
+        f"canonical_reuse_regression_latest_judgment: {baseline.get('latest_judgment', '') or '-'}",
+        f"canonical_reuse_regression_latest_citations: {', '.join(baseline.get('latest_citations', [])) or '-'}",
+        f"canonical_reuse_regression_latest_retrieval_context: {baseline.get('latest_retrieval_context_ref', '') or '-'}",
     ]
 
 
@@ -1040,6 +1066,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Print the canonical reuse policy report.",
     )
     canonical_reuse_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
+    canonical_reuse_regression_parser = task_subparsers.add_parser(
+        "canonical-reuse-regression",
+        help="Print the canonical reuse regression compare report.",
+        description="Print the canonical reuse regression compare report.",
+    )
+    canonical_reuse_regression_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     canonical_reuse_eval_parser = task_subparsers.add_parser(
         "canonical-reuse-eval",
         help="Print the canonical reuse evaluation report.",
@@ -1227,6 +1259,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Print the canonical reuse evaluation records.",
     )
     canonical_reuse_eval_json_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
+    canonical_reuse_regression_json_parser = task_subparsers.add_parser(
+        "canonical-reuse-regression-json",
+        help="Print the canonical reuse regression baseline record.",
+        description="Print the canonical reuse regression baseline record.",
+    )
+    canonical_reuse_regression_json_parser.add_argument("task_id", help="Task identifier used for workspace selection.")
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
@@ -1515,6 +1553,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
+        canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
         canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
         canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
@@ -1597,6 +1636,8 @@ def main(argv: list[str] | None = None) -> int:
             "",
             *build_canonical_reuse_eval_snapshot(canonical_reuse_eval),
             "",
+            *build_canonical_reuse_regression_snapshot(canonical_reuse_regression),
+            "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
             "Retrieval And Memory",
@@ -1632,6 +1673,7 @@ def main(argv: list[str] | None = None) -> int:
             f"canonical_registry_index_report: {state.artifact_paths.get('canonical_registry_index_report', '-')}",
             f"canonical_reuse_policy_report: {state.artifact_paths.get('canonical_reuse_policy_report', '-')}",
             f"canonical_reuse_eval_report: {state.artifact_paths.get('canonical_reuse_eval_report', '-')}",
+            f"canonical_reuse_regression_json: {state.artifact_paths.get('canonical_reuse_regression_json', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"route_report: {state.artifact_paths.get('route_report', '-')}",
@@ -1690,6 +1732,7 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
+        canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
         canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
         canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
@@ -1764,6 +1807,8 @@ def main(argv: list[str] | None = None) -> int:
             "",
             *build_canonical_reuse_eval_snapshot(canonical_reuse_eval),
             "",
+            *build_canonical_reuse_regression_snapshot(canonical_reuse_regression),
+            "",
             *build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy),
             "",
             "Review Artifacts",
@@ -1776,6 +1821,7 @@ def main(argv: list[str] | None = None) -> int:
             f"canonical_registry_index_report: {state.artifact_paths.get('canonical_registry_index_report', '-')}",
             f"canonical_reuse_policy_report: {state.artifact_paths.get('canonical_reuse_policy_report', '-')}",
             f"canonical_reuse_eval_report: {state.artifact_paths.get('canonical_reuse_eval_report', '-')}",
+            f"canonical_reuse_regression_json: {state.artifact_paths.get('canonical_reuse_regression_json', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"source_grounding: {state.artifact_paths.get('source_grounding', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
@@ -1962,6 +2008,17 @@ def main(argv: list[str] | None = None) -> int:
         print(build_canonical_reuse_report(load_json_if_exists(canonical_reuse_policy_path(base_dir))))
         return 0
 
+    if args.command == "task" and args.task_command == "canonical-reuse-regression":
+        baseline = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
+        records = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
+        current = build_canonical_reuse_regression_current(
+            task_id=args.task_id,
+            summary=build_canonical_reuse_evaluation_summary(records),
+        )
+        comparison = compare_canonical_reuse_regression(baseline=baseline, current=current)
+        print(build_canonical_reuse_regression_report(baseline=baseline, current=current, comparison=comparison))
+        return 0
+
     if args.command == "task" and args.task_command == "canonical-reuse-eval":
         records = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
         print(build_canonical_reuse_evaluation_report(records, build_canonical_reuse_evaluation_summary(records)))
@@ -1985,6 +2042,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "canonical-reuse-eval-json":
         print(json.dumps(load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id)), indent=2))
+        return 0
+
+    if args.command == "task" and args.task_command == "canonical-reuse-regression-json":
+        print(json.dumps(load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":

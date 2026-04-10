@@ -110,6 +110,7 @@ The current system already includes:
 - planning handoff, staged knowledge capture, and intake inspection
 - retrieval over repository files and Markdown / Obsidian notes
 - inspectable knowledge objects, knowledge partition, knowledge index, and knowledge policy structures
+- canonical reuse evaluation and regression inspection paths
 
 The focus is no longer to prove a minimal runnable demo.  
 The focus is to keep the existing baseline stable while continuing with later phases.
@@ -269,11 +270,17 @@ swl task canonical-registry-json <task-id>
 swl task canonical-registry-index <task-id>
 swl task canonical-reuse <task-id>
 swl task canonical-reuse-json <task-id>
+swl task canonical-reuse-evaluate <task-id> --citation <citation> --judgment useful
+swl task canonical-reuse-eval <task-id>
+swl task canonical-reuse-regression <task-id>
+swl task canonical-reuse-regression-json <task-id>
 ```
 
 Canonical registry records are explicit persisted outputs for promoted canonical knowledge. They are not automatic global memory and do not automatically enable broad retrieval reuse.
 
 Canonical reuse remains policy-gated. `canonical-reuse` shows which active canonical records are currently reuse-visible, while superseded canonical records stay excluded by default.
+
+Canonical reuse evaluation also remains explicit and operator-driven. `canonical-reuse-evaluate` records a task-local judgment, `canonical-reuse-eval` shows the evaluation summary, and `canonical-reuse-regression` compares the saved regression baseline against the current evaluation summary so an operator can quickly spot drift or stale baseline state.
 
 Run the test suite:
 
