@@ -34,14 +34,14 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 18`
-- latest_completed_slice: `Remote Handoff Contract Baseline`
+- latest_completed_phase: `Phase 19`
+- latest_completed_slice: `Handoff Contract Schema Unification`
 - checkpoint_type: `phase_closeout`
-- last_checked: `2026-04-10`
+- last_checked: `2026-04-12`
 
 说明：
 
-- Phase 0 到 Phase 18 已完成并形成稳定 checkpoint
+- Phase 0 到 Phase 19 已完成并形成稳定 checkpoint
 - post-Phase-2 retrieval baseline 已完成
 - post-Phase-5 executor / external-input slice 已完成
 - post-Phase-5 retrieval / memory-next slice 已完成
@@ -59,8 +59,8 @@
 
 说明：
 
-- 当前默认不再继续扩张已完成的 Phase 18，而应先重新选择下一轮 primary track
-- 当前最近完成的 stop/go 边界以 `docs/plans/phase18/closeout.md` 为准
+- 当前默认不再继续扩张已完成的 Phase 19，而应先重新选择下一轮 primary track
+- 当前最近完成的 stop/go 边界以 `docs/plans/phase19/closeout.md` 为准
 
 ---
 
@@ -72,10 +72,13 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase18/closeout.md`
+5. `docs/plans/phase19/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase19/kickoff.md`
+- `docs/plans/phase19/breakdown.md`
+- `docs/plans/phase18/closeout.md`
 - `docs/plans/phase18/kickoff.md`
 - `docs/plans/phase18/breakdown.md`
 - `docs/plans/phase17/kickoff.md`
@@ -117,6 +120,7 @@ AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m swallow.cli --base-di
 - Phase 16 的 regression compare 目前仍是 task-local CLI/report surface，不应误解为当前系统已经建立全局 regression gate。
 - Phase 17 的 regression attention 目前仍是 operator-facing CLI surface，不应误解为当前系统已经建立自动 mismatch gate。
 - Phase 18 的 remote handoff contract 目前仍是 contract-truth / operator-facing baseline，不应误解为当前系统已经建立真实 remote execution 或 transport implementation。
+- Phase 19 的 handoff schema unification 目前仍是 schema-truth / write-time validation baseline，不应误解为当前系统已经建立 handoff-driven execution gating、自动 dispatch 或 provider negotiation。
 
 ## 当前收口规则
 - 在 phase 或 major slice 收口时，本文件才需要更新。

@@ -23,6 +23,18 @@ Swallow 系统的第 2 层（编排层）彻底摒弃了这种直连通信机制
 *   **Next_Steps (后续行动指南)**：接手者接下来应该优先处理哪几个 TODO。
 *   **Context_Pointers (上下文指针)**：**核心精髓**。交接单绝不携带大段源码或原文档，只传递资源的**引用指针 (References)**（例如：`git_commit_hash: 8f7e2a`，`artifact_id: arch_doc_v1`，`obsidian_note: #1024`）。接手的 Agent 根据这些指针自行去 Git 层或数据库精准加载所需的最小上下文，保持 Prompt 绝对干净。
 
+#### Schema Alignment Note
+
+自 Phase 19 起，代码层对 handoff vocabulary 的 authoritative 定义统一收敛到 [src/swallow/models.py](/home/rocio/projects/swallow/src/swallow/models.py:87) 中的 `HandoffContractSchema`。
+
+本节术语与统一 schema 的映射为：
+- `Goal` -> `goal`
+- `Done` -> `done`
+- `Next_Steps` -> `next_steps`
+- `Context_Pointers` -> `context_pointers`
+
+本设计文档未单独列出的约束集合，在统一 schema 中使用 `constraints` 表达，以便与 interaction / knowledge ingestion 侧保持同一交接契约。
+
 ---
 
 ## 3. 智能调度器 (The Dispatcher) 与模型选型
