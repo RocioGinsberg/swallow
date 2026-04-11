@@ -5,19 +5,17 @@
 - latest_completed_track: `Core Loop`
 - latest_completed_phase: `Phase 19`
 - latest_completed_slice: `Handoff Contract Schema Unification`
-- active_track: `to_be_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `feat/phase19-handoff-schema-unification`
-- status: `phase19_closed`
+- active_track: `Execution Topology`
+- active_phase: `Phase 20`
+- active_slice: `Mock Dispatch & Execution Gating`
+- active_branch: `main`
+- status: `planning_complete_awaiting_pr1`
 
 ---
 
 ## 当前目标
 
-当前默认目标不是继续扩张已完成的 Phase 19，而是把它视为稳定 checkpoint，并在下一轮实现前重新选择新的 active track / phase / slice。
-
-Phase 19 已完成的收口结果以 `docs/plans/phase19/closeout.md` 为准。
+启动 Phase 20：基于 Phase 19 统一的 Handoff Contract Schema，在 Orchestrator 中引入 Dispatch 拦截器与 Mock Remote Executor，实现基于 Contract 的模拟远端派发与 Execution Gating（不涉及真实 RPC 和网络传输）。
 
 ---
 
@@ -29,23 +27,10 @@ Phase 19 已完成的收口结果以 `docs/plans/phase19/closeout.md` 为准。
 - canonical registry / index / inspect baseline
 - canonical promotion write-through、dedupe、trace-based supersede
 - canonical reuse policy / retrieval integration / traceability baseline
+- Handoff Contract Schema 在代码层的统一与写盘校验验证
 
-已经明确并落地：
-
-- canonical reuse evaluation record schema 与 judgment vocabulary
-- evaluation summary / judgment distribution 的最小表达
-- canonical citation resolution 与 evaluation judgment 的显式对应关系
-- retrieval context 已存在时的 provenance attachment
-- operator-facing inspect / review / report path
-- task-local `canonical_reuse_regression.json` baseline artifact
-- baseline 与当前 evaluation summary 的 compare path
-- regression snapshot 在 `inspect` / `review` 中的可见面
-
-当前待解决的不是继续补做 Phase 19 基线，而是为下一轮工作重新确定：
-
-- primary track
-- fresh kickoff 边界
-- 对应的下一轮工作分支
+当前待解决的是：
+如何让上述“静态记录”的交接单真正驱动 Orchestrator 的分发路由（Dispatch），哪怕最初只是分发给一个 Mock 的远端沙盒节点。我们需要补齐这个拓扑决策点。
 
 ---
 
@@ -57,27 +42,7 @@ Phase 19 已完成的收口结果以 `docs/plans/phase19/closeout.md` 为准。
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
 4. `current_state.md`
-5. `docs/plans/phase19/closeout.md`
-
-需要恢复历史上下文时再读取：
-
-- `docs/plans/phase18/closeout.md`
-- `docs/plans/phase18/kickoff.md`
-- `docs/plans/phase18/breakdown.md`
-- `docs/plans/phase17/kickoff.md`
-- `docs/plans/phase17/breakdown.md`
-- `docs/plans/phase16/kickoff.md`
-- `docs/plans/phase16/breakdown.md`
-- `docs/plans/phase15/kickoff.md`
-- `docs/plans/phase15/breakdown.md`
-- `docs/plans/phase14/closeout.md`
-- `docs/plans/phase14/kickoff.md`
-- `docs/plans/phase14/breakdown.md`
-- `docs/plans/phase13/closeout.md`
-- `docs/plans/phase13/kickoff.md`
-- `docs/plans/phase13/breakdown.md`
-- `docs/archive/*`
-- 旧 `post-phase-*` 归档文档
+5. `docs/plans/phase20/context_brief.md`
 
 ---
 
@@ -85,62 +50,25 @@ Phase 19 已完成的收口结果以 `docs/plans/phase19/closeout.md` 为准。
 
 已完成：
 
-- Phase 14 `Canonical Reuse Policy Baseline` 已完成
-- Phase 15 `Canonical Reuse Evaluation Baseline` kickoff / breakdown 已建立
-- canonical reuse evaluation record / summary / report baseline 已实现
-- CLI 已新增 `canonical-reuse-evaluate`、`canonical-reuse-eval`、`canonical-reuse-eval-json`
-- `inspect` / `review` 已接入 canonical reuse evaluation 摘要
-- evaluation record 已解析 canonical citation，并在存在 `retrieval.json` 时附带 retrieval provenance
-- `python3 -m unittest tests.test_cli` 已通过（115 tests）
-- `docs/plans/phase15/closeout.md` 已完成
-- Phase 16 closeout 已合并回 `main`
-- Phase 16 `Canonical Reuse Regression Baseline` 已完成 kickoff / breakdown 规划
-- Phase 16 已落地 task-local `canonical_reuse_regression.json` baseline artifact
-- `inspect` / `review` 已接入 canonical reuse regression snapshot
-- CLI 已新增 `canonical-reuse-regression` compare report
-- CLI 已新增 `canonical-reuse-regression-json`
-- regression baseline / compare path 已有针对性 CLI 测试覆盖
-- `README.md` / `README.zh-CN.md` 已同步 regression workflow operator 入口
-- `docs/plans/phase16/closeout.md` 已完成
-- Phase 17 `Canonical Reuse Regression Control Baseline` 已完成 kickoff / breakdown 规划
-- Phase 17 已新增 regression mismatch attention summary
-- `queue` / `control` 已接入 regression mismatch surface
-- `inspect` / `review` 已接入 regression-aware guidance
-- regression control baseline 已有针对性 CLI 测试覆盖
-- `README.md` / `README.zh-CN.md` 已同步 regression control workflow
-- `docs/plans/phase17/closeout.md` 已完成
-- Phase 18 `Remote Handoff Contract Baseline` 已完成 kickoff / breakdown 规划
-- Phase 18 已新增 task-local `remote_handoff_contract.json` baseline record 与 report scaffold
-- remote handoff contract 已区分 local baseline 与 cross-site candidate truth
-- remote handoff contract baseline 已有针对性测试覆盖
-- execution-site / dispatch / handoff report 已接入 remote handoff contract summary
-- CLI 已新增 `remote-handoff` 与 `remote-handoff-json`
-- remote handoff report alignment 已有针对性 CLI 测试覆盖
-- `inspect` / `control` 已接入 remote handoff readiness attention
-- remote handoff readiness 已有针对性 CLI 测试覆盖
-- `review` 已接入 remote handoff readiness attention
-- remote handoff review guidance 已有针对性 CLI 测试覆盖
-- `README.md` / `README.zh-CN.md` 已同步 remote handoff workflow operator 说明
-- `docs/plans/phase18/closeout.md` 已完成
-
-## 当前产出物
-
-- docs/plans/phase19/design_review.md (gemini, 2026-04-11)
-- docs/plans/phase19/design_decision.md (claude, 2026-04-12, draft)
-- docs/plans/phase19/risk_assessment.md (claude, 2026-04-12, draft)
-- docs/plans/phase19/kickoff.md (codex, 2026-04-12)
-- docs/plans/phase19/breakdown.md (codex, 2026-04-12)
-- docs/plans/phase19/closeout.md (codex, 2026-04-12)
-- docs/design/ORCHESTRATION_AND_HANDOFF_DESIGN.md (codex, 2026-04-12, schema alignment note)
-- docs/design/KNOWLEDGE_AND_RAG_DESIGN.md (codex, 2026-04-12, schema alignment note)
-- docs/design/INTERACTION_AND_WORKBENCH.md (codex, 2026-04-12, schema alignment note)
-
-- docs/plans/phase19/review_comments.md (claude, 2026-04-12, draft)
+- Phase 18 `Remote Handoff Contract Baseline` 已完成
+- Phase 19 `Handoff Contract Schema Unification` 已完成，确立了 `HandoffContractSchema` 校验。
+- 架构审查已通过，推荐进入 Track 3 (Execution Topology)。
+- **[Gemini]** 已产出 `docs/plans/phase20/context_brief.md`
+- **[Claude]** 已产出 `docs/plans/phase20/design_decision.md` (draft)
+- **[Claude]** 已产出 `docs/plans/phase20/risk_assessment.md` (draft)
+- **[Claude]** 已产出 `docs/plans/phase20/kickoff.md` (draft)
+- **[Claude]** 已产出 `docs/plans/phase20/breakdown.md` (draft)
 
 ## 下一步
 
-PR #1 评审通过（PASS），可合并。有 2 个 CONCERN 项不阻塞但需关注：
-1. 空 constraints 列表的验证兼容性——建议跑一次 `python3 -m unittest tests.test_cli` 确认
-2. Codex 修改 docs/design/ 的授权记录
+PR 1（Planning）准备就绪。包含以下产出物：
+- context_brief.md (Gemini)
+- design_decision.md (Claude)
+- risk_assessment.md (Claude)
+- kickoff.md (Claude)
+- breakdown.md (Claude)
 
-等待人工合并决策（Merge Gate）。
+由人工提交 PR 1 并审批设计。通过后：
+1. 切出分支 `feat/phase20-mock-dispatch-gating`
+2. 由 Codex 按 breakdown 顺序实现 Slice 1 → 2 → 3
+3. 实现完成后由 Claude 产出 review_comments，组装 PR 2
