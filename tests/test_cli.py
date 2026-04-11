@@ -36,7 +36,16 @@ from swallow.harness import (
     build_source_grounding,
 )
 from swallow.knowledge_policy import evaluate_knowledge_policy
-from swallow.models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskState, ValidationResult
+from swallow.models import (
+    Event,
+    ExecutorResult,
+    HandoffContractSchema,
+    RetrievalItem,
+    RetrievalRequest,
+    TaskState,
+    ValidationResult,
+    validate_remote_handoff_contract_payload,
+)
 from swallow.orchestrator import build_task_retrieval_request, create_task, run_task
 from swallow.paths import (
     canonical_registry_path,
@@ -47,7 +56,7 @@ from swallow.paths import (
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
-from swallow.store import append_canonical_record, load_state, save_retrieval
+from swallow.store import append_canonical_record, load_state, save_remote_handoff_contract, save_retrieval
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
@@ -126,6 +135,11 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(contract["transport_truth"], "local_only")
         self.assertEqual(contract["ownership_required"], "no")
         self.assertEqual(contract["dispatch_readiness"], "not_applicable")
+        self.assertEqual(contract["goal"], "Persist baseline remote handoff contract truth")
+        self.assertEqual(contract["constraints"], [])
+        self.assertEqual(contract["done"], ["Current route remains inside the local execution baseline."])
+        self.assertEqual(contract["next_steps"], ["Continue through the existing local execution path."])
+        self.assertTrue(contract["context_pointers"])
         self.assertFalse(contract["remote_candidate"])
         self.assertFalse(contract["operator_ack_required"])
         self.assertEqual(contract["next_owner_kind"], "local_orchestrator")
@@ -136,6 +150,28 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Remote Handoff Contract Report", report)
         self.assertIn("contract_kind: not_applicable", report)
         self.assertIn("handoff_boundary: local_baseline", report)
+        self.assertIn("## Unified Handoff Schema", report)
+        self.assertIn("goal: Persist baseline remote handoff contract truth", report)
+
+    def test_handoff_contract_schema_serializes_unified_fields(self) -> None:
+        schema = HandoffContractSchema(
+            goal="Unify the handoff vocabulary",
+            constraints=["Do not expand remote execution"],
+            done=["Phase 18 baseline already landed"],
+            next_steps=["Validate remote_handoff_contract.json on write"],
+            context_pointers=["docs/plans/phase19/design_decision.md"],
+        )
+
+        self.assertEqual(
+            schema.to_dict(),
+            {
+                "goal": "Unify the handoff vocabulary",
+                "constraints": ["Do not expand remote execution"],
+                "done": ["Phase 18 baseline already landed"],
+                "next_steps": ["Validate remote_handoff_contract.json on write"],
+                "context_pointers": ["docs/plans/phase19/design_decision.md"],
+            },
+        )
 
     def test_remote_handoff_contract_record_marks_cross_site_candidate_truth(self) -> None:
         state = TaskState(
@@ -168,11 +204,92 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(contract["ownership_truth"], "transfer_required_before_remote_dispatch")
         self.assertEqual(contract["dispatch_readiness"], "contract_required")
         self.assertEqual(contract["dispatch_truth"], "planned")
+        self.assertEqual(contract["goal"], "Describe remote handoff contract")
+        self.assertEqual(contract["constraints"], [])
+        self.assertEqual(
+            contract["done"],
+            ["Remote candidate contract detected; dispatch remains blocked until contract review is complete."],
+        )
+        self.assertEqual(
+            contract["next_steps"],
+            ["Review the remote handoff contract before treating this task as ready for remote dispatch."],
+        )
+        self.assertEqual(contract["context_pointers"], [])
         self.assertTrue(contract["remote_candidate"])
         self.assertTrue(contract["remote_capable_intent"])
         self.assertTrue(contract["operator_ack_required"])
         self.assertEqual(contract["next_owner_kind"], "remote_executor")
         self.assertEqual(contract["next_owner_ref"], "unassigned")
+
+    def test_validate_remote_handoff_contract_payload_reports_schema_errors(self) -> None:
+        errors = validate_remote_handoff_contract_payload(
+            {
+                "contract_kind": "remote_handoff_candidate",
+                "contract_status": "planned",
+                "handoff_boundary": "cross_site_candidate",
+                "contract_reason": "missing schema fields",
+                "remote_candidate": True,
+                "remote_capable_intent": True,
+                "execution_site": "remote",
+                "execution_site_contract_kind": "remote_candidate",
+                "execution_site_contract_status": "planned",
+                "transport_kind": "remote_transport_candidate",
+                "transport_truth": "explicit_remote_transport_required",
+                "ownership_required": "yes",
+                "ownership_truth": "transfer_required_before_remote_dispatch",
+                "dispatch_readiness": "contract_required",
+                "dispatch_truth": "planned",
+                "operator_ack_required": True,
+                "next_owner_kind": "remote_executor",
+                "next_owner_ref": "unassigned",
+                "blocking_reason": "blocked",
+                "recommended_next_action": "review",
+                "goal": "Describe remote handoff contract",
+                "constraints": [],
+                "done": ["ready"],
+                "next_steps": "review next",
+                "context_pointers": [],
+            }
+        )
+
+        self.assertIn("next_steps must be a list of non-empty strings", errors)
+
+    def test_save_remote_handoff_contract_rejects_invalid_schema_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            with self.assertRaisesRegex(ValueError, "next_steps must be a list of non-empty strings"):
+                save_remote_handoff_contract(
+                    tmp_path,
+                    "task-invalid-handoff",
+                    {
+                        "contract_kind": "remote_handoff_candidate",
+                        "contract_status": "planned",
+                        "handoff_boundary": "cross_site_candidate",
+                        "contract_reason": "missing schema typing",
+                        "remote_candidate": True,
+                        "remote_capable_intent": True,
+                        "execution_site": "remote",
+                        "execution_site_contract_kind": "remote_candidate",
+                        "execution_site_contract_status": "planned",
+                        "transport_kind": "remote_transport_candidate",
+                        "transport_truth": "explicit_remote_transport_required",
+                        "ownership_required": "yes",
+                        "ownership_truth": "transfer_required_before_remote_dispatch",
+                        "dispatch_readiness": "contract_required",
+                        "dispatch_truth": "planned",
+                        "operator_ack_required": True,
+                        "next_owner_kind": "remote_executor",
+                        "next_owner_ref": "unassigned",
+                        "blocking_reason": "blocked",
+                        "recommended_next_action": "review",
+                        "goal": "Describe remote handoff contract",
+                        "constraints": [],
+                        "done": ["ready"],
+                        "next_steps": "review next",
+                        "context_pointers": [],
+                    },
+                )
 
     def test_cli_create_persists_explicit_capability_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
