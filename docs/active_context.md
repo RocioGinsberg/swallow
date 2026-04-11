@@ -135,12 +135,12 @@ Phase 19 已完成的收口结果以 `docs/plans/phase19/closeout.md` 为准。
 - docs/design/KNOWLEDGE_AND_RAG_DESIGN.md (codex, 2026-04-12, schema alignment note)
 - docs/design/INTERACTION_AND_WORKBENCH.md (codex, 2026-04-12, schema alignment note)
 
+- docs/plans/phase19/review_comments.md (claude, 2026-04-12, draft)
+
 ## 下一步
 
-建议下一步：
-1. 从 `docs/system_tracks.md` 重新选择下一轮 primary track
-2. 为新一轮工作编写 fresh kickoff
-3. 在确认 commit 边界后准备人工审阅
+PR #1 评审通过（PASS），可合并。有 2 个 CONCERN 项不阻塞但需关注：
+1. 空 constraints 列表的验证兼容性——建议跑一次 `python3 -m unittest tests.test_cli` 确认
+2. Codex 修改 docs/design/ 的授权记录
 
-当前阻塞项：
-- 无
+等待人工合并决策（Merge Gate）。
