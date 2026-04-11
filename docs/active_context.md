@@ -8,8 +8,8 @@
 - active_track: `Execution Topology`
 - active_phase: `Phase 20`
 - active_slice: `Mock Dispatch & Execution Gating`
-- active_branch: `main`
-- status: `planning_complete_awaiting_pr1`
+- active_branch: `feat/phase20-mock-dispatch-gating`
+- status: `implementation_complete_awaiting_review`
 
 ---
 
@@ -58,17 +58,15 @@
 - **[Claude]** 已产出 `docs/plans/phase20/risk_assessment.md` (draft)
 - **[Claude]** 已产出 `docs/plans/phase20/kickoff.md` (draft)
 - **[Claude]** 已产出 `docs/plans/phase20/breakdown.md` (draft)
+- **[Codex]** 已实现 `DispatchVerdict` + `evaluate_dispatch_verdict()` 纯函数
+- **[Codex]** 已实现 orchestrator dispatch interception point，blocked 路径会写入 `task.dispatch_blocked` 事件
+- **[Codex]** 已实现 `mock-remote` route + mock remote executor
+- **[Codex]** 已补齐 blocked / mock_remote success / mock_remote failure 测试
+- `python3 -m unittest tests.test_cli` 已通过（135 tests）
 
 ## 下一步
 
-PR 1（Planning）准备就绪。包含以下产出物：
-- context_brief.md (Gemini)
-- design_decision.md (Claude)
-- risk_assessment.md (Claude)
-- kickoff.md (Claude)
-- breakdown.md (Claude)
-
-由人工提交 PR 1 并审批设计。通过后：
-1. 切出分支 `feat/phase20-mock-dispatch-gating`
-2. 由 Codex 按 breakdown 顺序实现 Slice 1 → 2 → 3
-3. 实现完成后由 Claude 产出 review_comments，组装 PR 2
+建议下一步：
+1. 由 Claude 产出 `docs/plans/phase20/review_comments.md`
+2. 整理 Phase 20 implementation commit 边界
+3. 组装 PR 2 并进入人工审阅
