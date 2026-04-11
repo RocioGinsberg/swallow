@@ -42,6 +42,7 @@ from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
 from .models import Event, RetrievalRequest, TaskState
+from .models import DispatchVerdict, evaluate_dispatch_verdict
 from .paths import (
     artifacts_dir,
     capability_assembly_path,
@@ -159,6 +160,53 @@ def _begin_execution_attempt(state: TaskState) -> None:
     state.dispatch_requested_at = utc_now()
     state.dispatch_started_at = ""
     state.execution_lifecycle = "prepared"
+
+
+def _evaluate_dispatch_for_run(base_dir: Path, state: TaskState) -> tuple[dict[str, object], DispatchVerdict]:
+    contract_record = build_remote_handoff_contract_record(state)
+    save_remote_handoff_contract(base_dir, state.task_id, contract_record)
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "remote_handoff_contract_report.md",
+        build_remote_handoff_contract_report(contract_record),
+    )
+    return contract_record, evaluate_dispatch_verdict(contract_record)
+
+
+def _apply_blocked_dispatch_verdict(
+    base_dir: Path,
+    state: TaskState,
+    contract_record: dict[str, object],
+    verdict: DispatchVerdict,
+) -> TaskState:
+    state.topology_dispatch_status = "blocked"
+    state.execution_lifecycle = "blocked"
+    state.executor_status = "blocked"
+    state.status = "dispatch_blocked"
+    state.phase = "dispatch"
+    save_state(base_dir, state)
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="task.dispatch_blocked",
+            message="Task dispatch blocked before executor handoff.",
+            payload={
+                "status": state.status,
+                "phase": state.phase,
+                "route_name": state.route_name,
+                "route_execution_site": state.route_execution_site,
+                "route_transport_kind": state.route_transport_kind,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_lifecycle": state.execution_lifecycle,
+                "dispatch_verdict": verdict.to_dict(),
+                "remote_handoff_contract_kind": contract_record.get("contract_kind", ""),
+                "remote_handoff_contract_status": contract_record.get("contract_status", ""),
+            },
+        ),
+    )
+    return state
 
 
 def create_task(
@@ -746,6 +794,9 @@ def run_task(
             },
         ),
     )
+    contract_record, dispatch_verdict = _evaluate_dispatch_for_run(base_dir, state)
+    if dispatch_verdict.action == "blocked":
+        return _apply_blocked_dispatch_verdict(base_dir, state, contract_record, dispatch_verdict)
 
     retrieval_request = build_task_retrieval_request(state)
     _set_phase(base_dir, state, "retrieval")
@@ -754,7 +805,11 @@ def run_task(
 
     state.dispatch_started_at = utc_now()
     state.topology_dispatch_status = (
-        "detached_dispatched" if state.topology_transport_kind == "local_detached_process" else "local_dispatched"
+        "mock_remote_dispatched"
+        if state.topology_transport_kind == "mock_remote_transport"
+        else "detached_dispatched"
+        if state.topology_transport_kind == "local_detached_process"
+        else "local_dispatched"
     )
     state.execution_lifecycle = "dispatched"
     _set_phase(base_dir, state, "executing")

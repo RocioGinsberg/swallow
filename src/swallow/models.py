@@ -104,6 +104,16 @@ class HandoffContractSchema:
         return asdict(self)
 
 
+@dataclass(slots=True)
+class DispatchVerdict:
+    action: str
+    reason: str
+    blocking_detail: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 REMOTE_HANDOFF_REQUIRED_STRING_FIELDS = {
     "contract_kind",
     "contract_status",
@@ -156,6 +166,36 @@ def validate_remote_handoff_contract_payload(payload: dict[str, Any]) -> list[st
         if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
             errors.append(f"{field_name} must be a list of non-empty strings")
     return errors
+
+
+def evaluate_dispatch_verdict(contract: dict[str, Any]) -> DispatchVerdict:
+    if not bool(contract.get("remote_candidate", False)):
+        return DispatchVerdict(
+            action="local",
+            reason="handoff contract stays within the local execution baseline",
+        )
+
+    validation_errors = validate_remote_handoff_contract_payload(contract)
+    if validation_errors:
+        detail = "; ".join(validation_errors)
+        return DispatchVerdict(
+            action="blocked",
+            reason="remote handoff contract is invalid",
+            blocking_detail=detail,
+        )
+
+    if bool(contract.get("operator_ack_required", False)):
+        return DispatchVerdict(
+            action="blocked",
+            reason="remote handoff contract still requires operator acknowledgment",
+            blocking_detail=str(contract.get("recommended_next_action", "")).strip()
+            or "Review the remote handoff contract before dispatch.",
+        )
+
+    return DispatchVerdict(
+        action="mock_remote",
+        reason="remote handoff contract is valid and no operator acknowledgment is pending",
+    )
 
 
 @dataclass(slots=True)

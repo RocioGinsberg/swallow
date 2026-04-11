@@ -1050,6 +1050,40 @@ def build_remote_handoff_contract_record(state: TaskState) -> dict[str, object]:
             **schema.to_dict(),
         }
 
+    if state.topology_transport_kind == "mock_remote_transport":
+        schema = HandoffContractSchema(
+            goal=state.goal,
+            constraints=constraints,
+            done=["Mock remote dispatch contract approved for topology validation."],
+            next_steps=["Run the mock remote executor and persist the resulting artifacts."],
+            context_pointers=context_pointers,
+        )
+        return {
+            "contract_kind": "remote_handoff_candidate",
+            "contract_status": "ready",
+            "handoff_boundary": "cross_site_candidate",
+            "contract_reason": (
+                "Current route targets the mock remote executor used for topology validation without introducing real transport."
+            ),
+            "remote_candidate": True,
+            "remote_capable_intent": state.topology_remote_capable_intent,
+            "execution_site": state.topology_execution_site,
+            "execution_site_contract_kind": state.execution_site_contract_kind,
+            "execution_site_contract_status": "ready",
+            "transport_kind": state.topology_transport_kind,
+            "transport_truth": "mock_remote_transport",
+            "ownership_required": "yes",
+            "ownership_truth": "mock_remote_executor_assigned",
+            "dispatch_readiness": "ready",
+            "dispatch_truth": state.topology_dispatch_status or "planned",
+            "operator_ack_required": False,
+            "next_owner_kind": "remote_executor",
+            "next_owner_ref": "mock-remote-node",
+            "blocking_reason": "",
+            "recommended_next_action": "Dispatch to the mock remote executor.",
+            **schema.to_dict(),
+        }
+
     schema = HandoffContractSchema(
         goal=state.goal,
         constraints=constraints,

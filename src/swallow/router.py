@@ -79,6 +79,24 @@ BUILTIN_ROUTES: dict[str, RouteSpec] = {
             resumable=True,
         ),
     ),
+    "mock-remote": RouteSpec(
+        name="mock-remote",
+        executor_name="mock-remote",
+        backend_kind="mock_remote",
+        model_hint="mock-remote",
+        executor_family="cli",
+        execution_site="remote",
+        remote_capable=True,
+        transport_kind="mock_remote_transport",
+        capabilities=RouteCapabilities(
+            execution_kind="artifact_generation",
+            supports_tool_loop=False,
+            filesystem_access="workspace_read",
+            network_access="none",
+            deterministic=True,
+            resumable=True,
+        ),
+    ),
 }
 
 ROUTE_MODE_ALIASES = {
@@ -116,6 +134,7 @@ def route_for_executor(executor_name: str) -> RouteSpec:
     mapping = {
         "codex": "local-codex",
         "mock": "local-mock",
+        "mock-remote": "mock-remote",
         "note-only": "local-note",
         "local": "local-summary",
     }

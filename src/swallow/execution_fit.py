@@ -59,6 +59,15 @@ def evaluate_execution_fit(state: TaskState, executor_result: ExecutorResult) ->
                 details={"execution_site": state.topology_execution_site},
             )
         )
+    elif state.topology_execution_site == "remote" and state.topology_transport_kind == "mock_remote_transport":
+        findings.append(
+            ExecutionFitFinding(
+                code="execution_site.mock_remote_declared",
+                level="pass",
+                message="Execution topology declares the mock-remote execution site used for topology validation.",
+                details={"execution_site": state.topology_execution_site},
+            )
+        )
     else:
         findings.append(
             ExecutionFitFinding(
@@ -86,6 +95,15 @@ def evaluate_execution_fit(state: TaskState, executor_result: ExecutorResult) ->
                 details={"transport_kind": state.topology_transport_kind},
             )
         )
+    elif state.topology_transport_kind == "mock_remote_transport":
+        findings.append(
+            ExecutionFitFinding(
+                code="transport.mock_remote_declared",
+                level="pass",
+                message="Execution topology declares the mock-remote transport used for topology validation.",
+                details={"transport_kind": state.topology_transport_kind},
+            )
+        )
     else:
         findings.append(
             ExecutionFitFinding(
@@ -96,19 +114,23 @@ def evaluate_execution_fit(state: TaskState, executor_result: ExecutorResult) ->
             )
         )
 
-    if state.topology_dispatch_status in {"local_dispatched", "detached_dispatched"} and state.dispatch_started_at:
+    if state.topology_dispatch_status in {"local_dispatched", "detached_dispatched", "mock_remote_dispatched"} and state.dispatch_started_at:
         findings.append(
             ExecutionFitFinding(
                 code=(
                     "dispatch.local_started"
                     if state.topology_dispatch_status == "local_dispatched"
                     else "dispatch.detached_started"
+                    if state.topology_dispatch_status == "detached_dispatched"
+                    else "dispatch.mock_remote_started"
                 ),
                 level="pass",
                 message=(
                     "Dispatch state is consistent with a started local execution."
                     if state.topology_dispatch_status == "local_dispatched"
                     else "Dispatch state is consistent with a started detached local execution."
+                    if state.topology_dispatch_status == "detached_dispatched"
+                    else "Dispatch state is consistent with a started mock-remote execution."
                 ),
                 details={
                     "dispatch_status": state.topology_dispatch_status,
@@ -121,7 +143,7 @@ def evaluate_execution_fit(state: TaskState, executor_result: ExecutorResult) ->
             ExecutionFitFinding(
                 code="dispatch.local_inconsistent",
                 level="fail",
-                message="Executor ran without a consistent local or detached dispatch record.",
+                message="Executor ran without a consistent local, detached, or mock-remote dispatch record.",
                 details={
                     "dispatch_status": state.topology_dispatch_status,
                     "dispatch_started_at": state.dispatch_started_at,
