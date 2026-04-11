@@ -23,6 +23,8 @@ EXECUTOR_ALIASES = {
     "": DEFAULT_EXECUTOR,
     "codex": "codex",
     "mock": "mock",
+    "mock-remote": "mock-remote",
+    "mock_remote": "mock-remote",
     "note-only": "note-only",
     "note_only": "note-only",
     "local": "local",
@@ -58,6 +60,8 @@ def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) 
 
     if executor_name == "mock":
         return run_mock_executor(prompt)
+    if executor_name == "mock-remote":
+        return run_mock_remote_executor(state, retrieval_items, prompt)
     if executor_name == "note-only":
         return run_note_only_executor(state, retrieval_items, prompt)
     if executor_name == "local":
@@ -134,6 +138,63 @@ def run_mock_executor(prompt: str) -> ExecutorResult:
         status="completed",
         message="Mock executor completed.",
         output="Mock executor output for deterministic verification.",
+        prompt=prompt,
+        failure_kind="",
+        stdout="",
+        stderr="",
+    )
+
+
+def run_mock_remote_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str,
+) -> ExecutorResult:
+    """Deterministic remote-dispatch stub used only for topology validation tests."""
+    outcome = os.environ.get("AIWF_MOCK_REMOTE_OUTCOME", "completed").strip().lower()
+    if outcome == "failed":
+        return ExecutorResult(
+            executor_name="mock-remote",
+            status="failed",
+            message="Mock remote executor reported a simulated dispatch failure.",
+            output=build_fallback_output(
+                state,
+                retrieval_items,
+                ExecutorResult(
+                    executor_name="mock-remote",
+                    status="failed",
+                    message="Mock remote executor reported a simulated dispatch failure.",
+                    prompt=prompt,
+                    failure_kind="mock_remote_failure",
+                    stdout="",
+                    stderr="Simulated mock remote failure.",
+                ),
+            ),
+            prompt=prompt,
+            failure_kind="mock_remote_failure",
+            stdout="",
+            stderr="Simulated mock remote failure.",
+        )
+
+    node_ref = os.environ.get("AIWF_MOCK_REMOTE_NODE", "mock-remote-node").strip() or "mock-remote-node"
+    output = "\n".join(
+        [
+            "# Mock Remote Executor Update",
+            "",
+            f"- task: {state.title}",
+            f"- goal: {state.goal}",
+            f"- remote_node: {node_ref}",
+            f"- retrieval_items: {len(retrieval_items)}",
+            "",
+            "## Dispatch Result",
+            "Mock remote dispatch completed without using any real network transport.",
+        ]
+    )
+    return ExecutorResult(
+        executor_name="mock-remote",
+        status="completed",
+        message="Mock remote executor completed.",
+        output=output,
         prompt=prompt,
         failure_kind="",
         stdout="",

@@ -37,13 +37,18 @@ from swallow.harness import (
 )
 from swallow.knowledge_policy import evaluate_knowledge_policy
 from swallow.models import (
+    DispatchVerdict,
     Event,
     ExecutorResult,
     HandoffContractSchema,
+    RouteCapabilities,
+    RouteSelection,
+    RouteSpec,
     RetrievalItem,
     RetrievalRequest,
     TaskState,
     ValidationResult,
+    evaluate_dispatch_verdict,
     validate_remote_handoff_contract_payload,
 )
 from swallow.orchestrator import build_task_retrieval_request, create_task, run_task
@@ -171,6 +176,98 @@ class CliLifecycleTest(unittest.TestCase):
                 "next_steps": ["Validate remote_handoff_contract.json on write"],
                 "context_pointers": ["docs/plans/phase19/design_decision.md"],
             },
+        )
+
+    def test_evaluate_dispatch_verdict_routes_local_contracts_to_local_execution(self) -> None:
+        verdict = evaluate_dispatch_verdict(
+            {
+                "remote_candidate": False,
+                "operator_ack_required": False,
+            }
+        )
+
+        self.assertEqual(
+            verdict,
+            DispatchVerdict(
+                action="local",
+                reason="handoff contract stays within the local execution baseline",
+                blocking_detail="",
+            ),
+        )
+
+    def test_evaluate_dispatch_verdict_blocks_remote_contracts_awaiting_operator_ack(self) -> None:
+        verdict = evaluate_dispatch_verdict(
+            {
+                "contract_kind": "remote_handoff_candidate",
+                "contract_status": "planned",
+                "handoff_boundary": "cross_site_candidate",
+                "contract_reason": "remote handoff required",
+                "remote_candidate": True,
+                "remote_capable_intent": True,
+                "execution_site": "remote",
+                "execution_site_contract_kind": "remote_candidate",
+                "execution_site_contract_status": "planned",
+                "transport_kind": "mock_remote_transport",
+                "transport_truth": "explicit_remote_transport_required",
+                "ownership_required": "yes",
+                "ownership_truth": "transfer_required_before_remote_dispatch",
+                "dispatch_readiness": "contract_required",
+                "dispatch_truth": "planned",
+                "operator_ack_required": True,
+                "next_owner_kind": "remote_executor",
+                "next_owner_ref": "unassigned",
+                "blocking_reason": "awaiting review",
+                "recommended_next_action": "Review the remote handoff contract before dispatch.",
+                "goal": "Dispatch to mock remote executor",
+                "constraints": ["Do not introduce real network transport"],
+                "done": ["Schema was validated"],
+                "next_steps": ["Approve remote handoff contract"],
+                "context_pointers": ["remote_handoff_contract.json"],
+            }
+        )
+
+        self.assertEqual(verdict.action, "blocked")
+        self.assertEqual(verdict.reason, "remote handoff contract still requires operator acknowledgment")
+        self.assertEqual(verdict.blocking_detail, "Review the remote handoff contract before dispatch.")
+
+    def test_evaluate_dispatch_verdict_routes_ack_free_remote_contracts_to_mock_remote(self) -> None:
+        verdict = evaluate_dispatch_verdict(
+            {
+                "contract_kind": "remote_handoff_candidate",
+                "contract_status": "ready",
+                "handoff_boundary": "cross_site_candidate",
+                "contract_reason": "mock dispatch allowed",
+                "remote_candidate": True,
+                "remote_capable_intent": True,
+                "execution_site": "remote",
+                "execution_site_contract_kind": "remote_candidate",
+                "execution_site_contract_status": "ready",
+                "transport_kind": "mock_remote_transport",
+                "transport_truth": "explicit_remote_transport_required",
+                "ownership_required": "yes",
+                "ownership_truth": "transfer_required_before_remote_dispatch",
+                "dispatch_readiness": "ready",
+                "dispatch_truth": "planned",
+                "operator_ack_required": False,
+                "next_owner_kind": "remote_executor",
+                "next_owner_ref": "mock-remote-node",
+                "blocking_reason": "",
+                "recommended_next_action": "Dispatch to the mock remote executor.",
+                "goal": "Dispatch to mock remote executor",
+                "constraints": ["Do not introduce real network transport"],
+                "done": ["Contract approved"],
+                "next_steps": ["Run mock remote executor"],
+                "context_pointers": ["remote_handoff_contract.json"],
+            }
+        )
+
+        self.assertEqual(
+            verdict,
+            DispatchVerdict(
+                action="mock_remote",
+                reason="remote handoff contract is valid and no operator acknowledgment is pending",
+                blocking_detail="",
+            ),
         )
 
     def test_remote_handoff_contract_record_marks_cross_site_candidate_truth(self) -> None:
@@ -1797,6 +1894,126 @@ class CliLifecycleTest(unittest.TestCase):
                 )
 
         self.assertIn("Unknown validator capability: missing_validator", str(raised.exception))
+
+    def test_run_task_blocks_remote_dispatch_when_operator_ack_is_required(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Blocked mock dispatch",
+                goal="Block remote dispatch until operator review",
+                workspace_root=tmp_path,
+            )
+            remote_route = RouteSelection(
+                route=RouteSpec(
+                    name="mock-remote",
+                    executor_name="mock",
+                    backend_kind="mock_remote_test",
+                    model_hint="mock-remote",
+                    executor_family="cli",
+                    execution_site="remote",
+                    remote_capable=True,
+                    transport_kind="remote_transport_candidate",
+                    capabilities=RouteCapabilities(
+                        execution_kind="artifact_generation",
+                        supports_tool_loop=False,
+                        filesystem_access="workspace_read",
+                        network_access="none",
+                        deterministic=True,
+                        resumable=True,
+                    ),
+                ),
+                reason="Selected a mock remote route for dispatch blocking verification.",
+                policy_inputs={},
+            )
+
+            with patch(
+                "swallow.orchestrator.select_route",
+                return_value=remote_route,
+            ):
+                with patch("swallow.orchestrator.run_retrieval") as retrieval_mock:
+                    with patch("swallow.orchestrator.run_execution") as execution_mock:
+                        final_state = run_task(tmp_path, state.task_id, executor_name="mock")
+
+            task_dir = tmp_path / ".swl" / "tasks" / state.task_id
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            contract = json.loads((task_dir / "remote_handoff_contract.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(final_state.status, "dispatch_blocked")
+        self.assertEqual(final_state.phase, "dispatch")
+        self.assertEqual(final_state.topology_dispatch_status, "blocked")
+        self.assertEqual(final_state.execution_lifecycle, "blocked")
+        self.assertEqual(final_state.executor_status, "blocked")
+        self.assertEqual(contract["contract_kind"], "remote_handoff_candidate")
+        self.assertEqual(events[-1]["event_type"], "task.dispatch_blocked")
+        self.assertEqual(events[-1]["payload"]["dispatch_verdict"]["action"], "blocked")
+        retrieval_mock.assert_not_called()
+        execution_mock.assert_not_called()
+
+    def test_run_task_dispatches_to_mock_remote_executor_and_completes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Mock remote success",
+                goal="Validate mock remote dispatch success",
+                workspace_root=tmp_path,
+            )
+
+            with patch.dict("os.environ", {"AIWF_MOCK_REMOTE_OUTCOME": "completed"}, clear=False):
+                final_state = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            task_dir = tmp_path / ".swl" / "tasks" / state.task_id
+            contract = json.loads((task_dir / "remote_handoff_contract.json").read_text(encoding="utf-8"))
+            dispatch = json.loads((task_dir / "dispatch.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            executor_output = (task_dir / "artifacts" / "executor_output.md").read_text(encoding="utf-8")
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(final_state.executor_name, "mock-remote")
+        self.assertEqual(final_state.topology_dispatch_status, "mock_remote_dispatched")
+        self.assertEqual(contract["contract_status"], "ready")
+        self.assertFalse(contract["operator_ack_required"])
+        self.assertEqual(contract["next_owner_ref"], "mock-remote-node")
+        self.assertEqual(dispatch["remote_handoff_contract_status"], "ready")
+        self.assertEqual(events[-1]["event_type"], "task.completed")
+        self.assertIn("Mock Remote Executor Update", executor_output)
+
+    def test_run_task_dispatches_to_mock_remote_executor_and_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Mock remote failure",
+                goal="Validate mock remote dispatch failure",
+                workspace_root=tmp_path,
+            )
+
+            with patch.dict("os.environ", {"AIWF_MOCK_REMOTE_OUTCOME": "failed"}, clear=False):
+                final_state = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            task_dir = tmp_path / ".swl" / "tasks" / state.task_id
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            stderr_output = (task_dir / "artifacts" / "executor_stderr.txt").read_text(encoding="utf-8")
+
+        self.assertEqual(final_state.status, "failed")
+        self.assertEqual(final_state.executor_name, "mock-remote")
+        self.assertEqual(final_state.topology_dispatch_status, "mock_remote_dispatched")
+        self.assertEqual(final_state.executor_status, "failed")
+        self.assertEqual(events[-1]["event_type"], "task.failed")
+        self.assertIn("Simulated mock remote failure.", stderr_output)
 
     def test_task_list_prints_header_when_no_tasks_exist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
