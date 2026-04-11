@@ -85,6 +85,80 @@ class TaskSemantics:
 
 
 @dataclass(slots=True)
+class HandoffContractSchema:
+    """Unified handoff vocabulary across orchestration, retrieval, and interaction design docs.
+
+    Field mapping:
+    - orchestration handoff note: Goal / Done / Next_Steps / Context_Pointers
+    - knowledge intake extraction: Goals / Constraints / Context
+    - interaction task object: Goal / Constraints / Context Ref
+    """
+
+    goal: str
+    constraints: list[str] = field(default_factory=list)
+    done: list[str] = field(default_factory=list)
+    next_steps: list[str] = field(default_factory=list)
+    context_pointers: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+REMOTE_HANDOFF_REQUIRED_STRING_FIELDS = {
+    "contract_kind",
+    "contract_status",
+    "handoff_boundary",
+    "contract_reason",
+    "execution_site",
+    "execution_site_contract_kind",
+    "execution_site_contract_status",
+    "transport_kind",
+    "transport_truth",
+    "ownership_required",
+    "ownership_truth",
+    "dispatch_readiness",
+    "dispatch_truth",
+    "next_owner_kind",
+    "next_owner_ref",
+    "recommended_next_action",
+    "goal",
+}
+REMOTE_HANDOFF_OPTIONAL_STRING_FIELDS = {
+    "blocking_reason",
+}
+REMOTE_HANDOFF_REQUIRED_BOOL_FIELDS = {
+    "remote_candidate",
+    "remote_capable_intent",
+    "operator_ack_required",
+}
+REMOTE_HANDOFF_REQUIRED_LIST_FIELDS = {
+    "constraints",
+    "done",
+    "next_steps",
+    "context_pointers",
+}
+
+
+def validate_remote_handoff_contract_payload(payload: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for field_name in sorted(REMOTE_HANDOFF_REQUIRED_STRING_FIELDS):
+        value = payload.get(field_name)
+        if not isinstance(value, str) or not value:
+            errors.append(f"{field_name} must be a non-empty string")
+    for field_name in sorted(REMOTE_HANDOFF_OPTIONAL_STRING_FIELDS):
+        if not isinstance(payload.get(field_name), str):
+            errors.append(f"{field_name} must be a string")
+    for field_name in sorted(REMOTE_HANDOFF_REQUIRED_BOOL_FIELDS):
+        if not isinstance(payload.get(field_name), bool):
+            errors.append(f"{field_name} must be a boolean")
+    for field_name in sorted(REMOTE_HANDOFF_REQUIRED_LIST_FIELDS):
+        value = payload.get(field_name)
+        if not isinstance(value, list) or any(not isinstance(item, str) or not item for item in value):
+            errors.append(f"{field_name} must be a list of non-empty strings")
+    return errors
+
+
+@dataclass(slots=True)
 class KnowledgeObject:
     object_id: str
     text: str

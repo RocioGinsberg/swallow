@@ -4,7 +4,14 @@ import json
 from pathlib import Path
 from typing import Iterable
 
-from .models import Event, RetrievalItem, TaskState, ValidationResult, utc_now
+from .models import (
+    Event,
+    RetrievalItem,
+    TaskState,
+    ValidationResult,
+    utc_now,
+    validate_remote_handoff_contract_payload,
+)
 from .paths import (
     canonical_reuse_policy_path,
     canonical_reuse_eval_path,
@@ -291,6 +298,9 @@ def save_handoff(base_dir: Path, task_id: str, payload: dict[str, object]) -> No
 
 
 def save_remote_handoff_contract(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:
+    errors = validate_remote_handoff_contract_payload(payload)
+    if errors:
+        raise ValueError(f"Invalid remote handoff contract payload: {'; '.join(errors)}")
     ensure_task_layout(base_dir, task_id)
     remote_handoff_contract_path(base_dir, task_id).write_text(
         json.dumps(payload, indent=2) + "\n",

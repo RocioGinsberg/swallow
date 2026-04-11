@@ -30,6 +30,17 @@
     3.  **目标 (Goals)**：最终需要交付的产物或解决的核心问题。
 *   **生成权威资产**：提纯后的信息被转化为标准化的**“任务交接单” (Task Handoff Note)**。这个交接单将作为知识库中的一个核心（Canonical）资产，指导后续所有 Agent 的规划与执行操作。
 
+### 3.1 Schema Alignment Note
+
+自 Phase 19 起，外部 AI 会话摄入提纯后的 handoff vocabulary 在代码层统一落到 [src/swallow/models.py](/home/rocio/projects/swallow/src/swallow/models.py:87) 的 `HandoffContractSchema`。
+
+本节术语与统一 schema 的映射为：
+- `Context` -> `context_pointers`
+- `Constraints` -> `constraints`
+- `Goals` -> `goal`
+
+此外，统一 schema 还显式补充了 `done` 与 `next_steps`，用于把知识摄入后的历史沉淀和后续行动指南与 orchestration handoff 保持一致。
+
 ## 4. 增强检索流水线 (Enhanced Retrieval Pipeline)
 为保证大规模知识图谱的高效精准召回，我们设计了四个阶段的检索增强流水线（作为底层基础检索能力）：
 

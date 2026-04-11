@@ -22,6 +22,7 @@ from .models import (
     Event,
     ExecutionBudgetPolicyResult,
     ExecutorResult,
+    HandoffContractSchema,
     KnowledgePolicyResult,
     RetrievalItem,
     RetrievalRequest,
@@ -1006,7 +1007,25 @@ def build_remote_handoff_contract_record(state: TaskState) -> dict[str, object]:
         or state.topology_transport_kind not in {"local_process", "local_detached_process"}
         or state.topology_remote_capable_intent
     )
+    context_pointers = [
+        path
+        for path in [
+            state.artifact_paths.get("task_semantics_json", ""),
+            state.artifact_paths.get("execution_site_report", ""),
+            state.artifact_paths.get("dispatch_report", ""),
+            state.artifact_paths.get("remote_handoff_contract_report", ""),
+        ]
+        if path
+    ]
+    constraints = [str(item) for item in state.task_semantics.get("constraints", []) if str(item)]
     if not remote_candidate:
+        schema = HandoffContractSchema(
+            goal=state.goal,
+            constraints=constraints,
+            done=["Current route remains inside the local execution baseline."],
+            next_steps=["Continue through the existing local execution path."],
+            context_pointers=context_pointers,
+        )
         return {
             "contract_kind": "not_applicable",
             "contract_status": "not_needed",
@@ -1028,8 +1047,16 @@ def build_remote_handoff_contract_record(state: TaskState) -> dict[str, object]:
             "next_owner_ref": state.current_attempt_owner_ref,
             "blocking_reason": "",
             "recommended_next_action": "Continue through the existing local execution path.",
+            **schema.to_dict(),
         }
 
+    schema = HandoffContractSchema(
+        goal=state.goal,
+        constraints=constraints,
+        done=["Remote candidate contract detected; dispatch remains blocked until contract review is complete."],
+        next_steps=["Review the remote handoff contract before treating this task as ready for remote dispatch."],
+        context_pointers=context_pointers,
+    )
     return {
         "contract_kind": "remote_handoff_candidate",
         "contract_status": "planned",
@@ -1058,6 +1085,7 @@ def build_remote_handoff_contract_record(state: TaskState) -> dict[str, object]:
         "recommended_next_action": (
             "Review the remote handoff contract before treating this task as ready for remote dispatch."
         ),
+        **schema.to_dict(),
     }
 
 
@@ -1086,6 +1114,13 @@ def build_remote_handoff_contract_report(record: dict[str, object]) -> str:
             f"- next_owner_ref: {record.get('next_owner_ref', 'pending')}",
             f"- blocking_reason: {record.get('blocking_reason', '') or 'none'}",
             f"- recommended_next_action: {record.get('recommended_next_action', 'pending')}",
+            "",
+            "## Unified Handoff Schema",
+            f"- goal: {record.get('goal', 'pending')}",
+            f"- constraints: {', '.join(record.get('constraints', [])) or 'none'}",
+            f"- done: {', '.join(record.get('done', [])) or 'none'}",
+            f"- next_steps: {', '.join(record.get('next_steps', [])) or 'none'}",
+            f"- context_pointers: {', '.join(record.get('context_pointers', [])) or 'none'}",
         ]
     )
 

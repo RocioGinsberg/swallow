@@ -2,22 +2,22 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Execution Topology`
-- latest_completed_phase: `Phase 18`
-- latest_completed_slice: `Remote Handoff Contract Baseline`
+- latest_completed_track: `Core Loop`
+- latest_completed_phase: `Phase 19`
+- latest_completed_slice: `Handoff Contract Schema Unification`
 - active_track: `to_be_selected`
 - active_phase: `none_selected`
 - active_slice: `fresh_kickoff_required`
-- active_branch: `main`
-- status: `phase18_closed`
+- active_branch: `feat/phase19-handoff-schema-unification`
+- status: `phase19_closed`
 
 ---
 
 ## 当前目标
 
-当前默认目标不是继续扩张已完成的 Phase 18，而是把它视为稳定 checkpoint，并在下一轮实现前重新选择新的 active track / phase / slice。
+当前默认目标不是继续扩张已完成的 Phase 19，而是把它视为稳定 checkpoint，并在下一轮实现前重新选择新的 active track / phase / slice。
 
-Phase 18 已完成的收口结果以 `docs/plans/phase18/closeout.md` 为准。
+Phase 19 已完成的收口结果以 `docs/plans/phase19/closeout.md` 为准。
 
 ---
 
@@ -41,11 +41,11 @@ Phase 18 已完成的收口结果以 `docs/plans/phase18/closeout.md` 为准。
 - baseline 与当前 evaluation summary 的 compare path
 - regression snapshot 在 `inspect` / `review` 中的可见面
 
-当前待解决的不是继续补做 Phase 18 基线，而是为下一轮工作重新确定：
+当前待解决的不是继续补做 Phase 19 基线，而是为下一轮工作重新确定：
 
 - primary track
 - fresh kickoff 边界
-- 对应的 feature branch
+- 对应的下一轮工作分支
 
 ---
 
@@ -57,7 +57,7 @@ Phase 18 已完成的收口结果以 `docs/plans/phase18/closeout.md` 为准。
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
 4. `current_state.md`
-5. `docs/plans/phase18/closeout.md`
+5. `docs/plans/phase19/closeout.md`
 
 需要恢复历史上下文时再读取：
 
@@ -123,10 +123,24 @@ Phase 18 已完成的收口结果以 `docs/plans/phase18/closeout.md` 为准。
 - `README.md` / `README.zh-CN.md` 已同步 remote handoff workflow operator 说明
 - `docs/plans/phase18/closeout.md` 已完成
 
+## 当前产出物
+
+- docs/plans/phase19/design_review.md (gemini, 2026-04-11)
+- docs/plans/phase19/design_decision.md (claude, 2026-04-12, draft)
+- docs/plans/phase19/risk_assessment.md (claude, 2026-04-12, draft)
+- docs/plans/phase19/kickoff.md (codex, 2026-04-12)
+- docs/plans/phase19/breakdown.md (codex, 2026-04-12)
+- docs/plans/phase19/closeout.md (codex, 2026-04-12)
+- docs/design/ORCHESTRATION_AND_HANDOFF_DESIGN.md (codex, 2026-04-12, schema alignment note)
+- docs/design/KNOWLEDGE_AND_RAG_DESIGN.md (codex, 2026-04-12, schema alignment note)
+- docs/design/INTERACTION_AND_WORKBENCH.md (codex, 2026-04-12, schema alignment note)
+
+- docs/plans/phase19/review_comments.md (claude, 2026-04-12, draft)
+
 ## 下一步
 
-下一步应优先完成：
+PR #1 评审通过（PASS），可合并。有 2 个 CONCERN 项不阻塞但需关注：
+1. 空 constraints 列表的验证兼容性——建议跑一次 `python3 -m unittest tests.test_cli` 确认
+2. Codex 修改 docs/design/ 的授权记录
 
-1. 基于 `docs/system_tracks.md` 重新选择下一轮 primary track
-2. 为新一轮 phase 编写 fresh kickoff，明确目标、非目标与验收边界
-3. 按新 slice 切出对应的 `feat/<phase-or-slice>` 分支
+等待人工合并决策（Merge Gate）。

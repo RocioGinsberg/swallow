@@ -13,6 +13,7 @@
 5. `.agents/claude/rules.md` — 你的专属规则
 6. `AGENTS.md` — 仓库入口控制面
 7. `docs/active_context.md` — 当前高频状态
+7. `docs/design_review.md` — gemini设计审查报告
 
 ## 启动后第一件事
 
