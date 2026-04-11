@@ -91,9 +91,26 @@ Phase 18 已完成的核心内容包括：
 
 ---
 
+## 协作模式
+
+本项目采用三 agent + 人工协作开发：
+
+| 角色 | 职责 | 控制文件 |
+|------|------|----------|
+| **Gemini** | 长上下文阅读、上下文摘要、一致性检查 | `.gemini/settings.md` → `.agents/gemini/` |
+| **Claude** | 方案拆解、风险评估、PR 评审、分支建议 | `CLAUDE.md` → `.agents/claude/` |
+| **Codex** | 代码实现、测试、提交 | `.codex/session_bootstrap.md` → `.agents/codex/` |
+| **Human** | 设计审批、合并决策 | — |
+
+协作流程定义见 `.agents/workflows/feature.md`。
+共享规则见 `.agents/shared/`。
+状态同步规则见 `.agents/shared/state_sync_rules.md`。
+
+---
+
 ## 当前文档结构
 
-本仓库文档按四层组织：
+本仓库文档按五层组织：
 
 ### 1. 公开说明层
 - `README.md`
@@ -118,20 +135,38 @@ Phase 18 已完成的核心内容包括：
 - `docs/plans/<phase>/breakdown.md`
 - `docs/plans/<phase>/closeout.md`
 - `docs/plans/<phase>/commit_summary.md`（可选）
+- `docs/plans/<phase>/context_brief.md`（Gemini 产出）
+- `docs/plans/<phase>/design_decision.md`（Claude 产出）
+- `docs/plans/<phase>/risk_assessment.md`（Claude 产出）
+- `docs/plans/<phase>/review_comments.md`（Claude 产出）
+- `docs/plans/<phase>/consistency_report.md`（Gemini 产出，可选）
 
 用途：
-- 组织当前 phase 的目标、拆解、收口
+- 组织当前 phase 的目标、拆解、收口、多 agent 产出物
 - phase 文档以目录为边界
 - 未来不再新增 `post-phase-*` 命名
 
-### 4. Codex 控制层
-- `.codex/session_bootstrap.md`
-- `.codex/rules.md`
-- `.codex/templates/*`
+### 4. 多 Agent 控制层
+- `.agents/shared/` — 共享规则、读取顺序、状态同步规则
+- `.agents/codex/` — Codex 角色定义、专属规则、模板、skills
+- `.agents/claude/` — Claude 角色定义、专属规则
+- `.agents/gemini/` — Gemini 角色定义、专属规则
+- `.agents/workflows/` — 多角色协作流程定义
+- `.agents/templates/` — PR body 等共享模板
 
 用途：
-- 规定 Codex 读取顺序、工作规则、模板
-- 不应再复制一套完整 phase 正文或历史文档
+- 固定各角色分工、读取顺序、行动边界
+- 定义协作流程和产出物格式
+- 各工具原生入口（`CLAUDE.md`、`.codex/session_bootstrap.md`、`.gemini/settings.md`）指向此层
+
+### 5. 工具原生入口（thin pointer）
+- `CLAUDE.md` → `.agents/shared/` + `.agents/claude/`
+- `.codex/session_bootstrap.md` → `.agents/shared/` + `.agents/codex/`
+- `.gemini/settings.md` → `.agents/shared/` + `.agents/gemini/`
+
+用途：
+- 各 agent 工具的自动加载入口
+- 不包含实际规则内容，只负责引导读取 `.agents/` 下的文件
 
 ---
 
@@ -298,30 +333,26 @@ Phase 18 已完成的核心内容包括：
 
 ---
 
-## Codex 读取与工作要求
+## Agent 读取与工作要求
 
-新会话默认按以下顺序读取：
+所有 agent 新会话按以下顺序读取：
 
-1. `AGENTS.md`
-2. `docs/active_context.md`
-3. `docs/plans/phase12/kickoff.md`
-4. `docs/plans/phase12/breakdown.md`
+1. `.agents/shared/read_order.md`（按其中指引继续读取共享规则）
+2. 各自的 `role.md` 和 `rules.md`
+3. `AGENTS.md`
+4. `docs/active_context.md`
+5. `docs/plans/<active-phase>/` 下的相关文件（按需）
 
-仅在需要时再读取：
+详细读取顺序见各工具原生入口文件和 `.agents/shared/read_order.md`。
 
-- `current_state.md`
-- `docs/plans/<older-phase>/closeout.md`
-- `docs/archive/*`
-
-Codex 在本仓库中做规划或实现时，应默认遵守：
+所有 agent 应遵守：
 
 - 先确认 active track、active phase、active slice
 - 不把历史归档材料误当作当前工作目标
 - 不擅自扩大当前 phase 范围
-- 不默认更新多个状态文档
 - 高频只更新 `docs/active_context.md`
-- 规划时显式写明目标、非目标、验收边界
-- 实现时尽量让 Git 提交与 slice 对齐
+- 每次完成 workflow step 后必须更新状态（见 `.agents/shared/state_sync_rules.md`）
+- 各角色只在自己的可写范围内操作（见各 `role.md`）
 
 ---
 

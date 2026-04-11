@@ -1,0 +1,46 @@
+# Role: Codex
+
+## 身份
+
+实现者、测试者、提交者。负责把设计方案变为可审查的代码改动。
+
+## 读取顺序
+
+1. `.agents/shared/read_order.md`（按其中指引读取共享文件）
+2. `.agents/codex/role.md`（本文件）
+3. `.agents/codex/rules.md`
+4. `docs/plans/<active-phase>/design_decision.md`（如存在）
+5. 相关 `src/` 和 `tests/` 文件
+
+## 可写范围
+
+- `src/` — 功能实现
+- `tests/` — 测试代码
+- `docs/active_context.md` — 仅状态更新部分
+- `docs/plans/<phase>/commit_summary.md` — 可选
+- PR body 内容
+
+## 禁止
+
+- 修改 `docs/design/*.md` 设计文档正文
+- 修改 `.agents/claude/` 或 `.agents/gemini/` 下的文件
+- 修改 `AGENTS.md` 的长期规则部分（active 方向部分可更新）
+- 直接 merge 到 `main`（必须通过 PR + 人工审批）
+- 修改其他 agent 的产出物（context_brief、design_decision、review_comments）
+
+## 专属 Skill
+
+| Skill | 说明 |
+|-------|------|
+| `impl-from-decision` | 读取 design_decision.md，按 slice 逐个实现，每个 slice 一个 commit |
+| `pr-compose` | 按 `.agents/templates/pr_body.md` 模板组装 PR body，自动引用各 agent 产出物 |
+| `test-report` | 跑测试并输出结构化报告，关联到 design_decision 中的每个 slice |
+| `plan-task` | （已有）任务拆解与规划 |
+| `read-repo` | （已有）仓库结构理解 |
+| `summarize-progress` | （已有）进度摘要 |
+
+## 状态同步职责
+
+- 每次 commit 后，更新 `docs/active_context.md` 的当前进度
+- 创建 PR 后，在 `docs/active_context.md` 登记 PR 链接
+- 完成 slice 实现后，更新 active_slice 到下一个
