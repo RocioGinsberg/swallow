@@ -2,20 +2,20 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Execution Topology`
-- latest_completed_phase: `Phase 20`
-- latest_completed_slice: `Mock Dispatch & Execution Gating`
-- active_track: `Evaluation / Policy` (Primary) + `Workbench / UX` (Secondary)
-- active_phase: `Phase 21`
-- active_slice: `Dispatch Policy Gate & Mock Topology Visibility`
-- active_branch: `feat/phase21-dispatch-policy-gate`
-- status: `review_complete`
+- latest_completed_track: `Evaluation / Policy` (Primary) + `Workbench / UX` (Secondary)
+- latest_completed_phase: `Phase 21`
+- latest_completed_slice: `Dispatch Policy Gate & Mock Topology Visibility`
+- active_track: `to_be_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
+- active_branch: `main`
+- status: `phase_closed`
 
 ---
 
 ## 当前目标
 
-启动 Phase 21：基于 Phase 20 的 Mock Dispatch，在调度前引入真正的语义验证策略 (Policy Gate) 拦截非法的交接单；并在 CLI 层面补充拦截任务的人工放行命令 (`acknowledge`) 与可视化的 `[MOCK-REMOTE]` 区分标识，形成逻辑与交互的完整闭环。
+Phase 21 已完成并合并到 `main`。当前默认目标不是继续扩张 Phase 21，而是从系统 track 重新选择下一轮 kickoff。
 
 ---
 
@@ -29,9 +29,12 @@
 - canonical reuse policy / retrieval integration / traceability baseline
 - Handoff Contract Schema 在代码层的统一与写盘校验验证
 - 基于 Handoff Contract 的 DispatchVerdict 和 Mock Remote 执行路径
+- dispatch 前 `context_pointers` 语义校验
+- `dispatch_blocked` -> `acknowledge` -> 本地恢复执行路径
+- `[MOCK-REMOTE]` CLI 视图区分
 
 当前待解决的是：
-如何在调度器做出 Dispatch 决策前，对交接单（如 `context_pointers` 指向的对象是否存在）进行深层的语义校验；并在任务被 `blocked` 时，提供一个顺畅的 CLI 视图区分与人工疏通 (`acknowledge`) 工作流。
+下一轮应选择哪个 active track / phase / slice，而不是继续无边界扩张已完成的 Phase 21。
 
 ---
 
@@ -43,7 +46,7 @@
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
 4. `current_state.md`
-5. `docs/plans/phase21/context_brief.md`
+5. `docs/plans/phase21/closeout.md`
 
 ---
 
@@ -53,6 +56,7 @@
 - docs/plans/phase21/design_decision.md (claude, 2026-04-12)
 - docs/plans/phase21/risk_assessment.md (claude, 2026-04-12)
 - docs/plans/phase21/review_comments.md (claude, 2026-04-12)
+- docs/plans/phase21/closeout.md (codex, 2026-04-12)
 - .codex/session_bootstrap.md (codex, 2026-04-12)
 - .agents/codex/role.md (codex, 2026-04-12)
 - .agents/codex/rules.md (codex, 2026-04-12)
@@ -65,17 +69,17 @@
 
 已完成：
 
-- Phase 20 `Mock Dispatch & Execution Gating` 测试通过且评审完成（等待合入或基于其上下文推进）。
+- Phase 21 已完成、review 通过并合并到 `main`。
 - `GEMINI.md` 的专属规则已更新，引入了 **"Primary Track + Strong Secondary Track"** 的打包模式以减少碎片化。
 - **[Gemini]** 已产出 `docs/plans/phase21/context_brief.md`
 - **[Claude]** 已产出 `design_decision.md`（3 slice 拆解）和 `risk_assessment.md`（无高风险项）
-- **[Claude]** AGENTS.md 已添加两次提交节奏规则
+- **[Claude]** 已产出 `review_comments.md`，结论 **PASS, mergeable**
 - **[Codex]** 角色控制文档已更新：git 提交与 PR 创建执行权收回 Human，Codex 改为按 slice 提供 commit 建议并维护 `./pr.md`
 - **[Codex]** 已补充分支切换时机：design gate 通过后，Human 先从 `main` 切到 feature branch，再开始实现；并在 workflow 中写明每个 slice 的人工提交节奏点
 - **[Codex]** 已补充 PR / merge 节奏：`push -> create PR -> Claude review -> 如有修改继续更新 ./pr.md 和分支提交 -> Human merge`，并要求 merge 前校验 `./pr.md` 与 `review_comments.md` 一致
+- **[Codex]** 已补充 Phase 21 closeout，并将恢复入口切回新一轮 kickoff 待选状态
 
 ## 下一步
 
-- **[Claude]** review_comments.md 已产出，结论 **PASS, mergeable**
-- 等待人工决策：合并 PR 或提出修改意见
-- 合并后进入 Phase 21 收口（closeout）
+- 从 `docs/system_tracks.md` 重新选择下一轮 active track / phase / slice
+- 为下一轮工作编写 fresh kickoff，而不是继续扩张已完成的 Phase 21

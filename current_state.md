@@ -34,14 +34,14 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 20`
-- latest_completed_slice: `Mock Dispatch & Execution Gating`
+- latest_completed_phase: `Phase 21`
+- latest_completed_slice: `Dispatch Policy Gate & Mock Topology Visibility`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-12`
 
 说明：
 
-- Phase 0 到 Phase 20 已完成并形成稳定 checkpoint
+- Phase 0 到 Phase 21 已完成并形成稳定 checkpoint
 - post-Phase-2 retrieval baseline 已完成
 - post-Phase-5 executor / external-input slice 已完成
 - post-Phase-5 retrieval / memory-next slice 已完成
@@ -59,8 +59,8 @@
 
 说明：
 
-- 当前默认不再继续扩张已完成的 Phase 20，而应先重新选择下一轮 primary track
-- 当前最近完成的 stop/go 边界以 `docs/plans/phase20/closeout.md` 为准
+- 当前默认不再继续扩张已完成的 Phase 21，而应先重新选择下一轮 primary track
+- 当前最近完成的 stop/go 边界以 `docs/plans/phase21/closeout.md` 为准
 
 ---
 
@@ -72,10 +72,13 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase20/closeout.md`
+5. `docs/plans/phase21/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase21/review_comments.md`
+- `docs/plans/phase21/design_decision.md`
+- `docs/plans/phase21/risk_assessment.md`
 - `docs/plans/phase20/kickoff.md`
 - `docs/plans/phase20/breakdown.md`
 - `docs/plans/phase20/review_comments.md`
@@ -108,10 +111,10 @@
 恢复工作前，建议至少执行以下检查：
 
 ```bash
-python3 -m unittest discover -s tests
-PYTHONPATH=src python3 -m swallow.cli --help
+.venv/bin/python -m pytest
+.venv/bin/python -m swallow.cli --help
 # 如需确认当前运行环境下的真实 executor 行为，可按需补充：
-AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m swallow.cli --base-dir /tmp/aiwf-exec-real task run <task-id>
+AIWF_EXECUTOR_TIMEOUT_SECONDS=10 .venv/bin/python -m swallow.cli --base-dir /tmp/aiwf-exec-real task run <task-id>
 ```
 
 ---
@@ -126,6 +129,7 @@ AIWF_EXECUTOR_TIMEOUT_SECONDS=10 PYTHONPATH=src python3 -m swallow.cli --base-di
 - Phase 18 的 remote handoff contract 目前仍是 contract-truth / operator-facing baseline，不应误解为当前系统已经建立真实 remote execution 或 transport implementation。
 - Phase 19 的 handoff schema unification 目前仍是 schema-truth / write-time validation baseline，不应误解为当前系统已经建立 handoff-driven execution gating、自动 dispatch 或 provider negotiation。
 - Phase 20 的 mock dispatch & execution gating 目前仍是 topology-validation / mock execution baseline，不应误解为当前系统已经建立真实 remote worker execution、operator approval workflow 或 production remote dispatch。
+- Phase 21 的 dispatch policy gate / acknowledge / `[MOCK-REMOTE]` 目前仍是 local-first operator workflow tightening，不应误解为当前系统已经建立真实 remote approval system、operator-selectable dispatch override policy 或 production remote transport。
 
 ## 当前收口规则
 - 在 phase 或 major slice 收口时，本文件才需要更新。

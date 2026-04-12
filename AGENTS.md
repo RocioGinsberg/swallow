@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 18 基线
+- Phase 0 到 Phase 21 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,18 +39,17 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Execution Topology`
-- **Latest Completed Phase**：`Phase 18`
-- **Latest Completed Slice**：`Remote Handoff Contract Baseline`
+- **Latest Completed Track**：`Evaluation / Policy` (Primary) + `Workbench / UX` (Secondary)
+- **Latest Completed Phase**：`Phase 21`
+- **Latest Completed Slice**：`Dispatch Policy Gate & Mock Topology Visibility`
 
-Phase 18 已完成的核心内容包括：
+Phase 21 已完成的核心内容包括：
 
-- 建立 task-local `remote_handoff_contract.json` baseline artifact
-- 明确 local baseline 与 cross-site candidate 的 remote handoff contract truth
-- 在 `execution-site`、`dispatch`、`handoff` 中对齐 remote handoff contract summary
-- 在 `control`、`inspect`、`review` 中暴露 remote handoff readiness attention
-- 完成 remote handoff workflow 的 README / README.zh-CN 对齐
-- 保持 operator-facing contract baseline，而不引入真实 remote execution implementation
+- 在 dispatch 前增加 `context_pointers` 语义校验，拦截非法 handoff contract
+- 为 `dispatch_blocked` 任务提供 `acknowledge` 人工放行路径，并切回本地执行
+- 在 `inspect`、`review`、`dispatch` 中增加 `[MOCK-REMOTE]` 可视化区分
+- 保持 local-first operator workflow tightening，而不引入真实 remote execution、RPC 或自动 dispatch
+- 完成 Phase 21 review、PR、merge 与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -59,6 +58,7 @@ Phase 18 已完成的核心内容包括：
 - distributed job queue / hosted orchestration platform
 - automatic remote dispatch
 - remote handoff driven policy mutation or execution gating
+- operator-selectable remote override policy without fresh kickoff
 
 ---
 
