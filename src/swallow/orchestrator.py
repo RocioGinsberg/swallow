@@ -78,6 +78,7 @@ from .paths import (
 )
 from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
+from .staged_knowledge import StagedCandidate, submit_staged_candidate
 from .store import (
     append_event,
     append_canonical_record,
@@ -698,6 +699,57 @@ def _set_phase(base_dir: Path, state: TaskState, phase: str) -> None:
     )
 
 
+def _route_knowledge_to_staged(base_dir: Path, state: TaskState) -> list[StagedCandidate]:
+    if state.route_taxonomy_memory_authority not in {"canonical-write-forbidden", "staged-knowledge"}:
+        return []
+
+    knowledge_objects: list[dict[str, object]] = []
+    if knowledge_objects_path(base_dir, state.task_id).exists():
+        loaded = json.loads(knowledge_objects_path(base_dir, state.task_id).read_text(encoding="utf-8"))
+        if isinstance(loaded, list):
+            knowledge_objects = loaded
+    elif isinstance(state.knowledge_objects, list):
+        knowledge_objects = list(state.knowledge_objects)
+
+    staged_candidates: list[StagedCandidate] = []
+    for item in knowledge_objects:
+        if str(item.get("canonicalization_intent", "none")) != "promote":
+            continue
+        if str(item.get("stage", "raw")) != "verified":
+            continue
+        candidate = submit_staged_candidate(
+            base_dir,
+            StagedCandidate(
+                candidate_id="",
+                text=str(item.get("text", "")),
+                source_task_id=state.task_id,
+                source_object_id=str(item.get("object_id", "")).strip(),
+                submitted_by=state.executor_name,
+                taxonomy_role=state.route_taxonomy_role,
+                taxonomy_memory_authority=state.route_taxonomy_memory_authority,
+            ),
+        )
+        staged_candidates.append(candidate)
+
+    if staged_candidates:
+        append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type="task.knowledge_staged",
+                message="Knowledge objects were routed into staged knowledge.",
+                payload={
+                    "candidate_count": len(staged_candidates),
+                    "candidate_ids": [candidate.candidate_id for candidate in staged_candidates],
+                    "source_object_ids": [candidate.source_object_id for candidate in staged_candidates],
+                    "taxonomy_role": state.route_taxonomy_role,
+                    "taxonomy_memory_authority": state.route_taxonomy_memory_authority,
+                },
+            ),
+        )
+    return staged_candidates
+
+
 def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
     return build_retrieval_request(
         query=f"{state.title} {state.goal}".strip(),
@@ -971,6 +1023,7 @@ def run_task(
         else "failed"
     )
     state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
+    staged_candidates = _route_knowledge_to_staged(base_dir, state)
     save_state(base_dir, state)
     append_event(
         base_dir,
@@ -1021,6 +1074,7 @@ def run_task(
                 "stop_policy_status": stop_policy_result.status,
                 "knowledge_policy_status": knowledge_policy_result.status,
                 "validation_status": validation_result.status,
+                "staged_candidate_count": len(staged_candidates),
                 "artifact_paths": state.artifact_paths,
             },
         ),

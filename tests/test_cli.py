@@ -46,6 +46,7 @@ from swallow.models import (
     RouteSpec,
     RetrievalItem,
     RetrievalRequest,
+    TaxonomyProfile,
     TaskState,
     ValidationResult,
     evaluate_dispatch_verdict,
@@ -62,7 +63,14 @@ from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retr
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
 from swallow.staged_knowledge import StagedCandidate, submit_staged_candidate
-from swallow.store import append_canonical_record, load_state, save_remote_handoff_contract, save_retrieval, save_state
+from swallow.store import (
+    append_canonical_record,
+    load_state,
+    save_knowledge_objects,
+    save_remote_handoff_contract,
+    save_retrieval,
+    save_state,
+)
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
@@ -5796,6 +5804,188 @@ class CliLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(final_state.status, "failed")
         self.assertEqual(final_state.phase, "summarize")
+
+    def test_run_task_routes_promote_intent_knowledge_to_staged_for_canonical_forbidden_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Stage restricted knowledge",
+                goal="Route verified knowledge into staged storage for operator review",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            restricted_route = RouteSelection(
+                route=RouteSpec(
+                    name="restricted-specialist",
+                    executor_name="note-only",
+                    backend_kind="local_fallback",
+                    model_hint="note-only",
+                    executor_family="cli",
+                    execution_site="local",
+                    remote_capable=False,
+                    transport_kind="local_process",
+                    capabilities=RouteCapabilities(
+                        execution_kind="artifact_generation",
+                        supports_tool_loop=False,
+                        filesystem_access="workspace_read",
+                        network_access="none",
+                        deterministic=True,
+                        resumable=True,
+                    ),
+                    taxonomy=TaxonomyProfile(
+                        system_role="specialist",
+                        memory_authority="canonical-write-forbidden",
+                    ),
+                ),
+                reason="Test-only canonical forbidden route.",
+                policy_inputs={},
+            )
+
+            def write_artifacts_side_effect(
+                _base_dir: Path,
+                state: TaskState,
+                _retrieval_items: list[RetrievalItem],
+                _executor_result: ExecutorResult,
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
+                save_knowledge_objects(
+                    _base_dir,
+                    state.task_id,
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Verified guidance should enter staged review first.",
+                            "stage": "verified",
+                            "source_kind": "external_knowledge_capture",
+                            "source_ref": "chat://stage-route",
+                            "task_linked": True,
+                            "captured_at": "2026-04-12T00:00:00+00:00",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/demo/artifacts/evidence.md",
+                            "retrieval_eligible": False,
+                            "knowledge_reuse_scope": "task_only",
+                            "canonicalization_intent": "promote",
+                        }
+                    ],
+                )
+                return (
+                    ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Execution fit passed."),
+                    ValidationResult(status="passed", message="Knowledge policy passed."),
+                    ValidationResult(status="passed", message="Validation passed."),
+                    ValidationResult(status="passed", message="Retry policy passed."),
+                    ValidationResult(status="passed", message="Execution budget policy passed."),
+                    ValidationResult(status="warning", message="Stop policy warning."),
+                )
+
+            with patch("swallow.orchestrator.select_route", return_value=restricted_route):
+                with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                    with patch(
+                        "swallow.orchestrator.run_execution",
+                        return_value=ExecutorResult(
+                            executor_name="note-only",
+                            status="completed",
+                            message="Execution finished.",
+                            output="done",
+                        ),
+                    ):
+                        with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                            final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            staged_records = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / created.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(final_state.route_taxonomy_memory_authority, "canonical-write-forbidden")
+        self.assertEqual(len(staged_records), 1)
+        self.assertEqual(staged_records[0]["source_task_id"], created.task_id)
+        self.assertEqual(staged_records[0]["source_object_id"], "knowledge-0001")
+        self.assertEqual(staged_records[0]["taxonomy_role"], "specialist")
+        self.assertEqual(staged_records[0]["taxonomy_memory_authority"], "canonical-write-forbidden")
+        self.assertEqual(staged_records[0]["status"], "pending")
+        self.assertTrue(any(event["event_type"] == "task.knowledge_staged" for event in events))
+        self.assertEqual(events[-1]["payload"]["staged_candidate_count"], 1)
+
+    def test_run_task_keeps_task_state_route_off_staged_pipeline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Default knowledge path",
+                goal="Keep verified knowledge on the normal path",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+
+            def write_artifacts_side_effect(
+                _base_dir: Path,
+                state: TaskState,
+                _retrieval_items: list[RetrievalItem],
+                _executor_result: ExecutorResult,
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
+                save_knowledge_objects(
+                    _base_dir,
+                    state.task_id,
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Default routes should not auto-stage this object.",
+                            "stage": "verified",
+                            "source_kind": "external_knowledge_capture",
+                            "source_ref": "chat://default-route",
+                            "task_linked": True,
+                            "captured_at": "2026-04-12T00:00:00+00:00",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/demo/artifacts/evidence.md",
+                            "retrieval_eligible": False,
+                            "knowledge_reuse_scope": "task_only",
+                            "canonicalization_intent": "promote",
+                        }
+                    ],
+                )
+                return (
+                    ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Execution fit passed."),
+                    ValidationResult(status="passed", message="Knowledge policy passed."),
+                    ValidationResult(status="passed", message="Validation passed."),
+                    ValidationResult(status="passed", message="Retry policy passed."),
+                    ValidationResult(status="passed", message="Execution budget policy passed."),
+                    ValidationResult(status="warning", message="Stop policy warning."),
+                )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch(
+                    "swallow.orchestrator.run_execution",
+                    return_value=ExecutorResult(
+                        executor_name="local",
+                        status="completed",
+                        message="Execution finished.",
+                        output="done",
+                    ),
+                ):
+                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                        final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            staged_registry = tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl"
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / created.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(final_state.route_taxonomy_memory_authority, "task-state")
+        self.assertFalse(staged_registry.exists())
+        self.assertFalse(any(event["event_type"] == "task.knowledge_staged" for event in events))
+        self.assertEqual(events[-1]["payload"]["staged_candidate_count"], 0)
 
     def test_task_lifecycle_events_and_final_state_are_ordered(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
