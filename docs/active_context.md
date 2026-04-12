@@ -2,42 +2,42 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
-- latest_completed_phase: `Phase 24`
-- latest_completed_slice: `Staged Knowledge Pipeline Baseline`
-- active_track: `Capabilities` (Primary) + `Evaluation / Policy` (Secondary)
-- active_phase: `Phase 25`
-- active_slice: `Taxonomy-Driven Capability Enforcement`
-- active_branch: `feat/phase25-capability-enforcement`
+- latest_completed_track: `Capabilities` (Primary) + `Evaluation / Policy` (Secondary)
+- latest_completed_phase: `Phase 25`
+- latest_completed_slice: `Taxonomy-Driven Capability Enforcement`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
+- active_branch: `main`（Phase 25 已收口并合并，等待下一轮新分支）
 - status: `closeout_complete`
 
 ---
 
-## 当前目标
+## 当前状态说明
 
-启动 Phase 25 规划，执行方向 B：在底层的 Harness 沙盒与能力装配（Capability Assembly）阶段，根据任务的 `TaxonomyProfile` 动态裁剪并剥离执行实体无权使用的底层工具（Tools）。彻底封死智能体越界调用敏感工具的安全隐患。
+Phase 25 已完成实现、评审、收口并已合并，完成内容包括：
 
----
+- taxonomy-driven capability enforcement 映射表
+- run-time capability downgrade
+- enforcement 事件记录与 inspect 可视化
 
-## 当前要解决的问题
+当前仓库应视为：
 
-当前系统：
-- 已经具备派发层面的安全拦截（Phase 22）。
-- 已经具备暂存知识管道（Phase 24）。
-- 但如果将只读任务委派给 Validator Agent，底层 Harness 可能依旧粗放地将所有注册的 Capabilities 注入给了大模型。
-
-需要解决的是：在代码底层实现执行时的“最小权限原则（Least Privilege）”过滤。
+- 已完成一个 capabilities / policy 方向的最小权限执行基线 phase
+- 不应继续在 Phase 25 名义下扩张范围
+- 下一步应重新选择新的 active track / phase / slice
 
 ---
 
 ## 当前关键文档
 
-当前优先读取：
+下一轮开始前，优先读取：
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
 3. `current_state.md`
-4. `docs/plans/phase25/context_brief.md` (新产出的阶段目标简报)
+4. `docs/system_tracks.md`
+5. `docs/plans/phase25/closeout.md`
 
 ---
 
@@ -53,15 +53,16 @@
 ## 当前推进
 
 已完成：
-- **[Gemini]** 收到人类操作员指令，确认推进方案 B（基于分类学的运行时能力沙盒）。
-- **[Gemini]** 完成了 `docs/plans/phase25/context_brief.md` 的起草。
-- **[Gemini]** 切换了 `docs/active_context.md` 的 active track、slice 与 status。
-- **[Claude]** 已产出 `design_decision.md`（3 slice：映射表 → orchestrator 裁剪 → 事件与可视化）和 `risk_assessment.md`（无高风险项）
-- **[Codex]** 三个 slice 全部实现并提交（3 commits），178 测试通过
-- **[Claude]** review_comments.md 已产出，结论 PASS, mergeable
-- **[Codex]** 已完成 Phase 25 closeout，并同步 PR 文案
+
+- **[Gemini]** 完成 Phase 25 方向确认与上下文摘要。
+- **[Claude]** 完成方案拆解、风险评估与 review 结论。
+- **[Codex]** 完成 3 个实现 slice、测试验证、收口和 PR 文案同步。
+- **[Human]** 已将 Phase 25 合并入主线。
 
 ## 下一步
 
-- 等待人工合并当前分支
-- 合并后将仓库入口状态切换到 Phase 25 stable checkpoint
+开始下一轮 fresh kickoff：
+
+1. Human 从 `docs/system_tracks.md` 选择新的 active track
+2. Gemini / Claude 产出下一 phase 的上下文与设计文档
+3. Human 审批后再切出新的 feature branch
