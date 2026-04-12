@@ -34,15 +34,15 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 23`
-- latest_completed_slice: `Taxonomy Visibility in CLI Surfaces`
+- latest_completed_phase: `Phase 24`
+- latest_completed_slice: `Staged Knowledge Pipeline Baseline`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-12`
 
 说明：
 
-- Phase 0 到 Phase 23 已完成并形成稳定 checkpoint
-- 当前默认不再继续扩张已完成的 Phase 23，而应从新的 kickoff 选择下一轮工作。
+- Phase 0 到 Phase 24 已完成并形成稳定 checkpoint
+- 当前默认不再继续扩张已完成的 Phase 24，而应从新的 kickoff 选择下一轮工作。
 
 ---
 
@@ -56,7 +56,7 @@
 
 说明：
 
-- Phase 23 已完成 taxonomy 在 CLI inspect / review 中的可见性补齐。
+- Phase 24 已完成 staged knowledge pipeline baseline 的数据层、CLI 层与 taxonomy-aware 路由闭环。
 - 下一轮应重新从 `docs/system_tracks.md` 选择方向，再写新的 kickoff 与 breakdown。
 
 ---
@@ -69,15 +69,15 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase23/closeout.md`
+5. `docs/plans/phase24/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase23/context_brief.md`
-- `docs/plans/phase23/design_decision.md`
-- `docs/plans/phase23/risk_assessment.md`
-- `docs/plans/phase22/closeout.md`
-- `docs/plans/phase22/review_comments.md`
+- `docs/plans/phase24/context_brief.md`
+- `docs/plans/phase24/design_decision_claude.md`
+- `docs/plans/phase24/risk_assessment.md`
+- `docs/plans/phase24/review_comments.md`
+- `docs/plans/phase23/closeout.md`
 - `docs/archive/*`
 - 历史 phase closeout
 
@@ -98,6 +98,7 @@
 - 真实 codex exec 在当前环境中仍可能因 outbound network / WebSocket 受限而失败。
 - Phase 22 的 taxonomy-aware routing baseline 目前仍是 taxonomy metadata + defensive dispatch guard baseline，不应误解为当前系统已经建立完整 RBAC、动态 taxonomy 注册、capability negotiation 或全量权限治理。
 - Phase 23 仅补齐 operator-facing taxonomy visibility，不应误解为系统已经建立 taxonomy-aware route selection、权限审批流增强或更复杂的 UI 层。
+- Phase 24 仅建立 staged knowledge pipeline baseline，不应误解为系统已经具备 staged 自动晋升、staged retrieval integration、跨任务候选合并或复杂 review workflow。
 
 ## 当前收口规则
 - 在 phase 或 major slice 收口时，本文件才需要更新。

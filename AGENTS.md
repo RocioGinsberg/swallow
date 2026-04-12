@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 23 基线
+- Phase 0 到 Phase 24 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,17 +39,17 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Workbench / UX` (Primary) + `Execution Topology` (Secondary)
-- **Latest Completed Phase**：`Phase 23`
-- **Latest Completed Slice**：`Taxonomy Visibility in CLI Surfaces`
+- **Latest Completed Track**：`Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
+- **Latest Completed Phase**：`Phase 24`
+- **Latest Completed Slice**：`Staged Knowledge Pipeline Baseline`
 
-Phase 23 已完成的核心内容包括：
+Phase 24 已完成的核心内容包括：
 
-- 在 `swl task inspect` 中显示 route taxonomy
-- 在 `swl task review` 中显示 route taxonomy
-- 对旧状态文件保持 `taxonomy: -` 的兼容回退
-- 保持变更范围严格停留在 CLI 可观测性层，不修改底层路由、dispatch policy 或状态机
-- 完成 Phase 23 实现与 closeout 收口
+- 建立全局 staged knowledge registry：`.swl/staged_knowledge/registry.jsonl`
+- 新增 `swl knowledge stage-list / stage-inspect / stage-promote / stage-reject`
+- 为 restricted taxonomy route 建立自动 staged 知识写入改道
+- 保持人工 gate 作为进入 canonical registry 的显式入口
+- 完成 Phase 24 实现、评审、merge 与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -62,6 +62,9 @@ Phase 23 已完成的核心内容包括：
 - dynamic taxonomy registration / discovery without fresh kickoff
 - ad hoc taxonomy-aware route selection without fresh kickoff
 - workbench UI expansion beyond the scoped CLI surface without fresh kickoff
+- staged knowledge automatic promotion without fresh kickoff
+- staged knowledge retrieval integration without fresh kickoff
+- cross-task staged candidate merge / dedupe without fresh kickoff
 
 ---
 
