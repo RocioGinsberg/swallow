@@ -4,6 +4,23 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+SYSTEM_ROLES: tuple[str, ...] = (
+    "orchestrator",
+    "general-executor",
+    "specialist",
+    "validator",
+    "human-operator",
+)
+
+MEMORY_AUTHORITIES: tuple[str, ...] = (
+    "stateless",
+    "task-state",
+    "task-memory",
+    "staged-knowledge",
+    "canonical-write-forbidden",
+    "canonical-promotion",
+)
+
 
 @dataclass(slots=True)
 class RouteCapabilities:
@@ -64,6 +81,29 @@ class CapabilityAssembly:
     assembly_status: str = "assembled"
     resolver: str = "local_baseline"
     notes: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class TaxonomyProfile:
+    system_role: str
+    memory_authority: str
+
+    def __post_init__(self) -> None:
+        self.validate()
+
+    def validate(self) -> None:
+        if self.system_role not in SYSTEM_ROLES:
+            raise ValueError(
+                f"Invalid system_role: {self.system_role}. Expected one of: {', '.join(SYSTEM_ROLES)}"
+            )
+        if self.memory_authority not in MEMORY_AUTHORITIES:
+            raise ValueError(
+                "Invalid memory_authority: "
+                f"{self.memory_authority}. Expected one of: {', '.join(MEMORY_AUTHORITIES)}"
+            )
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
