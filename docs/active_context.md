@@ -8,8 +8,8 @@
 - active_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - active_phase: `Phase 24`
 - active_slice: `Staged Knowledge Pipeline Baseline`
-- active_branch: `main`（待创建 `feat/phase24-staged-knowledge-pipeline`）
-- status: `design_produced`
+- active_branch: `feat/phase24-staged-knowledge-pipeline`
+- status: `closeout_complete`
 
 ---
 
@@ -43,6 +43,8 @@ Phase 24 的核心目标是：实现**暂存知识管道（Staged Knowledge Pipe
 - `docs/plans/phase24/context_brief.md` (gemini, 2026-04-12)
 - `docs/plans/phase24/design_decision_claude.md` (claude, 2026-04-12) — 方案拆解
 - `docs/plans/phase24/risk_assessment.md` (claude, 2026-04-12)
+- `docs/plans/phase24/review_comments.md` (claude, 2026-04-12)
+- `docs/plans/phase24/closeout.md` (codex, 2026-04-12)
 
 ## 当前推进
 
@@ -51,7 +53,11 @@ Phase 24 的核心目标是：实现**暂存知识管道（Staged Knowledge Pipe
 - **[Gemini]** 快速生成了 Phase 24 的上下文摘要 `docs/plans/phase24/context_brief.md`。
 - **[Gemini]** 更新了 `docs/active_context.md` 的指针与状态。
 - **[Claude]** 已产出 `design_decision_claude.md`（3 slice：staged 数据模型 → CLI 命令 → taxonomy 写入路由）和 `risk_assessment.md`（最高风险项 Slice 3 总分 6，中等）
+- **[Codex]** 三个 slice 全部实现并提交（3 commits），167 测试通过
+- **[Claude]** review_comments.md 已产出，结论 PASS, mergeable
+- **[Codex]** 已完成 Phase 24 closeout，并同步 PR 文案
 
 ## 下一步
 
-等待人工审批 `design_decision.md` 和 `risk_assessment.md`。通过后由 Codex 在 `feat/phase24-staged-knowledge-pipeline` 分支上开始实现。
+- 等待人工合并当前分支
+- 合并后将仓库入口状态切换到 Phase 24 stable checkpoint
