@@ -139,7 +139,8 @@ Claude: PR Review
 - Codex 按 `.agents/templates/pr_body.md` 模板整理 PR 内容并写入 `./pr.md`，提醒人工创建 PR
 
 **人工 git 节奏点**：
-- Claude review 通过且 `./pr.md` 已准备后，由 Human 创建 PR
+- `./pr.md` 准备完成后，由 Human push 当前 feature branch 并创建 PR
+- Claude review 完成后，如有实现修订或 review 结论变化，Codex 更新 `./pr.md`，Human 视需要更新 PR 描述
 - PR 创建前不再补做“把所有 slice 压成一个大提交”的整理
 
 ---
@@ -151,12 +152,18 @@ Claude: PR Review
 **人工动作**：
 - 阅读 PR body（包含三方产出物摘要）
 - 阅读 review_comments.md
+- 确认 PR 上的描述与仓库中的 `./pr.md`、`review_comments.md` 一致
 - 在 PR 上留下最终意见
 
 **决策**：
 - ✅ 合并：merge PR，在 `docs/active_context.md` 标注"merged"
 - ❌ 打回：在 PR 上说明原因，回到 Step 4 或 Step 2
 - 🔄 部分合并：cherry-pick 部分 commit（特殊情况）
+
+**合并前检查**：
+- review_comments.md 中的 `[BLOCK]` 项必须为零，或已被明确处理
+- 若 review 后发生新的代码提交，先确认 `./pr.md` 已更新到最新状态
+- merge 决策发生在 review 处理完成之后，而不是创建 PR 之后立即执行
 
 ---
 

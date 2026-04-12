@@ -156,6 +156,17 @@ frontmatter 之后、正文之前，必须有 ≤3 行的 TL;DR 摘要。
 
 ---
 
+## 九、测试环境规则
+
+项目统一使用 `.venv` 作为 Python 虚拟环境。
+
+- 测试命令：`.venv/bin/python -m pytest`
+- 环境搭建由 Codex 负责（`python3 -m venv .venv && .venv/bin/pip install -e .` + 测试依赖）
+- `.venv/` 已在 `.gitignore` 中，不提交到仓库
+- 所有 agent 需要跑测试时，统一使用此路径，不临时安装系统级包
+
+---
+
 ## 本文件的职责边界
 
 本文件是：所有 agent 的共同操作规则。

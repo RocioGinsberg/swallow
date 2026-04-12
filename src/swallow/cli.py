@@ -18,6 +18,7 @@ from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .orchestrator import (
+    acknowledge_task,
     append_task_knowledge_capture,
     create_task,
     decide_task_knowledge,
@@ -138,6 +139,15 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
         ),
     ),
 )
+
+
+def is_mock_remote_task(state: object, topology: dict[str, object] | None = None) -> bool:
+    topology = topology or {}
+    transport_kind = str(topology.get("transport_kind", getattr(state, "topology_transport_kind", "")))
+    dispatch_status = str(topology.get("dispatch_status", getattr(state, "topology_dispatch_status", "")))
+    if dispatch_status == "mock_remote_dispatched":
+        return True
+    return transport_kind == "mock_remote_transport" and dispatch_status not in {"blocked", "acknowledged"}
 
 
 def build_grouped_artifact_index(artifact_paths: dict[str, str]) -> str:
@@ -771,6 +781,14 @@ def execute_task_run(
     return 0
 
 
+def is_acknowledged_dispatch_reentry(state: object) -> bool:
+    return (
+        getattr(state, "status", "") == "running"
+        and getattr(state, "phase", "") == "retrieval"
+        and getattr(state, "topology_dispatch_status", "") == "acknowledged"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="swl",
@@ -1041,6 +1059,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Override the task routing policy mode for this rerun.",
     )
+    acknowledge_parser = task_subparsers.add_parser(
+        "acknowledge",
+        help="Force a dispatch_blocked task onto the local execution path after operator review.",
+        description="Force a dispatch_blocked task onto the local execution path after operator review.",
+    )
+    acknowledge_parser.add_argument("task_id", help="Task identifier.")
 
     list_parser = task_subparsers.add_parser("list", help="List tasks with compact status summaries.")
     list_parser.add_argument(
@@ -1464,8 +1488,32 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "run":
         return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
 
+    if args.command == "task" and args.task_command == "acknowledge":
+        try:
+            state = acknowledge_task(base_dir, args.task_id)
+        except ValueError as exc:
+            state = load_state(base_dir, args.task_id)
+            print(
+                f"{state.task_id} acknowledge_blocked "
+                f"status={state.status} "
+                f"phase={state.phase} "
+                f"dispatch_status={state.topology_dispatch_status} "
+                f"reason={str(exc)}"
+            )
+            return 1
+        print(
+            f"{state.task_id} dispatch_acknowledged "
+            f"status={state.status} "
+            f"phase={state.phase} "
+            f"dispatch_status={state.topology_dispatch_status} "
+            f"route={state.route_name}"
+        )
+        return 0
+
     if args.command == "task" and args.task_command == "retry":
         state = load_state(base_dir, args.task_id)
+        if is_acknowledged_dispatch_reentry(state):
+            return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
         retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
         stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
@@ -1481,6 +1529,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "resume":
         state = load_state(base_dir, args.task_id)
+        if is_acknowledged_dispatch_reentry(state):
+            return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
         if not (checkpoint_snapshot.get("resume_ready", False) and checkpoint_snapshot.get("recommended_path", "") == "resume"):
             print(
@@ -1670,6 +1720,7 @@ def main(argv: list[str] | None = None) -> int:
             knowledge_objects = []
         if not isinstance(retrieval, list):
             retrieval = []
+        mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state, topology) else ""
         knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
         knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
         knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
@@ -1715,6 +1766,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_index_refreshed_at: {knowledge_index.get('refreshed_at', '-')}",
             "",
             "Route And Topology",
+            f"route_label: {mock_remote_label or '-'}",
             f"route_mode: {state.route_mode}",
             f"route_name: {state.route_name}",
             f"route_backend: {state.route_backend}",
@@ -1875,6 +1927,7 @@ def main(argv: list[str] | None = None) -> int:
             else 0
         )
         validation = load_json_if_exists(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
+        mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state) else ""
         lines = [
             f"Task Review: {state.task_id}",
             f"title: {state.title}",
@@ -1890,6 +1943,7 @@ def main(argv: list[str] | None = None) -> int:
             f"execution_lifecycle: {state.execution_lifecycle}",
             "",
             "Handoff",
+            f"route_label: {mock_remote_label or '-'}",
             f"handoff_status: {handoff.get('status', 'pending')}",
             f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
             f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
@@ -2049,7 +2103,13 @@ def main(argv: list[str] | None = None) -> int:
             "stop-policy": "stop_policy_report.md",
             "route": "route_report.md",
         }[args.task_command]
-        print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
+        artifact_output = (artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8")
+        if args.task_command == "dispatch":
+            state = load_state(base_dir, args.task_id)
+            topology = load_json_if_exists(topology_path(base_dir, args.task_id))
+            if is_mock_remote_task(state, topology):
+                print("[MOCK-REMOTE]")
+        print(artifact_output, end="")
         return 0
 
     if args.command == "task" and args.task_command == "memory":

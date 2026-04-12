@@ -8,8 +8,8 @@
 - active_track: `Evaluation / Policy` (Primary) + `Workbench / UX` (Secondary)
 - active_phase: `Phase 21`
 - active_slice: `Dispatch Policy Gate & Mock Topology Visibility`
-- active_branch: `main`（待创建 `feat/phase21-dispatch-policy-gate`）
-- status: `design_produced`
+- active_branch: `feat/phase21-dispatch-policy-gate`
+- status: `review_complete`
 
 ---
 
@@ -52,6 +52,7 @@
 - docs/plans/phase21/context_brief.md (gemini, 2026-04-12)
 - docs/plans/phase21/design_decision.md (claude, 2026-04-12)
 - docs/plans/phase21/risk_assessment.md (claude, 2026-04-12)
+- docs/plans/phase21/review_comments.md (claude, 2026-04-12)
 - .codex/session_bootstrap.md (codex, 2026-04-12)
 - .agents/codex/role.md (codex, 2026-04-12)
 - .agents/codex/rules.md (codex, 2026-04-12)
@@ -71,7 +72,10 @@
 - **[Claude]** AGENTS.md 已添加两次提交节奏规则
 - **[Codex]** 角色控制文档已更新：git 提交与 PR 创建执行权收回 Human，Codex 改为按 slice 提供 commit 建议并维护 `./pr.md`
 - **[Codex]** 已补充分支切换时机：design gate 通过后，Human 先从 `main` 切到 feature branch，再开始实现；并在 workflow 中写明每个 slice 的人工提交节奏点
+- **[Codex]** 已补充 PR / merge 节奏：`push -> create PR -> Claude review -> 如有修改继续更新 ./pr.md 和分支提交 -> Human merge`，并要求 merge 前校验 `./pr.md` 与 `review_comments.md` 一致
 
 ## 下一步
 
-等待人工审批 `design_decision.md` 和 `risk_assessment.md`。通过后由 Codex 在 `feat/phase21-dispatch-policy-gate` 分支上开始实现。
+- **[Claude]** review_comments.md 已产出，结论 **PASS, mergeable**
+- 等待人工决策：合并 PR 或提出修改意见
+- 合并后进入 Phase 21 收口（closeout）

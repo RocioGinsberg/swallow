@@ -302,13 +302,16 @@ Phase 18 已完成的核心内容包括：
 - git 提交由人工执行，Codex 只在对话中给出建议命令
 - commit 应按 slice 拆分；每完成一个 slice，Codex 都应给出一次提交建议
 - 每个 slice 的默认节奏为：Codex 实现并验证 → Human 审查当前 diff → Human 执行该 slice commit
-- 需要发起 PR 时，Codex 负责将 PR 文案整理到仓库根目录 `./pr.md`，人工据此创建 PR
+- 需要发起 PR 时，Codex 负责将 PR 文案整理到仓库根目录 `./pr.md`，Human 先 push branch，再据此创建 PR
+- PR 创建后如 review 结论或实现内容变化，Codex 应继续更新 `./pr.md`，Human 再决定是否同步到 PR 描述
 
 ### 合并规则
 
 - feature branch 完成后再合并回 `main`
 - `main` 只接收阶段性稳定成果
 - 合并前至少确认测试与基本 CLI 入口可用
+- 合并前应确认 `review_comments.md` 已处理完毕，且 `./pr.md` 已反映当前实现与 review 结论
+- 如 Claude review 后仍有实现修改，应先继续在同一 PR 上提交，再进入 merge 决策
 - phase 完成后建议打 tag
 
 ---

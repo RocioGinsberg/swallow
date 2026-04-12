@@ -51,7 +51,7 @@ from swallow.models import (
     evaluate_dispatch_verdict,
     validate_remote_handoff_contract_payload,
 )
-from swallow.orchestrator import build_task_retrieval_request, create_task, run_task
+from swallow.orchestrator import acknowledge_task, build_task_retrieval_request, create_task, run_task
 from swallow.paths import (
     canonical_registry_path,
     canonical_reuse_policy_path,
@@ -61,7 +61,7 @@ from swallow.paths import (
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
-from swallow.store import append_canonical_record, load_state, save_remote_handoff_contract, save_retrieval
+from swallow.store import append_canonical_record, load_state, save_remote_handoff_contract, save_retrieval, save_state
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
@@ -3406,6 +3406,81 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("checkpoint_state=review_ready", stdout.getvalue())
         self.assertIn("suggested_reason=completed_run_review", stdout.getvalue())
 
+    def test_task_acknowledge_moves_dispatch_blocked_task_back_to_local_execution_path(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Dispatch blocked task",
+                goal="Allow operator acknowledgement",
+                workspace_root=tmp_path,
+            )
+            persisted = load_state(tmp_path, state.task_id)
+            persisted.artifact_paths["task_semantics_json"] = "missing-artifact.md"
+            save_state(tmp_path, persisted)
+            blocked = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            acknowledged = acknowledge_task(tmp_path, blocked.task_id)
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / state.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(blocked.status, "dispatch_blocked")
+        self.assertEqual(acknowledged.status, "running")
+        self.assertEqual(acknowledged.phase, "retrieval")
+        self.assertEqual(acknowledged.topology_dispatch_status, "acknowledged")
+        self.assertEqual(acknowledged.executor_name, "local")
+        self.assertEqual(acknowledged.route_name, "local-summary")
+        self.assertEqual(events[-1]["event_type"], "task.dispatch_acknowledged")
+
+    def test_task_acknowledge_rejects_non_dispatch_blocked_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Fresh task",
+                goal="Do not acknowledge normal task",
+                workspace_root=tmp_path,
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "acknowledge", state.task_id]), 1)
+
+        self.assertIn("acknowledge_blocked", stdout.getvalue())
+        self.assertIn("status=created", stdout.getvalue())
+
+    def test_task_resume_runs_after_dispatch_acknowledge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Resume acknowledged task",
+                goal="Resume from acknowledged dispatch block",
+                workspace_root=tmp_path,
+            )
+            persisted = load_state(tmp_path, state.task_id)
+            persisted.artifact_paths["task_semantics_json"] = "missing-artifact.md"
+            save_state(tmp_path, persisted)
+            blocked = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+            self.assertEqual(blocked.status, "dispatch_blocked")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "acknowledge", state.task_id]), 0)
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "resume", state.task_id]), 0)
+
+            final_state = load_state(tmp_path, state.task_id)
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(final_state.executor_name, "local")
+        self.assertEqual(final_state.route_name, "local-summary")
+        self.assertEqual(final_state.topology_dispatch_status, "local_dispatched")
+        self.assertIn("dispatch_acknowledged", stdout.getvalue())
+        self.assertIn(f"{state.task_id} completed retrieval=", stdout.getvalue())
+
     def test_task_rerun_always_uses_run_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -3556,6 +3631,93 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("retry_policy_report:", output)
         self.assertIn("execution_budget_policy_report:", output)
         self.assertIn("stop_policy_report:", output)
+
+    def test_task_inspect_marks_mock_remote_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Mock remote inspect",
+                goal="Mark mock remote topology",
+                workspace_root=tmp_path,
+            )
+
+            with patch.dict("os.environ", {"AIWF_MOCK_REMOTE_OUTCOME": "completed"}, clear=False):
+                final_state = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            self.assertEqual(final_state.topology_dispatch_status, "mock_remote_dispatched")
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("route_label: [MOCK-REMOTE]", output)
+        self.assertIn("topology_dispatch_status: mock_remote_dispatched", output)
+
+    def test_task_inspect_does_not_mark_local_routes_as_mock_remote(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Local inspect",
+                goal="Keep local route unmarked",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            final_state = run_task(tmp_path, state.task_id, executor_name="local")
+
+            self.assertEqual(final_state.topology_dispatch_status, "local_dispatched")
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("route_label: -", output)
+        self.assertNotIn("[MOCK-REMOTE]", output)
+
+    def test_task_inspect_keeps_blocked_dispatch_unmarked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Blocked inspect",
+                goal="Do not mark blocked route as mock remote",
+                workspace_root=tmp_path,
+            )
+            persisted = load_state(tmp_path, state.task_id)
+            persisted.artifact_paths["task_semantics_json"] = "missing-artifact.md"
+            save_state(tmp_path, persisted)
+            blocked = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            self.assertEqual(blocked.topology_dispatch_status, "blocked")
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("route_label: -", output)
+        self.assertIn("topology_dispatch_status: blocked", output)
+        self.assertNotIn("[MOCK-REMOTE]", output)
+
+    def test_task_dispatch_prints_mock_remote_label_for_mock_remote_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Mock remote dispatch report",
+                goal="Label dispatch report output",
+                workspace_root=tmp_path,
+            )
+
+            with patch.dict("os.environ", {"AIWF_MOCK_REMOTE_OUTCOME": "completed"}, clear=False):
+                run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "dispatch", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("[MOCK-REMOTE]", output)
 
     def test_task_intake_prints_planning_and_knowledge_boundary_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

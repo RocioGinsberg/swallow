@@ -23,6 +23,7 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .executor import normalize_executor_name
+from .dispatch_policy import validate_handoff_semantics
 from .harness import (
     build_remote_handoff_contract_record,
     build_remote_handoff_contract_report,
@@ -67,6 +68,7 @@ from .paths import (
     memory_path,
     retry_policy_path,
     stop_policy_path,
+    task_root,
     task_semantics_path,
     retrieval_path,
     remote_handoff_contract_path,
@@ -171,6 +173,16 @@ def _evaluate_dispatch_for_run(base_dir: Path, state: TaskState) -> tuple[dict[s
         "remote_handoff_contract_report.md",
         build_remote_handoff_contract_report(contract_record),
     )
+    if bool(contract_record.get("remote_candidate", False)):
+        policy_result = validate_handoff_semantics(contract_record, task_root(base_dir, state.task_id))
+    else:
+        policy_result = None
+    if policy_result is not None and not policy_result.valid:
+        return contract_record, DispatchVerdict(
+            action="blocked",
+            reason="remote handoff contract failed semantic validation",
+            blocking_detail="; ".join(policy_result.errors),
+        )
     return contract_record, evaluate_dispatch_verdict(contract_record)
 
 
@@ -203,6 +215,57 @@ def _apply_blocked_dispatch_verdict(
                 "dispatch_verdict": verdict.to_dict(),
                 "remote_handoff_contract_kind": contract_record.get("contract_kind", ""),
                 "remote_handoff_contract_status": contract_record.get("contract_status", ""),
+            },
+        ),
+    )
+    return state
+
+
+def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
+    state = load_state(base_dir, task_id)
+    if state.status != "dispatch_blocked":
+        raise ValueError(f"Only dispatch_blocked tasks can be acknowledged; current status is {state.status}.")
+
+    previous_status = state.status
+    previous_phase = state.phase
+    state.executor_name = "local"
+    state.route_mode = "summary"
+    route_selection = select_route(state, executor_override=state.executor_name, route_mode_override=state.route_mode)
+    state.route_name = route_selection.route.name
+    state.route_backend = route_selection.route.backend_kind
+    state.route_executor_family = route_selection.route.executor_family
+    state.route_execution_site = route_selection.route.execution_site
+    state.route_remote_capable = route_selection.route.remote_capable
+    state.route_transport_kind = route_selection.route.transport_kind
+    state.route_model_hint = route_selection.route.model_hint
+    state.route_reason = "Operator acknowledged blocked dispatch and forced a local execution path."
+    state.route_capabilities = route_selection.route.capabilities.to_dict()
+    _apply_execution_topology(state, dispatch_status="acknowledged")
+    _apply_execution_site_contract(state)
+    state.status = "running"
+    state.phase = "retrieval"
+    state.execution_lifecycle = "prepared"
+    state.executor_status = "pending"
+    state.dispatch_started_at = ""
+    save_state(base_dir, state)
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type="task.dispatch_acknowledged",
+            message="Blocked dispatch acknowledged for local execution.",
+            payload={
+                "previous_status": previous_status,
+                "previous_phase": previous_phase,
+                "status": state.status,
+                "phase": state.phase,
+                "executor_name": state.executor_name,
+                "route_mode": state.route_mode,
+                "route_name": state.route_name,
+                "route_execution_site": state.route_execution_site,
+                "route_transport_kind": state.route_transport_kind,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_lifecycle": state.execution_lifecycle,
             },
         ),
     )
