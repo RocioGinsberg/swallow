@@ -6126,6 +6126,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(persisted["route_execution_site"], "local")
         self.assertEqual(persisted["route_remote_capable"], False)
         self.assertEqual(persisted["route_transport_kind"], "local_process")
+        self.assertEqual(persisted["route_taxonomy_role"], "general-executor")
+        self.assertEqual(persisted["route_taxonomy_memory_authority"], "task-state")
         self.assertEqual(persisted["route_capabilities"]["execution_kind"], "artifact_generation")
 
     def test_select_route_uses_override_before_legacy_mode(self) -> None:
@@ -6145,6 +6147,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(selection.route.execution_site, "local")
         self.assertEqual(selection.route.remote_capable, False)
         self.assertEqual(selection.route.transport_kind, "local_process")
+        self.assertEqual(selection.route.taxonomy.system_role, "general-executor")
+        self.assertEqual(selection.route.taxonomy.memory_authority, "task-state")
         self.assertEqual(selection.route.capabilities.filesystem_access, "workspace_read")
         self.assertIn("run-time executor override", selection.reason)
 
@@ -6164,6 +6168,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(selection.route.backend_kind, "deterministic_test")
         self.assertEqual(selection.route.execution_site, "local")
         self.assertEqual(selection.route.remote_capable, False)
+        self.assertEqual(selection.route.taxonomy.system_role, "general-executor")
+        self.assertEqual(selection.route.taxonomy.memory_authority, "task-state")
         self.assertEqual(selection.route.capabilities.deterministic, True)
 
     def test_select_route_uses_route_mode_when_no_executor_override_is_present(self) -> None:
@@ -6199,7 +6205,25 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(selection.route.execution_site, "local")
         self.assertEqual(selection.route.transport_kind, "local_detached_process")
         self.assertEqual(selection.route.backend_kind, "local_summary_detached")
+        self.assertEqual(selection.route.taxonomy.system_role, "general-executor")
+        self.assertEqual(selection.route.taxonomy.memory_authority, "task-state")
         self.assertIn("detached local execution variant", selection.reason)
+
+    def test_select_route_assigns_specialist_taxonomy_to_local_note(self) -> None:
+        state = TaskState(
+            task_id="route127",
+            title="Specialist route selection",
+            goal="Use offline specialist route",
+            workspace_root="/tmp",
+            executor_name="note-only",
+            route_mode="offline",
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-note")
+        self.assertEqual(selection.route.taxonomy.system_role, "specialist")
+        self.assertEqual(selection.route.taxonomy.memory_authority, "task-memory")
 
     def test_compatibility_reports_warning_for_live_route_without_network(self) -> None:
         state = TaskState(

@@ -280,6 +280,8 @@ class TaskState:
     route_execution_site: str = "local"
     route_remote_capable: bool = False
     route_transport_kind: str = "local_process"
+    route_taxonomy_role: str = ""
+    route_taxonomy_memory_authority: str = ""
     route_model_hint: str = "codex"
     route_reason: str = "Default local Codex route."
     route_capabilities: dict[str, Any] = field(default_factory=dict)
@@ -661,10 +663,17 @@ class RouteSpec:
             resumable=False,
         )
     )
+    taxonomy: TaxonomyProfile = field(
+        default_factory=lambda: TaxonomyProfile(
+            system_role="general-executor",
+            memory_authority="task-state",
+        )
+    )
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["capabilities"] = self.capabilities.to_dict()
+        payload["taxonomy"] = self.taxonomy.to_dict()
         return payload
 
 

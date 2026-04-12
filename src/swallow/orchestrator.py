@@ -237,6 +237,8 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
     state.route_execution_site = route_selection.route.execution_site
     state.route_remote_capable = route_selection.route.remote_capable
     state.route_transport_kind = route_selection.route.transport_kind
+    state.route_taxonomy_role = route_selection.route.taxonomy.system_role
+    state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = "Operator acknowledged blocked dispatch and forced a local execution path."
     state.route_capabilities = route_selection.route.capabilities.to_dict()
@@ -334,6 +336,8 @@ def create_task(
     state.route_execution_site = initial_route.route.execution_site
     state.route_remote_capable = initial_route.route.remote_capable
     state.route_transport_kind = initial_route.route.transport_kind
+    state.route_taxonomy_role = initial_route.route.taxonomy.system_role
+    state.route_taxonomy_memory_authority = initial_route.route.taxonomy.memory_authority
     state.route_model_hint = initial_route.route.model_hint
     state.route_reason = initial_route.reason
     state.route_capabilities = initial_route.route.capabilities.to_dict()
@@ -799,6 +803,8 @@ def run_task(
     state.route_execution_site = route_selection.route.execution_site
     state.route_remote_capable = route_selection.route.remote_capable
     state.route_transport_kind = route_selection.route.transport_kind
+    state.route_taxonomy_role = route_selection.route.taxonomy.system_role
+    state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = route_selection.reason
     state.route_capabilities = route_selection.route.capabilities.to_dict()
