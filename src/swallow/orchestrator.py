@@ -221,6 +221,57 @@ def _apply_blocked_dispatch_verdict(
     return state
 
 
+def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
+    state = load_state(base_dir, task_id)
+    if state.status != "dispatch_blocked":
+        raise ValueError(f"Only dispatch_blocked tasks can be acknowledged; current status is {state.status}.")
+
+    previous_status = state.status
+    previous_phase = state.phase
+    state.executor_name = "local"
+    state.route_mode = "summary"
+    route_selection = select_route(state, executor_override=state.executor_name, route_mode_override=state.route_mode)
+    state.route_name = route_selection.route.name
+    state.route_backend = route_selection.route.backend_kind
+    state.route_executor_family = route_selection.route.executor_family
+    state.route_execution_site = route_selection.route.execution_site
+    state.route_remote_capable = route_selection.route.remote_capable
+    state.route_transport_kind = route_selection.route.transport_kind
+    state.route_model_hint = route_selection.route.model_hint
+    state.route_reason = "Operator acknowledged blocked dispatch and forced a local execution path."
+    state.route_capabilities = route_selection.route.capabilities.to_dict()
+    _apply_execution_topology(state, dispatch_status="acknowledged")
+    _apply_execution_site_contract(state)
+    state.status = "running"
+    state.phase = "retrieval"
+    state.execution_lifecycle = "prepared"
+    state.executor_status = "pending"
+    state.dispatch_started_at = ""
+    save_state(base_dir, state)
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type="task.dispatch_acknowledged",
+            message="Blocked dispatch acknowledged for local execution.",
+            payload={
+                "previous_status": previous_status,
+                "previous_phase": previous_phase,
+                "status": state.status,
+                "phase": state.phase,
+                "executor_name": state.executor_name,
+                "route_mode": state.route_mode,
+                "route_name": state.route_name,
+                "route_execution_site": state.route_execution_site,
+                "route_transport_kind": state.route_transport_kind,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_lifecycle": state.execution_lifecycle,
+            },
+        ),
+    )
+    return state
+
+
 def create_task(
     base_dir: Path,
     title: str,

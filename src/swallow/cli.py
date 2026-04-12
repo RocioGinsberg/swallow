@@ -18,6 +18,7 @@ from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .orchestrator import (
+    acknowledge_task,
     append_task_knowledge_capture,
     create_task,
     decide_task_knowledge,
@@ -771,6 +772,14 @@ def execute_task_run(
     return 0
 
 
+def is_acknowledged_dispatch_reentry(state: object) -> bool:
+    return (
+        getattr(state, "status", "") == "running"
+        and getattr(state, "phase", "") == "retrieval"
+        and getattr(state, "topology_dispatch_status", "") == "acknowledged"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="swl",
@@ -1041,6 +1050,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Override the task routing policy mode for this rerun.",
     )
+    acknowledge_parser = task_subparsers.add_parser(
+        "acknowledge",
+        help="Force a dispatch_blocked task onto the local execution path after operator review.",
+        description="Force a dispatch_blocked task onto the local execution path after operator review.",
+    )
+    acknowledge_parser.add_argument("task_id", help="Task identifier.")
 
     list_parser = task_subparsers.add_parser("list", help="List tasks with compact status summaries.")
     list_parser.add_argument(
@@ -1464,8 +1479,32 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "run":
         return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
 
+    if args.command == "task" and args.task_command == "acknowledge":
+        try:
+            state = acknowledge_task(base_dir, args.task_id)
+        except ValueError as exc:
+            state = load_state(base_dir, args.task_id)
+            print(
+                f"{state.task_id} acknowledge_blocked "
+                f"status={state.status} "
+                f"phase={state.phase} "
+                f"dispatch_status={state.topology_dispatch_status} "
+                f"reason={str(exc)}"
+            )
+            return 1
+        print(
+            f"{state.task_id} dispatch_acknowledged "
+            f"status={state.status} "
+            f"phase={state.phase} "
+            f"dispatch_status={state.topology_dispatch_status} "
+            f"route={state.route_name}"
+        )
+        return 0
+
     if args.command == "task" and args.task_command == "retry":
         state = load_state(base_dir, args.task_id)
+        if is_acknowledged_dispatch_reentry(state):
+            return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
         retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
         stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
@@ -1481,6 +1520,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "resume":
         state = load_state(base_dir, args.task_id)
+        if is_acknowledged_dispatch_reentry(state):
+            return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
         if not (checkpoint_snapshot.get("resume_ready", False) and checkpoint_snapshot.get("recommended_path", "") == "resume"):
             print(
