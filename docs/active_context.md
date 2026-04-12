@@ -2,42 +2,42 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Capabilities` (Primary) + `Execution Topology` (Secondary)
-- latest_completed_phase: `Phase 22`
-- latest_completed_slice: `Taxonomy-Aware Routing Baseline`
-- active_track: `Workbench / UX` (Primary) + `Execution Topology` (Secondary)
-- active_phase: `Phase 23`
-- active_slice: `Taxonomy Visibility in CLI Surfaces`
-- active_branch: `main`（待创建 `feat/phase23-taxonomy-cli-visibility`）
-- status: `design_produced`
+- latest_completed_track: `Workbench / UX` (Primary) + `Execution Topology` (Secondary)
+- latest_completed_phase: `Phase 23`
+- latest_completed_slice: `Taxonomy Visibility in CLI Surfaces`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
+- active_branch: `main`（Phase 23 已收口，等待下一轮新分支）
+- status: `closeout_complete`
 
 ---
 
-## 当前目标
+## 当前状态说明
 
-将 Phase 22 在底层数据流中挂载的智能体分类学（Agent Taxonomy）信息，正式暴露到命令行交互界面。让操作员在使用 `swallow task inspect`、`swallow task review` 等核心指令时，可以直观地看到被分配任务或交接任务的智能体安全身份（Role / Memory Authority），告别盲目审批，从而闭环增强可观测性。
+Phase 23 已完成实现与收口，完成内容包括：
 
----
+- 在 `swl task inspect` 的 `Route And Topology` 区域显示 taxonomy
+- 在 `swl task review` 的 `Handoff` 区域显示 taxonomy
+- 对旧状态文件保持 `taxonomy: -` 的兼容展示
 
-## 当前要解决的问题
+当前仓库应视为：
 
-当前系统：
-- 已经在代码底层（`Capabilities` / `Router` / `TaskState`）增加了 taxonomy profile（Phase 22）。
-- 如果系统处于 `waiting_human` 等待人类拦截审批的状态，操作员目前只能看到任务进度，并不能直接从终端渲染上看出处理人到底是 "具有全量任务状态写权限的 General Executor" 还是 "被禁止修改规范库的 Specialist Agent"。
-
-当前待解决的是：
-- 将现有的 TaxonomyProfile 信息在 `cli.py` 或相关展示逻辑中优雅、紧凑地打印出来，不破坏现有版面且足够醒目。
+- 已完成一个低风险、纯 CLI 可观测性增强 phase
+- 不应继续在 Phase 23 名义下扩张范围
+- 下一步应重新选择新的 active track / phase / slice
 
 ---
 
 ## 当前关键文档
 
-当前优先读取：
+下一轮开始前，优先读取：
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
 3. `current_state.md`
-4. `docs/plans/phase23/context_brief.md`
+4. `docs/system_tracks.md`
+5. `docs/plans/phase23/closeout.md`
 
 ---
 
@@ -46,16 +46,22 @@
 - `docs/plans/phase23/context_brief.md` (gemini, 2026-04-12)
 - `docs/plans/phase23/design_decision.md` (claude, 2026-04-12)
 - `docs/plans/phase23/risk_assessment.md` (claude, 2026-04-12)
+- `docs/plans/phase23/closeout.md` (codex, 2026-04-12)
 
 ## 当前推进
 
 已完成：
-- **[Gemini]** 读取了 Phase 22 的 closeout 判定以及 `docs/system_tracks.md` 地图。
-- **[Gemini]** 基于”继续推进可观测性和增强操作员工作流”的原则，规划了 `Phase 23: Taxonomy Visibility in CLI Surfaces`。
-- **[Gemini]** 产出了 Phase 23 的上下文摘要 `docs/plans/phase23/context_brief.md`。
-- **[Gemini]** 更新了 `current_state.md` 与 `docs/active_context.md` 以同步状态。
-- **[Claude]** 已产出 `design_decision.md`（2 slice：inspect + review taxonomy 展示）和 `risk_assessment.md`（全低风险）
+
+- **[Gemini]** 产出 `context_brief.md`，明确 Phase 23 的工作边界。
+- **[Claude]** 产出 `design_decision.md` 与 `risk_assessment.md`，确认本轮为低风险 CLI 展示改动。
+- **[Codex]** 实现 inspect / review taxonomy 展示与旧状态兼容回退。
+- **[Codex]** 使用 `.venv/bin/python -m pytest` 完成相关 CLI 测试验证。
+- **[Codex]** 完成 `docs/plans/phase23/closeout.md` 收口。
 
 ## 下一步
 
-等待人工审批 `design_decision.md` 和 `risk_assessment.md`。通过后由 Codex 在 `feat/phase23-taxonomy-cli-visibility` 分支上开始实现。
+开始下一轮 fresh kickoff：
+
+1. Human 从 `docs/system_tracks.md` 选择新的 active track
+2. Gemini / Claude 产出下一 phase 的上下文与设计文档
+3. Human 审批后再切出新的 feature branch
