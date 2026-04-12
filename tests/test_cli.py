@@ -3590,6 +3590,54 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(acknowledged.route_name, "local-summary")
         self.assertEqual(events[-1]["event_type"], "task.dispatch_acknowledged")
 
+    def test_task_acknowledge_applies_capability_enforcement_to_reselected_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            blocked_state = TaskState(
+                task_id="task-ack-enforce",
+                title="Acknowledge enforce",
+                goal="Apply capability enforcement on acknowledge",
+                workspace_root=str(tmp_path),
+                status="dispatch_blocked",
+                phase="dispatch",
+                route_taxonomy_role="validator",
+                route_taxonomy_memory_authority="stateless",
+            )
+            save_state(tmp_path, blocked_state)
+            enforced_route = RouteSelection(
+                route=RouteSpec(
+                    name="validator-local",
+                    executor_name="local",
+                    backend_kind="validator_test",
+                    model_hint="local",
+                    executor_family="cli",
+                    execution_site="local",
+                    remote_capable=False,
+                    transport_kind="local_process",
+                    capabilities=RouteCapabilities(
+                        execution_kind="code_execution",
+                        supports_tool_loop=True,
+                        filesystem_access="workspace_write",
+                        network_access="optional",
+                        deterministic=False,
+                        resumable=True,
+                    ),
+                    taxonomy=TaxonomyProfile(
+                        system_role="validator",
+                        memory_authority="stateless",
+                    ),
+                ),
+                reason="Test-only validator route for acknowledge enforcement.",
+                policy_inputs={},
+            )
+
+            with patch("swallow.orchestrator.select_route", return_value=enforced_route):
+                acknowledged = acknowledge_task(tmp_path, blocked_state.task_id)
+
+        self.assertEqual(acknowledged.route_capabilities["filesystem_access"], "none")
+        self.assertEqual(acknowledged.route_capabilities["network_access"], "none")
+        self.assertEqual(acknowledged.route_capabilities["supports_tool_loop"], False)
+
     def test_task_acknowledge_rejects_non_dispatch_blocked_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -5723,6 +5771,133 @@ class CliLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(final_state.status, "completed")
         self.assertEqual(final_state.phase, "summarize")
+
+    def test_run_task_enforces_validator_capabilities_before_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            created = TaskState(
+                task_id="capenforce-validator",
+                title="Validator enforce",
+                goal="Downgrade route capabilities before execution",
+                workspace_root=str(base_dir),
+                executor_name="local",
+            )
+            validator_route = RouteSelection(
+                route=RouteSpec(
+                    name="validator-local",
+                    executor_name="local",
+                    backend_kind="validator_test",
+                    model_hint="local",
+                    executor_family="cli",
+                    execution_site="local",
+                    remote_capable=False,
+                    transport_kind="local_process",
+                    capabilities=RouteCapabilities(
+                        execution_kind="code_execution",
+                        supports_tool_loop=True,
+                        filesystem_access="workspace_write",
+                        network_access="optional",
+                        deterministic=False,
+                        resumable=True,
+                    ),
+                    taxonomy=TaxonomyProfile(
+                        system_role="validator",
+                        memory_authority="task-state",
+                    ),
+                ),
+                reason="Test-only validator route for capability enforcement.",
+                policy_inputs={},
+            )
+            captured_states: list[TaskState] = []
+
+            def run_execution_spy(
+                _base_dir: Path,
+                state: TaskState,
+                _retrieval_items: list[RetrievalItem],
+            ) -> ExecutorResult:
+                captured_states.append(state)
+                return ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message="Execution finished.",
+                    output="done",
+                )
+
+            with patch("swallow.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestrator.select_route", return_value=validator_route):
+                    with patch("swallow.orchestrator.save_state"):
+                        with patch("swallow.orchestrator.append_event"):
+                            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                                with patch("swallow.orchestrator.run_execution", side_effect=run_execution_spy):
+                                    with patch(
+                                        "swallow.orchestrator.write_task_artifacts",
+                                        return_value=(
+                                            ValidationResult(status="passed", message="Compatibility passed."),
+                                            ValidationResult(status="passed", message="Execution fit passed."),
+                                            ValidationResult(status="passed", message="Knowledge policy passed."),
+                                            ValidationResult(status="passed", message="Validation passed."),
+                                            ValidationResult(status="passed", message="Retry policy passed."),
+                                            ValidationResult(status="passed", message="Execution budget policy passed."),
+                                            ValidationResult(status="warning", message="Stop policy warning."),
+                                        ),
+                                    ):
+                                        final_state = run_task(base_dir, created.task_id, executor_name="local")
+
+        self.assertEqual(final_state.route_capabilities["filesystem_access"], "workspace_read")
+        self.assertEqual(final_state.route_capabilities["supports_tool_loop"], False)
+        self.assertEqual(final_state.route_capabilities["network_access"], "optional")
+        self.assertEqual(captured_states[0].route_capabilities["filesystem_access"], "workspace_read")
+        self.assertEqual(captured_states[0].route_capabilities["supports_tool_loop"], False)
+
+    def test_run_task_keeps_general_executor_capabilities_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            created = TaskState(
+                task_id="capenforce-general",
+                title="General executor preserve",
+                goal="Do not downgrade default general executor capabilities",
+                workspace_root=str(base_dir),
+                executor_name="codex",
+            )
+            captured_states: list[TaskState] = []
+
+            def run_execution_spy(
+                _base_dir: Path,
+                state: TaskState,
+                _retrieval_items: list[RetrievalItem],
+            ) -> ExecutorResult:
+                captured_states.append(state)
+                return ExecutorResult(
+                    executor_name="codex",
+                    status="completed",
+                    message="Execution finished.",
+                    output="done",
+                )
+
+            with patch("swallow.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestrator.save_state"):
+                    with patch("swallow.orchestrator.append_event"):
+                        with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                            with patch("swallow.orchestrator.run_execution", side_effect=run_execution_spy):
+                                with patch(
+                                    "swallow.orchestrator.write_task_artifacts",
+                                    return_value=(
+                                        ValidationResult(status="passed", message="Compatibility passed."),
+                                        ValidationResult(status="passed", message="Execution fit passed."),
+                                        ValidationResult(status="passed", message="Knowledge policy passed."),
+                                        ValidationResult(status="passed", message="Validation passed."),
+                                        ValidationResult(status="passed", message="Retry policy passed."),
+                                        ValidationResult(status="passed", message="Execution budget policy passed."),
+                                        ValidationResult(status="warning", message="Stop policy warning."),
+                                    ),
+                                ):
+                                    final_state = run_task(base_dir, created.task_id, executor_name="codex")
+
+        self.assertEqual(final_state.route_capabilities["filesystem_access"], "workspace_write")
+        self.assertEqual(final_state.route_capabilities["supports_tool_loop"], True)
+        self.assertEqual(final_state.route_capabilities["network_access"], "optional")
+        self.assertEqual(captured_states[0].route_capabilities["filesystem_access"], "workspace_write")
+        self.assertEqual(captured_states[0].route_capabilities["supports_tool_loop"], True)
 
     def test_run_task_status_and_phase_timing_failure_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

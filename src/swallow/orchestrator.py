@@ -22,6 +22,7 @@ from .canonical_reuse_eval import (
     resolve_canonical_reuse_citations,
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
+from .capability_enforcement import CapabilityConstraint, enforce_capability_constraints
 from .executor import normalize_executor_name
 from .dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
 from .harness import (
@@ -100,6 +101,16 @@ from .store import (
 )
 from .task_semantics import build_task_semantics
 from .models import utc_now
+
+
+def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
+    enforced_capabilities, applied_constraints = enforce_capability_constraints(
+        state.route_taxonomy_role,
+        state.route_taxonomy_memory_authority,
+        state.route_capabilities,
+    )
+    state.route_capabilities = enforced_capabilities
+    return applied_constraints
 
 
 def _apply_execution_topology(
@@ -250,6 +261,7 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = "Operator acknowledged blocked dispatch and forced a local execution path."
     state.route_capabilities = route_selection.route.capabilities.to_dict()
+    _apply_capability_enforcement(state)
     _apply_execution_topology(state, dispatch_status="acknowledged")
     _apply_execution_site_contract(state)
     state.status = "running"
@@ -867,6 +879,7 @@ def run_task(
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = route_selection.reason
     state.route_capabilities = route_selection.route.capabilities.to_dict()
+    _apply_capability_enforcement(state)
     _begin_execution_attempt(state)
     _apply_execution_topology(state, dispatch_status="planned")
     _apply_execution_site_contract(state)
