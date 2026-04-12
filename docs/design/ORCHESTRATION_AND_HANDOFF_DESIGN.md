@@ -37,16 +37,20 @@ Swallow 系统的第 2 层（编排层）彻底摒弃了这种直连通信机制
 
 ---
 
-## 3. 智能调度器 (The Dispatcher) 与模型选型
+## 3. 智能调度器 (The Dispatcher) 与角色路由
 
-在多模型生态下，系统依赖一个常驻的轻量级“智能调度器（Dispatcher）”来决定“让哪个 Agent（挂载什么模型）接手当前任务”。
+在多模型生态下，系统依赖一个常驻的“智能调度器（Dispatcher）”来决定“让哪个角色的 Agent接手当前任务”。调度的核心依据是 **智能体分类学 (Agent Taxonomy)**，而非单纯的模型品牌。
 
-### 3.1 任务画像与能力匹配
-当状态机中出现一个新的待执行 Task（状态为 `pending`），Dispatcher 会读取任务画像并与第 6 层的 **Model Capability Matrix（模型能力矩阵）** 进行匹配，实现最优化调度：
+### 3.1 基于分类学的任务分发
+当状态机中出现一个新的待执行 Task，Dispatcher 会读取任务画像并进行最优化角色与模型绑定分发：
 
-*   **匹配上下文窗口 (Context Size)**：如果任务是“跨全量代码库的重构”（预估 Token > 150K），Dispatcher 坚决不路由给普通模型，而是定向分发给 **Gemini 1.5 Pro Agent**，以利用其海量窗口与 Context Caching 机制。
-*   **匹配特种权限 (Special Modalities)**：如果任务标签涉及“修复前端视觉错位”，Dispatcher 会选择激活配置了 `computer_use` 权限并挂载 **Claude 3.5 Sonnet** 的 Agent，允许其直接读取屏幕截图并操作虚拟浏览器。
-*   **成本降维调度 (Cost-Driven Downgrading)**：对于任务流中的低频智力环节（如“将抓取的网页内容格式化为 JSON”或“补充函数的基础注释”），Dispatcher 会自动将其路由给 **Llama 3 / Claude Haiku / Gemini Flash** 等经济高速模型，极大节约系统运行成本。
+*   **通用主体任务 -> 通用执行者 (General Executor)**：如果任务是“跨全量代码库的重构”或“起草系统设计”，Dispatcher 会将其分配给具备 `Task-State` 修改权限的通用执行者。它会根据 Token 预估为其挂载合适的模型（如超大上下文需求挂载 Gemini 1.5 Pro）。
+*   **高优单一能力 -> 专项 Agent (Specialist Agent)**：遇到如“记忆提纯”、“外部知识摄入”或“失败日志分析”时，Dispatcher 会唤醒专项 Agent。专项 Agent 严格遵循输入输出边界，且绝无路由权，防止其演变为“隐藏的 Orchestrator”。
+*   **底线守卫 -> 审查者 (Validator/Reviewer)**：在代码提交或知识晋升前，Dispatcher 会强制插入一个 Stateless 的审查者进行质量与合规检查。
+*   **特权匹配与成本降维**：针对需要视觉交互的环节激活 `computer_use` 特权；针对低频智力环节（如 JSON 格式化）自动降维至经济高速模型（如 Haiku / Flash）。
+
+### 3.2 护栏：防止隐藏的编排器 (Hidden Orchestrator)
+Dispatcher 垄断了系统的任务流转语义。任何 General Executor 或 Specialist Agent 可以“建议”下一步行动，但**绝对不能静默修改全局路由策略或跨越当前阶段边界**。所有的决策都必须通过标准化工件交回 Dispatcher 裁决。
 
 ---
 

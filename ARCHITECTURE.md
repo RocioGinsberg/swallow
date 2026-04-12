@@ -31,11 +31,11 @@ graph TD
     Orch["2. 任务编排与调度层 (Orchestrator)<br/>Workflow Engine / Multi-Agent Coordinator"]
 
     %% Agent层
-    subgraph AgentLayer ["3. Agent 执行层 (Execution)"]
+    subgraph AgentLayer ["3. Agent 执行层 (Execution / Taxonomy)"]
         direction LR
-        CodeAgent["本地 Code Agent"]
-        GeneralAgent["云端通用 Agent"]
-        SpecialAgent["领域专项 Agent"]
+        General["通用执行者 (General Executor)"]
+        Specialist["专项 Agent (Specialist Agent)"]
+        Validator["审查者 (Validator/Reviewer)"]
     end
 
     %% 检索与记忆层
@@ -143,6 +143,18 @@ Swallow 强调系统在长期运行中的“自我进化”与工作流记忆的
 *   **显式工作流哲学 (Explicit Workflow Philosophy)**：系统提倡显式的任务拆解与知识沉淀，而非依赖底层模型的黑盒涌现。每一次任务的过程、中间产物、纠错经验都会被结构化提取，作为可复用的系统长期记忆。
 *   **沉淀阶段与图书管理员 Agent (Consolidation Phase & Librarian Agent)**：在核心工作流结束后，系统专门引入独立的“图书管理员 Agent (Librarian Agent)”执行“记忆沉淀阶段”。它负责对过程日志 (Event Log)、临时工件进行降噪、摘要提炼与关联打标，将零散执行轨迹转化为高信噪比的结构化图谱资产并归档，确保系统知识库持续生长。
 *   **元优化与自我迭代 (Meta-Optimization)**：通过对长周期历史任务轨迹和归档记忆的定期复盘反思，系统能够自动提炼新的经验法则、沉淀出更高效的定制 Skills（技能包）、更新 Workflows 编排策略。这种元优化能力，使得系统从被动执行工具向具备主动进化能力的平台演进。
+
+### 3.7 智能体分类学 (Agent Taxonomy) 与角色分野
+
+Swallow 坚决摒弃“品牌即角色”（如 Claude Agent、Gemini Agent）或“位置即角色”（如 Cloud Agent）的模糊定义。所有接入系统的智能体必须通过三个正交维度进行严格分类 `[System Role] / [Execution Site] / [Memory Authority]`：
+
+*   **系统角色 (System Role)**：
+    *   **通用执行者 (General Executor)**：承担宽泛且实质性的任务负载（如代码修改、长篇计划起草），有权修改当前任务状态（Task-State）。
+    *   **专项 Agent (Specialist Agent)**：聚焦于单一高价值子系统（如记忆压缩、外部知识摄入），输入输出边界极严，**绝不允许接管整个任务生命周期或干涉系统路由**。
+    *   **审查者 (Validator / Reviewer)**：负责质量把关与合规审计，通常为无状态（Stateless），只产生评估意见。
+    *   **编排器 (Orchestrator)**：唯一拥有任务流转控制权的中枢，防止任何执行者成为“隐藏的 Orchestrator”。
+*   **执行位置 (Execution Site)**：区分为 Local、Cloud-backed、Remote Worker 或 Hybrid。
+*   **记忆权限 (Memory Authority)**：精确划定 Agent 能否写入持久化事实。包括 Stateless、Task-State、Task-Memory、Staged-Knowledge 等。默认情况下，所有新 Agent 必须标记为 **Canonical-Write-Forbidden**，严禁未经人类或严格策略审核直接修改全局知识库，防止“隐式全局记忆污染”。
 
 ---
 

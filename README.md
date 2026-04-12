@@ -76,10 +76,12 @@ swallow is organized around five long-running layers:
 - **State / Memory / Artifacts**: task truth, event history, memory, and outputs
 - **Provider Routing**: route, executor family, backend, and capability fit
 
-At the executor layer, the system distinguishes between:
+At the agent and execution layer, the system enforces a strict taxonomy based on system role, rather than model brand:
 
-- **API executor**: better suited for planning, summarization, structured reasoning, and route judgment
-- **CLI executor**: better suited for repository work, file editing, command execution, and environment-bound actions
+- **General Executor**: performs broad, substantial task work (e.g., repository edits, API planning).
+- **Specialist Agent**: performs bounded, high-value subsystem work (e.g., memory curation, knowledge intake).
+- **Validator / Reviewer**: audits and checks outputs without mutating main task state.
+- **Orchestrator**: strictly coordinates progression and prevents any agent from becoming a hidden router.
 
 In other words, swallow is not only about “which model to call.”  
 It is about:
@@ -341,6 +343,9 @@ The immediate priority is:
 * **resume note**: a hand-off note written after a run so the next session can continue correctly
 * **handoff**: an explicit record of execution boundary, ownership, and next operator action
 * **checkpoint**: a compact recovery snapshot reviewed before resume, retry, or rerun
+* **general executor**: an agent role designed for broad task execution and state mutation
+* **specialist agent**: an agent role designed for bounded subsystem work, strictly constrained from owning overall task progression
+* **memory authority**: the explicit read/write scope granted to an agent (e.g., stateless, task-state, staged-knowledge)
 
 ---
 

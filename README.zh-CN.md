@@ -76,10 +76,12 @@ swallow 长期围绕五层组织：
 - **State / Memory / Artifacts**：任务状态、事件、记忆与产物
 - **Provider Routing**：route、executor family、backend 与 capability fit
 
-在执行器层面，系统长期区分：
+在 Agent 与执行器层面，系统强制推行基于系统角色的**智能体分类学 (Agent Taxonomy)**，而不再按模型品牌区分：
 
-- **API executor**：更适合规划、总结、结构化推理、路由判断等认知型工作
-- **CLI executor**：更适合仓库、文件、命令、工具调用等环境内执行工作
+- **通用执行者 (General Executor)**：承担宽泛且实质性的任务负载（如代码修改、API 规划）。
+- **专项 Agent (Specialist Agent)**：聚焦于高价值、边界清晰的子系统工作（如记忆压缩、知识摄入）。
+- **审查者 (Validator / Reviewer)**：对输出进行质量审计与检查，不修改主体任务状态。
+- **编排器 (Orchestrator)**：严格把控流转语义，防止任何 Agent 越权成为隐藏的路由中枢。
 
 也就是说，swallow 关心的不只是“调用哪个模型”，而是：
 
@@ -336,6 +338,9 @@ python3 -m unittest discover -s tests
 * **resume note**：运行结束后为下一次接手提供的 hand-off 说明
 * **handoff**：执行边界、ownership 与下一步 operator action 的显式记录
 * **checkpoint**：恢复、重试、重跑前的紧凑恢复快照
+* **通用执行者 (general executor)**：专为宽泛任务执行和状态修改设计的 Agent 角色
+* **专项 Agent (specialist agent)**：专为高内聚的子系统工作设计的 Agent 角色，被严格限制掌控整体任务流转权
+* **记忆权限 (memory authority)**：明确授予 Agent 的读写作用域（如无状态 stateless、任务状态 task-state、待审知识 staged-knowledge 等）
 
 ---
 
