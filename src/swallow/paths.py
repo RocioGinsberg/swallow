@@ -14,6 +14,10 @@ def canonical_registry_root(base_dir: Path) -> Path:
     return app_root(base_dir) / "canonical_knowledge"
 
 
+def staged_knowledge_root(base_dir: Path) -> Path:
+    return app_root(base_dir) / "staged_knowledge"
+
+
 def tasks_root(base_dir: Path) -> Path:
     return app_root(base_dir) / "tasks"
 
@@ -128,6 +132,10 @@ def checkpoint_snapshot_path(base_dir: Path, task_id: str) -> Path:
 
 def canonical_registry_path(base_dir: Path) -> Path:
     return canonical_registry_root(base_dir) / "registry.jsonl"
+
+
+def staged_knowledge_registry_path(base_dir: Path) -> Path:
+    return staged_knowledge_root(base_dir) / "registry.jsonl"
 
 
 def canonical_registry_index_path(base_dir: Path) -> Path:
