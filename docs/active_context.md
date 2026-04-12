@@ -8,8 +8,8 @@
 - active_track: `Capabilities` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 25`
 - active_slice: `Taxonomy-Driven Capability Enforcement`
-- active_branch: `main`（待创建 `feat/phase25-capability-enforcement`）
-- status: `design_produced`
+- active_branch: `feat/phase25-capability-enforcement`
+- status: `closeout_complete`
 
 ---
 
@@ -47,6 +47,8 @@
 - `docs/plans/phase25/context_brief.md` (gemini, 2026-04-12)
 - `docs/plans/phase25/design_decision.md` (claude, 2026-04-13)
 - `docs/plans/phase25/risk_assessment.md` (claude, 2026-04-13)
+- `docs/plans/phase25/review_comments.md` (claude, 2026-04-13)
+- `docs/plans/phase25/closeout.md` (codex, 2026-04-13)
 
 ## 当前推进
 
@@ -54,8 +56,12 @@
 - **[Gemini]** 收到人类操作员指令，确认推进方案 B（基于分类学的运行时能力沙盒）。
 - **[Gemini]** 完成了 `docs/plans/phase25/context_brief.md` 的起草。
 - **[Gemini]** 切换了 `docs/active_context.md` 的 active track、slice 与 status。
-- **[Claude]** 已产出 `design_decision.md`（3 slice：映射表 → orchestrator 裁剪 → 事件与可视化）和 `risk_assessment.md`（无高风险项，general-executor 默认不触发任何降级）
+- **[Claude]** 已产出 `design_decision.md`（3 slice：映射表 → orchestrator 裁剪 → 事件与可视化）和 `risk_assessment.md`（无高风险项）
+- **[Codex]** 三个 slice 全部实现并提交（3 commits），178 测试通过
+- **[Claude]** review_comments.md 已产出，结论 PASS, mergeable
+- **[Codex]** 已完成 Phase 25 closeout，并同步 PR 文案
 
 ## 下一步
 
-等待人工审批 `design_decision.md` 和 `risk_assessment.md`。通过后由 Codex 在 `feat/phase25-capability-enforcement` 分支上开始实现。
+- 等待人工合并当前分支
+- 合并后将仓库入口状态切换到 Phase 25 stable checkpoint
