@@ -23,7 +23,7 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .executor import normalize_executor_name
-from .dispatch_policy import validate_handoff_semantics
+from .dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
 from .harness import (
     build_remote_handoff_contract_record,
     build_remote_handoff_contract_report,
@@ -182,6 +182,13 @@ def _evaluate_dispatch_for_run(base_dir: Path, state: TaskState) -> tuple[dict[s
             action="blocked",
             reason="remote handoff contract failed semantic validation",
             blocking_detail="; ".join(policy_result.errors),
+        )
+    taxonomy_result = validate_taxonomy_dispatch(state, contract_record)
+    if not taxonomy_result.valid:
+        return contract_record, DispatchVerdict(
+            action="blocked",
+            reason="route taxonomy rejected dispatch contract",
+            blocking_detail="; ".join(taxonomy_result.errors),
         )
     return contract_record, evaluate_dispatch_verdict(contract_record)
 
