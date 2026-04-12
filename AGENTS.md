@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 22 基线
+- Phase 0 到 Phase 23 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,17 +39,17 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Capabilities` (Primary) + `Execution Topology` (Secondary)
-- **Latest Completed Phase**：`Phase 22`
-- **Latest Completed Slice**：`Taxonomy-Aware Routing Baseline`
+- **Latest Completed Track**：`Workbench / UX` (Primary) + `Execution Topology` (Secondary)
+- **Latest Completed Phase**：`Phase 23`
+- **Latest Completed Slice**：`Taxonomy Visibility in CLI Surfaces`
 
-Phase 22 已完成的核心内容包括：
+Phase 23 已完成的核心内容包括：
 
-- 在代码层建立 Agent Taxonomy 元数据：`system_role` + `memory_authority`
-- 为内置路由挂载默认 taxonomy，并把 taxonomy 传播进 `TaskState`
-- 在 dispatch policy 中加入 taxonomy-aware defensive guard
-- 保持向下兼容，不改变既有 `select_route()` 决策逻辑，不引入 RBAC、动态注册或新 executor
-- 完成 Phase 22 review、PR、merge 与 closeout 收口
+- 在 `swl task inspect` 中显示 route taxonomy
+- 在 `swl task review` 中显示 route taxonomy
+- 对旧状态文件保持 `taxonomy: -` 的兼容回退
+- 保持变更范围严格停留在 CLI 可观测性层，不修改底层路由、dispatch policy 或状态机
+- 完成 Phase 23 实现与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -60,6 +60,8 @@ Phase 22 已完成的核心内容包括：
 - remote handoff driven policy mutation or execution gating
 - operator-selectable remote override policy without fresh kickoff
 - dynamic taxonomy registration / discovery without fresh kickoff
+- ad hoc taxonomy-aware route selection without fresh kickoff
+- workbench UI expansion beyond the scoped CLI surface without fresh kickoff
 
 ---
 
