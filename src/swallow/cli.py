@@ -150,6 +150,14 @@ def is_mock_remote_task(state: object, topology: dict[str, object] | None = None
     return transport_kind == "mock_remote_transport" and dispatch_status not in {"blocked", "acknowledged"}
 
 
+def format_taxonomy_label(state: object) -> str:
+    system_role = str(getattr(state, "route_taxonomy_role", "")).strip()
+    memory_authority = str(getattr(state, "route_taxonomy_memory_authority", "")).strip()
+    if not system_role and not memory_authority:
+        return "-"
+    return f"{system_role or '-'} / {memory_authority or '-'}"
+
+
 def build_grouped_artifact_index(artifact_paths: dict[str, str]) -> str:
     lines = ["Task Artifact Index", ""]
     for heading, keys in ARTIFACT_GROUPS:
@@ -1721,6 +1729,7 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(retrieval, list):
             retrieval = []
         mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state, topology) else ""
+        taxonomy_label = format_taxonomy_label(state)
         knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
         knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
         knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
@@ -1767,6 +1776,7 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "Route And Topology",
             f"route_label: {mock_remote_label or '-'}",
+            f"taxonomy: {taxonomy_label}",
             f"route_mode: {state.route_mode}",
             f"route_name: {state.route_name}",
             f"route_backend: {state.route_backend}",
@@ -1928,6 +1938,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         validation = load_json_if_exists(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
         mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state) else ""
+        taxonomy_label = format_taxonomy_label(state)
         lines = [
             f"Task Review: {state.task_id}",
             f"title: {state.title}",
@@ -1944,6 +1955,7 @@ def main(argv: list[str] | None = None) -> int:
             "",
             "Handoff",
             f"route_label: {mock_remote_label or '-'}",
+            f"taxonomy: {taxonomy_label}",
             f"handoff_status: {handoff.get('status', 'pending')}",
             f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
             f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",

@@ -3584,6 +3584,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_review_blocked_reasons: evidence_not_artifact_backed", output)
         self.assertIn("knowledge_review_decisions_recorded: 0", output)
         self.assertIn("route_name: local-mock", output)
+        self.assertIn("taxonomy: general-executor / task-state", output)
         self.assertIn("execution_site_contract_kind: local_inline", output)
         self.assertIn("execution_site_boundary: same_process", output)
         self.assertIn("execution_site_contract_status: active", output)
@@ -3698,6 +3699,26 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("route_label: -", output)
         self.assertIn("topology_dispatch_status: blocked", output)
         self.assertNotIn("[MOCK-REMOTE]", output)
+
+    def test_task_inspect_shows_specialist_taxonomy_for_local_note_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Specialist inspect",
+                goal="Show specialist taxonomy in inspect",
+                workspace_root=tmp_path,
+                executor_name="note-only",
+            )
+            final_state = run_task(tmp_path, state.task_id, executor_name="note-only")
+
+            self.assertEqual(final_state.route_name, "local-note")
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("taxonomy: specialist / task-memory", output)
 
     def test_task_dispatch_prints_mock_remote_label_for_mock_remote_runs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -3954,6 +3975,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_index_inactive_reusable: 0", output)
         self.assertIn("knowledge_index_refreshed_at:", output)
         self.assertIn("reused_knowledge_in_retrieval: 0", output)
+        self.assertIn("taxonomy: general-executor / task-state", output)
         self.assertIn("Knowledge Review", output)
         self.assertIn("knowledge_review_decisions_recorded: 0", output)
         self.assertIn("reused_knowledge_references: -", output)
