@@ -3923,6 +3923,93 @@ class CliLifecycleTest(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn("taxonomy: specialist / task-memory", output)
 
+    def test_task_inspect_shows_capability_enforcement_for_validator_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            created = create_task(
+                base_dir=base_dir,
+                title="Inspect enforcement",
+                goal="Show capability enforcement in inspect",
+                workspace_root=base_dir,
+            )
+            validator_route = RouteSelection(
+                route=RouteSpec(
+                    name="validator-local",
+                    executor_name="local",
+                    backend_kind="validator_test",
+                    model_hint="local",
+                    executor_family="cli",
+                    execution_site="local",
+                    remote_capable=False,
+                    transport_kind="local_process",
+                    capabilities=RouteCapabilities(
+                        execution_kind="code_execution",
+                        supports_tool_loop=True,
+                        filesystem_access="workspace_write",
+                        network_access="optional",
+                        deterministic=False,
+                        resumable=True,
+                    ),
+                    taxonomy=TaxonomyProfile(
+                        system_role="validator",
+                        memory_authority="task-state",
+                    ),
+                ),
+                reason="Test-only validator route for inspect enforcement.",
+                policy_inputs={},
+            )
+
+            with patch("swallow.orchestrator.select_route", return_value=validator_route):
+                with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                    with patch(
+                        "swallow.orchestrator.run_execution",
+                        return_value=ExecutorResult(
+                            executor_name="local",
+                            status="completed",
+                            message="Execution finished.",
+                            output="done",
+                        ),
+                    ):
+                        run_task(base_dir, created.task_id, executor_name="local")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(base_dir), "task", "inspect", created.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("capability_enforced: yes", output)
+        self.assertIn("capability_enforced_fields: filesystem_access->workspace_read, supports_tool_loop->false", output)
+
+    def test_task_inspect_shows_no_capability_enforcement_for_general_executor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Inspect no enforcement",
+                goal="Keep general executor inspect clean",
+                workspace_root=tmp_path,
+                executor_name="codex",
+            )
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch(
+                    "swallow.orchestrator.run_execution",
+                    return_value=ExecutorResult(
+                        executor_name="codex",
+                        status="completed",
+                        message="Execution finished.",
+                        output="done",
+                    ),
+                ):
+                    run_task(tmp_path, state.task_id, executor_name="codex")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("capability_enforced: -", output)
+        self.assertIn("capability_enforced_fields: -", output)
+
     def test_task_dispatch_prints_mock_remote_label_for_mock_remote_runs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -5849,6 +5936,79 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(captured_states[0].route_capabilities["filesystem_access"], "workspace_read")
         self.assertEqual(captured_states[0].route_capabilities["supports_tool_loop"], False)
 
+    def test_run_task_records_capability_enforcement_event_for_validator_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            created = create_task(
+                base_dir=base_dir,
+                title="Capability event",
+                goal="Record enforcement event for validator route",
+                workspace_root=base_dir,
+            )
+            validator_route = RouteSelection(
+                route=RouteSpec(
+                    name="validator-local",
+                    executor_name="local",
+                    backend_kind="validator_test",
+                    model_hint="local",
+                    executor_family="cli",
+                    execution_site="local",
+                    remote_capable=False,
+                    transport_kind="local_process",
+                    capabilities=RouteCapabilities(
+                        execution_kind="code_execution",
+                        supports_tool_loop=True,
+                        filesystem_access="workspace_write",
+                        network_access="optional",
+                        deterministic=False,
+                        resumable=True,
+                    ),
+                    taxonomy=TaxonomyProfile(
+                        system_role="validator",
+                        memory_authority="task-state",
+                    ),
+                ),
+                reason="Test-only validator route for enforcement event.",
+                policy_inputs={},
+            )
+
+            with patch("swallow.orchestrator.select_route", return_value=validator_route):
+                with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                    with patch(
+                        "swallow.orchestrator.run_execution",
+                        return_value=ExecutorResult(
+                            executor_name="local",
+                            status="completed",
+                            message="Execution finished.",
+                            output="done",
+                        ),
+                    ):
+                        with patch(
+                            "swallow.orchestrator.write_task_artifacts",
+                            return_value=(
+                                ValidationResult(status="passed", message="Compatibility passed."),
+                                ValidationResult(status="passed", message="Execution fit passed."),
+                                ValidationResult(status="passed", message="Knowledge policy passed."),
+                                ValidationResult(status="passed", message="Validation passed."),
+                                ValidationResult(status="passed", message="Retry policy passed."),
+                                ValidationResult(status="passed", message="Execution budget policy passed."),
+                                ValidationResult(status="warning", message="Stop policy warning."),
+                            ),
+                        ):
+                            self.assertEqual(run_task(base_dir, created.task_id, executor_name="local").status, "completed")
+
+            events = [
+                json.loads(line)
+                for line in (base_dir / ".swl" / "tasks" / created.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        enforced_event = next(event for event in events if event["event_type"] == "task.capability_enforced")
+        self.assertEqual(enforced_event["payload"]["taxonomy_role"], "validator")
+        self.assertEqual(enforced_event["payload"]["taxonomy_memory_authority"], "task-state")
+        self.assertEqual(enforced_event["payload"]["original_route_capabilities"]["filesystem_access"], "workspace_write")
+        self.assertEqual(enforced_event["payload"]["enforced_route_capabilities"]["filesystem_access"], "workspace_read")
+
     def test_run_task_keeps_general_executor_capabilities_unchanged(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
@@ -5898,6 +6058,49 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(final_state.route_capabilities["network_access"], "optional")
         self.assertEqual(captured_states[0].route_capabilities["filesystem_access"], "workspace_write")
         self.assertEqual(captured_states[0].route_capabilities["supports_tool_loop"], True)
+
+    def test_run_task_does_not_record_capability_enforcement_event_for_general_executor(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            created = create_task(
+                base_dir=base_dir,
+                title="No capability event",
+                goal="Do not record enforcement event for default route",
+                workspace_root=base_dir,
+                executor_name="codex",
+            )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch(
+                    "swallow.orchestrator.run_execution",
+                    return_value=ExecutorResult(
+                        executor_name="codex",
+                        status="completed",
+                        message="Execution finished.",
+                        output="done",
+                    ),
+                ):
+                    with patch(
+                        "swallow.orchestrator.write_task_artifacts",
+                        return_value=(
+                            ValidationResult(status="passed", message="Compatibility passed."),
+                            ValidationResult(status="passed", message="Execution fit passed."),
+                            ValidationResult(status="passed", message="Knowledge policy passed."),
+                            ValidationResult(status="passed", message="Validation passed."),
+                            ValidationResult(status="passed", message="Retry policy passed."),
+                            ValidationResult(status="passed", message="Execution budget policy passed."),
+                            ValidationResult(status="warning", message="Stop policy warning."),
+                        ),
+                    ):
+                        self.assertEqual(run_task(base_dir, created.task_id, executor_name="codex").status, "completed")
+
+            events = [
+                json.loads(line)
+                for line in (base_dir / ".swl" / "tasks" / created.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertFalse(any(event["event_type"] == "task.capability_enforced" for event in events))
 
     def test_run_task_status_and_phase_timing_failure_path(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

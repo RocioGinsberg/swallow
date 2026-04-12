@@ -113,6 +113,10 @@ def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint
     return applied_constraints
 
 
+def _serialize_capability_constraints(constraints: list[CapabilityConstraint]) -> list[dict[str, object]]:
+    return [constraint.to_dict() for constraint in constraints]
+
+
 def _apply_execution_topology(
     state: TaskState,
     *,
@@ -261,7 +265,7 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = "Operator acknowledged blocked dispatch and forced a local execution path."
     state.route_capabilities = route_selection.route.capabilities.to_dict()
-    _apply_capability_enforcement(state)
+    applied_constraints = _apply_capability_enforcement(state)
     _apply_execution_topology(state, dispatch_status="acknowledged")
     _apply_execution_site_contract(state)
     state.status = "running"
@@ -286,6 +290,8 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
                 "route_name": state.route_name,
                 "route_execution_site": state.route_execution_site,
                 "route_transport_kind": state.route_transport_kind,
+                "route_capabilities": state.route_capabilities,
+                "capability_constraints_applied": _serialize_capability_constraints(applied_constraints),
                 "topology_dispatch_status": state.topology_dispatch_status,
                 "execution_lifecycle": state.execution_lifecycle,
             },
@@ -878,8 +884,9 @@ def run_task(
     state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = route_selection.reason
-    state.route_capabilities = route_selection.route.capabilities.to_dict()
-    _apply_capability_enforcement(state)
+    original_route_capabilities = route_selection.route.capabilities.to_dict()
+    state.route_capabilities = dict(original_route_capabilities)
+    applied_constraints = _apply_capability_enforcement(state)
     _begin_execution_attempt(state)
     _apply_execution_topology(state, dispatch_status="planned")
     _apply_execution_site_contract(state)
@@ -935,6 +942,22 @@ def run_task(
             },
         ),
     )
+    if applied_constraints:
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type="task.capability_enforced",
+                message="Route capabilities were downgraded by taxonomy enforcement.",
+                payload={
+                    "taxonomy_role": state.route_taxonomy_role,
+                    "taxonomy_memory_authority": state.route_taxonomy_memory_authority,
+                    "original_route_capabilities": original_route_capabilities,
+                    "enforced_route_capabilities": state.route_capabilities,
+                    "constraints": _serialize_capability_constraints(applied_constraints),
+                },
+            ),
+        )
     contract_record, dispatch_verdict = _evaluate_dispatch_for_run(base_dir, state)
     if dispatch_verdict.action == "blocked":
         return _apply_blocked_dispatch_verdict(base_dir, state, contract_record, dispatch_verdict)
