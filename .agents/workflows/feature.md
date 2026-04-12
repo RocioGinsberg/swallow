@@ -7,6 +7,10 @@
 ## 流程总览
 
 ```
+Gemini: Strategy Preview (Phase Transition)
+        ↓
+ Human: Strategy Gate ⛔
+        ↓
 Gemini: Context Analysis
         ↓
 Claude: Design Decomposition
@@ -24,13 +28,35 @@ Claude: PR Review
 
 ---
 
+## Step 0: Gemini & Human — Phase Transition & Strategy Gate ⛔
+
+**触发条件**：上一个 phase 已经完成 closeout 收口并合入主线。
+
+**Gemini 输入**：
+- `docs/plans/<prev-phase>/closeout.md`
+- `docs/system_tracks.md`
+- `current_state.md`
+
+**Gemini 产出**：
+- `docs/plans/<new-phase>/design_preview.md` (演进方向决策书)
+
+**人工动作 (Strategy Gate ⛔)**：
+- 阅读 `design_preview.md`，评估提供的几个高 ROI 候选方向。
+- 与其他 AI 讨论，结合现实约束与排期做出最终决策。
+- 向 Gemini 明确传达选定的下一阶段路线（如：“选择方向 A”）。
+
+**完成后**：
+- Gemini 在接收到明确选择后更新 `docs/active_context.md`，继续执行 Step 1。
+
+---
+
 ## Step 1: Gemini — Context Analysis
 
-**触发条件**：新 phase kickoff 已写好，或新 slice 任务已明确。
+**触发条件**：人工已在 Strategy Gate 中明确选定下一阶段的方向。
 
 **输入**：
-- `docs/plans/<phase>/kickoff.md`
-- `docs/plans/<phase>/breakdown.md`（如已有）
+- 人工在 Step 0 指定的阶段目标决策
+- `docs/plans/<new-phase>/design_preview.md`
 - `docs/design/*.md`
 - 相关 git history
 

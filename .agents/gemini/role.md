@@ -15,6 +15,7 @@
 
 ## 可写范围
 
+- `docs/plans/<phase>/design_preview.md` — 阶段收官后的演进方向预览与决策建议
 - `docs/plans/<phase>/context_brief.md` — 上下文摘要
 - `docs/plans/<phase>/consistency_report.md` — 一致性检查报告
 - `docs/active_context.md` — 仅状态更新部分
@@ -37,5 +38,6 @@
 
 ## 状态同步职责
 
-- 完成 context_brief 后，更新 `docs/active_context.md` 的产出物和下一步
+- 阶段收官后产出 design_preview，更新 `docs/active_context.md` 并进入 `waiting_human_decision` 状态，等待人工定夺
+- 收到人工定夺并完成 context_brief 后，更新 `docs/active_context.md` 的产出物和下一步
 - 完成 consistency_report 后，更新 `docs/active_context.md` 标注一致性检查状态

@@ -4,7 +4,25 @@
 
 ---
 
-## 一、Context Brief 规则
+## 一、Design Preview 与阶段过渡规则
+
+当一个 Phase 正式收官（closeout 完成）后，Gemini 需要负责规划下一阶段的候选方向：
+
+### design_preview.md 必须包含
+
+- **基建现状盘点**：简述系统当前已稳固的核心底座和最新收口的成果。
+- **候选方向评估**：结合 `docs/system_tracks.md`，提供 2-3 个高边际收益（High ROI）的演进方向。
+- **优劣势分析**：每个候选方向必须包含设计目标、优势 (Pros)、劣势 (Cons) 以及关联的 Track。
+- **推荐结论**：给出作为架构看门人的倾向性建议，并明确向 Human Operator 抛出决策请求。
+
+### 触发与等待机制
+
+- **不可越级**：`design_preview.md` 产出后，**必须停下来等待人工（Human Operator）的明确确认**。
+- **触发 Context Brief**：只有在收到人工针对 `design_preview.md` 的明确决策（例如“选择方向 A”）之后，才能据此起草下一阶段的 `context_brief.md`。
+
+---
+
+## 二、Context Brief 规则
 
 ### context_brief.md 必须包含
 
