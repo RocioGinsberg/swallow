@@ -3632,6 +3632,93 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("execution_budget_policy_report:", output)
         self.assertIn("stop_policy_report:", output)
 
+    def test_task_inspect_marks_mock_remote_routes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Mock remote inspect",
+                goal="Mark mock remote topology",
+                workspace_root=tmp_path,
+            )
+
+            with patch.dict("os.environ", {"AIWF_MOCK_REMOTE_OUTCOME": "completed"}, clear=False):
+                final_state = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            self.assertEqual(final_state.topology_dispatch_status, "mock_remote_dispatched")
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("route_label: [MOCK-REMOTE]", output)
+        self.assertIn("topology_dispatch_status: mock_remote_dispatched", output)
+
+    def test_task_inspect_does_not_mark_local_routes_as_mock_remote(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Local inspect",
+                goal="Keep local route unmarked",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            final_state = run_task(tmp_path, state.task_id, executor_name="local")
+
+            self.assertEqual(final_state.topology_dispatch_status, "local_dispatched")
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("route_label: -", output)
+        self.assertNotIn("[MOCK-REMOTE]", output)
+
+    def test_task_inspect_keeps_blocked_dispatch_unmarked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Blocked inspect",
+                goal="Do not mark blocked route as mock remote",
+                workspace_root=tmp_path,
+            )
+            persisted = load_state(tmp_path, state.task_id)
+            persisted.artifact_paths["task_semantics_json"] = "missing-artifact.md"
+            save_state(tmp_path, persisted)
+            blocked = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            self.assertEqual(blocked.topology_dispatch_status, "blocked")
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("route_label: -", output)
+        self.assertIn("topology_dispatch_status: blocked", output)
+        self.assertNotIn("[MOCK-REMOTE]", output)
+
+    def test_task_dispatch_prints_mock_remote_label_for_mock_remote_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Mock remote dispatch report",
+                goal="Label dispatch report output",
+                workspace_root=tmp_path,
+            )
+
+            with patch.dict("os.environ", {"AIWF_MOCK_REMOTE_OUTCOME": "completed"}, clear=False):
+                run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "dispatch", state.task_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("[MOCK-REMOTE]", output)
+
     def test_task_intake_prints_planning_and_knowledge_boundary_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

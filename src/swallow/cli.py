@@ -141,6 +141,15 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
 )
 
 
+def is_mock_remote_task(state: object, topology: dict[str, object] | None = None) -> bool:
+    topology = topology or {}
+    transport_kind = str(topology.get("transport_kind", getattr(state, "topology_transport_kind", "")))
+    dispatch_status = str(topology.get("dispatch_status", getattr(state, "topology_dispatch_status", "")))
+    if dispatch_status == "mock_remote_dispatched":
+        return True
+    return transport_kind == "mock_remote_transport" and dispatch_status not in {"blocked", "acknowledged"}
+
+
 def build_grouped_artifact_index(artifact_paths: dict[str, str]) -> str:
     lines = ["Task Artifact Index", ""]
     for heading, keys in ARTIFACT_GROUPS:
@@ -1711,6 +1720,7 @@ def main(argv: list[str] | None = None) -> int:
             knowledge_objects = []
         if not isinstance(retrieval, list):
             retrieval = []
+        mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state, topology) else ""
         knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
         knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
         knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
@@ -1756,6 +1766,7 @@ def main(argv: list[str] | None = None) -> int:
             f"knowledge_index_refreshed_at: {knowledge_index.get('refreshed_at', '-')}",
             "",
             "Route And Topology",
+            f"route_label: {mock_remote_label or '-'}",
             f"route_mode: {state.route_mode}",
             f"route_name: {state.route_name}",
             f"route_backend: {state.route_backend}",
@@ -1916,6 +1927,7 @@ def main(argv: list[str] | None = None) -> int:
             else 0
         )
         validation = load_json_if_exists(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
+        mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state) else ""
         lines = [
             f"Task Review: {state.task_id}",
             f"title: {state.title}",
@@ -1931,6 +1943,7 @@ def main(argv: list[str] | None = None) -> int:
             f"execution_lifecycle: {state.execution_lifecycle}",
             "",
             "Handoff",
+            f"route_label: {mock_remote_label or '-'}",
             f"handoff_status: {handoff.get('status', 'pending')}",
             f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
             f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
@@ -2090,7 +2103,13 @@ def main(argv: list[str] | None = None) -> int:
             "stop-policy": "stop_policy_report.md",
             "route": "route_report.md",
         }[args.task_command]
-        print((artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8"), end="")
+        artifact_output = (artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8")
+        if args.task_command == "dispatch":
+            state = load_state(base_dir, args.task_id)
+            topology = load_json_if_exists(topology_path(base_dir, args.task_id))
+            if is_mock_remote_task(state, topology):
+                print("[MOCK-REMOTE]")
+        print(artifact_output, end="")
         return 0
 
     if args.command == "task" and args.task_command == "memory":
