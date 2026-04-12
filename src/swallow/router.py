@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 
 from .executor import DEFAULT_EXECUTOR, normalize_executor_name
-from .models import RouteCapabilities, RouteSelection, RouteSpec, TaskState
+from .models import RouteCapabilities, RouteSelection, RouteSpec, TaskState, TaxonomyProfile
 
 
 BUILTIN_ROUTES: dict[str, RouteSpec] = {
@@ -24,6 +24,10 @@ BUILTIN_ROUTES: dict[str, RouteSpec] = {
             deterministic=False,
             resumable=True,
         ),
+        taxonomy=TaxonomyProfile(
+            system_role="general-executor",
+            memory_authority="task-state",
+        ),
     ),
     "local-mock": RouteSpec(
         name="local-mock",
@@ -41,6 +45,10 @@ BUILTIN_ROUTES: dict[str, RouteSpec] = {
             network_access="none",
             deterministic=True,
             resumable=True,
+        ),
+        taxonomy=TaxonomyProfile(
+            system_role="general-executor",
+            memory_authority="task-state",
         ),
     ),
     "local-note": RouteSpec(
@@ -60,6 +68,10 @@ BUILTIN_ROUTES: dict[str, RouteSpec] = {
             deterministic=True,
             resumable=True,
         ),
+        taxonomy=TaxonomyProfile(
+            system_role="specialist",
+            memory_authority="task-memory",
+        ),
     ),
     "local-summary": RouteSpec(
         name="local-summary",
@@ -78,6 +90,10 @@ BUILTIN_ROUTES: dict[str, RouteSpec] = {
             deterministic=True,
             resumable=True,
         ),
+        taxonomy=TaxonomyProfile(
+            system_role="general-executor",
+            memory_authority="task-state",
+        ),
     ),
     "mock-remote": RouteSpec(
         name="mock-remote",
@@ -95,6 +111,10 @@ BUILTIN_ROUTES: dict[str, RouteSpec] = {
             network_access="none",
             deterministic=True,
             resumable=True,
+        ),
+        taxonomy=TaxonomyProfile(
+            system_role="general-executor",
+            memory_authority="task-state",
         ),
     ),
 }
@@ -121,6 +141,7 @@ def build_detached_route(route: RouteSpec) -> RouteSpec:
         remote_capable=False,
         transport_kind="local_detached_process",
         capabilities=route.capabilities,
+        taxonomy=route.taxonomy,
     )
 
 

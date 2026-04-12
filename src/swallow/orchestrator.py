@@ -23,7 +23,7 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .executor import normalize_executor_name
-from .dispatch_policy import validate_handoff_semantics
+from .dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
 from .harness import (
     build_remote_handoff_contract_record,
     build_remote_handoff_contract_report,
@@ -183,6 +183,13 @@ def _evaluate_dispatch_for_run(base_dir: Path, state: TaskState) -> tuple[dict[s
             reason="remote handoff contract failed semantic validation",
             blocking_detail="; ".join(policy_result.errors),
         )
+    taxonomy_result = validate_taxonomy_dispatch(state, contract_record)
+    if not taxonomy_result.valid:
+        return contract_record, DispatchVerdict(
+            action="blocked",
+            reason="route taxonomy rejected dispatch contract",
+            blocking_detail="; ".join(taxonomy_result.errors),
+        )
     return contract_record, evaluate_dispatch_verdict(contract_record)
 
 
@@ -237,6 +244,8 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
     state.route_execution_site = route_selection.route.execution_site
     state.route_remote_capable = route_selection.route.remote_capable
     state.route_transport_kind = route_selection.route.transport_kind
+    state.route_taxonomy_role = route_selection.route.taxonomy.system_role
+    state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = "Operator acknowledged blocked dispatch and forced a local execution path."
     state.route_capabilities = route_selection.route.capabilities.to_dict()
@@ -334,6 +343,8 @@ def create_task(
     state.route_execution_site = initial_route.route.execution_site
     state.route_remote_capable = initial_route.route.remote_capable
     state.route_transport_kind = initial_route.route.transport_kind
+    state.route_taxonomy_role = initial_route.route.taxonomy.system_role
+    state.route_taxonomy_memory_authority = initial_route.route.taxonomy.memory_authority
     state.route_model_hint = initial_route.route.model_hint
     state.route_reason = initial_route.reason
     state.route_capabilities = initial_route.route.capabilities.to_dict()
@@ -799,6 +810,8 @@ def run_task(
     state.route_execution_site = route_selection.route.execution_site
     state.route_remote_capable = route_selection.route.remote_capable
     state.route_transport_kind = route_selection.route.transport_kind
+    state.route_taxonomy_role = route_selection.route.taxonomy.system_role
+    state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
     state.route_model_hint = route_selection.route.model_hint
     state.route_reason = route_selection.reason
     state.route_capabilities = route_selection.route.capabilities.to_dict()
