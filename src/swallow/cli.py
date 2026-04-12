@@ -169,6 +169,33 @@ def format_taxonomy_label(state: object) -> str:
     return f"{system_role or '-'} / {memory_authority or '-'}"
 
 
+def load_latest_capability_enforcement(base_dir: Path, task_id: str) -> dict[str, object]:
+    events = load_json_lines_if_exists(base_dir / ".swl" / "tasks" / task_id / "events.jsonl")
+    for event in reversed(events):
+        if str(event.get("event_type", "")) == "task.capability_enforced":
+            payload = event.get("payload", {})
+            return payload if isinstance(payload, dict) else {}
+    return {}
+
+
+def format_capability_enforcement_summary(payload: dict[str, object]) -> tuple[str, str]:
+    constraints = payload.get("constraints", [])
+    if not isinstance(constraints, list) or not constraints:
+        return "-", "-"
+
+    fields: list[str] = []
+    for item in constraints:
+        if not isinstance(item, dict):
+            continue
+        field = str(item.get("field", "")).strip()
+        max_value = item.get("max_value")
+        if field:
+            fields.append(f"{field}->{str(max_value).lower() if isinstance(max_value, bool) else max_value}")
+    if not fields:
+        return "-", "-"
+    return "yes", ", ".join(fields)
+
+
 def build_grouped_artifact_index(artifact_paths: dict[str, str]) -> str:
     lines = ["Task Artifact Index", ""]
     for heading, keys in ARTIFACT_GROUPS:
@@ -1924,6 +1951,8 @@ def main(argv: list[str] | None = None) -> int:
             retrieval = []
         mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state, topology) else ""
         taxonomy_label = format_taxonomy_label(state)
+        capability_enforcement = load_latest_capability_enforcement(base_dir, args.task_id)
+        capability_enforced, capability_enforced_fields = format_capability_enforcement_summary(capability_enforcement)
         knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
         knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
         knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
@@ -1971,6 +2000,8 @@ def main(argv: list[str] | None = None) -> int:
             "Route And Topology",
             f"route_label: {mock_remote_label or '-'}",
             f"taxonomy: {taxonomy_label}",
+            f"capability_enforced: {capability_enforced}",
+            f"capability_enforced_fields: {capability_enforced_fields}",
             f"route_mode: {state.route_mode}",
             f"route_name: {state.route_name}",
             f"route_backend: {state.route_backend}",
