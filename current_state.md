@@ -34,14 +34,14 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 21`
-- latest_completed_slice: `Dispatch Policy Gate & Mock Topology Visibility`
+- latest_completed_phase: `Phase 22`
+- latest_completed_slice: `Taxonomy-Aware Routing Baseline`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-12`
 
 说明：
 
-- Phase 0 到 Phase 21 已完成并形成稳定 checkpoint
+- Phase 0 到 Phase 22 已完成并形成稳定 checkpoint
 - post-Phase-2 retrieval baseline 已完成
 - post-Phase-5 executor / external-input slice 已完成
 - post-Phase-5 retrieval / memory-next slice 已完成
@@ -59,8 +59,8 @@
 
 说明：
 
-- 当前默认不再继续扩张已完成的 Phase 21，而应先重新选择下一轮 primary track
-- 当前最近完成的 stop/go 边界以 `docs/plans/phase21/closeout.md` 为准
+- 当前默认不再继续扩张已完成的 Phase 22，而应先重新选择下一轮 primary track
+- 当前最近完成的 stop/go 边界以 `docs/plans/phase22/closeout.md` 为准
 
 ---
 
@@ -72,10 +72,13 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase21/closeout.md`
+5. `docs/plans/phase22/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase22/review_comments.md`
+- `docs/plans/phase22/design_decision.md`
+- `docs/plans/phase22/risk_assessment.md`
 - `docs/plans/phase21/review_comments.md`
 - `docs/plans/phase21/design_decision.md`
 - `docs/plans/phase21/risk_assessment.md`
@@ -130,6 +133,7 @@ AIWF_EXECUTOR_TIMEOUT_SECONDS=10 .venv/bin/python -m swallow.cli --base-dir /tmp
 - Phase 19 的 handoff schema unification 目前仍是 schema-truth / write-time validation baseline，不应误解为当前系统已经建立 handoff-driven execution gating、自动 dispatch 或 provider negotiation。
 - Phase 20 的 mock dispatch & execution gating 目前仍是 topology-validation / mock execution baseline，不应误解为当前系统已经建立真实 remote worker execution、operator approval workflow 或 production remote dispatch。
 - Phase 21 的 dispatch policy gate / acknowledge / `[MOCK-REMOTE]` 目前仍是 local-first operator workflow tightening，不应误解为当前系统已经建立真实 remote approval system、operator-selectable dispatch override policy 或 production remote transport。
+- Phase 22 的 taxonomy-aware routing baseline 目前仍是 taxonomy metadata + defensive dispatch guard baseline，不应误解为当前系统已经建立完整 RBAC、动态 taxonomy 注册、capability negotiation 或全量权限治理。
 
 ## 当前收口规则
 - 在 phase 或 major slice 收口时，本文件才需要更新。

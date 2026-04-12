@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 21 基线
+- Phase 0 到 Phase 22 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,17 +39,17 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Evaluation / Policy` (Primary) + `Workbench / UX` (Secondary)
-- **Latest Completed Phase**：`Phase 21`
-- **Latest Completed Slice**：`Dispatch Policy Gate & Mock Topology Visibility`
+- **Latest Completed Track**：`Capabilities` (Primary) + `Execution Topology` (Secondary)
+- **Latest Completed Phase**：`Phase 22`
+- **Latest Completed Slice**：`Taxonomy-Aware Routing Baseline`
 
-Phase 21 已完成的核心内容包括：
+Phase 22 已完成的核心内容包括：
 
-- 在 dispatch 前增加 `context_pointers` 语义校验，拦截非法 handoff contract
-- 为 `dispatch_blocked` 任务提供 `acknowledge` 人工放行路径，并切回本地执行
-- 在 `inspect`、`review`、`dispatch` 中增加 `[MOCK-REMOTE]` 可视化区分
-- 保持 local-first operator workflow tightening，而不引入真实 remote execution、RPC 或自动 dispatch
-- 完成 Phase 21 review、PR、merge 与 closeout 收口
+- 在代码层建立 Agent Taxonomy 元数据：`system_role` + `memory_authority`
+- 为内置路由挂载默认 taxonomy，并把 taxonomy 传播进 `TaskState`
+- 在 dispatch policy 中加入 taxonomy-aware defensive guard
+- 保持向下兼容，不改变既有 `select_route()` 决策逻辑，不引入 RBAC、动态注册或新 executor
+- 完成 Phase 22 review、PR、merge 与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -59,6 +59,7 @@ Phase 21 已完成的核心内容包括：
 - automatic remote dispatch
 - remote handoff driven policy mutation or execution gating
 - operator-selectable remote override policy without fresh kickoff
+- dynamic taxonomy registration / discovery without fresh kickoff
 
 ---
 
