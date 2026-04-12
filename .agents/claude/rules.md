@@ -99,6 +99,33 @@ PR review 时应尽量运行测试验证实现正确性：
 
 ---
 
+## 六、CONCERN 追踪规则
+
+Review 中产出的 `[CONCERN]` 项必须同步登记到 `docs/concerns_backlog.md`。
+
+### 登记时机
+
+每次产出 `review_comments.md` 且包含 `[CONCERN]` 项时，在同一轮中更新 backlog。
+
+### 登记内容
+
+每条记录包含：Phase、Slice、CONCERN 描述、预期消化时机。
+
+### 分类
+
+- **Open**：待后续 phase 自然消化或专项修复
+- **Won't Fix / By Design**：经评估属于设计意图，不需要修改
+- **Resolved**：已在后续 phase 中修复，注明修复 phase
+
+### 回顾节奏
+
+每 3-5 个 phase 回顾一次 backlog：
+- 清理已过时的 Open 条目
+- 将已自然解决的移入 Resolved
+- 不主动将 Open 项塞入当前 phase scope（除非人工决定优先级）
+
+---
+
 ## 本文件的职责边界
 
 本文件是：Claude 在本仓库中的专属操作规则。

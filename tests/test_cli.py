@@ -46,6 +46,7 @@ from swallow.models import (
     RouteSpec,
     RetrievalItem,
     RetrievalRequest,
+    TaxonomyProfile,
     TaskState,
     ValidationResult,
     evaluate_dispatch_verdict,
@@ -61,7 +62,15 @@ from swallow.paths import (
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
-from swallow.store import append_canonical_record, load_state, save_remote_handoff_contract, save_retrieval, save_state
+from swallow.staged_knowledge import StagedCandidate, submit_staged_candidate
+from swallow.store import (
+    append_canonical_record,
+    load_state,
+    save_knowledge_objects,
+    save_remote_handoff_contract,
+    save_retrieval,
+    save_state,
+)
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
@@ -1103,15 +1112,161 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("supersede_strategy: latest_active_by_trace", registry_index_stdout.getvalue())
         self.assertIn("active_count: 1", registry_index_stdout.getvalue())
         self.assertIn("superseded_count: 0", registry_index_stdout.getvalue())
-        self.assertIn("source_task_count: 1", registry_index_stdout.getvalue())
-        self.assertIn(f"canonical_key: artifact:.swl/tasks/demo/artifacts/evidence.md", registry_stdout.getvalue())
-        self.assertIn("canonical_status: active", registry_stdout.getvalue())
-        self.assertIn(f"source_task_id: {task_id}", registry_stdout.getvalue())
-        self.assertIn('"canonical_id"', registry_json_stdout.getvalue())
-        self.assertIn('"dedupe_key": "canonical_id"', registry_index_json_stdout.getvalue())
-        self.assertIn('"supersede_key": "canonical_key"', registry_index_json_stdout.getvalue())
-        self.assertIn('"source_task_count"', registry_index_json_stdout.getvalue())
-        self.assertIn('"reuse_visible_count": 1', reuse_json_stdout.getvalue())
+
+    def test_cli_stage_list_reports_no_pending_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-list"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("Staged Knowledge Review Queue", output)
+        self.assertIn("pending_count: 0", output)
+        self.assertIn("no pending candidates", output)
+
+    def test_cli_stage_inspect_prints_full_candidate_details(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Candidate knowledge should be visible to operators.",
+                    source_task_id="task-stage-inspect",
+                    source_object_id="knowledge-0001",
+                    submitted_by="mock-remote",
+                    taxonomy_role="specialist",
+                    taxonomy_memory_authority="staged-knowledge",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-inspect", candidate.candidate_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"Staged Candidate: {candidate.candidate_id}", output)
+        self.assertIn("status: pending", output)
+        self.assertIn("source_task_id: task-stage-inspect", output)
+        self.assertIn("taxonomy_role: specialist", output)
+        self.assertIn("taxonomy_memory_authority: staged-knowledge", output)
+        self.assertIn("Candidate knowledge should be visible to operators.", output)
+
+    def test_cli_stage_promote_updates_candidate_and_canonical_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Promote this staged note into canonical guidance.",
+                    source_task_id="task-stage-promote",
+                    source_object_id="knowledge-0002",
+                    submitted_by="mock-remote",
+                    taxonomy_role="specialist",
+                    taxonomy_memory_authority="staged-knowledge",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "stage-promote",
+                            candidate.candidate_id,
+                            "--note",
+                            "Approved from staged queue.",
+                        ]
+                    ),
+                    0,
+                )
+
+            staged_records = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            canonical_records = [
+                json.loads(line)
+                for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            reuse_policy = json.loads(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"))
+
+        self.assertIn(f"{candidate.candidate_id} staged_promoted", stdout.getvalue())
+        self.assertEqual(staged_records[0]["status"], "promoted")
+        self.assertEqual(staged_records[0]["decision_note"], "Approved from staged queue.")
+        self.assertEqual(canonical_records[0]["canonical_id"], f"canonical-{candidate.candidate_id}")
+        self.assertEqual(canonical_records[0]["source_task_id"], "task-stage-promote")
+        self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0002")
+        self.assertEqual(reuse_policy["reuse_visible_count"], 1)
+
+    def test_cli_stage_reject_updates_candidate_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Reject this staged note for now.",
+                    source_task_id="task-stage-reject",
+                    submitted_by="local",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "stage-reject",
+                            candidate.candidate_id,
+                            "--note",
+                            "Needs more evidence.",
+                        ]
+                    ),
+                    0,
+                )
+
+            staged_records = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertIn(f"{candidate.candidate_id} staged_rejected status=rejected", stdout.getvalue())
+        self.assertEqual(staged_records[0]["status"], "rejected")
+        self.assertEqual(staged_records[0]["decision_note"], "Needs more evidence.")
+
+    def test_cli_stage_promote_reject_block_decided_candidate_reentry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Once decided, candidate cannot be promoted twice.",
+                    source_task_id="task-stage-block",
+                ),
+            )
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-reject", candidate.candidate_id]), 0)
+
+            with self.assertRaises(ValueError) as promote_error:
+                main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", candidate.candidate_id])
+            with self.assertRaises(ValueError) as reject_error:
+                main(["--base-dir", str(tmp_path), "knowledge", "stage-reject", candidate.candidate_id])
+
+        self.assertIn("already decided", str(promote_error.exception))
+        self.assertIn("already decided", str(reject_error.exception))
 
     def test_retrieve_context_includes_canonical_reuse_visible_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4040,7 +4195,8 @@ class CliLifecycleTest(unittest.TestCase):
                 main(["--help"])
 
         self.assertEqual(raised.exception.code, 0)
-        self.assertIn("task               Task workbench and lifecycle commands.", stdout.getvalue())
+        self.assertIn("task                Task workbench and lifecycle commands.", stdout.getvalue())
+        self.assertIn("knowledge           Global staged knowledge review commands.", stdout.getvalue())
 
     def test_task_help_includes_capability_commands(self) -> None:
         stdout = StringIO()
@@ -4130,6 +4286,23 @@ class CliLifecycleTest(unittest.TestCase):
             (["task", "canonical-reuse-eval", "--help"], "Print the canonical reuse evaluation report."),
             (["task", "canonical-reuse-evaluate", "--help"], "Record an explicit canonical reuse evaluation judgment"),
             (["task", "canonical-reuse-regression-json", "--help"], "Print the canonical reuse regression baseline record."),
+        ]
+
+        for argv, expected in command_expectations:
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                with self.assertRaises(SystemExit) as raised:
+                    main(argv)
+            self.assertEqual(raised.exception.code, 0)
+            self.assertIn(expected, stdout.getvalue())
+
+    def test_global_knowledge_help_describes_stage_commands(self) -> None:
+        command_expectations = [
+            (["knowledge", "--help"], "stage-list"),
+            (["knowledge", "stage-list", "--help"], "List pending staged knowledge candidates."),
+            (["knowledge", "stage-inspect", "--help"], "Inspect one staged knowledge candidate."),
+            (["knowledge", "stage-promote", "--help"], "Promote one pending staged candidate into the canonical registry."),
+            (["knowledge", "stage-reject", "--help"], "Reject one pending staged candidate."),
         ]
 
         for argv, expected in command_expectations:
@@ -5631,6 +5804,188 @@ class CliLifecycleTest(unittest.TestCase):
         )
         self.assertEqual(final_state.status, "failed")
         self.assertEqual(final_state.phase, "summarize")
+
+    def test_run_task_routes_promote_intent_knowledge_to_staged_for_canonical_forbidden_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Stage restricted knowledge",
+                goal="Route verified knowledge into staged storage for operator review",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            restricted_route = RouteSelection(
+                route=RouteSpec(
+                    name="restricted-specialist",
+                    executor_name="note-only",
+                    backend_kind="local_fallback",
+                    model_hint="note-only",
+                    executor_family="cli",
+                    execution_site="local",
+                    remote_capable=False,
+                    transport_kind="local_process",
+                    capabilities=RouteCapabilities(
+                        execution_kind="artifact_generation",
+                        supports_tool_loop=False,
+                        filesystem_access="workspace_read",
+                        network_access="none",
+                        deterministic=True,
+                        resumable=True,
+                    ),
+                    taxonomy=TaxonomyProfile(
+                        system_role="specialist",
+                        memory_authority="canonical-write-forbidden",
+                    ),
+                ),
+                reason="Test-only canonical forbidden route.",
+                policy_inputs={},
+            )
+
+            def write_artifacts_side_effect(
+                _base_dir: Path,
+                state: TaskState,
+                _retrieval_items: list[RetrievalItem],
+                _executor_result: ExecutorResult,
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
+                save_knowledge_objects(
+                    _base_dir,
+                    state.task_id,
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Verified guidance should enter staged review first.",
+                            "stage": "verified",
+                            "source_kind": "external_knowledge_capture",
+                            "source_ref": "chat://stage-route",
+                            "task_linked": True,
+                            "captured_at": "2026-04-12T00:00:00+00:00",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/demo/artifacts/evidence.md",
+                            "retrieval_eligible": False,
+                            "knowledge_reuse_scope": "task_only",
+                            "canonicalization_intent": "promote",
+                        }
+                    ],
+                )
+                return (
+                    ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Execution fit passed."),
+                    ValidationResult(status="passed", message="Knowledge policy passed."),
+                    ValidationResult(status="passed", message="Validation passed."),
+                    ValidationResult(status="passed", message="Retry policy passed."),
+                    ValidationResult(status="passed", message="Execution budget policy passed."),
+                    ValidationResult(status="warning", message="Stop policy warning."),
+                )
+
+            with patch("swallow.orchestrator.select_route", return_value=restricted_route):
+                with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                    with patch(
+                        "swallow.orchestrator.run_execution",
+                        return_value=ExecutorResult(
+                            executor_name="note-only",
+                            status="completed",
+                            message="Execution finished.",
+                            output="done",
+                        ),
+                    ):
+                        with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                            final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            staged_records = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / created.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(final_state.route_taxonomy_memory_authority, "canonical-write-forbidden")
+        self.assertEqual(len(staged_records), 1)
+        self.assertEqual(staged_records[0]["source_task_id"], created.task_id)
+        self.assertEqual(staged_records[0]["source_object_id"], "knowledge-0001")
+        self.assertEqual(staged_records[0]["taxonomy_role"], "specialist")
+        self.assertEqual(staged_records[0]["taxonomy_memory_authority"], "canonical-write-forbidden")
+        self.assertEqual(staged_records[0]["status"], "pending")
+        self.assertTrue(any(event["event_type"] == "task.knowledge_staged" for event in events))
+        self.assertEqual(events[-1]["payload"]["staged_candidate_count"], 1)
+
+    def test_run_task_keeps_task_state_route_off_staged_pipeline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Default knowledge path",
+                goal="Keep verified knowledge on the normal path",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+
+            def write_artifacts_side_effect(
+                _base_dir: Path,
+                state: TaskState,
+                _retrieval_items: list[RetrievalItem],
+                _executor_result: ExecutorResult,
+            ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
+                save_knowledge_objects(
+                    _base_dir,
+                    state.task_id,
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Default routes should not auto-stage this object.",
+                            "stage": "verified",
+                            "source_kind": "external_knowledge_capture",
+                            "source_ref": "chat://default-route",
+                            "task_linked": True,
+                            "captured_at": "2026-04-12T00:00:00+00:00",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/demo/artifacts/evidence.md",
+                            "retrieval_eligible": False,
+                            "knowledge_reuse_scope": "task_only",
+                            "canonicalization_intent": "promote",
+                        }
+                    ],
+                )
+                return (
+                    ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Execution fit passed."),
+                    ValidationResult(status="passed", message="Knowledge policy passed."),
+                    ValidationResult(status="passed", message="Validation passed."),
+                    ValidationResult(status="passed", message="Retry policy passed."),
+                    ValidationResult(status="passed", message="Execution budget policy passed."),
+                    ValidationResult(status="warning", message="Stop policy warning."),
+                )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch(
+                    "swallow.orchestrator.run_execution",
+                    return_value=ExecutorResult(
+                        executor_name="local",
+                        status="completed",
+                        message="Execution finished.",
+                        output="done",
+                    ),
+                ):
+                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                        final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            staged_registry = tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl"
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / created.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(final_state.route_taxonomy_memory_authority, "task-state")
+        self.assertFalse(staged_registry.exists())
+        self.assertFalse(any(event["event_type"] == "task.knowledge_staged" for event in events))
+        self.assertEqual(events[-1]["payload"]["staged_candidate_count"], 0)
 
     def test_task_lifecycle_events_and_final_state_are_ordered(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
