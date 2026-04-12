@@ -74,9 +74,13 @@ Claude: PR Review
 - 审阅 branch-advise 建议
 
 **决策**：
-- ✅ 通过：在 `docs/active_context.md` 标注"design approved"，通知 Codex 开始实现
+- ✅ 通过：在 `docs/active_context.md` 标注"design approved"，由 Human 先切换到建议的 feature branch，再通知 Codex 开始实现
 - ❌ 打回：标注具体修改要求，回到 Step 2
 - 🔄 部分通过：标注哪些 slice 可以先做，其余暂缓
+
+**人工 git 节奏点**：
+- design gate 一旦通过，先完成 branch 创建/切换；未切换前不进入实现
+- 此处仍不提交实现代码；提交从各 slice 完成后开始
 
 ---
 
@@ -92,7 +96,14 @@ Claude: PR Review
 **动作**：
 - 按 Claude 建议提醒人工创建/切换分支
 - 按 design_decision 中的 slice 顺序逐个实现
-- 每个 slice：功能实现/测试 → Codex 给出 commit 建议 → 人工执行 commit → 状态同步
+- 每个 slice：功能实现/测试 → Codex 给出 commit 建议 → Human 审查该 slice diff 并执行 commit → 状态同步
+
+**每个 slice 的人工节奏点**：
+1. Human 确认当前已位于本轮 feature branch
+2. Codex 完成当前 slice 的最小闭环实现与测试
+3. Codex 在对话中给出该 slice 的单独 commit 建议命令
+4. Human 审查并执行该 slice commit
+5. commit 完成后，再进入下一个 slice 或更新状态
 
 **产出**：
 - 代码改动（在 feature branch 上）
@@ -126,6 +137,10 @@ Claude: PR Review
 **完成后**：
 - 更新 `docs/active_context.md`：登记评审状态，下一步设为"等待人工合并决策"
 - Codex 按 `.agents/templates/pr_body.md` 模板整理 PR 内容并写入 `./pr.md`，提醒人工创建 PR
+
+**人工 git 节奏点**：
+- Claude review 通过且 `./pr.md` 已准备后，由 Human 创建 PR
+- PR 创建前不再补做“把所有 slice 压成一个大提交”的整理
 
 ---
 

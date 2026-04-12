@@ -251,6 +251,20 @@ Phase 18 已完成的核心内容包括：
 
 - `feat/<phase-or-slice>`
 
+### 切分支时机
+
+默认规则：
+
+1. `design_decision.md` 与 `risk_assessment.md` 通过人工审批后
+2. Human 先从 `main` 切出本轮 feature branch
+3. Codex 再在该 branch 上开始代码实现
+
+补充要求：
+
+- 设计文档产出完成但尚未通过人工 gate 时，不进入实现分支，不开始代码改动
+- 一旦进入实现阶段，默认不继续把功能开发留在 `main`
+- 如当前工作只是纯文档修订且不属于实现阶段，可留在当前分支，由人工决定是否另开 `docs/<topic>`
+
 ### 提交规则
 
 提交信息统一使用：
@@ -284,8 +298,10 @@ Phase 18 已完成的核心内容包括：
 
 补充要求：
 
+- design gate 通过后，应先完成 feature branch 切换，再开始第一个实现 slice
 - git 提交由人工执行，Codex 只在对话中给出建议命令
 - commit 应按 slice 拆分；每完成一个 slice，Codex 都应给出一次提交建议
+- 每个 slice 的默认节奏为：Codex 实现并验证 → Human 审查当前 diff → Human 执行该 slice commit
 - 需要发起 PR 时，Codex 负责将 PR 文案整理到仓库根目录 `./pr.md`，人工据此创建 PR
 
 ### 合并规则

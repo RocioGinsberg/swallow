@@ -18,6 +18,7 @@
 - 一个 phase = 一个主要 feature branch
 - 一个 slice = 一个或多个小步提交
 - phase 完成后再合并回 `main`
+- design gate 通过后，Human 应先切换到该 feature branch，Codex 再开始实现
 
 ---
 

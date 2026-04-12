@@ -70,6 +70,7 @@
 - **[Claude]** 已产出 `design_decision.md`（3 slice 拆解）和 `risk_assessment.md`（无高风险项）
 - **[Claude]** AGENTS.md 已添加两次提交节奏规则
 - **[Codex]** 角色控制文档已更新：git 提交与 PR 创建执行权收回 Human，Codex 改为按 slice 提供 commit 建议并维护 `./pr.md`
+- **[Codex]** 已补充分支切换时机：design gate 通过后，Human 先从 `main` 切到 feature branch，再开始实现；并在 workflow 中写明每个 slice 的人工提交节奏点
 
 ## 下一步
 
