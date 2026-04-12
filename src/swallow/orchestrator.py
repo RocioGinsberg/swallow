@@ -23,6 +23,7 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .executor import normalize_executor_name
+from .dispatch_policy import validate_handoff_semantics
 from .harness import (
     build_remote_handoff_contract_record,
     build_remote_handoff_contract_report,
@@ -67,6 +68,7 @@ from .paths import (
     memory_path,
     retry_policy_path,
     stop_policy_path,
+    task_root,
     task_semantics_path,
     retrieval_path,
     remote_handoff_contract_path,
@@ -171,6 +173,16 @@ def _evaluate_dispatch_for_run(base_dir: Path, state: TaskState) -> tuple[dict[s
         "remote_handoff_contract_report.md",
         build_remote_handoff_contract_report(contract_record),
     )
+    if bool(contract_record.get("remote_candidate", False)):
+        policy_result = validate_handoff_semantics(contract_record, task_root(base_dir, state.task_id))
+    else:
+        policy_result = None
+    if policy_result is not None and not policy_result.valid:
+        return contract_record, DispatchVerdict(
+            action="blocked",
+            reason="remote handoff contract failed semantic validation",
+            blocking_detail="; ".join(policy_result.errors),
+        )
     return contract_record, evaluate_dispatch_verdict(contract_record)
 
 
