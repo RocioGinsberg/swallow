@@ -8,8 +8,8 @@
 - active_track: `Capabilities` (Primary) + `Execution Topology` (Secondary)
 - active_phase: `Phase 22`
 - active_slice: `Taxonomy-Aware Routing Baseline`
-- active_branch: `main`（待创建 `feat/phase22-taxonomy-aware-routing`）
-- status: `design_produced`
+- active_branch: `feat/phase22-taxonomy-aware-routing`
+- status: `closeout_complete`
 
 ---
 
@@ -35,6 +35,7 @@
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
 4. `docs/design/AGENT_TAXONOMY_DESIGN.md`
+5. `docs/plans/phase22/closeout.md`
 
 ---
 
@@ -43,6 +44,8 @@
 - `docs/plans/phase22/context_brief.md` (gemini, 2026-04-12)
 - `docs/plans/phase22/design_decision.md` (claude, 2026-04-12)
 - `docs/plans/phase22/risk_assessment.md` (claude, 2026-04-12)
+- `docs/plans/phase22/review_comments.md` (claude, 2026-04-12)
+- `docs/plans/phase22/closeout.md` (codex, 2026-04-12)
 
 ## 当前推进
 
@@ -50,7 +53,11 @@
 - **[Gemini]** 综合分析了当前进度与刚生成的 `AGENT_TAXONOMY_DESIGN.md`，推荐进入 `Phase 22: Taxonomy-Aware Routing Baseline`，以 `Capabilities` 为主赛道、`Execution Topology` 为副赛道。
 - **[Gemini]** 编写了 Phase 22 的上下文摘要 `context_brief.md`，提炼了落地分类学的代码范围、核心约束及风险点。
 - **[Claude]** 已产出 `design_decision.md`（3 slice 拆解：TaxonomyProfile 定义 → RouteSpec 挂载 → Dispatch Guard）和 `risk_assessment.md`（无高风险项，guard 默认不激活的渐进部署策略）
+- **[Codex]** 三个 slice 全部实现并提交（3 commits），154 测试通过
+- **[Claude]** review_comments.md 已产出，结论 PASS, mergeable
+- **[Codex]** 已完成 `closeout.md`，Phase 22 处于待合并收口状态
 
 ## 下一步
 
-等待人工审批 `design_decision.md` 和 `risk_assessment.md`。通过后由 Codex 在 `feat/phase22-taxonomy-aware-routing` 分支上开始实现。
+- Human 合并 `feat/phase22-taxonomy-aware-routing` 到 `main`
+- 合并后再更新 `current_state.md` 和仓库级 stable checkpoint
