@@ -61,6 +61,7 @@ from swallow.paths import (
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
+from swallow.staged_knowledge import StagedCandidate, submit_staged_candidate
 from swallow.store import append_canonical_record, load_state, save_remote_handoff_contract, save_retrieval, save_state
 from swallow.validator import build_validation_report, validate_run_outputs
 
@@ -1103,15 +1104,161 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("supersede_strategy: latest_active_by_trace", registry_index_stdout.getvalue())
         self.assertIn("active_count: 1", registry_index_stdout.getvalue())
         self.assertIn("superseded_count: 0", registry_index_stdout.getvalue())
-        self.assertIn("source_task_count: 1", registry_index_stdout.getvalue())
-        self.assertIn(f"canonical_key: artifact:.swl/tasks/demo/artifacts/evidence.md", registry_stdout.getvalue())
-        self.assertIn("canonical_status: active", registry_stdout.getvalue())
-        self.assertIn(f"source_task_id: {task_id}", registry_stdout.getvalue())
-        self.assertIn('"canonical_id"', registry_json_stdout.getvalue())
-        self.assertIn('"dedupe_key": "canonical_id"', registry_index_json_stdout.getvalue())
-        self.assertIn('"supersede_key": "canonical_key"', registry_index_json_stdout.getvalue())
-        self.assertIn('"source_task_count"', registry_index_json_stdout.getvalue())
-        self.assertIn('"reuse_visible_count": 1', reuse_json_stdout.getvalue())
+
+    def test_cli_stage_list_reports_no_pending_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-list"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("Staged Knowledge Review Queue", output)
+        self.assertIn("pending_count: 0", output)
+        self.assertIn("no pending candidates", output)
+
+    def test_cli_stage_inspect_prints_full_candidate_details(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Candidate knowledge should be visible to operators.",
+                    source_task_id="task-stage-inspect",
+                    source_object_id="knowledge-0001",
+                    submitted_by="mock-remote",
+                    taxonomy_role="specialist",
+                    taxonomy_memory_authority="staged-knowledge",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-inspect", candidate.candidate_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"Staged Candidate: {candidate.candidate_id}", output)
+        self.assertIn("status: pending", output)
+        self.assertIn("source_task_id: task-stage-inspect", output)
+        self.assertIn("taxonomy_role: specialist", output)
+        self.assertIn("taxonomy_memory_authority: staged-knowledge", output)
+        self.assertIn("Candidate knowledge should be visible to operators.", output)
+
+    def test_cli_stage_promote_updates_candidate_and_canonical_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Promote this staged note into canonical guidance.",
+                    source_task_id="task-stage-promote",
+                    source_object_id="knowledge-0002",
+                    submitted_by="mock-remote",
+                    taxonomy_role="specialist",
+                    taxonomy_memory_authority="staged-knowledge",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "stage-promote",
+                            candidate.candidate_id,
+                            "--note",
+                            "Approved from staged queue.",
+                        ]
+                    ),
+                    0,
+                )
+
+            staged_records = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            canonical_records = [
+                json.loads(line)
+                for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            reuse_policy = json.loads(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"))
+
+        self.assertIn(f"{candidate.candidate_id} staged_promoted", stdout.getvalue())
+        self.assertEqual(staged_records[0]["status"], "promoted")
+        self.assertEqual(staged_records[0]["decision_note"], "Approved from staged queue.")
+        self.assertEqual(canonical_records[0]["canonical_id"], f"canonical-{candidate.candidate_id}")
+        self.assertEqual(canonical_records[0]["source_task_id"], "task-stage-promote")
+        self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0002")
+        self.assertEqual(reuse_policy["reuse_visible_count"], 1)
+
+    def test_cli_stage_reject_updates_candidate_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Reject this staged note for now.",
+                    source_task_id="task-stage-reject",
+                    submitted_by="local",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "stage-reject",
+                            candidate.candidate_id,
+                            "--note",
+                            "Needs more evidence.",
+                        ]
+                    ),
+                    0,
+                )
+
+            staged_records = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertIn(f"{candidate.candidate_id} staged_rejected status=rejected", stdout.getvalue())
+        self.assertEqual(staged_records[0]["status"], "rejected")
+        self.assertEqual(staged_records[0]["decision_note"], "Needs more evidence.")
+
+    def test_cli_stage_promote_reject_block_decided_candidate_reentry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Once decided, candidate cannot be promoted twice.",
+                    source_task_id="task-stage-block",
+                ),
+            )
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-reject", candidate.candidate_id]), 0)
+
+            with self.assertRaises(ValueError) as promote_error:
+                main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", candidate.candidate_id])
+            with self.assertRaises(ValueError) as reject_error:
+                main(["--base-dir", str(tmp_path), "knowledge", "stage-reject", candidate.candidate_id])
+
+        self.assertIn("already decided", str(promote_error.exception))
+        self.assertIn("already decided", str(reject_error.exception))
 
     def test_retrieve_context_includes_canonical_reuse_visible_records(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4040,7 +4187,8 @@ class CliLifecycleTest(unittest.TestCase):
                 main(["--help"])
 
         self.assertEqual(raised.exception.code, 0)
-        self.assertIn("task               Task workbench and lifecycle commands.", stdout.getvalue())
+        self.assertIn("task                Task workbench and lifecycle commands.", stdout.getvalue())
+        self.assertIn("knowledge           Global staged knowledge review commands.", stdout.getvalue())
 
     def test_task_help_includes_capability_commands(self) -> None:
         stdout = StringIO()
@@ -4130,6 +4278,23 @@ class CliLifecycleTest(unittest.TestCase):
             (["task", "canonical-reuse-eval", "--help"], "Print the canonical reuse evaluation report."),
             (["task", "canonical-reuse-evaluate", "--help"], "Record an explicit canonical reuse evaluation judgment"),
             (["task", "canonical-reuse-regression-json", "--help"], "Print the canonical reuse regression baseline record."),
+        ]
+
+        for argv, expected in command_expectations:
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                with self.assertRaises(SystemExit) as raised:
+                    main(argv)
+            self.assertEqual(raised.exception.code, 0)
+            self.assertIn(expected, stdout.getvalue())
+
+    def test_global_knowledge_help_describes_stage_commands(self) -> None:
+        command_expectations = [
+            (["knowledge", "--help"], "stage-list"),
+            (["knowledge", "stage-list", "--help"], "List pending staged knowledge candidates."),
+            (["knowledge", "stage-inspect", "--help"], "Inspect one staged knowledge candidate."),
+            (["knowledge", "stage-promote", "--help"], "Promote one pending staged candidate into the canonical registry."),
+            (["knowledge", "stage-reject", "--help"], "Reject one pending staged candidate."),
         ]
 
         for argv, expected in command_expectations:

@@ -11,9 +11,13 @@ from .canonical_reuse_eval import (
     build_canonical_reuse_regression_report,
     compare_canonical_reuse_regression,
 )
-from .canonical_reuse import build_canonical_reuse_report
+from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
-from .canonical_registry import build_canonical_registry_index_report, build_canonical_registry_report
+from .canonical_registry import (
+    build_canonical_registry_index,
+    build_canonical_registry_index_report,
+    build_canonical_registry_report,
+)
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
@@ -56,7 +60,14 @@ from .paths import (
     route_path,
     topology_path,
 )
-from .store import iter_task_states, load_state
+from .staged_knowledge import StagedCandidate, load_staged_candidates, update_staged_candidate
+from .store import (
+    append_canonical_record,
+    iter_task_states,
+    load_state,
+    save_canonical_registry_index,
+    save_canonical_reuse_policy,
+)
 
 
 ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -456,6 +467,90 @@ def load_json_lines_if_exists(path: Path) -> list[dict[str, object]]:
     return items
 
 
+def build_stage_candidate_list_report(candidates: list[StagedCandidate]) -> str:
+    pending_candidates = [candidate for candidate in candidates if candidate.status == "pending"]
+    lines = [
+        "# Staged Knowledge Review Queue",
+        "",
+        f"- pending_count: {len(pending_candidates)}",
+        "",
+        "## Candidates",
+    ]
+    if not pending_candidates:
+        lines.append("- no pending candidates")
+        return "\n".join(lines)
+
+    for candidate in pending_candidates:
+        preview = candidate.text if len(candidate.text) <= 72 else candidate.text[:69] + "..."
+        lines.extend(
+            [
+                f"- {candidate.candidate_id}",
+                f"  source_task_id: {candidate.source_task_id}",
+                f"  source_object_id: {candidate.source_object_id or 'none'}",
+                f"  submitted_by: {candidate.submitted_by or 'unknown'}",
+                f"  taxonomy: {candidate.taxonomy_role or '-'} / {candidate.taxonomy_memory_authority or '-'}",
+                f"  submitted_at: {candidate.submitted_at}",
+                f"  text: {preview or '(empty)'}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def build_stage_candidate_inspect_report(candidate: StagedCandidate) -> str:
+    return "\n".join(
+        [
+            f"Staged Candidate: {candidate.candidate_id}",
+            f"status: {candidate.status}",
+            f"source_task_id: {candidate.source_task_id}",
+            f"source_object_id: {candidate.source_object_id or '-'}",
+            f"submitted_by: {candidate.submitted_by or '-'}",
+            f"submitted_at: {candidate.submitted_at}",
+            f"taxonomy_role: {candidate.taxonomy_role or '-'}",
+            f"taxonomy_memory_authority: {candidate.taxonomy_memory_authority or '-'}",
+            f"decided_at: {candidate.decided_at or '-'}",
+            f"decided_by: {candidate.decided_by or '-'}",
+            f"decision_note: {candidate.decision_note or '-'}",
+            "",
+            "Text",
+            candidate.text or "(empty)",
+        ]
+    )
+
+
+def resolve_stage_candidate(base_dir: Path, candidate_id: str) -> StagedCandidate:
+    normalized_id = candidate_id.strip()
+    for candidate in load_staged_candidates(base_dir):
+        if candidate.candidate_id == normalized_id:
+            return candidate
+    raise ValueError(f"Unknown staged candidate: {normalized_id}")
+
+
+def build_stage_canonical_record(candidate: StagedCandidate) -> dict[str, object]:
+    canonical_key = (
+        f"task-object:{candidate.source_task_id}:{candidate.source_object_id}"
+        if candidate.source_object_id
+        else f"staged-candidate:{candidate.candidate_id}"
+    )
+    return {
+        "canonical_id": f"canonical-{candidate.candidate_id}",
+        "canonical_key": canonical_key,
+        "source_task_id": candidate.source_task_id,
+        "source_object_id": candidate.source_object_id,
+        "promoted_at": candidate.decided_at,
+        "promoted_by": candidate.decided_by or "swl_cli",
+        "decision_note": candidate.decision_note,
+        "decision_ref": f".swl/staged_knowledge/registry.jsonl#{candidate.candidate_id}",
+        "artifact_ref": "",
+        "source_ref": "",
+        "text": candidate.text,
+        "evidence_status": "source_only",
+        "canonical_stage": "canonical",
+        "canonical_status": "active",
+        "superseded_by": "",
+        "superseded_at": "",
+    }
+
+
 def filter_task_states(states: list[object], focus: str) -> list[object]:
     if focus == "all":
         return states
@@ -812,8 +907,41 @@ def build_parser() -> argparse.ArgumentParser:
 
     task_parser = subparsers.add_parser("task", help="Task workbench and lifecycle commands.")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
+    knowledge_parser = subparsers.add_parser("knowledge", help="Global staged knowledge review commands.")
+    knowledge_subparsers = knowledge_parser.add_subparsers(dest="knowledge_command", required=True)
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostic commands.")
     doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=True)
+
+    knowledge_stage_list_parser = knowledge_subparsers.add_parser(
+        "stage-list",
+        help="List pending staged knowledge candidates.",
+        description="List pending staged knowledge candidates.",
+    )
+    knowledge_stage_list_parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Include decided staged candidates in the output.",
+    )
+    knowledge_stage_inspect_parser = knowledge_subparsers.add_parser(
+        "stage-inspect",
+        help="Inspect one staged knowledge candidate.",
+        description="Inspect one staged knowledge candidate.",
+    )
+    knowledge_stage_inspect_parser.add_argument("candidate_id", help="Staged candidate identifier.")
+    knowledge_stage_promote_parser = knowledge_subparsers.add_parser(
+        "stage-promote",
+        help="Promote one pending staged candidate into the canonical registry.",
+        description="Promote one pending staged candidate into the canonical registry.",
+    )
+    knowledge_stage_promote_parser.add_argument("candidate_id", help="Staged candidate identifier.")
+    knowledge_stage_promote_parser.add_argument("--note", default="", help="Optional operator note for the promotion record.")
+    knowledge_stage_reject_parser = knowledge_subparsers.add_parser(
+        "stage-reject",
+        help="Reject one pending staged candidate.",
+        description="Reject one pending staged candidate.",
+    )
+    knowledge_stage_reject_parser.add_argument("candidate_id", help="Staged candidate identifier.")
+    knowledge_stage_reject_parser.add_argument("--note", default="", help="Optional operator note for the rejection record.")
 
     create_parser = task_subparsers.add_parser("create", help="Create a task.")
     create_parser.add_argument("--title", required=True, help="Short task title.")
@@ -1413,6 +1541,72 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     base_dir = Path(args.base_dir).resolve()
+
+    if args.command == "knowledge" and args.knowledge_command == "stage-list":
+        candidates = load_staged_candidates(base_dir)
+        if getattr(args, "all", False):
+            lines = [
+                "# Staged Knowledge Registry",
+                "",
+                f"- count: {len(candidates)}",
+                "",
+                "## Candidates",
+            ]
+            if not candidates:
+                lines.append("- no staged candidates")
+            else:
+                for candidate in candidates:
+                    lines.extend(
+                        [
+                            f"- {candidate.candidate_id}",
+                            f"  status: {candidate.status}",
+                            f"  source_task_id: {candidate.source_task_id}",
+                            f"  submitted_by: {candidate.submitted_by or 'unknown'}",
+                            f"  taxonomy: {candidate.taxonomy_role or '-'} / {candidate.taxonomy_memory_authority or '-'}",
+                        ]
+                    )
+            print("\n".join(lines))
+        else:
+            print(build_stage_candidate_list_report(candidates))
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "stage-inspect":
+        print(build_stage_candidate_inspect_report(resolve_stage_candidate(base_dir, args.candidate_id)))
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "stage-promote":
+        candidate = resolve_stage_candidate(base_dir, args.candidate_id)
+        if candidate.status != "pending":
+            raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
+        updated = update_staged_candidate(
+            base_dir,
+            candidate.candidate_id,
+            "promoted",
+            "swl_cli",
+            args.note,
+        )
+        append_canonical_record(base_dir, build_stage_canonical_record(updated))
+        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        canonical_index = build_canonical_registry_index(canonical_records)
+        canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
+        save_canonical_registry_index(base_dir, canonical_index)
+        save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
+        print(f"{updated.candidate_id} staged_promoted canonical_id=canonical-{updated.candidate_id}")
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "stage-reject":
+        candidate = resolve_stage_candidate(base_dir, args.candidate_id)
+        if candidate.status != "pending":
+            raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
+        updated = update_staged_candidate(
+            base_dir,
+            candidate.candidate_id,
+            "rejected",
+            "swl_cli",
+            args.note,
+        )
+        print(f"{updated.candidate_id} staged_rejected status={updated.status}")
+        return 0
 
     if args.command == "task" and args.task_command == "create":
         state = create_task(
