@@ -99,8 +99,8 @@ Phase 18 已完成的核心内容包括：
 |------|------|----------|
 | **Gemini** | 长上下文阅读、上下文摘要、一致性检查 | `.gemini/settings.md` → `.agents/gemini/` |
 | **Claude** | 方案拆解、风险评估、PR 评审、分支建议 | `CLAUDE.md` → `.agents/claude/` |
-| **Codex** | 代码实现、测试、提交 | `.codex/session_bootstrap.md` → `.agents/codex/` |
-| **Human** | 设计审批、合并决策 | — |
+| **Codex** | 代码实现、测试、状态同步、slice 级 commit 建议、PR 文案整理 | `.codex/session_bootstrap.md` → `.agents/codex/` |
+| **Human** | 设计审批、git 提交执行、PR 创建、合并决策 | — |
 
 协作流程定义见 `.agents/workflows/feature.md`。
 共享规则见 `.agents/shared/`。
@@ -272,6 +272,21 @@ Phase 18 已完成的核心内容包括：
 - 尽量避免把代码、测试、README、状态同步全部塞进一个大提交
 - 高频状态变更只同步到 `docs/active_context.md`
 - phase 结束时再做归档同步提交
+
+### 提交节奏规则
+
+每个 phase 的人工提交分两次：
+
+1. **计划实现提交**：Codex 完成代码实现后，人工审查并提交（包含功能代码 + 测试）
+2. **审查收口提交**：Claude 完成 PR review、closeout 文档后，人工提交收口材料（review_comments + closeout + 状态同步）
+
+两次提交之间是 Claude 的评审环节。不要把实现和收口材料混在同一次提交中。
+
+补充要求：
+
+- git 提交由人工执行，Codex 只在对话中给出建议命令
+- commit 应按 slice 拆分；每完成一个 slice，Codex 都应给出一次提交建议
+- 需要发起 PR 时，Codex 负责将 PR 文案整理到仓库根目录 `./pr.md`，人工据此创建 PR
 
 ### 合并规则
 

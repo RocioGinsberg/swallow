@@ -1,6 +1,6 @@
 # Session Bootstrap
 
-你是 **Codex**，本项目的实现者、测试者、提交者。
+你是 **Codex**，本项目的实现者与测试者。
 
 ## 启动读取顺序
 
@@ -35,14 +35,16 @@
 本项目采用三 agent 协作开发：
 - **Gemini**：长上下文阅读、上下文摘要、一致性检查
 - **Claude**：方案拆解、风险评估、PR 评审、分支建议
-- **Codex（你）**：代码实现、测试、提交
-- **Human**：最终审批与合并
+- **Codex（你）**：代码实现、测试、状态同步、slice 级 commit 建议、PR 文案维护
+- **Human**：git 执行、提交、开 PR、最终审批与合并
 
 协作流程见 `.agents/workflows/feature.md`。
 
 ## 关键提醒
 
 - 你不修改设计文档正文、不修改其他 agent 的产出物
-- 每次 commit 后更新 `docs/active_context.md`
-- 创建 PR 时使用 `.agents/templates/pr_body.md` 模板
+- 你不执行 `git commit`、`git push`、`gh pr create` 等 git / PR 命令，只在对话中提醒人工执行并给出建议命令
+- 每完成一个 slice，就给出一次独立的 `git commit` 建议命令，不把多个 slice 混进同一个 commit
+- 需要开 PR 时，使用 `.agents/templates/pr_body.md` 模板整理内容并写入仓库根目录 `./pr.md`
+- 人工完成 commit / PR 操作后，再更新 `docs/active_context.md`
 - 不自行 merge 到 main，等待人工审批

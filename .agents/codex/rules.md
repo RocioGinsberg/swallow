@@ -33,15 +33,17 @@
 - 一个 commit 只表达一类变化
 - 不要把代码、测试、README、状态同步全塞进一个大提交
 - 文档提交也应有单独语义
+- git 提交命令由人工执行，Codex 只负责在对话中提供建议命令
 
 ### 提交应与 slice 对齐
 
-每个 slice 至少可分解为：
+每个 slice 完成后，Codex 必须立即给出一条建议的 `git commit` 命令。
+默认要求：
 
-1. 功能实现 commit
-2. 测试 commit
-3. 状态同步 commit（更新 active_context.md）
-4. 收口文档 commit（如适用）
+1. 不把多个 slice 混入同一个 commit
+2. 如一个 slice 改动较大，可拆为多个 commit，但仍只服务该 slice
+3. 人工执行 commit 后，再做状态同步或进入下一个 slice
+4. 如需额外的文档/状态同步 commit，应单独建议，不与功能实现强绑定
 
 ---
 
@@ -83,15 +85,23 @@
 - 确认 Claude 的 `review_comments.md` 已产出（如 workflow 要求）
 - 确认分支上所有 commit 与 slice 对齐
 - 确认测试通过
+- 提醒人工准备发起 PR
 
 ### PR body
 
-使用 `.agents/templates/pr_body.md` 模板，引用各 agent 产出物的 TL;DR。
+使用 `.agents/templates/pr_body.md` 模板，引用各 agent 产出物的 TL;DR，并将结果写入仓库根目录 `./pr.md`。
+Codex 只负责维护 `./pr.md` 内容，不执行 PR 创建命令。
 
 ### 合并
 
 - 不自行 merge，等待人工审批
 - merge 后更新 `docs/active_context.md` 和分支状态
+
+### 对话提醒要求
+
+- 每完成一个可提交 slice，明确提醒人工执行 commit
+- 每次进入可开 PR 状态，明确提醒人工检查并使用 `./pr.md`
+- 不输出笼统的“可以一起提交了”，必须指明当前对应的 slice 或 PR 阶段
 
 ---
 

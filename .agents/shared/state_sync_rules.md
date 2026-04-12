@@ -49,7 +49,8 @@
 - [ ] `docs/active_context.md` 的产出物列表已完整
 - [ ] `docs/active_context.md` 的下一步已更新
 - [ ] 本次产出的所有 .md 文件都有 YAML frontmatter + TL;DR
-- [ ] 如果是 Codex，相关代码已 commit 且 message 与 slice 对齐
+- [ ] 如果是 Codex，已向人工提供与当前 slice 对齐的 `git commit` 建议命令
+- [ ] 如人工已完成 commit，则 `docs/active_context.md` 已反映该提交后的真实状态
 
 **如果以上任何一项未完成，不得声称 slice 完成。**
 
@@ -63,7 +64,8 @@ phase 收口前，必须确认：
 - [ ] `current_state.md` 已更新 checkpoint
 - [ ] `docs/active_context.md` 已切换到下一轮入口状态
 - [ ] `AGENTS.md` 中的 active 方向已更新（如有变化）
-- [ ] Git 分支已准备合并（PR 已创建或已合并）
+- [ ] `./pr.md` 已准备好给人工用于创建 PR
+- [ ] Git 分支已准备合并（PR 已由人工创建或已合并）
 - [ ] 所有产出物的 frontmatter status 已设为 `final`
 
 ---

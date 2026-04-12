@@ -90,13 +90,14 @@ Claude: PR Review
 - 相关 `src/` 和 `tests/` 文件
 
 **动作**：
-- 按 Claude 建议创建/切换分支（需人工确认）
+- 按 Claude 建议提醒人工创建/切换分支
 - 按 design_decision 中的 slice 顺序逐个实现
-- 每个 slice：功能 commit → 测试 commit → 状态同步 commit
+- 每个 slice：功能实现/测试 → Codex 给出 commit 建议 → 人工执行 commit → 状态同步
 
 **产出**：
 - 代码改动（在 feature branch 上）
 - 测试结果
+- 每个 slice 的建议 commit 命令
 
 **完成后**：
 - 更新 `docs/active_context.md`：登记完成的 slice、当前分支、下一步设为"Claude 进行 PR review"
@@ -105,7 +106,7 @@ Claude: PR Review
 
 ## Step 5: Claude — PR Review
 
-**触发条件**：Codex 实现完成，所有 slice 的代码和测试已提交。
+**触发条件**：Codex 实现完成，所有 slice 的代码和测试已由人工按 slice 完成提交。
 
 **输入**：
 - Git diff（feature branch vs main）
@@ -124,7 +125,7 @@ Claude: PR Review
 
 **完成后**：
 - 更新 `docs/active_context.md`：登记评审状态，下一步设为"等待人工合并决策"
-- Codex 按 `.agents/templates/pr_body.md` 模板创建 PR
+- Codex 按 `.agents/templates/pr_body.md` 模板整理 PR 内容并写入 `./pr.md`，提醒人工创建 PR
 
 ---
 

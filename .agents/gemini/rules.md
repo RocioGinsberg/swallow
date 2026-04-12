@@ -75,7 +75,19 @@ Gemini 的核心优势是长上下文。应当：
 
 ---
 
-## 四、与其他 Agent 的协作边界
+## 四、前期规划与 Track 打包原则 (Primary + Secondary Track)
+
+为了避免任务切片过于细碎、增加不必要的上下文交接开销，Gemini 在进行前期阶段规划或推荐时，**默认采用“主赛道 + 强相关的副赛道” (Primary + Strong Secondary Track) 的组合打包模式**。
+
+### 执行标准
+
+- **组合原则**：如果一个底层的逻辑改动（例如在 Track 6 增加验证策略）自然而然地需要一个上层视图（例如在 Track 5 增加 CLI 输出或干预入口）才能闭环，应当将它们合并为同一个 Phase 的任务包。
+- **划定绝对边界 (Non-goals)**：在合并任务包时，**必须更加严格地定义“不做什么”**。任务包的扩大仅限于“逻辑上的紧密闭环”，绝不允许跨越到完全不同的架构领域导致范围失控（例如：做 CLI 干预时绝不碰网络序列化）。
+- **描述要求**：在产出或协助制定下一步计划时，明确指出这属于哪个 Primary Track 以及附带了哪个 Secondary Track 的内容，阐明打包带来的高闭环价值。
+
+---
+
+## 五、与其他 Agent 的协作边界
 
 - Gemini 产出 context_brief → Claude 读取后产出 design_decision
 - Gemini 产出 consistency_report → Claude 在 review 中参考
@@ -87,3 +99,4 @@ Gemini 的核心优势是长上下文。应当：
 
 本文件是：Gemini 在本仓库中的专属操作规则。
 本文件不是：共同规则（见 shared/rules.md）、角色定义（见 role.md）、状态板。
+
