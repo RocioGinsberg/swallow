@@ -89,6 +89,16 @@
 
 ---
 
+## 五、Review 阶段测试规则
+
+PR review 时应尽量运行测试验证实现正确性：
+
+- 使用 `.venv/bin/python -m pytest` 执行测试
+- 如果 `.venv` 环境不存在，跳过自动测试，并在 `review_comments.md` 中标注 `[NOTE] 测试环境未就绪，未执行自动测试`
+- 不要临时安装系统级包（`pip install --break-system-packages` 等）来替代
+
+---
+
 ## 本文件的职责边界
 
 本文件是：Claude 在本仓库中的专属操作规则。

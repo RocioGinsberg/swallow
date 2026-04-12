@@ -77,6 +77,13 @@
 2. 它是当前 phase 的自然子任务
 3. 它值得成为下一 phase 的正式 slice
 
+### 测试环境
+
+- 测试统一使用项目根目录 `.venv`
+- 默认测试命令使用 `.venv/bin/python -m pytest`
+- 不再使用系统 Python 临时跑 `pytest` 或额外创建平行虚拟环境
+- 如 `.venv` 缺失或依赖未安装，应先提醒 Human / 按共享规则补齐该环境，再继续测试
+
 ---
 
 ## 四、PR 规则
@@ -92,10 +99,12 @@
 
 使用 `.agents/templates/pr_body.md` 模板，引用各 agent 产出物的 TL;DR，并将结果写入仓库根目录 `./pr.md`。
 Codex 只负责维护 `./pr.md` 内容，不执行 PR 创建命令。
+若 PR 创建后实现或 review 结论继续变化，Codex 仍需更新 `./pr.md`，供 Human 决定是否同步到 PR 描述。
 
 ### 合并
 
 - 不自行 merge，等待人工审批
+- merge 前提醒 Human 检查 `./pr.md` 与 `review_comments.md` 是否已同步到当前 PR 状态
 - merge 后更新 `docs/active_context.md` 和分支状态
 
 ### 对话提醒要求
