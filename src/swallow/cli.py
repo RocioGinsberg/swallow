@@ -11,6 +11,7 @@ from .canonical_reuse_eval import (
     build_canonical_reuse_regression_report,
     compare_canonical_reuse_regression,
 )
+from .canonical_audit import audit_canonical_registry, build_canonical_audit_report
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .canonical_registry import (
@@ -1001,6 +1002,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     knowledge_stage_reject_parser.add_argument("candidate_id", help="Staged candidate identifier.")
     knowledge_stage_reject_parser.add_argument("--note", default="", help="Optional operator note for the rejection record.")
+    knowledge_subparsers.add_parser(
+        "canonical-audit",
+        help="Audit canonical registry health.",
+        description="Audit canonical registry health.",
+    )
 
     create_parser = task_subparsers.add_parser("create", help="Create a task.")
     create_parser.add_argument("--title", required=True, help="Short task title.")
@@ -1668,6 +1674,11 @@ def main(argv: list[str] | None = None) -> int:
             args.note,
         )
         print(f"{updated.candidate_id} staged_rejected status={updated.status}")
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "canonical-audit":
+        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        print(build_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
         return 0
 
     if args.command == "task" and args.task_command == "create":
