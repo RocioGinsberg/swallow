@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 26 基线
+- Phase 0 到 Phase 27 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,17 +39,17 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Retrieval / Memory`
-- **Latest Completed Phase**：`Phase 26`
-- **Latest Completed Slice**：`Canonical Knowledge Deduplication & Merge Gate`
+- **Latest Completed Track**：`Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
+- **Latest Completed Phase**：`Phase 27`
+- **Latest Completed Slice**：`Knowledge-Driven Task Grounding Baseline`
 
-Phase 26 已完成的核心内容包括：
+Phase 27 已完成的核心内容包括：
 
-- 修正 staged promote 的 canonical key 生成逻辑，激活已有 supersede 机制
-- 在 `knowledge stage-promote` 中增加 dedupe / supersede 前置提示
-- 新增 `knowledge canonical-audit`，暴露 duplicate active key 与 orphan record 审计入口
-- 保持 store 层 `append_canonical_record()` 不变，只修正上层调用与 operator surface
-- 完成 Phase 26 实现、评审、merge 与 closeout 收口
+- 从 canonical retrieval hits 中抽取 grounding evidence artifact
+- 将 grounding refs 与 grounding_locked 落入 TaskState，保证 resume 稳定
+- 在 `inspect` / `review` / `task grounding` 中暴露 grounding 状态与 artifact
+- 保持 grounding 走 artifact 路径，不直接注入 prompt
+- 完成 Phase 27 实现、评审、merge 与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -69,6 +69,9 @@ Phase 26 已完成的核心内容包括：
 - manifest-level capability pruning without fresh kickoff
 - semantic merge / conflict resolution without fresh kickoff
 - automatic canonical promotion or conflict arbitration without fresh kickoff
+- vector grounding or semantic retrieval without fresh kickoff
+- prompt-level direct injection of canonical knowledge without fresh kickoff
+- agentic multi-hop RAG without fresh kickoff
 
 ---
 
@@ -188,15 +191,15 @@ Phase 26 已完成的核心内容包括：
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
 4. `current_state.md`
-5. `docs/plans/phase26/closeout.md`
+5. `docs/plans/phase27/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase26/context_brief.md`
-- `docs/plans/phase26/design_decision.md`
-- `docs/plans/phase26/risk_assessment.md`
-- `docs/plans/phase26/review_comments.md`
-- `docs/plans/phase25/closeout.md`
+- `docs/plans/phase27/context_brief.md`
+- `docs/plans/phase27/design_decision.md`
+- `docs/plans/phase27/risk_assessment.md`
+- `docs/plans/phase27/review_comments.md`
+- `docs/plans/phase26/closeout.md`
 - `current_state.md`
 - `docs/plans/<older-phase>/closeout.md`
 - `docs/archive/*`
