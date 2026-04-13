@@ -96,35 +96,41 @@ It is about:
 
 ## Current Implementation Snapshot
 
-The repository already has stable baselines for:
+The repository now has stable checkpoints through **Phase 27**.
 
-- Phase 0 through Phase 18
-- post-Phase-2 retrieval baseline
-- post-Phase-5 executor / external-input slice
-- post-Phase-5 retrieval / memory-next slice
+The latest completed track is:
 
-The current system already includes:
+- **Primary**: `Retrieval / Memory`
+- **Secondary**: `Workbench / UX`
+- **Latest completed slice**: `Knowledge-Driven Task Grounding Baseline`
 
-- a local-first task loop
-- explicit route, topology, dispatch, handoff, and execution-fit records
-- retry, stop, budget, and checkpoint policy artifacts
-- operator-facing queue, control, inspect, review, resume, retry, and rerun entrypoints
-- planning handoff, staged knowledge capture, and intake inspection
-- retrieval over repository files and Markdown / Obsidian notes
-- inspectable knowledge objects, knowledge partition, knowledge index, and knowledge policy structures
-- canonical reuse evaluation and regression inspection paths
-- regression mismatch attention surfaces in queue, control, inspect, and review
-- task-local remote handoff contract records and reports
-- remote handoff attention surfaces in execution-site, dispatch, handoff, control, and inspect
+The current state is **between phases**:
+
+- `active_track: none_selected`
+- `active_phase: none_selected`
+- `active_slice: fresh_kickoff_required`
+- `active_branch: main`
+
+In practice, the current system already includes:
+
+- a local-first task loop with explicit state, events, artifacts, checkpoints, resume, retry, and rerun semantics
+- explicit route, topology, dispatch, execution-site, handoff, and policy records
+- mock-remote dispatch gating and remote-handoff contract visibility without widening into real remote execution
+- taxonomy metadata, taxonomy-aware routing guards, and operator-facing taxonomy visibility
+- staged knowledge capture, review queues, promotion / rejection decisions, and capability-aware write boundaries
+- canonical knowledge registry, reuse visibility, dedupe / supersede audit, and regression inspection paths
+- canonical-sourced task grounding evidence artifacts, locked grounding refs, and resume-stable grounding state
+- operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
+- retrieval over repository files and Markdown / Obsidian notes, with reusable knowledge kept explicit and policy-gated
 
 The focus is no longer to prove a minimal runnable demo.  
-The focus is to keep the existing baseline stable while continuing with later phases.
+The current checkpoint should be treated as a stable baseline after Phase 27 closeout, waiting for a fresh kickoff rather than continuing to expand the completed phase.
 
 ---
 
 ## Documentation Structure
 
-The repository documentation is organized into four layers.
+The repository documentation is organized into five layers.
 
 ### 1. Public documentation
 - `README.md`
@@ -149,21 +155,39 @@ Used for:
 - `docs/plans/<phase>/kickoff.md`
 - `docs/plans/<phase>/breakdown.md`
 - `docs/plans/<phase>/closeout.md`
+- `docs/plans/<phase>/commit_summary.md` (optional)
+- `docs/plans/<phase>/context_brief.md`
+- `docs/plans/<phase>/design_decision.md`
+- `docs/plans/<phase>/risk_assessment.md`
+- `docs/plans/<phase>/review_comments.md`
+- `docs/plans/<phase>/consistency_report.md` (optional)
 
 Used for:
 - phase goals
 - phase breakdown
 - phase closeout
 
-### 4. Codex control layer
-- `.codex/session_bootstrap.md`
-- `.codex/rules.md`
-- `.codex/templates/*`
+### 4. Multi-agent control layer
+- `.agents/shared/`
+- `.agents/codex/`
+- `.agents/claude/`
+- `.agents/gemini/`
+- `.agents/workflows/`
+- `.agents/templates/`
 
 Used for:
-- Codex loading order
-- Codex working rules
-- phase and context templates
+- shared rules, state sync, and workflow definitions
+- role-specific responsibilities and write boundaries
+- shared templates and collaboration flow
+
+### 5. Tool-native entrypoints
+- `CLAUDE.md`
+- `.codex/session_bootstrap.md`
+- `.gemini/settings.md`
+
+Used for:
+- thin pointers into the `.agents/` control layer
+- tool-specific loading entrypoints rather than duplicated rules
 
 ---
 
@@ -236,6 +260,7 @@ swl task route <task-id>
 swl task topology <task-id>
 swl task handoff <task-id>
 swl task remote-handoff <task-id>
+swl task grounding <task-id>
 swl task policy <task-id>
 swl task memory <task-id>
 ```
@@ -281,6 +306,12 @@ swl task canonical-reuse-regression <task-id>
 swl task canonical-reuse-regression-json <task-id>
 ```
 
+Grounding inspection:
+
+```bash id="gnd27a"
+swl task grounding <task-id>
+```
+
 Canonical registry records are explicit persisted outputs for promoted canonical knowledge. They are not automatic global memory and do not automatically enable broad retrieval reuse.
 
 Canonical reuse remains policy-gated. `canonical-reuse` shows which active canonical records are currently reuse-visible, while superseded canonical records stay excluded by default.
@@ -314,6 +345,7 @@ Detailed current working boundaries are documented in:
 
 * `AGENTS.md`
 * `docs/active_context.md`
+* `current_state.md`
 
 ---
 

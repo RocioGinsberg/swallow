@@ -95,34 +95,40 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-当前仓库已经完成的稳定基线包括：
+当前仓库已经形成 **Phase 27** 的稳定 checkpoint。
 
-- Phase 0 到 Phase 18
-- post-Phase-2 retrieval baseline
-- post-Phase-5 executor / external-input slice
-- post-Phase-5 retrieval / memory-next slice
+最近完成的方向是：
+
+- **Primary Track**：`Retrieval / Memory`
+- **Secondary Track**：`Workbench / UX`
+- **Latest Completed Slice**：`Knowledge-Driven Task Grounding Baseline`
+
+当前仓库处于 **phase 之间的 fresh kickoff 状态**：
+
+- `active_track: none_selected`
+- `active_phase: none_selected`
+- `active_slice: fresh_kickoff_required`
+- `active_branch: main`
 
 当前系统已经具备：
 
-- 本地优先的任务循环
-- 显式的 route、topology、dispatch、handoff 与 execution-fit 记录
-- retry、stop、budget、checkpoint 等 policy / control 产物
-- queue、control、inspect、review、resume、retry、rerun 等 operator 入口
-- planning handoff、staged knowledge capture 与 intake inspection
-- repo 文件与 Markdown / Obsidian 笔记检索
-- knowledge objects、knowledge partition、knowledge index、knowledge policy 等可检查结构
-- canonical reuse evaluation 与 regression inspection 路径
-- queue、control、inspect、review 中的 regression mismatch attention surface
-- task-local remote handoff contract record 与 report
-- execution-site、dispatch、handoff、control、inspect 中的 remote handoff attention surface
+- 本地优先的任务循环，以及显式 state / events / artifacts / checkpoint / resume / retry / rerun 语义
+- 显式的 route、topology、dispatch、execution-site、handoff 与 policy 记录
+- mock-remote dispatch gate 与 remote-handoff contract 可视化，但未扩张为真实 remote execution
+- taxonomy 元数据、taxonomy-aware routing guard，以及 operator-facing taxonomy visibility
+- staged knowledge capture、review queue、promote / reject 决策与 capability-aware 写入边界
+- canonical knowledge registry、reuse visibility、dedupe / supersede audit 与 regression inspection 路径
+- canonical retrieval 命中的 grounding evidence artifact、锁定的 grounding refs，以及可稳定 resume 的 grounding 状态
+- inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
+- repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构
 
-当前重点已经不是继续证明“最小可运行 demo”，而是在保持已有基线稳定的前提下，继续推进后续 phase。
+当前重点已经不是继续证明“最小可运行 demo”，而是把仓库视为已完成 Phase 27 收口的稳定基线，等待下一轮 fresh kickoff，而不是继续在已完成 phase 上无边界扩张。
 
 ---
 
 ## 当前文档结构
 
-本仓库文档按四层组织：
+本仓库文档按五层组织：
 
 ### 1. 公开说明层
 - `README.md`
@@ -145,17 +151,37 @@ swallow 长期围绕五层组织：
 - `docs/plans/<phase>/kickoff.md`
 - `docs/plans/<phase>/breakdown.md`
 - `docs/plans/<phase>/closeout.md`
+- `docs/plans/<phase>/commit_summary.md`（可选）
+- `docs/plans/<phase>/context_brief.md`
+- `docs/plans/<phase>/design_decision.md`
+- `docs/plans/<phase>/risk_assessment.md`
+- `docs/plans/<phase>/review_comments.md`
+- `docs/plans/<phase>/consistency_report.md`（可选）
 
 用于：
 - 当前 phase 的目标、拆解、收口
 
-### 4. Codex 控制层
-- `.codex/session_bootstrap.md`
-- `.codex/rules.md`
-- `.codex/templates/*`
+### 4. 多 Agent 控制层
+- `.agents/shared/`
+- `.agents/codex/`
+- `.agents/claude/`
+- `.agents/gemini/`
+- `.agents/workflows/`
+- `.agents/templates/`
 
 用于：
-- Codex 的读取顺序、工作规则与模板
+- 共享规则、状态同步与协作流程定义
+- 各角色职责、写入边界与专属规则
+- 多 agent 协作模板
+
+### 5. 工具原生入口
+- `CLAUDE.md`
+- `.codex/session_bootstrap.md`
+- `.gemini/settings.md`
+
+用于：
+- 作为指向 `.agents/` 控制层的 thin pointer
+- 提供各工具原生入口，而不是重复维护一份规则正文
 
 ---
 
@@ -191,7 +217,7 @@ swallow 长期围绕五层组织：
 
 ```bash
 python3 -m pip install -e .
-````
+```
 
 创建任务：
 
@@ -228,6 +254,7 @@ swl task route <task-id>
 swl task topology <task-id>
 swl task handoff <task-id>
 swl task remote-handoff <task-id>
+swl task grounding <task-id>
 swl task policy <task-id>
 swl task memory <task-id>
 ```
@@ -273,6 +300,12 @@ swl task canonical-reuse-regression <task-id>
 swl task canonical-reuse-regression-json <task-id>
 ```
 
+grounding 查看：
+
+```bash
+swl task grounding <task-id>
+```
+
 canonical registry record 是显式持久化的 canonical knowledge 输出，不等于自动全局记忆，也不会自动开启广义 retrieval reuse。
 
 canonical reuse 仍然受显式 policy 控制。`canonical-reuse` 用来查看当前哪些 active canonical records 对 retrieval reuse 可见，superseded records 默认保持排除状态。
@@ -309,6 +342,7 @@ python3 -m unittest discover -s tests
 
 * `AGENTS.md`
 * `docs/active_context.md`
+* `current_state.md`
 
 ---
 
