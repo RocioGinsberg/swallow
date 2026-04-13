@@ -579,6 +579,37 @@ def build_stage_canonical_record(candidate: StagedCandidate) -> dict[str, object
     }
 
 
+def build_stage_promote_preflight_notices(
+    canonical_records: list[dict[str, object]],
+    candidate: StagedCandidate,
+) -> list[str]:
+    preview_record = build_stage_canonical_record(candidate)
+    canonical_id = str(preview_record.get("canonical_id", "")).strip()
+    canonical_key = str(preview_record.get("canonical_key", "")).strip()
+
+    notices: list[str] = []
+    if canonical_id and any(str(record.get("canonical_id", "")).strip() == canonical_id for record in canonical_records):
+        notices.append(f"(idempotent) re-promoting existing canonical record: {canonical_id}")
+
+    if canonical_key:
+        active_match = next(
+            (
+                record
+                for record in canonical_records
+                if str(record.get("canonical_key", "")).strip() == canonical_key
+                and str(record.get("canonical_id", "")).strip() != canonical_id
+                and str(record.get("canonical_status", "active")).strip() != "superseded"
+            ),
+            None,
+        )
+        if active_match is not None:
+            notices.append(
+                "(supersede) will supersede existing active record: "
+                f"{str(active_match.get('canonical_id', '')).strip() or 'unknown'}"
+            )
+    return notices
+
+
 def filter_task_states(states: list[object], focus: str) -> list[object]:
     if focus == "all":
         return states
@@ -1606,6 +1637,9 @@ def main(argv: list[str] | None = None) -> int:
         candidate = resolve_stage_candidate(base_dir, args.candidate_id)
         if candidate.status != "pending":
             raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
+        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        for notice in build_stage_promote_preflight_notices(canonical_records, candidate):
+            print(notice)
         updated = update_staged_candidate(
             base_dir,
             candidate.candidate_id,

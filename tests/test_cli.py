@@ -1308,6 +1308,97 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(len(canonical_records), 1)
         self.assertEqual(canonical_records[0]["canonical_key"], f"staged-candidate:{candidate.candidate_id}")
 
+    def test_cli_stage_promote_prints_idempotent_notice_for_existing_canonical_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="staged-fixedid",
+                    text="Re-promote an already seeded canonical record.",
+                    source_task_id="task-stage-idempotent",
+                    source_object_id="knowledge-0012",
+                ),
+            )
+            append_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": f"canonical-{candidate.candidate_id}",
+                    "canonical_key": "task-object:task-stage-idempotent:knowledge-0012",
+                    "source_task_id": "task-stage-idempotent",
+                    "source_object_id": "knowledge-0012",
+                    "promoted_at": "2026-04-13T00:00:00+00:00",
+                    "decision_note": "seeded",
+                    "canonical_status": "active",
+                    "superseded_by": "",
+                    "superseded_at": "",
+                },
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", candidate.candidate_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("(idempotent) re-promoting existing canonical record: canonical-staged-fixedid", output)
+        self.assertIn("staged-fixedid staged_promoted canonical_id=canonical-staged-fixedid", output)
+
+    def test_cli_stage_promote_prints_supersede_notice_for_active_key_match(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            first = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Original staged fact.",
+                    source_task_id="task-stage-notice",
+                    source_object_id="knowledge-0013",
+                ),
+            )
+            second = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Replacement staged fact.",
+                    source_task_id="task-stage-notice",
+                    source_object_id="knowledge-0013",
+                ),
+            )
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", first.candidate_id]), 0)
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(
+            f"(supersede) will supersede existing active record: canonical-{first.candidate_id}",
+            output,
+        )
+        self.assertIn(f"{second.candidate_id} staged_promoted canonical_id=canonical-{second.candidate_id}", output)
+
+    def test_cli_stage_promote_does_not_print_preflight_notice_for_fresh_record(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Fresh staged fact without conflicts.",
+                    source_task_id="task-stage-fresh",
+                    source_object_id="knowledge-0014",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", candidate.candidate_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertNotIn("(idempotent)", output)
+        self.assertNotIn("(supersede)", output)
+        self.assertIn(f"{candidate.candidate_id} staged_promoted canonical_id=canonical-{candidate.candidate_id}", output)
+
     def test_cli_stage_reject_updates_candidate_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
