@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 25 基线
+- Phase 0 到 Phase 26 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,17 +39,17 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Capabilities` (Primary) + `Evaluation / Policy` (Secondary)
-- **Latest Completed Phase**：`Phase 25`
-- **Latest Completed Slice**：`Taxonomy-Driven Capability Enforcement`
+- **Latest Completed Track**：`Retrieval / Memory`
+- **Latest Completed Phase**：`Phase 26`
+- **Latest Completed Slice**：`Canonical Knowledge Deduplication & Merge Gate`
 
-Phase 25 已完成的核心内容包括：
+Phase 26 已完成的核心内容包括：
 
-- 建立 taxonomy-driven capability enforcement 映射表
-- 在 `run_task()` / `acknowledge_task()` 中对 `route_capabilities` 执行运行时硬裁剪
-- 记录 `task.capability_enforced` 事件并在 `task inspect` 中显示 enforcement 状态
-- 保持 `general-executor / task-state` 默认路径不受影响
-- 完成 Phase 25 实现、评审、merge 与 closeout 收口
+- 修正 staged promote 的 canonical key 生成逻辑，激活已有 supersede 机制
+- 在 `knowledge stage-promote` 中增加 dedupe / supersede 前置提示
+- 新增 `knowledge canonical-audit`，暴露 duplicate active key 与 orphan record 审计入口
+- 保持 store 层 `append_canonical_record()` 不变，只修正上层调用与 operator surface
+- 完成 Phase 26 实现、评审、merge 与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -67,6 +67,8 @@ Phase 25 已完成的核心内容包括：
 - cross-task staged candidate merge / dedupe without fresh kickoff
 - dynamic runtime policy engines without fresh kickoff
 - manifest-level capability pruning without fresh kickoff
+- semantic merge / conflict resolution without fresh kickoff
+- automatic canonical promotion or conflict arbitration without fresh kickoff
 
 ---
 
@@ -186,15 +188,15 @@ Phase 25 已完成的核心内容包括：
 2. `docs/active_context.md`
 3. `docs/system_tracks.md`
 4. `current_state.md`
-5. `docs/plans/phase25/closeout.md`
+5. `docs/plans/phase26/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase25/context_brief.md`
-- `docs/plans/phase25/design_decision.md`
-- `docs/plans/phase25/risk_assessment.md`
-- `docs/plans/phase25/review_comments.md`
-- `docs/plans/phase24/closeout.md`
+- `docs/plans/phase26/context_brief.md`
+- `docs/plans/phase26/design_decision.md`
+- `docs/plans/phase26/risk_assessment.md`
+- `docs/plans/phase26/review_comments.md`
+- `docs/plans/phase25/closeout.md`
 - `current_state.md`
 - `docs/plans/<older-phase>/closeout.md`
 - `docs/archive/*`
