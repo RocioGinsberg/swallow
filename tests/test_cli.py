@@ -1207,6 +1207,107 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0002")
         self.assertEqual(reuse_policy["reuse_visible_count"], 1)
 
+    def test_cli_stage_promote_supersedes_previous_record_from_same_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            first = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Initial canonical fact from the same task object.",
+                    source_task_id="task-stage-dedupe",
+                    source_object_id="knowledge-0009",
+                    submitted_by="mock-remote",
+                ),
+            )
+            second = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Updated canonical fact from the same task object.",
+                    source_task_id="task-stage-dedupe",
+                    source_object_id="knowledge-0009",
+                    submitted_by="mock-remote",
+                ),
+            )
+
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", first.candidate_id]), 0)
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id]), 0)
+
+            canonical_records = [
+                json.loads(line)
+                for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(canonical_records), 2)
+        self.assertEqual(canonical_records[0]["canonical_key"], "task-object:task-stage-dedupe:knowledge-0009")
+        self.assertEqual(canonical_records[0]["canonical_status"], "superseded")
+        self.assertEqual(canonical_records[0]["superseded_by"], f"canonical-{second.candidate_id}")
+        self.assertEqual(canonical_records[1]["canonical_key"], "task-object:task-stage-dedupe:knowledge-0009")
+        self.assertEqual(canonical_records[1]["canonical_status"], "active")
+
+    def test_cli_stage_promote_keeps_records_from_different_sources_active(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            first = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Canonical fact from task object A.",
+                    source_task_id="task-stage-dedupe",
+                    source_object_id="knowledge-0010",
+                ),
+            )
+            second = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Canonical fact from task object B.",
+                    source_task_id="task-stage-dedupe",
+                    source_object_id="knowledge-0011",
+                ),
+            )
+
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", first.candidate_id]), 0)
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id]), 0)
+
+            canonical_records = [
+                json.loads(line)
+                for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(canonical_records), 2)
+        self.assertEqual(canonical_records[0]["canonical_status"], "active")
+        self.assertEqual(canonical_records[1]["canonical_status"], "active")
+        self.assertEqual(canonical_records[0]["canonical_key"], "task-object:task-stage-dedupe:knowledge-0010")
+        self.assertEqual(canonical_records[1]["canonical_key"], "task-object:task-stage-dedupe:knowledge-0011")
+
+    def test_cli_stage_promote_falls_back_to_candidate_key_without_source_object(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Canonical fact without a source object id.",
+                    source_task_id="task-stage-fallback",
+                    source_object_id="",
+                ),
+            )
+
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", candidate.candidate_id]), 0)
+
+            canonical_records = [
+                json.loads(line)
+                for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(len(canonical_records), 1)
+        self.assertEqual(canonical_records[0]["canonical_key"], f"staged-candidate:{candidate.candidate_id}")
+
     def test_cli_stage_reject_updates_candidate_status(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

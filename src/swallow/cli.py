@@ -17,6 +17,7 @@ from .canonical_registry import (
     build_canonical_registry_index,
     build_canonical_registry_index_report,
     build_canonical_registry_report,
+    build_staged_canonical_key,
 )
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
@@ -553,10 +554,10 @@ def resolve_stage_candidate(base_dir: Path, candidate_id: str) -> StagedCandidat
 
 
 def build_stage_canonical_record(candidate: StagedCandidate) -> dict[str, object]:
-    canonical_key = (
-        f"task-object:{candidate.source_task_id}:{candidate.source_object_id}"
-        if candidate.source_object_id
-        else f"staged-candidate:{candidate.candidate_id}"
+    canonical_key = build_staged_canonical_key(
+        source_task_id=candidate.source_task_id,
+        source_object_id=candidate.source_object_id,
+        candidate_id=candidate.candidate_id,
     )
     return {
         "canonical_id": f"canonical-{candidate.candidate_id}",
