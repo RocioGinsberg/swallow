@@ -8021,7 +8021,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("[", canonical_reuse_eval_json_stdout.getvalue())
         self.assertIn('"evaluation_count"', canonical_reuse_regression_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
-        self.assertIn("Source Grounding", grounding_stdout.getvalue())
+        self.assertIn("Grounding Evidence", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())
 
     def test_run_task_executor_override_updates_selected_executor(self) -> None:
