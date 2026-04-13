@@ -4163,6 +4163,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("execution_site_handoff_required: no", output)
         self.assertIn("topology_execution_site: local", output)
         self.assertIn("topology_dispatch_status: local_dispatched", output)
+        self.assertIn("grounding_locked: yes", output)
+        self.assertIn("grounding_refs_count: 0", output)
+        self.assertIn("grounding_refs: -", output)
         self.assertIn("compatibility_status: passed", output)
         self.assertIn("execution_fit_status: passed", output)
         self.assertIn("retry_policy_status: passed", output)
@@ -4646,6 +4649,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_decisions_report:", output)
         self.assertIn("retrieval_report:", output)
         self.assertIn("source_grounding:", output)
+        self.assertIn("grounding_locked: yes", output)
+        self.assertIn("grounding_refs_count: 0", output)
+        self.assertIn("grounding_evidence_report:", output)
         self.assertIn("resume_note:", output)
         self.assertIn("handoff_report:", output)
         self.assertIn("knowledge_policy_report:", output)
@@ -4817,6 +4823,37 @@ class CliLifecycleTest(unittest.TestCase):
                     main(argv)
             self.assertEqual(raised.exception.code, 0)
             self.assertIn(expected, stdout.getvalue())
+
+    def test_task_grounding_prints_grounding_evidence_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Grounding command",
+                        "--goal",
+                        "Read grounding evidence report",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            grounding_report = tmp_path / ".swl" / "tasks" / task_id / "artifacts" / "grounding_evidence_report.md"
+            grounding_report.write_text("# Grounding Evidence\n\n- entry_count: 1\n", encoding="utf-8")
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "grounding", task_id]), 0)
+
+        self.assertIn("Grounding Evidence", stdout.getvalue())
+        self.assertIn("entry_count: 1", stdout.getvalue())
 
     def test_cli_canonical_audit_reports_empty_registry_as_no_issues(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -8342,14 +8379,21 @@ class CliLifecycleTest(unittest.TestCase):
             "reused_knowledge_references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001",
             inspect_stdout.getvalue(),
         )
+        self.assertIn("grounding_locked: yes", inspect_stdout.getvalue())
+        self.assertIn("grounding_refs_count: 1", inspect_stdout.getvalue())
+        self.assertIn("grounding_refs: canonical:canonical-demo-knowledge-0001", inspect_stdout.getvalue())
         self.assertIn("reused_knowledge_in_retrieval: 1", review_stdout.getvalue())
         self.assertIn("reused_cross_task_knowledge: 1", review_stdout.getvalue())
         self.assertIn(
             "reused_knowledge_references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001",
             review_stdout.getvalue(),
         )
+        self.assertIn("grounding_locked: yes", review_stdout.getvalue())
+        self.assertIn("grounding_refs_count: 1", review_stdout.getvalue())
+        self.assertIn("grounding_refs: canonical:canonical-demo-knowledge-0001", review_stdout.getvalue())
         self.assertIn("retrieval_report:", review_stdout.getvalue())
         self.assertIn("source_grounding:", review_stdout.getvalue())
+        self.assertIn("grounding_evidence_report:", review_stdout.getvalue())
 
 
 if __name__ == "__main__":
