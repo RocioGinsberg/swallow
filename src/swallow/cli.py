@@ -11,12 +11,14 @@ from .canonical_reuse_eval import (
     build_canonical_reuse_regression_report,
     compare_canonical_reuse_regression,
 )
+from .canonical_audit import audit_canonical_registry, build_canonical_audit_report
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .canonical_registry import (
     build_canonical_registry_index,
     build_canonical_registry_index_report,
     build_canonical_registry_report,
+    build_staged_canonical_key,
 )
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_objects import summarize_canonicalization
@@ -553,10 +555,10 @@ def resolve_stage_candidate(base_dir: Path, candidate_id: str) -> StagedCandidat
 
 
 def build_stage_canonical_record(candidate: StagedCandidate) -> dict[str, object]:
-    canonical_key = (
-        f"task-object:{candidate.source_task_id}:{candidate.source_object_id}"
-        if candidate.source_object_id
-        else f"staged-candidate:{candidate.candidate_id}"
+    canonical_key = build_staged_canonical_key(
+        source_task_id=candidate.source_task_id,
+        source_object_id=candidate.source_object_id,
+        candidate_id=candidate.candidate_id,
     )
     return {
         "canonical_id": f"canonical-{candidate.candidate_id}",
@@ -576,6 +578,37 @@ def build_stage_canonical_record(candidate: StagedCandidate) -> dict[str, object
         "superseded_by": "",
         "superseded_at": "",
     }
+
+
+def build_stage_promote_preflight_notices(
+    canonical_records: list[dict[str, object]],
+    candidate: StagedCandidate,
+) -> list[str]:
+    preview_record = build_stage_canonical_record(candidate)
+    canonical_id = str(preview_record.get("canonical_id", "")).strip()
+    canonical_key = str(preview_record.get("canonical_key", "")).strip()
+
+    notices: list[str] = []
+    if canonical_id and any(str(record.get("canonical_id", "")).strip() == canonical_id for record in canonical_records):
+        notices.append(f"(idempotent) re-promoting existing canonical record: {canonical_id}")
+
+    if canonical_key:
+        active_match = next(
+            (
+                record
+                for record in canonical_records
+                if str(record.get("canonical_key", "")).strip() == canonical_key
+                and str(record.get("canonical_id", "")).strip() != canonical_id
+                and str(record.get("canonical_status", "active")).strip() != "superseded"
+            ),
+            None,
+        )
+        if active_match is not None:
+            notices.append(
+                "(supersede) will supersede existing active record: "
+                f"{str(active_match.get('canonical_id', '')).strip() or 'unknown'}"
+            )
+    return notices
 
 
 def filter_task_states(states: list[object], focus: str) -> list[object]:
@@ -969,6 +1002,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     knowledge_stage_reject_parser.add_argument("candidate_id", help="Staged candidate identifier.")
     knowledge_stage_reject_parser.add_argument("--note", default="", help="Optional operator note for the rejection record.")
+    knowledge_subparsers.add_parser(
+        "canonical-audit",
+        help="Audit canonical registry health.",
+        description="Audit canonical registry health.",
+    )
 
     create_parser = task_subparsers.add_parser("create", help="Create a task.")
     create_parser.add_argument("--title", required=True, help="Short task title.")
@@ -1605,6 +1643,9 @@ def main(argv: list[str] | None = None) -> int:
         candidate = resolve_stage_candidate(base_dir, args.candidate_id)
         if candidate.status != "pending":
             raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
+        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        for notice in build_stage_promote_preflight_notices(canonical_records, candidate):
+            print(notice)
         updated = update_staged_candidate(
             base_dir,
             candidate.candidate_id,
@@ -1633,6 +1674,11 @@ def main(argv: list[str] | None = None) -> int:
             args.note,
         )
         print(f"{updated.candidate_id} staged_rejected status={updated.status}")
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "canonical-audit":
+        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        print(build_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
         return 0
 
     if args.command == "task" and args.task_command == "create":

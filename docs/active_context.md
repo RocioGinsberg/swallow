@@ -5,27 +5,19 @@
 - latest_completed_track: `Capabilities` (Primary) + `Evaluation / Policy` (Secondary)
 - latest_completed_phase: `Phase 25`
 - latest_completed_slice: `Taxonomy-Driven Capability Enforcement`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`（Phase 25 已收口并合并，等待下一轮新分支）
+- active_track: `Retrieval / Memory`
+- active_phase: `Phase 26`
+- active_slice: `Canonical Knowledge Deduplication & Merge Gate`
+- active_branch: `feat/phase26-canonical-dedupe`
 - status: `closeout_complete`
 
 ---
 
 ## 当前状态说明
 
-Phase 25 已完成实现、评审、收口并已合并，完成内容包括：
+Phase 25 已经完成收口。当前 Phase 26 已完成实现、评审与收口准备。
 
-- taxonomy-driven capability enforcement 映射表
-- run-time capability downgrade
-- enforcement 事件记录与 inspect 可视化
-
-当前仓库应视为：
-
-- 已完成一个 capabilities / policy 方向的最小权限执行基线 phase
-- 不应继续在 Phase 25 名义下扩张范围
-- 下一步应重新选择新的 active track / phase / slice
+目标：为 Canonical Registry 的写入引入去重与冲突/版本控制机制，彻底解决 Phase 24 遗留的“盲目 Append 导致脏数据污染”的架构隐患。
 
 ---
 
@@ -37,32 +29,31 @@ Phase 25 已完成实现、评审、收口并已合并，完成内容包括：
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `docs/system_tracks.md`
-5. `docs/plans/phase25/closeout.md`
+5. `docs/plans/phase26/design_decision.md`
+6. `docs/plans/phase26/review_comments.md`
+7. `docs/plans/phase26/closeout.md`
 
 ---
 
 ## 当前产出物
 
-- `docs/plans/phase25/design_preview.md` (gemini, 2026-04-12)
-- `docs/plans/phase25/context_brief.md` (gemini, 2026-04-12)
-- `docs/plans/phase25/design_decision.md` (claude, 2026-04-13)
-- `docs/plans/phase25/risk_assessment.md` (claude, 2026-04-13)
-- `docs/plans/phase25/review_comments.md` (claude, 2026-04-13)
-- `docs/plans/phase25/closeout.md` (codex, 2026-04-13)
+- `docs/plans/phase26/design_preview.md` (gemini, 2026-04-13)
+- `docs/plans/phase26/context_brief.md` (gemini, 2026-04-13)
+- `docs/plans/phase26/design_decision.md` (claude, 2026-04-13)
+- `docs/plans/phase26/risk_assessment.md` (claude, 2026-04-13)
+- `docs/plans/phase26/review_comments.md` (claude, 2026-04-13)
+- `docs/plans/phase26/closeout.md` (codex, 2026-04-13)
 
 ## 当前推进
 
-已完成：
-
-- **[Gemini]** 完成 Phase 25 方向确认与上下文摘要。
-- **[Claude]** 完成方案拆解、风险评估与 review 结论。
-- **[Codex]** 完成 3 个实现 slice、测试验证、收口和 PR 文案同步。
-- **[Human]** 已将 Phase 25 合并入主线。
+- **[Gemini]** 已产出 Phase 26 的 `design_preview.md` 并获得 Human 确认。
+- **[Gemini]** 已产出 Phase 26 的 `context_brief.md` 并同步至状态面板。
+- **[Claude]** 已产出 `design_decision.md`（3 slice：key 修正 → dedupe 前置检查 → audit 命令）和 `risk_assessment.md`（整体低风险，核心发现 store 层 supersede 已存在）
+- **[Codex]** 三个 slice 全部实现并提交（3 commits），188 测试通过。
+- **[Claude]** review_comments.md 已产出，结论 PASS, mergeable。
+- **[Codex]** 已完成 `pr.md` 与 `closeout.md` 整理。
 
 ## 下一步
 
-开始下一轮 fresh kickoff：
-
-1. Human 从 `docs/system_tracks.md` 选择新的 active track
-2. Gemini / Claude 产出下一 phase 的上下文与设计文档
-3. Human 审批后再切出新的 feature branch
+- 等待 Human 合并当前 Phase 26 分支
+- 合并后进入 stable checkpoint 收尾

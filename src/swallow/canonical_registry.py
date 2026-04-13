@@ -18,6 +18,14 @@ def build_canonical_key(*, knowledge_object: dict[str, object], task_id: str, ob
     return f"task-object:{task_id}:{object_id}"
 
 
+def build_staged_canonical_key(*, source_task_id: str, source_object_id: str, candidate_id: str) -> str:
+    normalized_task_id = source_task_id.strip()
+    normalized_object_id = source_object_id.strip()
+    if normalized_task_id and normalized_object_id:
+        return f"task-object:{normalized_task_id}:{normalized_object_id}"
+    return f"staged-candidate:{candidate_id.strip()}"
+
+
 def build_canonical_record(
     *,
     task_id: str,
