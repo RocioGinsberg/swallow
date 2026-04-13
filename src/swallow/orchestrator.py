@@ -1005,6 +1005,8 @@ def run_task(
         "route_report": str((artifacts_dir(base_dir, task_id) / "route_report.md").resolve()),
         "compatibility_report": str((artifacts_dir(base_dir, task_id) / "compatibility_report.md").resolve()),
         "source_grounding": str((artifacts_dir(base_dir, task_id) / "source_grounding.md").resolve()),
+        "grounding_evidence_json": str((artifacts_dir(base_dir, task_id) / "grounding_evidence.json").resolve()),
+        "grounding_evidence_report": str((artifacts_dir(base_dir, task_id) / "grounding_evidence_report.md").resolve()),
         "retrieval_report": str((artifacts_dir(base_dir, task_id) / "retrieval_report.md").resolve()),
         "retrieval_json": str(retrieval_path(base_dir, task_id).resolve()),
         "validation_report": str((artifacts_dir(base_dir, task_id) / "validation_report.md").resolve()),

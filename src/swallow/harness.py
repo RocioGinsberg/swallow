@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import json
 from pathlib import Path
 
 from .checkpoint_snapshot import build_checkpoint_snapshot_report, evaluate_checkpoint_snapshot
@@ -8,6 +9,7 @@ from .compatibility import build_compatibility_report, evaluate_route_compatibil
 from .execution_budget_policy import build_execution_budget_policy_report, evaluate_execution_budget_policy
 from .execution_fit import build_execution_fit_report, evaluate_execution_fit
 from .executor import build_failure_recommendations, run_executor
+from .grounding import build_grounding_evidence, build_grounding_evidence_report, extract_grounding_entries
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_objects import (
     summarize_canonicalization,
@@ -209,6 +211,20 @@ def write_task_artifacts(
         state.task_id,
         "source_grounding.md",
         build_source_grounding(retrieval_items),
+    )
+    grounding_entries = extract_grounding_entries(retrieval_items)
+    grounding_evidence = build_grounding_evidence(grounding_entries)
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "grounding_evidence.json",
+        json.dumps(grounding_evidence, indent=2) + "\n",
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "grounding_evidence_report.md",
+        build_grounding_evidence_report(grounding_evidence),
     )
     write_artifact(
         base_dir,
@@ -529,6 +545,8 @@ def write_task_artifacts(
                     "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
                     "knowledge_policy_report": state.artifact_paths.get("knowledge_policy_report", ""),
                     "source_grounding": state.artifact_paths.get("source_grounding", ""),
+                    "grounding_evidence_json": state.artifact_paths.get("grounding_evidence_json", ""),
+                    "grounding_evidence_report": state.artifact_paths.get("grounding_evidence_report", ""),
                     "retrieval_report": state.artifact_paths.get("retrieval_report", ""),
                     "validation_report": state.artifact_paths.get("validation_report", ""),
                     "task_memory": state.artifact_paths.get("task_memory", ""),
@@ -811,6 +829,8 @@ def build_task_memory(
             "knowledge_policy_report": state.artifact_paths.get("knowledge_policy_report", ""),
             "knowledge_policy_json": state.artifact_paths.get("knowledge_policy_json", ""),
             "source_grounding": state.artifact_paths.get("source_grounding", ""),
+            "grounding_evidence_json": state.artifact_paths.get("grounding_evidence_json", ""),
+            "grounding_evidence_report": state.artifact_paths.get("grounding_evidence_report", ""),
             "retrieval_report": state.artifact_paths.get("retrieval_report", ""),
             "retrieval_json": state.artifact_paths.get("retrieval_json", ""),
             "validation_report": state.artifact_paths.get("validation_report", ""),
