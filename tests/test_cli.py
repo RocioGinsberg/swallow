@@ -2110,6 +2110,183 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["payload"]["capability_manifest"]["profile_refs"], ["research_local"])
         self.assertEqual(events[1]["payload"]["capability_assembly"]["assembly_status"], "assembled")
 
+    def test_run_task_locks_grounding_refs_from_canonical_retrieval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Grounding lock",
+                goal="Lock canonical retrieval grounding",
+                workspace_root=tmp_path,
+            )
+            retrieval_items = [
+                RetrievalItem(
+                    path=".swl/canonical_knowledge/reuse_policy.json",
+                    source_type=KNOWLEDGE_SOURCE_TYPE,
+                    score=8,
+                    preview="Canonical grounding entry.",
+                    citation=".swl/canonical_knowledge/reuse_policy.json#canonical-grounding-1",
+                    metadata={
+                        "storage_scope": "canonical_registry",
+                        "canonical_id": "canonical-grounding-1",
+                        "canonical_key": "task-object:grounding-source:knowledge-1",
+                        "knowledge_task_id": "grounding-source",
+                        "evidence_status": "source_only",
+                    },
+                )
+            ]
+            executor_result = ExecutorResult(
+                executor_name="mock",
+                status="completed",
+                message="Execution finished.",
+                output="done",
+            )
+
+            def write_artifacts_side_effect(
+                base_dir: Path,
+                current_state: TaskState,
+                current_retrieval_items: list[RetrievalItem],
+                current_executor_result: ExecutorResult,
+                grounding_evidence_override: dict[str, object] | None = None,
+            ) -> tuple[ValidationResult, ...]:
+                artifacts_root = base_dir / ".swl" / "tasks" / current_state.task_id / "artifacts"
+                artifacts_root.mkdir(parents=True, exist_ok=True)
+                (artifacts_root / "grounding_evidence.json").write_text(
+                    json.dumps(grounding_evidence_override or {}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                return (
+                    ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Execution fit passed."),
+                    ValidationResult(status="passed", message="Knowledge policy passed."),
+                    ValidationResult(status="passed", message="Validation passed."),
+                    ValidationResult(status="passed", message="Retry policy passed."),
+                    ValidationResult(status="passed", message="Execution budget policy passed."),
+                    ValidationResult(status="warning", message="Stop policy warning."),
+                )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
+                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                        final_state = run_task(tmp_path, state.task_id, executor_name="mock")
+
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / state.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(final_state.grounding_refs, ["canonical:canonical-grounding-1"])
+        self.assertTrue(final_state.grounding_locked)
+        self.assertEqual(events[4]["event_type"], "grounding.locked")
+        self.assertEqual(events[4]["payload"]["grounding_refs"], ["canonical:canonical-grounding-1"])
+        self.assertFalse(events[4]["payload"]["reused_locked_artifact"])
+
+    def test_run_task_reuses_locked_grounding_on_resume_and_resets_on_rerun(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Grounding reuse",
+                goal="Keep resume stable and rerun fresh",
+                workspace_root=tmp_path,
+            )
+            first_retrieval = [
+                RetrievalItem(
+                    path=".swl/canonical_knowledge/reuse_policy.json",
+                    source_type=KNOWLEDGE_SOURCE_TYPE,
+                    score=8,
+                    preview="Original grounding entry.",
+                    citation=".swl/canonical_knowledge/reuse_policy.json#canonical-grounding-old",
+                    metadata={
+                        "storage_scope": "canonical_registry",
+                        "canonical_id": "canonical-grounding-old",
+                        "canonical_key": "task-object:grounding-source:knowledge-old",
+                        "knowledge_task_id": "grounding-source",
+                        "evidence_status": "source_only",
+                    },
+                )
+            ]
+            second_retrieval = [
+                RetrievalItem(
+                    path=".swl/canonical_knowledge/reuse_policy.json",
+                    source_type=KNOWLEDGE_SOURCE_TYPE,
+                    score=9,
+                    preview="New grounding entry after rerun.",
+                    citation=".swl/canonical_knowledge/reuse_policy.json#canonical-grounding-new",
+                    metadata={
+                        "storage_scope": "canonical_registry",
+                        "canonical_id": "canonical-grounding-new",
+                        "canonical_key": "task-object:grounding-source:knowledge-new",
+                        "knowledge_task_id": "grounding-source",
+                        "evidence_status": "source_only",
+                    },
+                )
+            ]
+            executor_result = ExecutorResult(
+                executor_name="mock",
+                status="failed",
+                message="Execution failed.",
+                output="failed",
+                failure_kind="mock_failure",
+            )
+
+            def write_artifacts_side_effect(
+                base_dir: Path,
+                current_state: TaskState,
+                current_retrieval_items: list[RetrievalItem],
+                current_executor_result: ExecutorResult,
+                grounding_evidence_override: dict[str, object] | None = None,
+            ) -> tuple[ValidationResult, ...]:
+                artifacts_root = base_dir / ".swl" / "tasks" / current_state.task_id / "artifacts"
+                artifacts_root.mkdir(parents=True, exist_ok=True)
+                (artifacts_root / "grounding_evidence.json").write_text(
+                    json.dumps(grounding_evidence_override or {}, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                return (
+                    ValidationResult(status="passed", message="Compatibility passed."),
+                    ValidationResult(status="passed", message="Execution fit passed."),
+                    ValidationResult(status="passed", message="Knowledge policy passed."),
+                    ValidationResult(status="passed", message="Validation passed."),
+                    ValidationResult(status="passed", message="Retry policy passed."),
+                    ValidationResult(status="passed", message="Execution budget policy passed."),
+                    ValidationResult(status="warning", message="Stop policy warning."),
+                )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=first_retrieval):
+                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                        first_state = run_task(tmp_path, state.task_id, executor_name="mock")
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=second_retrieval):
+                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                        resumed_state = run_task(tmp_path, state.task_id, executor_name="mock")
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=second_retrieval):
+                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                        rerun_state = run_task(tmp_path, state.task_id, executor_name="mock", reset_grounding=True)
+
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / state.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            grounding_events = [event for event in events if event["event_type"] == "grounding.locked"]
+
+        self.assertEqual(first_state.grounding_refs, ["canonical:canonical-grounding-old"])
+        self.assertEqual(resumed_state.grounding_refs, ["canonical:canonical-grounding-old"])
+        self.assertEqual(rerun_state.grounding_refs, ["canonical:canonical-grounding-new"])
+        self.assertTrue(first_state.grounding_locked)
+        self.assertTrue(resumed_state.grounding_locked)
+        self.assertTrue(rerun_state.grounding_locked)
+        self.assertEqual(
+            [event["payload"]["reused_locked_artifact"] for event in grounding_events],
+            [False, True, False],
+        )
+
     def test_knowledge_policy_fails_for_unbacked_canonical_knowledge(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -3986,6 +4163,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("execution_site_handoff_required: no", output)
         self.assertIn("topology_execution_site: local", output)
         self.assertIn("topology_dispatch_status: local_dispatched", output)
+        self.assertIn("grounding_locked: yes", output)
+        self.assertIn("grounding_refs_count: 0", output)
+        self.assertIn("grounding_refs: -", output)
         self.assertIn("compatibility_status: passed", output)
         self.assertIn("execution_fit_status: passed", output)
         self.assertIn("retry_policy_status: passed", output)
@@ -4469,6 +4649,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("knowledge_decisions_report:", output)
         self.assertIn("retrieval_report:", output)
         self.assertIn("source_grounding:", output)
+        self.assertIn("grounding_locked: yes", output)
+        self.assertIn("grounding_refs_count: 0", output)
+        self.assertIn("grounding_evidence_report:", output)
         self.assertIn("resume_note:", output)
         self.assertIn("handoff_report:", output)
         self.assertIn("knowledge_policy_report:", output)
@@ -4640,6 +4823,37 @@ class CliLifecycleTest(unittest.TestCase):
                     main(argv)
             self.assertEqual(raised.exception.code, 0)
             self.assertIn(expected, stdout.getvalue())
+
+    def test_task_grounding_prints_grounding_evidence_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Grounding command",
+                        "--goal",
+                        "Read grounding evidence report",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            grounding_report = tmp_path / ".swl" / "tasks" / task_id / "artifacts" / "grounding_evidence_report.md"
+            grounding_report.write_text("# Grounding Evidence\n\n- entry_count: 1\n", encoding="utf-8")
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "grounding", task_id]), 0)
+
+        self.assertIn("Grounding Evidence", stdout.getvalue())
+        self.assertIn("entry_count: 1", stdout.getvalue())
 
     def test_cli_canonical_audit_reports_empty_registry_as_no_issues(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -6147,6 +6361,7 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
+                grounding_evidence_override: dict[str, object] | None = None,
             ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
                 return (
@@ -6172,6 +6387,7 @@ class CliLifecycleTest(unittest.TestCase):
             [
                 ("running", "intake"),
                 ("running", "retrieval"),
+                ("running", "retrieval"),
                 ("running", "executing"),
                 ("running", "executing"),
                 ("running", "summarize"),
@@ -6184,6 +6400,7 @@ class CliLifecycleTest(unittest.TestCase):
             [
                 "task.run_started",
                 "task.phase",
+                "grounding.locked",
                 "task.phase",
                 "task.phase",
                 "task.completed",
@@ -6471,6 +6688,7 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
+                grounding_evidence_override: dict[str, object] | None = None,
             ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
                 artifact_states.append((state.status, state.phase))
                 return (
@@ -6496,6 +6714,7 @@ class CliLifecycleTest(unittest.TestCase):
             [
                 ("running", "intake"),
                 ("running", "retrieval"),
+                ("running", "retrieval"),
                 ("running", "executing"),
                 ("running", "executing"),
                 ("running", "summarize"),
@@ -6508,6 +6727,7 @@ class CliLifecycleTest(unittest.TestCase):
             [
                 "task.run_started",
                 "task.phase",
+                "grounding.locked",
                 "task.phase",
                 "task.phase",
                 "task.failed",
@@ -6742,6 +6962,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.run_started",
                 "task.phase",
                 "retrieval.completed",
+                "grounding.locked",
                 "task.phase",
                 "executor.completed",
                 "task.phase",
@@ -6820,40 +7041,42 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[3]["payload"]["top_paths"], ["notes.md"])
         self.assertEqual(events[3]["payload"]["top_citations"], ["notes.md#L1-L3"])
         self.assertEqual(events[3]["payload"]["source_types"], ["notes"])
-        self.assertEqual(events[4]["payload"]["phase"], "executing")
-        self.assertEqual(events[4]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[5]["payload"]["status"], "completed")
-        self.assertEqual(events[5]["payload"]["executor_name"], "mock")
-        self.assertEqual(events[5]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[5]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[5]["payload"]["route_executor_family"], "cli")
-        self.assertEqual(events[5]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[5]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[5]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[5]["payload"]["route_capabilities"]["deterministic"], True)
-        self.assertEqual(events[5]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
-        self.assertEqual(events[5]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[5]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[5]["payload"]["attempt_owner_kind"], "local_orchestrator")
-        self.assertEqual(events[5]["payload"]["attempt_owner_ref"], "swl_cli")
-        self.assertEqual(events[5]["payload"]["attempt_ownership_status"], "owned")
-        self.assertTrue(bool(events[5]["payload"]["attempt_owner_assigned_at"]))
-        self.assertEqual(events[5]["payload"]["attempt_transfer_reason"], "")
-        self.assertEqual(events[5]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[5]["payload"]["topology_executor_family"], "cli")
-        self.assertEqual(events[5]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[5]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[5]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[5]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertEqual(events[5]["payload"]["execution_site_contract_kind"], "local_inline")
-        self.assertEqual(events[5]["payload"]["execution_site_boundary"], "same_process")
-        self.assertEqual(events[5]["payload"]["execution_site_contract_status"], "active")
-        self.assertEqual(events[5]["payload"]["execution_site_handoff_required"], False)
-        self.assertTrue(bool(events[5]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[5]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[4]["payload"]["grounding_locked"], True)
+        self.assertEqual(events[4]["payload"]["grounding_refs"], [])
+        self.assertEqual(events[5]["payload"]["phase"], "executing")
         self.assertEqual(events[5]["payload"]["execution_lifecycle"], "dispatched")
+        self.assertEqual(events[6]["payload"]["status"], "completed")
+        self.assertEqual(events[6]["payload"]["executor_name"], "mock")
+        self.assertEqual(events[6]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[6]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[6]["payload"]["route_executor_family"], "cli")
+        self.assertEqual(events[6]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[6]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[6]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[6]["payload"]["route_capabilities"]["deterministic"], True)
+        self.assertEqual(events[6]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
+        self.assertEqual(events[6]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[6]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[6]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[6]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[6]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[6]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[6]["payload"]["attempt_transfer_reason"], "")
+        self.assertEqual(events[6]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[6]["payload"]["topology_executor_family"], "cli")
+        self.assertEqual(events[6]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[6]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[6]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[6]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[6]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[6]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[6]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[6]["payload"]["execution_site_handoff_required"], False)
+        self.assertTrue(bool(events[6]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[6]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[6]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(
-            events[5]["payload"]["output_written"],
+            events[6]["payload"]["output_written"],
             [
                 "executor_prompt.md",
                 "executor_output.md",
@@ -6861,72 +7084,76 @@ class CliLifecycleTest(unittest.TestCase):
                 "executor_stderr.txt",
             ],
         )
-        self.assertEqual(events[6]["payload"]["phase"], "summarize")
-        self.assertEqual(events[6]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[7]["payload"]["status"], "passed")
-        self.assertEqual(events[7]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
+        self.assertEqual(events[7]["payload"]["phase"], "summarize")
+        self.assertEqual(events[7]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(events[8]["payload"]["status"], "passed")
-        self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 7, "warn": 0, "fail": 0})
+        self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[9]["payload"]["status"], "passed")
-        self.assertEqual(events[9]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
+        self.assertEqual(events[9]["payload"]["finding_counts"], {"pass": 7, "warn": 0, "fail": 0})
         self.assertEqual(events[10]["payload"]["status"], "passed")
-        self.assertEqual(events[10]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
+        self.assertEqual(events[10]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
         self.assertEqual(events[11]["payload"]["status"], "passed")
+        self.assertEqual(events[11]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[12]["payload"]["status"], "passed")
-        self.assertEqual(events[13]["payload"]["status"], "warning")
-        self.assertEqual(events[15]["payload"]["status"], "completed")
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
-        self.assertTrue(
-            events[15]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
-        )
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
-        self.assertTrue(events[15]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+        self.assertEqual(events[13]["payload"]["status"], "passed")
+        self.assertEqual(events[14]["payload"]["status"], "warning")
         self.assertEqual(events[16]["payload"]["status"], "completed")
-        self.assertEqual(events[16]["payload"]["phase"], "summarize")
-        self.assertEqual(events[16]["payload"]["retrieval_count"], 1)
-        self.assertEqual(events[16]["payload"]["executor_status"], "completed")
-        self.assertEqual(events[16]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[16]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[16]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[16]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[16]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[16]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[16]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[16]["payload"]["attempt_owner_kind"], "local_orchestrator")
-        self.assertEqual(events[16]["payload"]["attempt_owner_ref"], "swl_cli")
-        self.assertEqual(events[16]["payload"]["attempt_ownership_status"], "owned")
-        self.assertTrue(bool(events[16]["payload"]["attempt_owner_assigned_at"]))
-        self.assertEqual(events[16]["payload"]["attempt_transfer_reason"], "")
-        self.assertEqual(events[16]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[16]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[16]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[16]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[16]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertEqual(events[16]["payload"]["execution_site_contract_kind"], "local_inline")
-        self.assertEqual(events[16]["payload"]["execution_site_boundary"], "same_process")
-        self.assertEqual(events[16]["payload"]["execution_site_contract_status"], "active")
-        self.assertEqual(events[16]["payload"]["execution_site_handoff_required"], False)
-        self.assertTrue(bool(events[16]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[16]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[16]["payload"]["execution_lifecycle"], "completed")
-        self.assertEqual(events[16]["payload"]["compatibility_status"], "passed")
-        self.assertEqual(events[16]["payload"]["execution_fit_status"], "passed")
-        self.assertEqual(events[16]["payload"]["retry_policy_status"], "passed")
-        self.assertEqual(events[16]["payload"]["execution_budget_policy_status"], "passed")
-        self.assertEqual(events[16]["payload"]["stop_policy_status"], "warning")
-        self.assertEqual(events[16]["payload"]["knowledge_policy_status"], "passed")
-        self.assertEqual(events[16]["payload"]["validation_status"], "passed")
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
+        self.assertTrue(
+            events[16]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+        )
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["grounding_evidence_json"].endswith("grounding_evidence.json"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["grounding_evidence_report"].endswith("grounding_evidence_report.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertTrue(events[16]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+        self.assertEqual(events[17]["payload"]["status"], "completed")
+        self.assertEqual(events[17]["payload"]["phase"], "summarize")
+        self.assertEqual(events[17]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[17]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[17]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[17]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[17]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[17]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[17]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[17]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[17]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[17]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[17]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[17]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[17]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[17]["payload"]["attempt_transfer_reason"], "")
+        self.assertEqual(events[17]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[17]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[17]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[17]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[17]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[17]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[17]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[17]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[17]["payload"]["execution_site_handoff_required"], False)
+        self.assertTrue(bool(events[17]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[17]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[17]["payload"]["execution_lifecycle"], "completed")
+        self.assertEqual(events[17]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[17]["payload"]["execution_fit_status"], "passed")
+        self.assertEqual(events[17]["payload"]["retry_policy_status"], "passed")
+        self.assertEqual(events[17]["payload"]["execution_budget_policy_status"], "passed")
+        self.assertEqual(events[17]["payload"]["stop_policy_status"], "warning")
+        self.assertEqual(events[17]["payload"]["knowledge_policy_status"], "passed")
+        self.assertEqual(events[17]["payload"]["validation_status"], "passed")
+        self.assertEqual(events[17]["payload"]["grounding_locked"], True)
+        self.assertEqual(events[17]["payload"]["grounding_refs"], [])
+        self.assertTrue(events[17]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
 
     def test_failed_task_events_include_failure_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -6981,33 +7208,35 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertTrue(bool(events[1]["payload"]["dispatch_requested_at"]))
         self.assertEqual(events[1]["payload"]["dispatch_started_at"], "")
         self.assertEqual(events[1]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(events[5]["event_type"], "executor.failed")
-        self.assertEqual(events[5]["payload"]["status"], "failed")
-        self.assertEqual(events[5]["payload"]["executor_name"], "codex")
-        self.assertEqual(events[5]["payload"]["route_name"], "local-codex")
-        self.assertEqual(events[5]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[5]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[5]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[5]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertTrue(bool(events[5]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[5]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[5]["payload"]["failure_kind"], "launch_error")
-        self.assertEqual(events[7]["event_type"], "compatibility.completed")
-        self.assertEqual(events[7]["payload"]["status"], "passed")
-        self.assertEqual(events[8]["event_type"], "execution_fit.completed")
+        self.assertEqual(events[4]["event_type"], "grounding.locked")
+        self.assertEqual(events[4]["payload"]["grounding_locked"], True)
+        self.assertEqual(events[6]["event_type"], "executor.failed")
+        self.assertEqual(events[6]["payload"]["status"], "failed")
+        self.assertEqual(events[6]["payload"]["executor_name"], "codex")
+        self.assertEqual(events[6]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[6]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[6]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[6]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[6]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertTrue(bool(events[6]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[6]["payload"]["execution_lifecycle"], "dispatched")
+        self.assertEqual(events[6]["payload"]["failure_kind"], "launch_error")
+        self.assertEqual(events[8]["event_type"], "compatibility.completed")
         self.assertEqual(events[8]["payload"]["status"], "passed")
-        self.assertEqual(events[9]["event_type"], "knowledge_policy.completed")
+        self.assertEqual(events[9]["event_type"], "execution_fit.completed")
         self.assertEqual(events[9]["payload"]["status"], "passed")
-        self.assertEqual(events[10]["event_type"], "validation.completed")
+        self.assertEqual(events[10]["event_type"], "knowledge_policy.completed")
         self.assertEqual(events[10]["payload"]["status"], "passed")
-        self.assertEqual(events[11]["event_type"], "retry_policy.completed")
-        self.assertEqual(events[11]["payload"]["status"], "failed")
-        self.assertEqual(events[12]["event_type"], "execution_budget_policy.completed")
-        self.assertEqual(events[12]["payload"]["status"], "passed")
-        self.assertEqual(events[13]["event_type"], "stop_policy.completed")
-        self.assertEqual(events[13]["payload"]["status"], "failed")
-        self.assertEqual(events[14]["event_type"], "checkpoint_snapshot.completed")
-        self.assertEqual(events[14]["payload"]["status"], "warning")
+        self.assertEqual(events[11]["event_type"], "validation.completed")
+        self.assertEqual(events[11]["payload"]["status"], "passed")
+        self.assertEqual(events[12]["event_type"], "retry_policy.completed")
+        self.assertEqual(events[12]["payload"]["status"], "failed")
+        self.assertEqual(events[13]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[13]["payload"]["status"], "passed")
+        self.assertEqual(events[14]["event_type"], "stop_policy.completed")
+        self.assertEqual(events[14]["payload"]["status"], "failed")
+        self.assertEqual(events[15]["event_type"], "checkpoint_snapshot.completed")
+        self.assertEqual(events[15]["payload"]["status"], "warning")
         self.assertEqual(events[-1]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
@@ -7105,6 +7334,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.run_started",
                 "task.phase",
                 "retrieval.completed",
+                "grounding.locked",
                 "task.phase",
                 "executor.failed",
                 "task.phase",
@@ -7127,6 +7357,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.run_started",
                 "task.phase",
                 "retrieval.completed",
+                "grounding.locked",
                 "task.phase",
                 "executor.failed",
                 "task.phase",
@@ -7143,6 +7374,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.run_started",
                 "task.phase",
                 "retrieval.completed",
+                "grounding.locked",
                 "task.phase",
                 "executor.failed",
                 "task.phase",
@@ -7158,14 +7390,14 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.failed",
             ],
         )
-        self.assertEqual(final_events[17]["payload"]["previous_status"], "failed")
-        self.assertEqual(final_events[17]["payload"]["previous_phase"], "summarize")
-        self.assertEqual(final_events[17]["payload"]["status"], "running")
-        self.assertEqual(final_events[17]["payload"]["phase"], "intake")
+        self.assertEqual(final_events[18]["payload"]["previous_status"], "failed")
+        self.assertEqual(final_events[18]["payload"]["previous_phase"], "summarize")
+        self.assertEqual(final_events[18]["payload"]["status"], "running")
+        self.assertEqual(final_events[18]["payload"]["phase"], "intake")
         self.assertEqual(first_events[1]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(first_events[1]["payload"]["attempt_number"], 1)
         self.assertEqual(first_events[1]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(final_events[17]["payload"]["attempt_id"], "attempt-0002")
+        self.assertEqual(final_events[18]["payload"]["attempt_id"], "attempt-0002")
         self.assertEqual(final_events[17]["payload"]["attempt_number"], 2)
         self.assertEqual(final_events[17]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(final_state["run_attempt_count"], 2)
@@ -7789,7 +8021,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("[", canonical_reuse_eval_json_stdout.getvalue())
         self.assertIn('"evaluation_count"', canonical_reuse_regression_json_stdout.getvalue())
         self.assertIn('"citation"', retrieval_json_stdout.getvalue())
-        self.assertIn("Source Grounding", grounding_stdout.getvalue())
+        self.assertIn("Grounding Evidence", grounding_stdout.getvalue())
         self.assertIn('"task_id"', memory_stdout.getvalue())
 
     def test_run_task_executor_override_updates_selected_executor(self) -> None:
@@ -8147,14 +8379,21 @@ class CliLifecycleTest(unittest.TestCase):
             "reused_knowledge_references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001",
             inspect_stdout.getvalue(),
         )
+        self.assertIn("grounding_locked: yes", inspect_stdout.getvalue())
+        self.assertIn("grounding_refs_count: 1", inspect_stdout.getvalue())
+        self.assertIn("grounding_refs: canonical:canonical-demo-knowledge-0001", inspect_stdout.getvalue())
         self.assertIn("reused_knowledge_in_retrieval: 1", review_stdout.getvalue())
         self.assertIn("reused_cross_task_knowledge: 1", review_stdout.getvalue())
         self.assertIn(
             "reused_knowledge_references: .swl/tasks/demo/knowledge_objects.json#knowledge-0001",
             review_stdout.getvalue(),
         )
+        self.assertIn("grounding_locked: yes", review_stdout.getvalue())
+        self.assertIn("grounding_refs_count: 1", review_stdout.getvalue())
+        self.assertIn("grounding_refs: canonical:canonical-demo-knowledge-0001", review_stdout.getvalue())
         self.assertIn("retrieval_report:", review_stdout.getvalue())
         self.assertIn("source_grounding:", review_stdout.getvalue())
+        self.assertIn("grounding_evidence_report:", review_stdout.getvalue())
 
 
 if __name__ == "__main__":

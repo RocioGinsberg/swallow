@@ -99,6 +99,8 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "retrieval_report",
             "retrieval_json",
             "source_grounding",
+            "grounding_evidence_report",
+            "grounding_evidence_json",
         ),
     ),
     (
@@ -196,6 +198,21 @@ def format_capability_enforcement_summary(payload: dict[str, object]) -> tuple[s
     if not fields:
         return "-", "-"
     return "yes", ", ".join(fields)
+
+
+def format_grounding_summary(state: object) -> tuple[str, str, str]:
+    grounding_locked = bool(getattr(state, "grounding_locked", False))
+    refs = getattr(state, "grounding_refs", [])
+    if not isinstance(refs, list):
+        refs = []
+    normalized_refs = [str(item).strip() for item in refs if str(item).strip()]
+    if not grounding_locked and not normalized_refs:
+        return "-", "0", "-"
+    return (
+        "yes" if grounding_locked else "no",
+        str(len(normalized_refs)),
+        ", ".join(normalized_refs[:5]) if normalized_refs else "-",
+    )
 
 
 def build_grouped_artifact_index(artifact_paths: dict[str, str]) -> str:
@@ -932,6 +949,7 @@ def execute_task_run(
     executor_name: str | None,
     capability_refs: list[str] | None,
     route_mode: str | None,
+    reset_grounding: bool = False,
 ) -> int:
     state = run_task(
         base_dir=base_dir,
@@ -939,6 +957,7 @@ def execute_task_run(
         executor_name=executor_name,
         capability_refs=capability_refs,
         route_mode=route_mode,
+        reset_grounding=reset_grounding,
     )
     print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
     return 0
@@ -1800,7 +1819,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"suggested_path={checkpoint_snapshot.get('recommended_path', 'pending')}"
             )
             return 1
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
+        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode, reset_grounding=True)
 
     if args.command == "task" and args.task_command == "resume":
         state = load_state(base_dir, args.task_id)
@@ -1818,7 +1837,7 @@ def main(argv: list[str] | None = None) -> int:
         return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
 
     if args.command == "task" and args.task_command == "rerun":
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
+        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode, reset_grounding=True)
 
     if args.command == "task" and args.task_command == "list":
         states = sorted(
@@ -1999,6 +2018,7 @@ def main(argv: list[str] | None = None) -> int:
         taxonomy_label = format_taxonomy_label(state)
         capability_enforcement = load_latest_capability_enforcement(base_dir, args.task_id)
         capability_enforced, capability_enforced_fields = format_capability_enforcement_summary(capability_enforcement)
+        grounding_locked, grounding_refs_count, grounding_refs = format_grounding_summary(state)
         knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
         knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
         knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
@@ -2048,6 +2068,9 @@ def main(argv: list[str] | None = None) -> int:
             f"taxonomy: {taxonomy_label}",
             f"capability_enforced: {capability_enforced}",
             f"capability_enforced_fields: {capability_enforced_fields}",
+            f"grounding_locked: {grounding_locked}",
+            f"grounding_refs_count: {grounding_refs_count}",
+            f"grounding_refs: {grounding_refs}",
             f"route_mode: {state.route_mode}",
             f"route_name: {state.route_name}",
             f"route_backend: {state.route_backend}",
@@ -2135,6 +2158,7 @@ def main(argv: list[str] | None = None) -> int:
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
             f"remote_handoff_contract_report: {state.artifact_paths.get('remote_handoff_contract_report', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
+            f"grounding_evidence_report: {state.artifact_paths.get('grounding_evidence_report', '-')}",
             f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
             f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
             f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
@@ -2210,6 +2234,7 @@ def main(argv: list[str] | None = None) -> int:
         validation = load_json_if_exists(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
         mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state) else ""
         taxonomy_label = format_taxonomy_label(state)
+        grounding_locked, grounding_refs_count, grounding_refs = format_grounding_summary(state)
         lines = [
             f"Task Review: {state.task_id}",
             f"title: {state.title}",
@@ -2227,6 +2252,9 @@ def main(argv: list[str] | None = None) -> int:
             "Handoff",
             f"route_label: {mock_remote_label or '-'}",
             f"taxonomy: {taxonomy_label}",
+            f"grounding_locked: {grounding_locked}",
+            f"grounding_refs_count: {grounding_refs_count}",
+            f"grounding_refs: {grounding_refs}",
             f"handoff_status: {handoff.get('status', 'pending')}",
             f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
             f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
@@ -2295,6 +2323,7 @@ def main(argv: list[str] | None = None) -> int:
             f"canonical_reuse_regression_json: {state.artifact_paths.get('canonical_reuse_regression_json', '-')}",
             f"retrieval_report: {state.artifact_paths.get('retrieval_report', '-')}",
             f"source_grounding: {state.artifact_paths.get('source_grounding', '-')}",
+            f"grounding_evidence_report: {state.artifact_paths.get('grounding_evidence_report', '-')}",
             f"resume_note: {state.artifact_paths.get('resume_note', '-')}",
             f"summary: {state.artifact_paths.get('summary', '-')}",
             f"handoff_report: {state.artifact_paths.get('handoff_report', '-')}",
@@ -2369,7 +2398,7 @@ def main(argv: list[str] | None = None) -> int:
             "resume-note": "resume_note.md",
             "validation": "validation_report.md",
             "compatibility": "compatibility_report.md",
-            "grounding": "source_grounding.md",
+            "grounding": "grounding_evidence_report.md",
             "knowledge-objects": "knowledge_objects_report.md",
             "knowledge-partition": "knowledge_partition_report.md",
             "knowledge-index": "knowledge_index_report.md",

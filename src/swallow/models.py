@@ -308,6 +308,8 @@ class TaskState:
     dispatch_started_at: str = ""
     execution_lifecycle: str = "idle"
     executor_status: str = "pending"
+    grounding_refs: list[str] = field(default_factory=list)
+    grounding_locked: bool = False
     artifact_paths: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
