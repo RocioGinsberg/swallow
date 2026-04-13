@@ -152,6 +152,7 @@ def write_task_artifacts(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     executor_result: ExecutorResult,
+    grounding_evidence_override: dict[str, object] | None = None,
 ) -> tuple[
     CompatibilityResult,
     ExecutionFitResult,
@@ -212,8 +213,10 @@ def write_task_artifacts(
         "source_grounding.md",
         build_source_grounding(retrieval_items),
     )
-    grounding_entries = extract_grounding_entries(retrieval_items)
-    grounding_evidence = build_grounding_evidence(grounding_entries)
+    grounding_evidence = grounding_evidence_override
+    if grounding_evidence is None:
+        grounding_entries = extract_grounding_entries(retrieval_items)
+        grounding_evidence = build_grounding_evidence(grounding_entries)
     write_artifact(
         base_dir,
         state.task_id,

@@ -25,6 +25,7 @@ from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse
 from .capability_enforcement import CapabilityConstraint, enforce_capability_constraints
 from .executor import normalize_executor_name
 from .dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
+from .grounding import build_grounding_evidence, extract_grounding_entries
 from .harness import (
     build_remote_handoff_contract_record,
     build_remote_handoff_contract_report,
@@ -115,6 +116,38 @@ def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint
 
 def _serialize_capability_constraints(constraints: list[CapabilityConstraint]) -> list[dict[str, object]]:
     return [constraint.to_dict() for constraint in constraints]
+
+
+def _load_locked_grounding_evidence(base_dir: Path, state: TaskState) -> dict[str, object] | None:
+    evidence_path = artifacts_dir(base_dir, state.task_id) / "grounding_evidence.json"
+    if not evidence_path.exists():
+        return None
+    try:
+        payload = json.loads(evidence_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _resolve_grounding_state(
+    base_dir: Path,
+    state: TaskState,
+    retrieval_items: list[object],
+) -> tuple[dict[str, object], bool]:
+    if state.grounding_locked:
+        locked_payload = _load_locked_grounding_evidence(base_dir, state)
+        if locked_payload is not None:
+            citations = locked_payload.get("citations", [])
+            state.grounding_refs = [str(item).strip() for item in citations if str(item).strip()]
+            state.grounding_locked = True
+            return locked_payload, True
+
+    grounding_entries = extract_grounding_entries(retrieval_items)
+    grounding_evidence = build_grounding_evidence(grounding_entries)
+    citations = grounding_evidence.get("citations", [])
+    state.grounding_refs = [str(item).strip() for item in citations if str(item).strip()]
+    state.grounding_locked = True
+    return grounding_evidence, False
 
 
 def _apply_execution_topology(
@@ -857,10 +890,14 @@ def run_task(
     executor_name: str | None = None,
     capability_refs: list[str] | None = None,
     route_mode: str | None = None,
+    reset_grounding: bool = False,
 ) -> TaskState:
     state = load_state(base_dir, task_id)
     previous_status = state.status
     previous_phase = state.phase
+    if reset_grounding:
+        state.grounding_refs = []
+        state.grounding_locked = False
     if capability_refs:
         capability_manifest = parse_capability_refs(capability_refs)
         capability_errors = validate_capability_manifest(capability_manifest)
@@ -939,6 +976,8 @@ def run_task(
                 "dispatch_started_at": state.dispatch_started_at,
                 "execution_lifecycle": state.execution_lifecycle,
                 "executor_status": state.executor_status,
+                "grounding_refs": state.grounding_refs,
+                "grounding_locked": state.grounding_locked,
             },
         ),
     )
@@ -966,6 +1005,24 @@ def run_task(
     _set_phase(base_dir, state, "retrieval")
     retrieval_items = run_retrieval(base_dir, state, retrieval_request)
     state.retrieval_count = len(retrieval_items)
+    grounding_evidence, reused_grounding = _resolve_grounding_state(base_dir, state, retrieval_items)
+    save_state(base_dir, state)
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type="grounding.locked",
+            message="Grounding evidence locked for this task run."
+            if not reused_grounding
+            else "Grounding evidence reused from the locked artifact.",
+            payload={
+                "grounding_refs": state.grounding_refs,
+                "grounding_refs_count": len(state.grounding_refs),
+                "grounding_locked": state.grounding_locked,
+                "reused_locked_artifact": reused_grounding,
+            },
+        ),
+    )
 
     state.dispatch_started_at = utc_now()
     state.topology_dispatch_status = (
@@ -1048,7 +1105,7 @@ def run_task(
         stop_policy_result,
         execution_budget_policy_result,
     ) = write_task_artifacts(
-        base_dir, replace(state), retrieval_items, executor_result
+        base_dir, replace(state), retrieval_items, executor_result, grounding_evidence_override=grounding_evidence
     )
 
     state.status = (
@@ -1113,6 +1170,8 @@ def run_task(
                 "knowledge_policy_status": knowledge_policy_result.status,
                 "validation_status": validation_result.status,
                 "staged_candidate_count": len(staged_candidates),
+                "grounding_refs": state.grounding_refs,
+                "grounding_locked": state.grounding_locked,
                 "artifact_paths": state.artifact_paths,
             },
         ),

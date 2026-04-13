@@ -932,6 +932,7 @@ def execute_task_run(
     executor_name: str | None,
     capability_refs: list[str] | None,
     route_mode: str | None,
+    reset_grounding: bool = False,
 ) -> int:
     state = run_task(
         base_dir=base_dir,
@@ -939,6 +940,7 @@ def execute_task_run(
         executor_name=executor_name,
         capability_refs=capability_refs,
         route_mode=route_mode,
+        reset_grounding=reset_grounding,
     )
     print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
     return 0
@@ -1800,7 +1802,7 @@ def main(argv: list[str] | None = None) -> int:
                 f"suggested_path={checkpoint_snapshot.get('recommended_path', 'pending')}"
             )
             return 1
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
+        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode, reset_grounding=True)
 
     if args.command == "task" and args.task_command == "resume":
         state = load_state(base_dir, args.task_id)
@@ -1818,7 +1820,7 @@ def main(argv: list[str] | None = None) -> int:
         return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
 
     if args.command == "task" and args.task_command == "rerun":
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
+        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode, reset_grounding=True)
 
     if args.command == "task" and args.task_command == "list":
         states = sorted(
