@@ -34,15 +34,15 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 28`
-- latest_completed_slice: `Knowledge Promotion & Refinement Baseline`
+- latest_completed_phase: `Phase 29`
+- latest_completed_slice: `Provider Dialect Baseline`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-14`
 
 说明：
 
-- Phase 0 到 Phase 28 已完成并形成稳定 checkpoint
-- 当前默认不再继续扩张已完成的 Phase 28，而应从新的 kickoff 选择下一轮工作。
+- Phase 0 到 Phase 29 已完成并形成稳定 checkpoint
+- 当前默认不再继续扩张已完成的 Phase 29，而应从新的 kickoff 选择下一轮工作。
 
 ---
 
@@ -56,7 +56,7 @@
 
 说明：
 
-- Phase 28 已完成 staged knowledge promotion 的聚合浏览、人工精炼晋升与显式冲突确认闭环。
+- Phase 29 已完成 provider dialect adapter baseline、structured markdown prompt 变体与 operator-facing dialect 可观测性。
 - 下一轮应重新从 `docs/system_tracks.md` 选择方向，再写新的 kickoff 与 breakdown。
 
 ---
@@ -70,10 +70,14 @@
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase28/closeout.md`
+6. `docs/plans/phase29/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase29/context_brief.md`
+- `docs/plans/phase29/design_decision.md`
+- `docs/plans/phase29/risk_assessment.md`
+- `docs/plans/phase29/review_comments.md`
 - `docs/plans/phase28/context_brief.md`
 - `docs/plans/phase28/design_decision.md`
 - `docs/plans/phase28/risk_assessment.md`
@@ -108,6 +112,7 @@
 - Phase 26 仅建立 canonical registry 的 metadata-key dedupe、supersede 提示与 audit baseline，不应误解为系统已经具备语义合并、自动冲突解决或全自动 canonical promotion。
 - Phase 27 仅建立 grounding artifact、grounding 锁定与 operator-facing grounding surface，不应误解为系统已经具备向量 grounding、prompt 直注入 canonical knowledge 或复杂 Agentic RAG。
 - Phase 28 仅建立 staged knowledge promotion 的 CLI 聚合浏览、人工精炼晋升与 supersede 显式确认 baseline，不应误解为系统已经具备自动晋升、批量晋升、语义 dedupe 或复杂 canonical merge workflow。
+- Phase 29 仅建立 provider dialect adapter、structured markdown prompt 变体与 dialect 可观测性 baseline，不应误解为系统已经具备 provider API 直连、runtime dialect negotiation、Claude XML dialect 或更复杂的 provider negotiation pipeline。
 
 ## 当前收口规则
 - 在 phase 或 major slice 收口时，本文件才需要更新。
