@@ -2346,9 +2346,9 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertEqual(final_state.grounding_refs, ["canonical:canonical-grounding-1"])
         self.assertTrue(final_state.grounding_locked)
-        self.assertEqual(events[4]["event_type"], "grounding.locked")
-        self.assertEqual(events[4]["payload"]["grounding_refs"], ["canonical:canonical-grounding-1"])
-        self.assertFalse(events[4]["payload"]["reused_locked_artifact"])
+        grounding_event = next(event for event in events if event["event_type"] == "grounding.locked")
+        self.assertEqual(grounding_event["payload"]["grounding_refs"], ["canonical:canonical-grounding-1"])
+        self.assertFalse(grounding_event["payload"]["reused_locked_artifact"])
 
     def test_run_task_reuses_locked_grounding_on_resume_and_resets_on_rerun(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -6947,6 +6947,7 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
+                grounding_evidence_override: dict[str, object] | None = None,
             ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
                 save_knowledge_objects(
                     _base_dir,
@@ -7030,6 +7031,7 @@ class CliLifecycleTest(unittest.TestCase):
                 state: TaskState,
                 _retrieval_items: list[RetrievalItem],
                 _executor_result: ExecutorResult,
+                grounding_evidence_override: dict[str, object] | None = None,
             ) -> tuple[ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult, ValidationResult]:
                 save_knowledge_objects(
                     _base_dir,
@@ -7567,8 +7569,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(first_events[1]["payload"]["attempt_number"], 1)
         self.assertEqual(first_events[1]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(final_events[18]["payload"]["attempt_id"], "attempt-0002")
-        self.assertEqual(final_events[17]["payload"]["attempt_number"], 2)
-        self.assertEqual(final_events[17]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(final_events[18]["payload"]["attempt_number"], 2)
+        self.assertEqual(final_events[18]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(final_state["run_attempt_count"], 2)
         self.assertEqual(final_state["current_attempt_id"], "attempt-0002")
         self.assertEqual(final_state["current_attempt_number"], 2)
@@ -7992,10 +7994,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Local summary executor completed.", summary)
         self.assertEqual(events[0]["payload"]["executor_name"], "local")
         self.assertEqual(events[0]["payload"]["route_name"], "local-summary")
-        self.assertEqual(events[1]["payload"]["executor_name"], "local")
-        self.assertEqual(events[1]["payload"]["route_name"], "local-summary")
-        self.assertEqual(events[5]["payload"]["executor_name"], "local")
-        self.assertEqual(events[5]["payload"]["route_name"], "local-summary")
+        run_started = next(event for event in events if event["event_type"] == "task.run_started")
+        self.assertEqual(run_started["payload"]["executor_name"], "local")
+        self.assertEqual(run_started["payload"]["route_name"], "local-summary")
+        terminal_event = next(event for event in events if event["event_type"] == "task.completed")
+        self.assertEqual(terminal_event["payload"]["executor_name"], "local")
+        self.assertEqual(terminal_event["payload"]["route_name"], "local-summary")
 
     def test_cli_artifact_commands_print_phase1_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -8348,10 +8352,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(stop_policy["checkpoint_kind"], "detached_completed_run_review")
         self.assertEqual(stop_policy["escalation_level"], "operator_detached_review")
         self.assertIn("detached_completed_run_review", stop_policy_report)
-        self.assertEqual(events[1]["payload"]["route_mode"], "detached")
-        self.assertEqual(events[1]["payload"]["route_name"], "local-mock-detached")
-        self.assertEqual(events[1]["payload"]["route_transport_kind"], "local_detached_process")
-        self.assertEqual(events[5]["payload"]["topology_dispatch_status"], "detached_dispatched")
+        run_started = next(event for event in events if event["event_type"] == "task.run_started")
+        self.assertEqual(run_started["payload"]["route_mode"], "detached")
+        self.assertEqual(run_started["payload"]["route_name"], "local-mock-detached")
+        self.assertEqual(run_started["payload"]["route_transport_kind"], "local_detached_process")
+        terminal_event = next(event for event in events if event["event_type"] == "task.completed")
+        self.assertEqual(terminal_event["payload"]["topology_dispatch_status"], "detached_dispatched")
 
     def test_run_task_route_mode_override_changes_selected_route(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -8482,20 +8488,23 @@ class CliLifecycleTest(unittest.TestCase):
                     citation=".swl/tasks/demo/knowledge_objects.json#knowledge-0001",
                     matched_terms=["verified", "knowledge"],
                     score_breakdown={"content_hits": 2, "rerank_bonus": 3},
-                    metadata={
-                        "adapter_name": "verified_knowledge_records",
-                        "chunk_kind": "knowledge_object",
-                        "knowledge_object_id": "knowledge-0001",
-                        "knowledge_stage": "verified",
-                        "knowledge_reuse_scope": "retrieval_candidate",
-                        "evidence_status": "artifact_backed",
-                        "artifact_ref": ".swl/tasks/demo/artifacts/summary.md",
-                        "source_ref": "chat://knowledge-verified",
-                        "knowledge_task_id": "demo",
-                        "knowledge_task_relation": "cross_task",
-                    },
-                )
-            ]
+                metadata={
+                    "adapter_name": "verified_knowledge_records",
+                    "chunk_kind": "knowledge_object",
+                    "knowledge_object_id": "knowledge-0001",
+                    "knowledge_stage": "verified",
+                    "knowledge_reuse_scope": "retrieval_candidate",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": ".swl/tasks/demo/artifacts/summary.md",
+                    "source_ref": "chat://knowledge-verified",
+                    "knowledge_task_id": "demo",
+                    "knowledge_task_relation": "cross_task",
+                    "storage_scope": "canonical_registry",
+                    "canonical_id": "canonical-demo-knowledge-0001",
+                    "canonical_key": "task-object:demo:knowledge-0001",
+                },
+            )
+        ]
 
             with patch("swallow.harness.retrieve_context", return_value=knowledge_retrieval_items):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
