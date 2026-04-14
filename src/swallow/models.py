@@ -319,6 +319,8 @@ class TaskState:
     dispatch_started_at: str = ""
     execution_lifecycle: str = "idle"
     executor_status: str = "pending"
+    execution_phase: str = "pending"
+    last_phase_checkpoint_at: str = ""
     grounding_refs: list[str] = field(default_factory=list)
     grounding_locked: bool = False
     artifact_paths: dict[str, str] = field(default_factory=dict)
@@ -549,6 +551,8 @@ class CheckpointSnapshotResult:
     checkpoint_state: str
     checkpoint_kind: str
     handoff_status: str
+    execution_phase: str
+    last_phase_checkpoint_at: str
     recovery_semantics: str
     interruption_kind: str
     recommended_path: str
@@ -568,6 +572,8 @@ class CheckpointSnapshotResult:
             "checkpoint_state": self.checkpoint_state,
             "checkpoint_kind": self.checkpoint_kind,
             "handoff_status": self.handoff_status,
+            "execution_phase": self.execution_phase,
+            "last_phase_checkpoint_at": self.last_phase_checkpoint_at,
             "recovery_semantics": self.recovery_semantics,
             "interruption_kind": self.interruption_kind,
             "recommended_path": self.recommended_path,

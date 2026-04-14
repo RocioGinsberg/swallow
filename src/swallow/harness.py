@@ -467,6 +467,8 @@ def write_task_artifacts(
             payload={
                 "status": checkpoint_snapshot_result.status,
                 "checkpoint_state": checkpoint_snapshot_result.checkpoint_state,
+                "execution_phase": checkpoint_snapshot_result.execution_phase,
+                "last_phase_checkpoint_at": checkpoint_snapshot_result.last_phase_checkpoint_at,
                 "recommended_path": checkpoint_snapshot_result.recommended_path,
                 "resume_ready": checkpoint_snapshot_result.resume_ready,
             },
@@ -706,6 +708,8 @@ def build_task_memory(
         "goal": state.goal,
         "phase": state.phase,
         "status": state.status,
+        "execution_phase": state.execution_phase,
+        "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
         "workspace_root": state.workspace_root,
         "task_semantics": state.task_semantics,
         "knowledge_objects": {
