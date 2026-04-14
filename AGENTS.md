@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 27 基线
+- Phase 0 到 Phase 28 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -40,16 +40,15 @@
 当前最近完成的 phase 为：
 
 - **Latest Completed Track**：`Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
-- **Latest Completed Phase**：`Phase 27`
-- **Latest Completed Slice**：`Knowledge-Driven Task Grounding Baseline`
+- **Latest Completed Phase**：`Phase 28`
+- **Latest Completed Slice**：`Knowledge Promotion & Refinement Baseline`
 
-Phase 27 已完成的核心内容包括：
+Phase 28 已完成的核心内容包括：
 
-- 从 canonical retrieval hits 中抽取 grounding evidence artifact
-- 将 grounding refs 与 grounding_locked 落入 TaskState，保证 resume 稳定
-- 在 `inspect` / `review` / `task grounding` 中暴露 grounding 状态与 artifact
-- 保持 grounding 走 artifact 路径，不直接注入 prompt
-- 完成 Phase 27 实现、评审、merge 与 closeout 收口
+- 新增 `task staged` 聚合浏览 staged knowledge queue
+- 为 `knowledge stage-promote` 补齐 `--text` 文本精炼与 `--force` supersede 确认
+- 保持 staged / canonical 核心数据模型不变，仅增强 operator-facing promotion path
+- 完成 Phase 28 实现、评审、merge 与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -195,10 +194,14 @@ Phase 27 已完成的核心内容包括：
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase27/closeout.md`
+6. `docs/plans/phase28/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase28/context_brief.md`
+- `docs/plans/phase28/design_decision.md`
+- `docs/plans/phase28/risk_assessment.md`
+- `docs/plans/phase28/review_comments.md`
 - `docs/plans/phase27/context_brief.md`
 - `docs/plans/phase27/design_decision.md`
 - `docs/plans/phase27/risk_assessment.md`
