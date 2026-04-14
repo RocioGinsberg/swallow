@@ -5,23 +5,19 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - latest_completed_phase: `Phase 27`
 - latest_completed_slice: `Knowledge-Driven Task Grounding Baseline`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`（Phase 27 已收口并合并，等待下一轮新分支）
-- status: `closeout_complete`
+- active_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
+- active_phase: `Phase 28`
+- active_slice: `Knowledge Promotion & Refinement Baseline`
+- active_branch: `main`（等待 design gate 通过后切分支）
+- status: `design_review`
 
 ---
 
 ## 当前状态说明
 
-Phase 27 已完成实现、block 修复、评审、收口并已合并。
+Phase 28 Knowledge Promotion & Refinement Baseline 已完成方案拆解与风险评估，等待人工审批。
 
-当前仓库应视为：
-
-- 已完成一个 retrieval / memory 方向的 grounding baseline phase
-- 不应继续在 Phase 27 名义下扩张范围
-- 下一步应重新选择新的 active track / phase / slice
+源码分析发现 `swl knowledge stage-promote` 已可工作，本轮聚焦补齐易用性缺口：聚合浏览、文本精炼、冲突提示增强。全 slice 低风险（总分 3-4）。
 
 ---
 
@@ -38,8 +34,11 @@ Phase 27 已完成实现、block 修复、评审、收口并已合并。
 ---
 
 ## 当前产出物
-- `docs/roadmap.md` (claude, 2026-04-14) — 跨 phase 蓝图对齐活文档（新增）
+- `docs/roadmap.md` (claude, 2026-04-14) — 跨 phase 蓝图对齐活文档
 - `docs/plans/phase28/design_preview.md` (gemini, 2026-04-14)
+- `docs/plans/phase28/context_brief.md` (gemini, 2026-04-14)
+- `docs/plans/phase28/design_decision.md` (claude, 2026-04-14)
+- `docs/plans/phase28/risk_assessment.md` (claude, 2026-04-14)
 - `docs/plans/phase27/design_preview.md` (gemini, 2026-04-13)
 - `docs/plans/phase27/context_brief.md` (gemini, 2026-04-13)
 - `docs/plans/phase27/design_decision.md` (claude, 2026-04-13)
@@ -59,6 +58,6 @@ Phase 27 已完成实现、block 修复、评审、收口并已合并。
 
 ## 下一步
 
-1. Human 审批方向：从 `docs/roadmap.md` 队列中选定 Phase 28 方向（推荐：Knowledge Promotion & Refinement Baseline）
-2. Gemini 基于选定方向直接产出 `context_brief.md`（常规流程，无需 design_preview）
-3. Claude 产出 `design_decision.md` + `risk_assessment.md`
+等待人工审批 `design_decision.md` 和 `risk_assessment.md`：
+- 通过：Human 从 main 切出 `feat/phase28-knowledge-promotion`，通知 Codex 开始实现
+- 打回：Claude 根据反馈修改方案
