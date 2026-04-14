@@ -35,7 +35,7 @@ status: living-document
 
 | ID | 蓝图愿景 | 当前现状 | 核心差距 | 风险 | 来源 |
 |:---|:---------|:---------|:---------|:-----|:-----|
-| C1-1 | 更成熟的 stop / resume / retry 语义 | 基本 resume/retry 已实现 | checkpoint 粒度较粗 | 低 | `STATE_AND_TRUTH_DESIGN.md` |
+| C1-1 | 更成熟的 stop / resume / retry 语义 | **已消化 (P30)**：phase-level checkpoint、`retry/rerun --from-phase`、checkpoint 可观测性 | — | — | `STATE_AND_TRUTH_DESIGN.md` |
 
 ### Track 4-6
 
@@ -49,11 +49,10 @@ status: living-document
 
 | 优先级 | Phase | Track | Slice 名 | 理由 | 风险批注 | 差距 ID |
 |:-------|:------|:------|:---------|:-----|:---------|:--------|
-| 1 | 30 | Core Loop (Primary) + Workbench (Secondary) | Operator Checkpoint & Selective Retry | Track 1 自项目早期后几乎未专项推进；checkpoint 粒度粗糙限制了 resume/retry 的实用性；P29 dialect 变更后需要验证 resume 路径仍稳定 | 需确认 TaskState 序列化对新增字段 (route_dialect 等) 的兼容性 | C1-1 |
-| 2 | 31 | Retrieval / Memory (Primary) + Core Loop (Secondary) | Initial Agentic RAG Exploration | 执行中动态检索工具；依赖 canonical 知识库有足够内容积累 | 前置条件：canonical 库需有实际使用数据，否则效果难验证；P29 structured_markdown dialect 可能影响 mid-flight retrieval prompt 格式 | R2-4 |
-| 3 | 32 | Execution Topology (Primary) | Provider-Specific Dialect Expansion | 在 P29 adapter 层基础上实现 Claude XML / OpenAI Chat 等 provider-specific dialect | 依赖 P29 baseline 稳定运行一段时间后的反馈 | E3-1(扩展) |
+| 1 | 31 | Retrieval / Memory (Primary) + Core Loop (Secondary) | Initial Agentic RAG Exploration | 执行中动态检索工具；依赖 canonical 知识库有足够内容积累 | 前置条件：canonical 库需有实际使用数据，否则效果难验证；P29 structured_markdown dialect 可能影响 mid-flight retrieval prompt 格式 | R2-4 |
+| 2 | 32 | Execution Topology (Primary) | Provider-Specific Dialect Expansion | 在 P29 adapter 层基础上实现 Claude XML / OpenAI Chat 等 provider-specific dialect | 依赖 P29 baseline 稳定运行一段时间后的反馈 | E3-1(扩展) |
 
-注：队列仅为建议顺序，每轮 phase 启动前由 Human 最终决定。Phase 28-29 已完成，从队列移除。
+注：队列仅为建议顺序，每轮 phase 启动前由 Human 最终决定。Phase 28-30 已完成，从队列移除。
 
 ---
 
@@ -66,6 +65,7 @@ Phase closeout 时将已解决的条目从总表移至此处。
 | R2-1 | Phase 28 | Knowledge Promotion Baseline: `task staged` + `knowledge stage-promote --text/--force` |
 | R2-3 | Phase 28 | 晋升时 `decision_note` + `[refined]` 审计标记，溯源链完整 |
 | E3-1 | Phase 29 | Provider Dialect Baseline: dialect adapter 层、plain_text + structured_markdown、route 持久化与可观测性 |
+| C1-1 | Phase 30 | Operator Checkpoint & Selective Retry: phase-level checkpoint、`retry/rerun --from-phase`、checkpoint 可观测性 |
 | _(Phase 27)_ | Phase 27 | Grounding baseline: canonical retrieval → grounding evidence artifact → task state 锁定 |
 
 ---
