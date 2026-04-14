@@ -8,16 +8,16 @@
 - active_track: `Execution Topology (Primary)`
 - active_phase: `Phase 29`
 - active_slice: `Provider Dialect Baseline`
-- active_branch: `main`
-- status: `design_review`
+- active_branch: `feat/phase29-provider-dialect`
+- status: `implementation_verified`
 
 ---
 
 ## 当前状态说明
 
-Phase 29 Provider Dialect Baseline 已完成方案拆解与风险评估，等待人工审批。
+Phase 29 Provider Dialect Baseline 已完成第一轮实现与测试验证。
 
-核心方案：在 `build_executor_prompt()` 和 executor dispatch 之间插入 dialect adapter 层。4 个 slice，严格顺序依赖，总体中低风险（4-5 分）。
+本轮已在 `build_executor_prompt()` 和 executor dispatch 之间插入 dialect adapter 层，完成 `plain_text` / `structured_markdown` dialect、route dialect 持久化，以及 inspect/review/event 的 dialect 可观测性。
 
 ---
 
@@ -45,6 +45,13 @@ Phase 29 Provider Dialect Baseline 已完成方案拆解与风险评估，等待
 - `docs/plans/phase29/context_brief.md` (gemini, 2026-04-14)
 - `docs/plans/phase29/design_decision.md` (claude, 2026-04-14)
 - `docs/plans/phase29/risk_assessment.md` (claude, 2026-04-14)
+- `src/swallow/models.py` (codex, 2026-04-14) — Phase 29 dialect data model updates
+- `src/swallow/router.py` (codex, 2026-04-14) — Phase 29 route dialect config
+- `src/swallow/executor.py` (codex, 2026-04-14) — Phase 29 dialect adapter implementation
+- `src/swallow/orchestrator.py` (codex, 2026-04-14) — Phase 29 route dialect state sync
+- `src/swallow/harness.py` (codex, 2026-04-14) — Phase 29 prompt artifact/event dialect visibility
+- `src/swallow/cli.py` (codex, 2026-04-14) — Phase 29 inspect/review dialect visibility
+- `tests/test_cli.py` (codex, 2026-04-14) — Phase 29 dialect regression coverage
 
 ## 当前推进
 
@@ -58,10 +65,10 @@ Phase 29 Provider Dialect Baseline 已完成方案拆解与风险评估，等待
 - **[Human]** 已完成 Phase 28 提交、PR 流程与合并。
 - **[Gemini]** 完成 Phase 29 context brief。
 - **[Claude]** 完成 Phase 29 design_decision + risk_assessment，更新 roadmap（消化 P28 差距、更新队列）。
+- **[Codex]** 已完成 Phase 29 第一轮实现：新增 dialect registry、plain_text/structured_markdown dialect、route dialect 持久化、prompt artifact / event / inspect / review 的 dialect 可观测性。
+- **[Codex]** 已完成测试验证：`.venv/bin/python -m pytest tests/test_cli.py` → `180 passed in 4.54s`。
 
 ## 下一步
 
-等待人工审批 `design_decision.md` 和 `risk_assessment.md`：
-- 通过：Human 从 main 切出 `feat/phase29-provider-dialect`，通知 Codex 开始实现
-- 打回：Claude 根据反馈修改方案
-
+- **[Human]** 审查 Phase 29 当前 diff，并执行实现提交
+- **[Codex]** 在人工审查后继续整理 review / closeout / PR 材料

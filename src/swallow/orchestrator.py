@@ -23,7 +23,7 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .capability_enforcement import CapabilityConstraint, enforce_capability_constraints
-from .executor import normalize_executor_name
+from .executor import normalize_executor_name, resolve_dialect_name
 from .dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
 from .grounding import build_grounding_evidence, extract_grounding_entries
 from .harness import (
@@ -296,6 +296,7 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
     state.route_taxonomy_role = route_selection.route.taxonomy.system_role
     state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
     state.route_model_hint = route_selection.route.model_hint
+    state.route_dialect = resolve_dialect_name(route_selection.route.dialect_hint, route_selection.route.model_hint)
     state.route_reason = "Operator acknowledged blocked dispatch and forced a local execution path."
     state.route_capabilities = route_selection.route.capabilities.to_dict()
     applied_constraints = _apply_capability_enforcement(state)
@@ -323,6 +324,7 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
                 "route_name": state.route_name,
                 "route_execution_site": state.route_execution_site,
                 "route_transport_kind": state.route_transport_kind,
+                "route_dialect": state.route_dialect,
                 "route_capabilities": state.route_capabilities,
                 "capability_constraints_applied": _serialize_capability_constraints(applied_constraints),
                 "topology_dispatch_status": state.topology_dispatch_status,
@@ -398,6 +400,7 @@ def create_task(
     state.route_taxonomy_role = initial_route.route.taxonomy.system_role
     state.route_taxonomy_memory_authority = initial_route.route.taxonomy.memory_authority
     state.route_model_hint = initial_route.route.model_hint
+    state.route_dialect = resolve_dialect_name(initial_route.route.dialect_hint, initial_route.route.model_hint)
     state.route_reason = initial_route.reason
     state.route_capabilities = initial_route.route.capabilities.to_dict()
     _apply_execution_topology(state, dispatch_status="not_requested")
@@ -920,6 +923,7 @@ def run_task(
     state.route_taxonomy_role = route_selection.route.taxonomy.system_role
     state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
     state.route_model_hint = route_selection.route.model_hint
+    state.route_dialect = resolve_dialect_name(route_selection.route.dialect_hint, route_selection.route.model_hint)
     state.route_reason = route_selection.reason
     original_route_capabilities = route_selection.route.capabilities.to_dict()
     state.route_capabilities = dict(original_route_capabilities)
@@ -952,6 +956,7 @@ def run_task(
                 "route_execution_site": state.route_execution_site,
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
+                "route_dialect": state.route_dialect,
                 "route_reason": state.route_reason,
                 "route_capabilities": state.route_capabilities,
                 "attempt_id": state.current_attempt_id,
@@ -1138,6 +1143,7 @@ def run_task(
                 "route_execution_site": state.route_execution_site,
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
+                "route_dialect": state.route_dialect,
                 "route_reason": state.route_reason,
                 "route_capabilities": state.route_capabilities,
                 "attempt_id": state.current_attempt_id,

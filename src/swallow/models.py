@@ -47,6 +47,16 @@ class RouteCapabilities:
         )
 
 
+@dataclass(slots=True)
+class DialectSpec:
+    name: str
+    description: str
+    supported_model_hints: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def utc_now() -> str:
     return datetime.now(UTC).replace(microsecond=0).isoformat()
 
@@ -283,6 +293,7 @@ class TaskState:
     route_taxonomy_role: str = ""
     route_taxonomy_memory_authority: str = ""
     route_model_hint: str = "codex"
+    route_dialect: str = "plain_text"
     route_reason: str = "Default local Codex route."
     route_capabilities: dict[str, Any] = field(default_factory=dict)
     topology_route_name: str = "local-codex"
@@ -375,6 +386,7 @@ class ExecutorResult:
     message: str
     output: str = ""
     prompt: str = ""
+    dialect: str = "plain_text"
     failure_kind: str = ""
     stdout: str = ""
     stderr: str = ""
@@ -651,6 +663,7 @@ class RouteSpec:
     executor_name: str
     backend_kind: str
     model_hint: str
+    dialect_hint: str = ""
     executor_family: str = "cli"
     execution_site: str = "local"
     remote_capable: bool = False
