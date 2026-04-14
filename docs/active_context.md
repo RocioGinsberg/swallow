@@ -9,15 +9,15 @@
 - active_phase: `Phase 29`
 - active_slice: `Provider Dialect Baseline`
 - active_branch: `feat/phase29-provider-dialect`
-- status: `implementation_verified`
+- status: `review_complete`
 
 ---
 
 ## 当前状态说明
 
-Phase 29 Provider Dialect Baseline 已完成第一轮实现与测试验证。
+Phase 29 Provider Dialect Baseline 已完成实现、测试与 review。
 
-本轮已在 `build_executor_prompt()` 和 executor dispatch 之间插入 dialect adapter 层，完成 `plain_text` / `structured_markdown` dialect、route dialect 持久化，以及 inspect/review/event 的 dialect 可观测性。
+本轮已在 `build_executor_prompt()` 和 executor dispatch 之间插入 dialect adapter 层，完成 `plain_text` / `structured_markdown` dialect、route dialect 持久化，以及 inspect/review/event 的 dialect 可观测性。当前已进入人工提交 / PR 阶段。
 
 ---
 
@@ -30,7 +30,7 @@ Phase 29 Provider Dialect Baseline 已完成第一轮实现与测试验证。
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase28/closeout.md`
+6. `docs/plans/phase29/closeout.md`
 
 ---
 
@@ -45,6 +45,9 @@ Phase 29 Provider Dialect Baseline 已完成第一轮实现与测试验证。
 - `docs/plans/phase29/context_brief.md` (gemini, 2026-04-14)
 - `docs/plans/phase29/design_decision.md` (claude, 2026-04-14)
 - `docs/plans/phase29/risk_assessment.md` (claude, 2026-04-14)
+- `docs/plans/phase29/review_comments.md` (claude, 2026-04-14)
+- `docs/plans/phase29/closeout.md` (codex, 2026-04-14) — Phase 29 closeout
+- `pr.md` (codex, 2026-04-14) — PR body draft for Human
 - `src/swallow/models.py` (codex, 2026-04-14) — Phase 29 dialect data model updates
 - `src/swallow/router.py` (codex, 2026-04-14) — Phase 29 route dialect config
 - `src/swallow/executor.py` (codex, 2026-04-14) — Phase 29 dialect adapter implementation
@@ -66,9 +69,11 @@ Phase 29 Provider Dialect Baseline 已完成第一轮实现与测试验证。
 - **[Gemini]** 完成 Phase 29 context brief。
 - **[Claude]** 完成 Phase 29 design_decision + risk_assessment，更新 roadmap（消化 P28 差距、更新队列）。
 - **[Codex]** 已完成 Phase 29 第一轮实现：新增 dialect registry、plain_text/structured_markdown dialect、route dialect 持久化、prompt artifact / event / inspect / review 的 dialect 可观测性。
-- **[Codex]** 已完成测试验证：`.venv/bin/python -m pytest tests/test_cli.py` → `180 passed in 4.54s`。
+- **[Codex]** 已完成测试验证：`.venv/bin/python -m pytest tests/test_cli.py` → `180 passed in 5.08s`。
+- **[Claude]** 已完成 Phase 29 PR review，结论：**Merge ready**，无 BLOCK，1 个 CONCERN 已登记 backlog。
+- **[Codex]** 已完成 Phase 29 `closeout.md` 与 `pr.md` 整理。
 
 ## 下一步
 
-- **[Human]** 审查 Phase 29 当前 diff，并执行实现提交
-- **[Codex]** 在人工审查后继续整理 review / closeout / PR 材料
+- **[Human]** 审查 Phase 29 当前 diff，执行提交，并基于 `pr.md` 创建或更新 PR
+- **[Codex]** 在人工提交或 PR 状态变化后继续同步 `docs/active_context.md`，并在 merge 后更新 post-phase 指针
