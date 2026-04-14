@@ -317,6 +317,8 @@ Phase 29 已完成的核心内容包括：
 - git 提交由人工执行，Codex 只在对话中给出建议命令
 - commit 应按 slice 拆分；每完成一个 slice，Codex 都应给出一次提交建议
 - 每个 slice 的默认节奏为：Codex 实现并验证 → Human 审查当前 diff → Human 执行该 slice commit
+- 如某轮 phase 已明确拆为多个 slices，则必须逐 slice 提交；禁止将多个 slices 的实现、测试和状态同步压成一次大包 commit
+- 如某个 slice 尚未完成独立验证，则不得提前合并进下一个 slice 的提交范围
 - 需要发起 PR 时，Codex 负责将 PR 文案整理到仓库根目录 `./pr.md`，Human 先 push branch，再据此创建 PR
 - PR 创建后如 review 结论或实现内容变化，Codex 应继续更新 `./pr.md`，Human 再决定是否同步到 PR 描述
 

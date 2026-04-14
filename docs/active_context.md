@@ -5,19 +5,24 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - latest_completed_phase: `Phase 29`
 - latest_completed_slice: `Provider Dialect Baseline`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`
-- status: `kickoff_ready`
+- active_track: `Core Loop` (Primary) + `Workbench / UX` (Secondary)
+- active_phase: `Phase 30`
+- active_slice: `Operator Checkpoint & Selective Retry`
+- active_branch: `feat/phase30-checkpoint-selective-retry`
+- status: `pr_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 29 `Provider Dialect Baseline` 已完成实现、评审、合并与 closeout。
+Phase 30 Operator Checkpoint & Selective Retry 已完成实现、review 与收口材料整理，当前进入 PR / merge 准备。
 
-当前仓库默认不再继续扩张已完成的 Phase 29，而应回到 roadmap / track 选择流程，从新的 kickoff 决定下一轮正式 phase。
+本轮高风险面集中在 Slice 2：`run_task()` selective retry 跳阶段恢复。当前实现已补齐状态持久化、CLI 入口、checkpoint 可视化与回退测试；Claude review 结论为 **Merge ready**。
+
+Phase 30 的 git 节奏要求额外强调如下：
+- 本轮按 Slice 1 / Slice 2 / Slice 3 分 3 次 commit
+- 每个 slice 完成后先审查并提交，再进入下一个 slice
+- 禁止把 3 个 slices 压成一次大包上传
 
 ---
 
@@ -35,24 +40,30 @@ Phase 29 `Provider Dialect Baseline` 已完成实现、评审、合并与 closeo
 ---
 
 ## 当前产出物
-- `docs/roadmap.md` (claude, 2026-04-14) — 跨 phase 蓝图对齐活文档
-- `docs/plans/phase29/context_brief.md` (gemini, 2026-04-14)
-- `docs/plans/phase29/design_decision.md` (claude, 2026-04-14)
-- `docs/plans/phase29/risk_assessment.md` (claude, 2026-04-14)
-- `docs/plans/phase29/review_comments.md` (claude, 2026-04-14)
-- `docs/plans/phase29/closeout.md` (codex, 2026-04-14) — Phase 29 final closeout
+- `docs/roadmap.md` (claude, 2026-04-14) — 跨 phase 蓝图对齐活文档（已更新 P29 消化 + 新队列）
+- `docs/plans/phase30/design_decision.md` (claude, 2026-04-14)
+- `docs/plans/phase30/risk_assessment.md` (claude, 2026-04-14)
+- `docs/plans/phase30/review_comments.md` (claude, 2026-04-14)
+- `docs/plans/phase30/closeout.md` (codex, 2026-04-14)
+- `pr.md` (codex, 2026-04-14)
+- `src/swallow/orchestrator.py` (codex, 2026-04-14)
+- `src/swallow/cli.py` (codex, 2026-04-14)
+- `src/swallow/models.py` (codex, 2026-04-14)
+- `src/swallow/checkpoint_snapshot.py` (codex, 2026-04-14)
+- `src/swallow/harness.py` (codex, 2026-04-14)
+- `tests/test_cli.py` (codex, 2026-04-14)
 
 ## 当前推进
 
 已完成：
 
-- **[Gemini]** 完成 Phase 29 context brief。
-- **[Claude]** 完成 Phase 29 design / risk / review 文档，并维护 roadmap。
-- **[Codex]** 完成 Phase 29 dialect adapter 实现、测试验证、`closeout.md` 与 `pr.md` 整理。
-- **[Human]** 已完成 Phase 29 提交、PR 流程与合并。
+- **[Claude]** 更新 roadmap（消化 E3-1、新增 Phase 30-32 队列）并完成 Phase 30 design_decision + risk_assessment。
+- **[Codex]** 完成 Slice 1-3 首轮实现：新增 `execution_phase` / `last_phase_checkpoint_at`、`task.phase_checkpoint` 事件、`task retry|rerun --from-phase` selective retry、缺失 artifact fallback、`inspect` / `review` / `checkpoint_snapshot` 可视化。
+- **[Codex]** 补齐 CLI 回归测试并通过 `tests/test_cli.py` 全量验证。
+- **[Claude]** 完成 Phase 30 PR review，结论：**Merge ready**，无 BLOCK，无 CONCERN。
+- **[Codex]** 已整理 `docs/plans/phase30/closeout.md` 与 `pr.md`，PR 收口材料齐备。
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` 选择下一轮 track / phase 方向
-- **[Claude/Gemini]** 为新 phase 产出新的 context_brief / design_decision / risk_assessment
-- **[Codex]** 在新 design gate 通过并切出 feature branch 后开始下一轮实现
+- **[Human]** push 当前 feature branch，使用 `pr.md` 创建或更新 PR
+- **[Human]** 确认 `review_comments.md` / `closeout.md` / `pr.md` 一致后执行 merge
