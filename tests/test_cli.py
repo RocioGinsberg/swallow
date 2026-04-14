@@ -23,9 +23,11 @@ from swallow.capabilities import (
 )
 from swallow.execution_fit import build_execution_fit_report, evaluate_execution_fit
 from swallow.executor import (
+    build_formatted_executor_prompt,
     build_fallback_output,
     classify_failure_kind,
     normalize_executor_name,
+    resolve_dialect_name,
     resolve_executor_name,
     run_codex_executor,
 )
@@ -7581,6 +7583,43 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(normalize_executor_name("note_only"), "note-only")
         self.assertEqual(normalize_executor_name("unknown-executor"), "codex")
 
+    def test_resolve_dialect_name_prefers_route_hint_and_falls_back_to_plain_text(self) -> None:
+        self.assertEqual(resolve_dialect_name("structured_markdown", "codex"), "structured_markdown")
+        self.assertEqual(resolve_dialect_name("", "mock"), "plain_text")
+        self.assertEqual(resolve_dialect_name("", "unknown-provider"), "plain_text")
+
+    def test_build_formatted_executor_prompt_uses_structured_markdown_for_codex_route(self) -> None:
+        state = TaskState(
+            task_id="dialect123",
+            title="Dialect formatting",
+            goal="Format executor prompt with provider dialect",
+            workspace_root="/tmp",
+            route_name="local-codex",
+            route_backend="local_cli",
+            route_model_hint="codex",
+            route_dialect="structured_markdown",
+        )
+        retrieval_items = [
+            RetrievalItem(
+                path="notes.md",
+                source_type="notes",
+                score=3,
+                preview="Dialect-sensitive context preview.",
+                citation="notes.md#L1-L2",
+                title="Notes",
+            )
+        ]
+
+        prompt = build_formatted_executor_prompt(state, retrieval_items)
+
+        self.assertIn("# Swallow Executor Task", prompt)
+        self.assertIn("## Task", prompt)
+        self.assertIn("## Route", prompt)
+        self.assertIn("## Retrieved Context", prompt)
+        self.assertIn("## Instructions", prompt)
+        self.assertIn("- route_dialect: structured_markdown", prompt)
+        self.assertIn("- [notes] notes.md#L1-L2 title=Notes: Dialect-sensitive context preview.", prompt)
+
     def test_resolve_executor_name_prefers_state_over_legacy_env(self) -> None:
         state = TaskState(
             task_id="executor123",
@@ -7620,6 +7659,24 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(persisted["route_taxonomy_role"], "general-executor")
         self.assertEqual(persisted["route_taxonomy_memory_authority"], "task-state")
         self.assertEqual(persisted["route_capabilities"]["execution_kind"], "artifact_generation")
+
+    def test_create_task_persists_route_dialect_for_default_codex_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            state = create_task(
+                base_dir=base_dir,
+                title="Route dialect",
+                goal="Persist route dialect on create",
+                workspace_root=base_dir,
+            )
+
+            persisted = json.loads(
+                (base_dir / ".swl" / "tasks" / state.task_id / "state.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(state.route_name, "local-codex")
+        self.assertEqual(state.route_dialect, "structured_markdown")
+        self.assertEqual(persisted["route_dialect"], "structured_markdown")
 
     def test_select_route_uses_override_before_legacy_mode(self) -> None:
         state = TaskState(
@@ -8451,6 +8508,59 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Route Transport Kind: local_process", second_prompt)
         self.assertIn("source_grounding.md", second_prompt)
         self.assertIn("memory.json", second_prompt)
+
+    def test_provider_dialect_is_visible_in_prompt_artifact_events_inspect_and_review(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            notes = tmp_path / "notes.md"
+            notes.write_text("# Notes\n\nprovider dialect prompt\n", encoding="utf-8")
+
+            with patch.dict(
+                "os.environ",
+                {"AIWF_CODEX_BIN": "definitely-not-a-real-codex-binary", "AIWF_EXECUTOR_MODE": "codex"},
+                clear=False,
+            ):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Provider dialect",
+                            "--goal",
+                            "Expose dialect metadata to operators",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            prompt = (task_dir / "artifacts" / "executor_prompt.md").read_text(encoding="utf-8")
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            inspect_stdout = StringIO()
+            review_stdout = StringIO()
+            with redirect_stdout(inspect_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
+            with redirect_stdout(review_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
+
+        executor_event = next(event for event in events if event["event_type"] == "executor.failed")
+        self.assertTrue(prompt.startswith("dialect: structured_markdown\n\n"))
+        self.assertIn("# Swallow Executor Task", prompt)
+        self.assertIn("## Task", prompt)
+        self.assertEqual(executor_event["payload"]["dialect"], "structured_markdown")
+        self.assertIn("dialect: structured_markdown", inspect_stdout.getvalue())
+        self.assertIn("dialect: structured_markdown", review_stdout.getvalue())
 
     def test_reused_verified_knowledge_is_visible_in_retrieval_memory_and_rerun_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

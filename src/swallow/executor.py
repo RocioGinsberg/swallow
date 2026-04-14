@@ -7,8 +7,9 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Protocol
 
-from .models import ExecutorResult, RetrievalItem, TaskState
+from .models import DialectSpec, ExecutorResult, RetrievalItem, TaskState
 from .knowledge_objects import (
     summarize_canonicalization,
     summarize_knowledge_evidence,
@@ -35,6 +36,173 @@ EXECUTOR_ALIASES = {
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
 
 
+class DialectAdapter(Protocol):
+    spec: DialectSpec
+
+    def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str: ...
+
+
+class PlainTextDialect:
+    spec = DialectSpec(
+        name="plain_text",
+        description="Default identity transform for existing plain text executor prompts.",
+        supported_model_hints=["codex", "mock", "mock-remote", "local"],
+    )
+
+    def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+        return raw_prompt
+
+
+class StructuredMarkdownDialect:
+    spec = DialectSpec(
+        name="structured_markdown",
+        description="Markdown-first executor prompt layout for providers that respond well to sectioned prompts.",
+        supported_model_hints=[],
+    )
+
+    def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+        lines = [
+            "# Swallow Executor Task",
+            "",
+            "## Task",
+            f"- task_id: {state.task_id}",
+            f"- title: {state.title}",
+            f"- goal: {state.goal}",
+            f"- executor: {resolve_executor_name(state)}",
+            "",
+            "## Route",
+            f"- route_mode: {state.route_mode or 'auto'}",
+            f"- route_name: {state.route_name or 'pending'}",
+            f"- route_backend: {state.route_backend or 'pending'}",
+            f"- route_executor_family: {state.route_executor_family or 'pending'}",
+            f"- route_execution_site: {state.route_execution_site or 'pending'}",
+            f"- route_remote_capable: {'yes' if state.route_remote_capable else 'no'}",
+            f"- route_transport_kind: {state.route_transport_kind or 'pending'}",
+            f"- route_model_hint: {state.route_model_hint or 'pending'}",
+            f"- route_dialect: {state.route_dialect or 'plain_text'}",
+            f"- route_capabilities: {format_route_capabilities(state.route_capabilities)}",
+            "",
+        ]
+        semantics = state.task_semantics or {}
+        if semantics:
+            lines.extend(
+                [
+                    "## Task Semantics",
+                    f"- source_kind: {semantics.get('source_kind', 'unknown')}",
+                    f"- source_ref: {semantics.get('source_ref', '') or 'none'}",
+                ]
+            )
+            for label, key in [
+                ("constraints", "constraints"),
+                ("acceptance_criteria", "acceptance_criteria"),
+                ("priority_hints", "priority_hints"),
+                ("next_action_proposals", "next_action_proposals"),
+            ]:
+                values = semantics.get(key, [])
+                if values:
+                    lines.append(f"- {label}: {'; '.join(values)}")
+            lines.append("")
+
+        knowledge_objects = state.knowledge_objects or []
+        if knowledge_objects:
+            stage_counts = summarize_knowledge_stages(knowledge_objects)
+            evidence_counts = summarize_knowledge_evidence(knowledge_objects)
+            reuse_counts = summarize_knowledge_reuse(knowledge_objects)
+            canonicalization_counts = summarize_canonicalization(knowledge_objects)
+            lines.extend(
+                [
+                    "## Knowledge",
+                    f"- count: {len(knowledge_objects)}",
+                    f"- raw: {stage_counts.get('raw', 0)}",
+                    f"- candidate: {stage_counts.get('candidate', 0)}",
+                    f"- verified: {stage_counts.get('verified', 0)}",
+                    f"- canonical: {stage_counts.get('canonical', 0)}",
+                    f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
+                    f"- source_only: {evidence_counts.get('source_only', 0)}",
+                    f"- unbacked: {evidence_counts.get('unbacked', 0)}",
+                    f"- retrieval_candidate: {reuse_counts.get('retrieval_candidate', 0)}",
+                    f"- canonicalization_review_ready: {canonicalization_counts.get('review_ready', 0)}",
+                    f"- canonicalization_promotion_ready: {canonicalization_counts.get('promotion_ready', 0)}",
+                    f"- canonicalization_blocked: {canonicalization_counts.get('blocked_stage', 0) + canonicalization_counts.get('blocked_evidence', 0)}",
+                ]
+            )
+            top_items = [item.get("text", "") for item in knowledge_objects[:3]]
+            if top_items:
+                lines.append(f"- top_items: {'; '.join(item for item in top_items if item)}")
+            lines.append("")
+
+        reused_knowledge = summarize_reused_knowledge(retrieval_items)
+        if reused_knowledge["count"] > 0:
+            lines.extend(
+                [
+                    "## Reused Verified Knowledge",
+                    f"- count: {reused_knowledge['count']}",
+                    f"- references: {', '.join(reused_knowledge['references'])}",
+                    "",
+                ]
+            )
+
+        previous_memory_artifacts = [
+            state.artifact_paths.get("task_memory", ""),
+            state.artifact_paths.get("source_grounding", ""),
+            state.artifact_paths.get("summary", ""),
+            state.artifact_paths.get("resume_note", ""),
+        ]
+        previous_memory_artifacts = [path for path in previous_memory_artifacts if path]
+        if previous_memory_artifacts:
+            lines.extend(
+                [
+                    "## Prior Persisted Context",
+                    *[f"- {path}" for path in previous_memory_artifacts],
+                    "",
+                ]
+            )
+
+        prior_retrieval_snapshot = load_prior_retrieval_snapshot(state)
+        if prior_retrieval_snapshot is not None:
+            lines.extend(
+                [
+                    "## Prior Retrieval Memory",
+                    f"- previous_retrieval_count: {prior_retrieval_snapshot['count']}",
+                    f"- previous_top_references: {prior_retrieval_snapshot['top_references']}",
+                    f"- previous_reused_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_count']}",
+                    f"- previous_reused_current_task_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_current_task_count']}",
+                    f"- previous_reused_cross_task_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_cross_task_count']}",
+                    f"- previous_reused_knowledge_references: {prior_retrieval_snapshot['reused_knowledge_references']}",
+                    f"- previous_grounding_artifact: {prior_retrieval_snapshot['grounding_artifact']}",
+                    f"- previous_retrieval_record: {prior_retrieval_snapshot['retrieval_record_path']}",
+                    "",
+                ]
+            )
+
+        lines.append("## Retrieved Context")
+        if retrieval_items:
+            for item in retrieval_items:
+                lines.append(
+                    f"- [{item.source_type}] {item.reference()} title={item.display_title()}: {item.preview}"
+                )
+        else:
+            lines.append("- No retrieval matches were found.")
+
+        lines.extend(
+            [
+                "",
+                "## Instructions",
+                "1. Return what you would do next.",
+                "2. Call out the main risks or gaps.",
+                "3. End with the first concrete implementation action.",
+                "Do not assume hidden context outside the provided task and retrieved sources.",
+            ]
+        )
+        return "\n".join(lines)
+
+
+BUILTIN_DIALECTS: dict[str, DialectAdapter] = {
+    "plain_text": PlainTextDialect(),
+    "structured_markdown": StructuredMarkdownDialect(),
+}
+
+
 def normalize_executor_name(raw_name: str | None) -> str:
     normalized = (raw_name or "").strip().lower()
     return EXECUTOR_ALIASES.get(normalized, DEFAULT_EXECUTOR)
@@ -48,6 +216,21 @@ def resolve_executor_name(state: TaskState) -> str:
     return legacy_mode
 
 
+def resolve_dialect_name(dialect_hint: str | None = None, model_hint: str | None = None) -> str:
+    normalized_hint = (dialect_hint or "").strip()
+    if normalized_hint in BUILTIN_DIALECTS:
+        return normalized_hint
+    normalized_model_hint = (model_hint or "").strip()
+    for name, adapter in BUILTIN_DIALECTS.items():
+        if normalized_model_hint in adapter.spec.supported_model_hints:
+            return name
+    return "plain_text"
+
+
+def resolve_dialect(dialect_hint: str | None = None, model_hint: str | None = None) -> DialectAdapter:
+    return BUILTIN_DIALECTS[resolve_dialect_name(dialect_hint=dialect_hint, model_hint=model_hint)]
+
+
 def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
     if state.route_transport_kind == "local_detached_process" and os.environ.get(DETACHED_CHILD_ENV) != "1":
         return run_detached_executor(state, retrieval_items)
@@ -56,21 +239,24 @@ def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> Exec
 
 def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
     executor_name = resolve_executor_name(state)
-    prompt = build_executor_prompt(state, retrieval_items)
+    prompt = build_formatted_executor_prompt(state, retrieval_items)
 
     if executor_name == "mock":
-        return run_mock_executor(prompt)
-    if executor_name == "mock-remote":
-        return run_mock_remote_executor(state, retrieval_items, prompt)
-    if executor_name == "note-only":
-        return run_note_only_executor(state, retrieval_items, prompt)
-    if executor_name == "local":
-        return run_local_executor(state, retrieval_items, prompt)
-    return run_codex_executor(state, retrieval_items, prompt)
+        result = run_mock_executor(prompt)
+    elif executor_name == "mock-remote":
+        result = run_mock_remote_executor(state, retrieval_items, prompt)
+    elif executor_name == "note-only":
+        result = run_note_only_executor(state, retrieval_items, prompt)
+    elif executor_name == "local":
+        result = run_local_executor(state, retrieval_items, prompt)
+    else:
+        result = run_codex_executor(state, retrieval_items, prompt)
+    result.dialect = state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint)
+    return result
 
 
 def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
-    prompt = build_executor_prompt(state, retrieval_items)
+    prompt = build_formatted_executor_prompt(state, retrieval_items)
     with tempfile.TemporaryDirectory(prefix="swallow-detached-") as tmp:
         tmp_path = Path(tmp)
         state_json = tmp_path / "state.json"
@@ -112,6 +298,7 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
                 message="Detached local executor child process failed.",
                 output="",
                 prompt=prompt,
+                dialect=state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint),
                 failure_kind="launch_error",
                 stdout=completed.stdout,
                 stderr=completed.stderr,
@@ -125,6 +312,7 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
                 message="Detached local executor did not return a readable result.",
                 output="",
                 prompt=prompt,
+                dialect=state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint),
                 failure_kind="generic_failure",
                 stdout=completed.stdout,
                 stderr=f"{completed.stderr}\n{exc}".strip(),
@@ -405,6 +593,14 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
         ]
     )
     return "\n".join(lines)
+
+
+def build_formatted_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+    raw_prompt = build_executor_prompt(state, retrieval_items)
+    dialect_name = resolve_dialect_name(getattr(state, "route_dialect", ""), state.route_model_hint)
+    state.route_dialect = dialect_name
+    adapter = resolve_dialect(dialect_name, state.route_model_hint)
+    return adapter.format_prompt(raw_prompt, state, retrieval_items)
 
 
 def load_prior_retrieval_snapshot(state: TaskState) -> dict[str, str] | None:

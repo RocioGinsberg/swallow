@@ -92,7 +92,9 @@ def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -
 
 def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
     executor_result = run_executor(state, retrieval_items)
-    write_artifact(base_dir, state.task_id, "executor_prompt.md", executor_result.prompt)
+    prompt_body = executor_result.prompt
+    prompt_with_dialect = f"dialect: {executor_result.dialect or state.route_dialect or 'plain_text'}\n\n{prompt_body}"
+    write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt_with_dialect)
     write_artifact(base_dir, state.task_id, "executor_output.md", executor_result.output or executor_result.message)
     write_artifact(base_dir, state.task_id, "executor_stdout.txt", executor_result.stdout)
     write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
@@ -112,6 +114,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                 "route_execution_site": state.route_execution_site,
                 "route_remote_capable": state.route_remote_capable,
                 "route_transport_kind": state.route_transport_kind,
+                "route_dialect": state.route_dialect,
                 "route_capabilities": state.route_capabilities,
                 "attempt_id": state.current_attempt_id,
                 "attempt_number": state.current_attempt_number,
@@ -134,6 +137,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                 "dispatch_requested_at": state.dispatch_requested_at,
                 "dispatch_started_at": state.dispatch_started_at,
                 "execution_lifecycle": state.execution_lifecycle,
+                "dialect": executor_result.dialect or state.route_dialect,
                 "failure_kind": executor_result.failure_kind,
                 "output_written": [
                     "executor_prompt.md",
@@ -852,6 +856,7 @@ def build_route_record(state: TaskState) -> dict[str, object]:
         "remote_capable": state.route_remote_capable,
         "transport_kind": state.route_transport_kind,
         "model_hint": state.route_model_hint,
+        "dialect": state.route_dialect,
         "reason": state.route_reason,
         "capabilities": state.route_capabilities,
     }
@@ -870,6 +875,7 @@ def build_route_report(state: TaskState) -> str:
             f"- remote_capable: {'yes' if state.route_remote_capable else 'no'}",
             f"- transport_kind: {state.route_transport_kind}",
             f"- model_hint: {state.route_model_hint}",
+            f"- dialect: {state.route_dialect}",
             f"- reason: {state.route_reason}",
             f"- capabilities: {format_route_capabilities(state.route_capabilities)}",
         ]
@@ -1454,6 +1460,7 @@ def build_summary(
         f"- route_remote_capable: {state.route_remote_capable}",
         f"- route_transport_kind: {state.route_transport_kind}",
         f"- route_model_hint: {state.route_model_hint}",
+        f"- route_dialect: {state.route_dialect}",
         f"- route_reason: {state.route_reason}",
         f"- route_capabilities: {format_route_capabilities(state.route_capabilities)}",
         f"- route_report_artifact: {state.artifact_paths.get('route_report', '') or 'pending'}",

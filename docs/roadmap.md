@@ -18,9 +18,9 @@ status: living-document
 
 | ID | 蓝图愿景 | 当前现状 | 核心差距 | 风险 | 来源 |
 |:---|:---------|:---------|:---------|:-----|:-----|
-| R2-1 | Staged → Canonical 显式晋升路径 | Staged pipeline 存在 (P24)，但知识"只进不出" | 缺乏 promotion 触发机制和 operator 审查界面 | 高 | `ARCHITECTURE.md` — Self-Evolution |
-| R2-2 | Graph RAG & 混合图谱：知识具备实体关系和引用链 | 知识对象缺乏跨任务关联审计 | 晋升过程无精炼/去重策略 | 中 | `KNOWLEDGE_AND_RAG_DESIGN.md` |
-| R2-3 | 单一事实源：Canonical 记录具备完整溯源 | Staged 有 `source_task_id`，但晋升决策证据链不足 | Registry 需显式 `decision_note` | 低 | `STATE_AND_TRUTH_DESIGN.md` |
+| R2-1 | Staged → Canonical 显式晋升路径 | **已消化 (P28)**：`task staged` + `knowledge stage-promote --text/--force` | — | — | `ARCHITECTURE.md` — Self-Evolution |
+| R2-2 | Graph RAG & 混合图谱：知识具备实体关系和引用链 | 知识对象缺乏跨任务关联审计 | 晋升过程无精炼/去重策略（P28 补齐了基础精炼） | 中 | `KNOWLEDGE_AND_RAG_DESIGN.md` |
+| R2-3 | 单一事实源：Canonical 记录具备完整溯源 | **已消化 (P28)**：晋升时 `decision_note` + `[refined]` 审计标记 | — | — | `STATE_AND_TRUTH_DESIGN.md` |
 | R2-4 | 执行中动态检索 (Mid-flight Retrieval) | 仅支持 pre-execution retrieval | 无 agentic mid-flight retrieval 工具 | 中 | `KNOWLEDGE_AND_RAG_DESIGN.md` |
 | R2-5 | 向量/语义检索 | 仅关键词匹配 | 无 embedding 或语义搜索 | 低(非近期) | `ARCHITECTURE.md` |
 
@@ -47,13 +47,12 @@ status: living-document
 
 按优先级排序。每条含 track、slice 名、一句话理由、依赖的差距 ID。
 
-| 优先级 | Phase | Track | Slice 名 | 理由 | 差距 ID |
-|:-------|:------|:------|:---------|:-----|:--------|
-| 1 | 28 | Retrieval / Memory (Primary) + Workbench (Secondary) | Knowledge Promotion & Refinement Baseline | 打通 staged→canonical 晋升，解决知识"只进不出"瓶颈 | R2-1, R2-3 |
-| 2 | 29 | Execution Topology (Primary) | Provider Dialect Baseline | 引入 provider-native prompt 格式适配 | E3-1 |
-| 3 | 30 | Retrieval / Memory (Primary) + Core Loop (Secondary) | Initial Agentic RAG Exploration | 执行中动态检索工具 | R2-4 |
+| 优先级 | Phase | Track | Slice 名 | 理由 | 风险批注 | 差距 ID |
+|:-------|:------|:------|:---------|:-----|:---------|:--------|
+| 1 | 29 | Execution Topology (Primary) + Workbench (Secondary) | Provider Dialect Baseline | Track 3 自 P18 后无推进；provider-native 格式适配直接提升模型性能；与 Track 2 无依赖 | 需确认路由层是否已有 dialect 扩展点，否则需先做接口设计 | E3-1 |
+| 2 | 30 | Retrieval / Memory (Primary) + Core Loop (Secondary) | Initial Agentic RAG Exploration | 执行中动态检索工具；依赖 canonical 知识库有足够内容积累 | 前置条件：canonical 库需有实际使用数据，否则效果难验证 | R2-4 |
 
-注：队列仅为建议顺序，每轮 phase 启动前由 Human 最终决定。
+注：队列仅为建议顺序，每轮 phase 启动前由 Human 最终决定。Phase 28 已完成，从队列移除。
 
 ---
 
@@ -63,6 +62,8 @@ Phase closeout 时将已解决的条目从总表移至此处。
 
 | 差距 ID | 消化于 | 说明 |
 |:--------|:-------|:-----|
+| R2-1 | Phase 28 | Knowledge Promotion Baseline: `task staged` + `knowledge stage-promote --text/--force` |
+| R2-3 | Phase 28 | 晋升时 `decision_note` + `[refined]` 审计标记，溯源链完整 |
 | _(Phase 27)_ | Phase 27 | Grounding baseline: canonical retrieval → grounding evidence artifact → task state 锁定 |
 
 ---
