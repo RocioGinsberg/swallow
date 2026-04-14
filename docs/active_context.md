@@ -2,27 +2,24 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
-- latest_completed_phase: `Phase 29`
-- latest_completed_slice: `Provider Dialect Baseline`
-- active_track: `Core Loop` (Primary) + `Workbench / UX` (Secondary)
-- active_phase: `Phase 30`
-- active_slice: `Operator Checkpoint & Selective Retry`
-- active_branch: `feat/phase30-checkpoint-selective-retry`
-- status: `pr_ready`
+- latest_completed_track: `Core Loop` (Primary) + `Workbench / UX` (Secondary)
+- latest_completed_phase: `Phase 30`
+- latest_completed_slice: `Operator Checkpoint & Selective Retry`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
+- active_branch: `main`
+- status: `merged`
 
 ---
 
 ## 当前状态说明
 
-Phase 30 Operator Checkpoint & Selective Retry 已完成实现、review 与收口材料整理，当前进入 PR / merge 准备。
+Phase 30 Operator Checkpoint & Selective Retry 已完成实现、review、PR 与 merge 收口，当前已回到主线并等待下一轮 kickoff。
 
-本轮高风险面集中在 Slice 2：`run_task()` selective retry 跳阶段恢复。当前实现已补齐状态持久化、CLI 入口、checkpoint 可视化与回退测试；Claude review 结论为 **Merge ready**。
+本轮高风险面集中在 Slice 2：`run_task()` selective retry 跳阶段恢复。当前实现已补齐状态持久化、CLI 入口、checkpoint 可视化与回退测试，并已完成合并。
 
-Phase 30 的 git 节奏要求额外强调如下：
-- 本轮按 Slice 1 / Slice 2 / Slice 3 分 3 次 commit
-- 每个 slice 完成后先审查并提交，再进入下一个 slice
-- 禁止把 3 个 slices 压成一次大包上传
+当前默认不应继续无边界扩张 phase30，而应重新从 `docs/roadmap.md` / `docs/system_tracks.md` 选择下一轮正式 phase。
 
 ---
 
@@ -35,7 +32,7 @@ Phase 30 的 git 节奏要求额外强调如下：
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase29/closeout.md`
+6. `docs/plans/phase30/closeout.md`
 
 ---
 
@@ -45,7 +42,6 @@ Phase 30 的 git 节奏要求额外强调如下：
 - `docs/plans/phase30/risk_assessment.md` (claude, 2026-04-14)
 - `docs/plans/phase30/review_comments.md` (claude, 2026-04-14)
 - `docs/plans/phase30/closeout.md` (codex, 2026-04-14)
-- `pr.md` (codex, 2026-04-14)
 - `src/swallow/orchestrator.py` (codex, 2026-04-14)
 - `src/swallow/cli.py` (codex, 2026-04-14)
 - `src/swallow/models.py` (codex, 2026-04-14)
@@ -61,9 +57,10 @@ Phase 30 的 git 节奏要求额外强调如下：
 - **[Codex]** 完成 Slice 1-3 首轮实现：新增 `execution_phase` / `last_phase_checkpoint_at`、`task.phase_checkpoint` 事件、`task retry|rerun --from-phase` selective retry、缺失 artifact fallback、`inspect` / `review` / `checkpoint_snapshot` 可视化。
 - **[Codex]** 补齐 CLI 回归测试并通过 `tests/test_cli.py` 全量验证。
 - **[Claude]** 完成 Phase 30 PR review，结论：**Merge ready**，无 BLOCK，无 CONCERN。
-- **[Codex]** 已整理 `docs/plans/phase30/closeout.md` 与 `pr.md`，PR 收口材料齐备。
+- **[Codex]** 已整理 `docs/plans/phase30/closeout.md` 与 `pr.md`，完成 PR 收口材料。
+- **[Human]** 已完成 Phase 30 merge，当前分支已回到 `main`。
 
 ## 下一步
 
-- **[Human]** push 当前 feature branch，使用 `pr.md` 创建或更新 PR
-- **[Human]** 确认 `review_comments.md` / `closeout.md` / `pr.md` 一致后执行 merge
+- **[Gemini/Claude/Human]** 从 `docs/roadmap.md` 选择下一轮方向并启动新的 kickoff
+- **[Codex]** 待下一轮 phase 明确后进入实现

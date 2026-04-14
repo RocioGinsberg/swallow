@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 29 基线
+- Phase 0 到 Phase 30 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,16 +39,16 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
-- **Latest Completed Phase**：`Phase 29`
-- **Latest Completed Slice**：`Provider Dialect Baseline`
+- **Latest Completed Track**：`Core Loop` (Primary) + `Workbench / UX` (Secondary)
+- **Latest Completed Phase**：`Phase 30`
+- **Latest Completed Slice**：`Operator Checkpoint & Selective Retry`
 
-Phase 29 已完成的核心内容包括：
+Phase 30 已完成的核心内容包括：
 
-- 在 `build_executor_prompt()` 与 executor dispatch 之间建立 dialect adapter 层
-- 新增 `plain_text` 与 `structured_markdown` dialect
-- 为 route / prompt artifact / executor event / inspect / review 补齐 dialect 可观测性
-- 完成 Phase 29 实现、评审、merge 与 closeout 收口
+- 为 `run_task()` 建立 retrieval / execution / analysis 的 phase-level checkpoint
+- 新增 selective retry：`task retry|rerun --from-phase`
+- 为 inspect / review / checkpoint snapshot 补齐 checkpoint phase 可观测性
+- 完成 Phase 30 实现、评审、merge 与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -194,14 +194,13 @@ Phase 29 已完成的核心内容包括：
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase29/closeout.md`
+6. `docs/plans/phase30/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase29/context_brief.md`
-- `docs/plans/phase29/design_decision.md`
-- `docs/plans/phase29/risk_assessment.md`
-- `docs/plans/phase29/review_comments.md`
+- `docs/plans/phase30/design_decision.md`
+- `docs/plans/phase30/risk_assessment.md`
+- `docs/plans/phase30/review_comments.md`
 - `docs/plans/phase28/context_brief.md`
 - `docs/plans/phase28/design_decision.md`
 - `docs/plans/phase28/risk_assessment.md`
