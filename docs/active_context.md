@@ -5,19 +5,19 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - latest_completed_phase: `Phase 28`
 - latest_completed_slice: `Knowledge Promotion & Refinement Baseline`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Execution Topology (Primary)`
+- active_phase: `Phase 29`
+- active_slice: `Provider Dialect Baseline`
 - active_branch: `main`
-- status: `kickoff_ready`
+- status: `design_review`
 
 ---
 
 ## 当前状态说明
 
-Phase 28 `Knowledge Promotion & Refinement Baseline` 已完成实现、评审、合并与 closeout。
+Phase 29 Provider Dialect Baseline 已完成方案拆解与风险评估，等待人工审批。
 
-当前仓库默认不再继续扩张已完成的 Phase 28，而应回到 roadmap / track 选择流程，从新的 kickoff 决定下一轮正式 phase。
+核心方案：在 `build_executor_prompt()` 和 executor dispatch 之间插入 dialect adapter 层。4 个 slice，严格顺序依赖，总体中低风险（4-5 分）。
 
 ---
 
@@ -42,6 +42,9 @@ Phase 28 `Knowledge Promotion & Refinement Baseline` 已完成实现、评审、
 - `docs/plans/phase28/risk_assessment.md` (claude, 2026-04-14)
 - `docs/plans/phase28/review_comments.md` (claude, 2026-04-14)
 - `docs/plans/phase28/closeout.md` (codex, 2026-04-14) — Phase 28 final closeout
+- `docs/plans/phase29/context_brief.md` (gemini, 2026-04-14)
+- `docs/plans/phase29/design_decision.md` (claude, 2026-04-14)
+- `docs/plans/phase29/risk_assessment.md` (claude, 2026-04-14)
 
 ## 当前推进
 
@@ -53,9 +56,12 @@ Phase 28 `Knowledge Promotion & Refinement Baseline` 已完成实现、评审、
 - **[Codex]** 已完成 Phase 28 实现与验证：新增 `task staged`、补齐 `knowledge stage-promote --text/--force`、更新并修正 CLI 回归测试，`tests/test_cli.py` 全量通过。
 - **[Codex]** 已完成 Phase 28 `closeout.md` 与 `pr.md` 整理。
 - **[Human]** 已完成 Phase 28 提交、PR 流程与合并。
+- **[Gemini]** 完成 Phase 29 context brief。
+- **[Claude]** 完成 Phase 29 design_decision + risk_assessment，更新 roadmap（消化 P28 差距、更新队列）。
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` 选择下一轮 track / phase 方向
-- **[Claude/Gemini]** 为新 phase 产出新的 context_brief / design_decision / risk_assessment
-- **[Codex]** 在新 design gate 通过并切出 feature branch 后开始下一轮实现
+等待人工审批 `design_decision.md` 和 `risk_assessment.md`：
+- 通过：Human 从 main 切出 `feat/phase29-provider-dialect`，通知 Codex 开始实现
+- 打回：Claude 根据反馈修改方案
+

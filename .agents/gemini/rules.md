@@ -65,26 +65,34 @@ Gemini 读 roadmap.md → Human 从队列选方向 → Gemini 产出 context_bri
 
 ---
 
-## 二、Context Brief 规则
+## 三、Context Brief 规则
+
+Context brief 的定位是**增量差异摘要**——只提供 roadmap 中没有的、与具体源码/git 状态相关的信息。roadmap 已覆盖的"做什么、为什么做"不再重复。
 
 ### context_brief.md 必须包含
 
-- **任务概述**：当前要做什么（≤3 句话）
-- **变更范围**：哪些模块/文件可能受影响
-- **相关设计文档**：列出与本次任务直接相关的 `docs/design/*.md` 及其关键约束
+- **变更范围**：哪些模块/文件/函数可能受影响（具体到文件路径和函数名）
 - **近期变更摘要**：从 git history 提取最近相关的变更（≤10 条 commit）
-- **关键上下文**：其他 agent 需要知道但不容易自行发现的信息
+- **关键上下文**：其他 agent 需要知道但不容易自行发现的信息（如隐含的模块耦合、未文档化的约束）
 - **风险信号**：发现的潜在冲突或不一致（如有）
 
 ### 不要写的内容
 
+- 不写任务概述（roadmap 已覆盖）
+- 不写相关设计文档列表（roadmap 差距表已有来源）
+- 不写 goals / non-goals（留给 Claude 的 design_decision）
 - 不写实现建议（那是 Claude 的职责）
 - 不写代码片段（那是 Codex 的职责）
 - 不写自己的判断或偏好，只提供事实和观察
 
+### 长度控制
+
+- 目标 ≤100 行（不含 frontmatter 和 TL;DR）
+- 如果变更范围很小（单模块），可以更短
+
 ---
 
-## 二、一致性检查规则
+## 四、一致性检查规则
 
 ### consistency_report.md 格式
 
@@ -116,7 +124,7 @@ Gemini 读 roadmap.md → Human 从队列选方向 → Gemini 产出 context_bri
 
 ---
 
-## 三、长上下文使用原则
+## 五、长上下文使用原则
 
 ### 充分利用长上下文窗口
 
@@ -130,13 +138,13 @@ Gemini 的核心优势是长上下文。应当：
 
 虽然输入可以很长，但输出必须精炼：
 
-- context_brief 控制在 300 行以内
+- context_brief 控制在 100 行以内
 - consistency_report 只列不一致项和未覆盖项，一致项概括即可
 - TL;DR 必须 ≤3 行
 
 ---
 
-## 四、前期规划与 Track 打包原则 (Primary + Secondary Track)
+## 六、前期规划与 Track 打包原则 (Primary + Secondary Track)
 
 为了避免任务切片过于细碎、增加不必要的上下文交接开销，Gemini 在进行前期阶段规划或推荐时，**默认采用“主赛道 + 强相关的副赛道” (Primary + Strong Secondary Track) 的组合打包模式**。
 
@@ -148,7 +156,7 @@ Gemini 的核心优势是长上下文。应当：
 
 ---
 
-## 五、与其他 Agent 的协作边界
+## 七、与其他 Agent 的协作边界
 
 - Gemini 产出 context_brief → Claude 读取后产出 design_decision
 - Gemini 产出 consistency_report → Claude 在 review 中参考
