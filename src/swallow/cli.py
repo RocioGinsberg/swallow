@@ -571,12 +571,58 @@ def resolve_stage_candidate(base_dir: Path, candidate_id: str) -> StagedCandidat
     raise ValueError(f"Unknown staged candidate: {normalized_id}")
 
 
-def build_stage_canonical_record(candidate: StagedCandidate) -> dict[str, object]:
+def summarize_text_preview(text: str, limit: int) -> str:
+    normalized = " ".join(text.split())
+    if not normalized:
+        return "(empty)"
+    if len(normalized) <= limit:
+        return normalized
+    return normalized[: max(limit - 3, 0)].rstrip() + "..."
+
+
+def build_task_staged_report(
+    candidates: list[StagedCandidate],
+    *,
+    status_filter: str,
+    task_filter: str,
+) -> str:
+    lines = [
+        "# Task Staged Knowledge",
+        "",
+        f"- count: {len(candidates)}",
+        f"- status_filter: {status_filter}",
+        f"- task_filter: {task_filter or 'all'}",
+        "",
+        "## Candidates",
+    ]
+    if not candidates:
+        lines.append("- no matching staged candidates")
+        return "\n".join(lines)
+
+    for candidate in candidates:
+        lines.extend(
+            [
+                f"- {candidate.candidate_id}",
+                f"  status: {candidate.status}",
+                f"  source_task_id: {candidate.source_task_id}",
+                f"  submitted_at: {candidate.submitted_at}",
+                f"  text: {summarize_text_preview(candidate.text, 80)}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def build_stage_canonical_record(
+    candidate: StagedCandidate,
+    *,
+    refined_text: str = "",
+) -> dict[str, object]:
     canonical_key = build_staged_canonical_key(
         source_task_id=candidate.source_task_id,
         source_object_id=candidate.source_object_id,
         candidate_id=candidate.candidate_id,
     )
+    canonical_text = refined_text.strip() or candidate.text
     return {
         "canonical_id": f"canonical-{candidate.candidate_id}",
         "canonical_key": canonical_key,
@@ -588,7 +634,7 @@ def build_stage_canonical_record(candidate: StagedCandidate) -> dict[str, object
         "decision_ref": f".swl/staged_knowledge/registry.jsonl#{candidate.candidate_id}",
         "artifact_ref": "",
         "source_ref": "",
-        "text": candidate.text,
+        "text": canonical_text,
         "evidence_status": "source_only",
         "canonical_stage": "canonical",
         "canonical_status": "active",
@@ -600,14 +646,28 @@ def build_stage_canonical_record(candidate: StagedCandidate) -> dict[str, object
 def build_stage_promote_preflight_notices(
     canonical_records: list[dict[str, object]],
     candidate: StagedCandidate,
-) -> list[str]:
+) -> list[dict[str, str]]:
     preview_record = build_stage_canonical_record(candidate)
     canonical_id = str(preview_record.get("canonical_id", "")).strip()
     canonical_key = str(preview_record.get("canonical_key", "")).strip()
 
-    notices: list[str] = []
-    if canonical_id and any(str(record.get("canonical_id", "")).strip() == canonical_id for record in canonical_records):
-        notices.append(f"(idempotent) re-promoting existing canonical record: {canonical_id}")
+    notices: list[dict[str, str]] = []
+    existing_record = next(
+        (
+            record
+            for record in canonical_records
+            if str(record.get("canonical_id", "")).strip() == canonical_id
+        ),
+        None,
+    )
+    if canonical_id and existing_record is not None:
+        notices.append(
+            {
+                "notice_type": "idempotent",
+                "canonical_id": canonical_id,
+                "text_preview": summarize_text_preview(str(existing_record.get("text", "")), 60),
+            }
+        )
 
     if canonical_key:
         active_match = next(
@@ -622,10 +682,24 @@ def build_stage_promote_preflight_notices(
         )
         if active_match is not None:
             notices.append(
-                "(supersede) will supersede existing active record: "
-                f"{str(active_match.get('canonical_id', '')).strip() or 'unknown'}"
+                {
+                    "notice_type": "supersede",
+                    "canonical_id": str(active_match.get("canonical_id", "")).strip() or "unknown",
+                    "text_preview": summarize_text_preview(str(active_match.get("text", "")), 60),
+                }
             )
     return notices
+
+
+def format_stage_promote_preflight_notice(notice: dict[str, str]) -> str:
+    notice_type = notice.get("notice_type", "").strip()
+    canonical_id = notice.get("canonical_id", "").strip() or "unknown"
+    text_preview = notice.get("text_preview", "").strip() or "(empty)"
+    if notice_type == "supersede":
+        return f"[SUPERSEDE] canonical_id={canonical_id} text={text_preview}"
+    if notice_type == "idempotent":
+        return f"[IDEMPOTENT] canonical_id={canonical_id} text={text_preview}"
+    return f"[NOTICE] canonical_id={canonical_id} text={text_preview}"
 
 
 def filter_task_states(states: list[object], focus: str) -> list[object]:
@@ -1014,6 +1088,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     knowledge_stage_promote_parser.add_argument("candidate_id", help="Staged candidate identifier.")
     knowledge_stage_promote_parser.add_argument("--note", default="", help="Optional operator note for the promotion record.")
+    knowledge_stage_promote_parser.add_argument(
+        "--text",
+        default="",
+        help="Optional refined canonical text to use for this promotion without mutating the staged candidate.",
+    )
+    knowledge_stage_promote_parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Allow promotion to proceed when it would supersede an existing active canonical record.",
+    )
     knowledge_stage_reject_parser = knowledge_subparsers.add_parser(
         "stage-reject",
         help="Reject one pending staged candidate.",
@@ -1326,6 +1410,22 @@ def build_parser() -> argparse.ArgumentParser:
         description="Print a compact planning-handoff and staged-knowledge intake snapshot.",
     )
     intake_parser.add_argument("task_id", help="Task identifier.")
+    task_staged_parser = task_subparsers.add_parser(
+        "staged",
+        help="Print a compact staged knowledge queue with optional task and status filters.",
+        description="Print a compact staged knowledge queue with optional task and status filters.",
+    )
+    task_staged_parser.add_argument(
+        "--status",
+        default="pending",
+        choices=["pending", "promoted", "rejected", "all"],
+        help="Restrict the queue to one staged candidate status. Defaults to pending.",
+    )
+    task_staged_parser.add_argument(
+        "--task",
+        default="",
+        help="Restrict the queue to one source task identifier.",
+    )
     inspect_parser = task_subparsers.add_parser("inspect", help="Print a compact per-task overview.")
     inspect_parser.add_argument("task_id", help="Task identifier.")
     semantics_parser = task_subparsers.add_parser("semantics", help="Print the task semantics report artifact.")
@@ -1663,16 +1763,22 @@ def main(argv: list[str] | None = None) -> int:
         if candidate.status != "pending":
             raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
         canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
-        for notice in build_stage_promote_preflight_notices(canonical_records, candidate):
-            print(notice)
+        preflight_notices = build_stage_promote_preflight_notices(canonical_records, candidate)
+        for notice in preflight_notices:
+            print(format_stage_promote_preflight_notice(notice))
+        if any(notice.get("notice_type") == "supersede" for notice in preflight_notices) and not getattr(args, "force", False):
+            raise ValueError("Supersede notice detected; rerun with --force to confirm promotion.")
+        decision_note = args.note.strip()
+        if args.text.strip():
+            decision_note = f"{decision_note} [refined]".strip() if decision_note else "[refined]"
         updated = update_staged_candidate(
             base_dir,
             candidate.candidate_id,
             "promoted",
             "swl_cli",
-            args.note,
+            decision_note,
         )
-        append_canonical_record(base_dir, build_stage_canonical_record(updated))
+        append_canonical_record(base_dir, build_stage_canonical_record(updated, refined_text=args.text))
         canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
         canonical_index = build_canonical_registry_index(canonical_records)
         canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
@@ -1961,6 +2067,16 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "intake":
         print("\n".join(build_intake_snapshot(base_dir, args.task_id)))
+        return 0
+
+    if args.command == "task" and args.task_command == "staged":
+        candidates = load_staged_candidates(base_dir)
+        task_filter = args.task.strip()
+        if args.status != "all":
+            candidates = [candidate for candidate in candidates if candidate.status == args.status]
+        if task_filter:
+            candidates = [candidate for candidate in candidates if candidate.source_task_id == task_filter]
+        print(build_task_staged_report(candidates, status_filter=args.status, task_filter=task_filter))
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-review-queue":

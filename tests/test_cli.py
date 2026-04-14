@@ -1126,6 +1126,90 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("pending_count: 0", output)
         self.assertIn("no pending candidates", output)
 
+    def test_cli_task_staged_defaults_to_pending_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            pending = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Pending staged note should appear in the task queue output.",
+                    source_task_id="task-stage-queue",
+                ),
+            )
+            promoted = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Promoted staged note should stay hidden by default.",
+                    source_task_id="task-stage-queue",
+                    status="promoted",
+                    decided_at="2026-04-14T00:00:00+00:00",
+                    decided_by="swl_cli",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "staged"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("Task Staged Knowledge", output)
+        self.assertIn("status_filter: pending", output)
+        self.assertIn(pending.candidate_id, output)
+        self.assertNotIn(promoted.candidate_id, output)
+
+    def test_cli_task_staged_filters_by_status_and_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            promoted = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Promoted staged note should be shown when explicitly requested.",
+                    source_task_id="task-stage-queue-a",
+                    status="promoted",
+                    decided_at="2026-04-14T00:00:00+00:00",
+                    decided_by="swl_cli",
+                ),
+            )
+            submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Different task should be filtered out.",
+                    source_task_id="task-stage-queue-b",
+                    status="promoted",
+                    decided_at="2026-04-14T00:00:00+00:00",
+                    decided_by="swl_cli",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "staged",
+                            "--status",
+                            "promoted",
+                            "--task",
+                            "task-stage-queue-a",
+                        ]
+                    ),
+                    0,
+                )
+
+        output = stdout.getvalue()
+        self.assertIn("status_filter: promoted", output)
+        self.assertIn("task_filter: task-stage-queue-a", output)
+        self.assertIn(promoted.candidate_id, output)
+        self.assertIn("text: Promoted staged note should be shown when explicitly requested.", output)
+        self.assertNotIn("Different task should be filtered out.", output)
+
     def test_cli_stage_inspect_prints_full_candidate_details(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -1207,6 +1291,52 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0002")
         self.assertEqual(reuse_policy["reuse_visible_count"], 1)
 
+    def test_cli_stage_promote_accepts_refined_text_without_mutating_staged_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Original staged wording should remain in staged storage.",
+                    source_task_id="task-stage-refine",
+                    source_object_id="knowledge-0015",
+                ),
+            )
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "knowledge",
+                        "stage-promote",
+                        candidate.candidate_id,
+                        "--text",
+                        "Refined canonical wording for downstream reuse.",
+                        "--note",
+                        "Operator tightened wording.",
+                    ]
+                ),
+                0,
+            )
+
+            staged_records = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            canonical_records = [
+                json.loads(line)
+                for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(staged_records[0]["text"], "Original staged wording should remain in staged storage.")
+        self.assertEqual(staged_records[0]["decision_note"], "Operator tightened wording. [refined]")
+        self.assertEqual(canonical_records[0]["text"], "Refined canonical wording for downstream reuse.")
+        self.assertEqual(canonical_records[0]["decision_note"], "Operator tightened wording. [refined]")
+
     def test_cli_stage_promote_supersedes_previous_record_from_same_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -1232,7 +1362,10 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", first.candidate_id]), 0)
-            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id]), 0)
+            self.assertEqual(
+                main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id, "--force"]),
+                0,
+            )
 
             canonical_records = [
                 json.loads(line)
@@ -1270,7 +1403,10 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", first.candidate_id]), 0)
-            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id]), 0)
+            self.assertEqual(
+                main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id, "--force"]),
+                0,
+            )
 
             canonical_records = [
                 json.loads(line)
@@ -1340,10 +1476,10 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", candidate.candidate_id]), 0)
 
         output = stdout.getvalue()
-        self.assertIn("(idempotent) re-promoting existing canonical record: canonical-staged-fixedid", output)
+        self.assertIn("[IDEMPOTENT] canonical_id=canonical-staged-fixedid", output)
         self.assertIn("staged-fixedid staged_promoted canonical_id=canonical-staged-fixedid", output)
 
-    def test_cli_stage_promote_prints_supersede_notice_for_active_key_match(self) -> None:
+    def test_cli_stage_promote_requires_force_for_active_key_match(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             first = submit_staged_candidate(
@@ -1368,13 +1504,45 @@ class CliLifecycleTest(unittest.TestCase):
             stdout = StringIO()
 
             with redirect_stdout(stdout):
-                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id]), 0)
+                with self.assertRaises(ValueError) as raised:
+                    main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id])
 
         output = stdout.getvalue()
-        self.assertIn(
-            f"(supersede) will supersede existing active record: canonical-{first.candidate_id}",
-            output,
-        )
+        self.assertIn(f"[SUPERSEDE] canonical_id=canonical-{first.candidate_id}", output)
+        self.assertIn("Supersede notice detected; rerun with --force to confirm promotion.", str(raised.exception))
+
+    def test_cli_stage_promote_with_force_prints_supersede_notice_and_promotes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            first = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Original staged fact.",
+                    source_task_id="task-stage-notice",
+                    source_object_id="knowledge-0013",
+                ),
+            )
+            second = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Replacement staged fact.",
+                    source_task_id="task-stage-notice",
+                    source_object_id="knowledge-0013",
+                ),
+            )
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", first.candidate_id]), 0)
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", second.candidate_id, "--force"]),
+                    0,
+                )
+
+        output = stdout.getvalue()
+        self.assertIn(f"[SUPERSEDE] canonical_id=canonical-{first.candidate_id}", output)
         self.assertIn(f"{second.candidate_id} staged_promoted canonical_id=canonical-{second.candidate_id}", output)
 
     def test_cli_stage_promote_does_not_print_preflight_notice_for_fresh_record(self) -> None:
@@ -4786,6 +4954,7 @@ class CliLifecycleTest(unittest.TestCase):
             (["task", "planning-handoff", "--help"], "Attach or tighten imported planning semantics"),
             (["task", "knowledge-capture", "--help"], "Attach staged knowledge objects to an existing task."),
             (["task", "intake", "--help"], "Print a compact planning-handoff and staged-knowledge intake snapshot."),
+            (["task", "staged", "--help"], "Print a compact staged knowledge queue with optional task and status filters."),
             (["task", "knowledge-review-queue", "--help"], "Print a compact review queue for staged knowledge objects."),
             (["task", "knowledge-promote", "--help"], "Explicitly promote one knowledge object"),
             (["task", "knowledge-reject", "--help"], "Explicitly reject one knowledge object"),
