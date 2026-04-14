@@ -118,6 +118,7 @@ Phase 27 已完成的核心内容包括：
 协作流程定义见 `.agents/workflows/feature.md`。
 共享规则见 `.agents/shared/`。
 状态同步规则见 `.agents/shared/state_sync_rules.md`。
+跨 phase 蓝图对齐见 `docs/roadmap.md`（Gemini 维护，新 phase 启动时直接读取选方向，常规流程无需每次产出 design_preview）。
 
 ---
 
@@ -136,11 +137,13 @@ Phase 27 已完成的核心内容包括：
 ### 2. 当前执行层
 - `AGENTS.md`
 - `docs/active_context.md`
+- `docs/roadmap.md`
 - `current_state.md`
 
 用途：
 - `AGENTS.md`：入口控制面与长期规则
 - `docs/active_context.md`：当前唯一高频状态入口
+- `docs/roadmap.md`：跨 phase 蓝图对齐活文档，新 phase 启动时从此选方向
 - `current_state.md`：恢复入口，不是完整开发编年史
 
 ### 3. 阶段计划层
@@ -189,9 +192,10 @@ Phase 27 已完成的核心内容包括：
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/system_tracks.md`
-4. `current_state.md`
-5. `docs/plans/phase27/closeout.md`
+3. `docs/roadmap.md`
+4. `docs/system_tracks.md`
+5. `current_state.md`
+6. `docs/plans/phase27/closeout.md`
 
 仅在需要时再读取：
 

@@ -7,9 +7,11 @@
 ## 流程总览
 
 ```
-Gemini: Strategy Preview (Phase Transition)
+Gemini: Roadmap Check (Phase Transition)
         ↓
- Human: Strategy Gate ⛔
+Claude: Roadmap Priority Review
+        ↓
+ Human: Direction Gate ⛔
         ↓
 Gemini: Context Analysis
         ↓
@@ -28,22 +30,46 @@ Claude: PR Review
 
 ---
 
-## Step 0: Gemini & Human — Phase Transition & Strategy Gate ⛔
+## Step 0: Gemini, Claude & Human — Phase Transition & Direction Gate ⛔
 
 **触发条件**：上一个 phase 已经完成 closeout 收口并合入主线。
 
+### 常规流程（roadmap 已存在且无需刷新）
+
 **Gemini 输入**：
+- `docs/roadmap.md`（跨 phase 蓝图对齐活文档）
 - `docs/plans/<prev-phase>/closeout.md`
+
+**Gemini 动作**：
+1. 增量更新 `docs/roadmap.md` 的差距总表（消化已完成差距、补充新差距）
+2. 更新 `docs/active_context.md`，通知 Claude 进行优先级评审
+
+**Claude 动作**：
+1. 读取更新后的 `docs/roadmap.md`
+2. 评审并更新推荐 phase 队列的优先级排序与风险批注
+3. 更新 `docs/active_context.md`，通知 Human 进行方向选择
+
+**人工动作 (Direction Gate ⛔)**：
+- 阅读 `docs/roadmap.md` 的推荐 phase 队列（含 Claude 的优先级判断与风险批注）
+- 选择下一个方向（如：”启动 Phase 28, R2-1”）
+
+### 全量刷新流程（roadmap 不存在或蓝图发生重大变更）
+
+**Gemini 输入**：
 - `docs/system_tracks.md`
+- `ARCHITECTURE.md` + `docs/design/*.md`
 - `current_state.md`
 
 **Gemini 产出**：
-- `docs/plans/<new-phase>/design_preview.md` (演进方向决策书)
+- `docs/plans/<new-phase>/design_preview.md`（演进方向决策书）
+- 据此全量更新 `docs/roadmap.md` 的差距总表
 
-**人工动作 (Strategy Gate ⛔)**：
-- 阅读 `design_preview.md`，评估提供的几个高 ROI 候选方向。
-- 与其他 AI 讨论，结合现实约束与排期做出最终决策。
-- 向 Gemini 明确传达选定的下一阶段路线（如：“选择方向 A”）。
+**Claude 动作**：
+1. 读取更新后的 roadmap + design_preview
+2. 评审并更新推荐 phase 队列的优先级排序与风险批注
+
+**人工动作 (Direction Gate ⛔)**：
+- 阅读 design_preview + roadmap（含 Claude 批注），选定方向
 
 **完成后**：
 - Gemini 在接收到明确选择后更新 `docs/active_context.md`，继续执行 Step 1。
@@ -52,12 +78,13 @@ Claude: PR Review
 
 ## Step 1: Gemini — Context Analysis
 
-**触发条件**：人工已在 Strategy Gate 中明确选定下一阶段的方向。
+**触发条件**：人工已在 Direction Gate 中明确选定下一阶段的方向。
 
 **输入**：
 - 人工在 Step 0 指定的阶段目标决策
-- `docs/plans/<new-phase>/design_preview.md`
-- `docs/design/*.md`
+- `docs/roadmap.md`（差距 ID 和上下文）
+- `docs/plans/<new-phase>/design_preview.md`（仅在全量刷新流程中存在）
+- `docs/design/*.md`（仅阅读 roadmap 指向的相关设计文档）
 - 相关 git history
 
 **产出**：

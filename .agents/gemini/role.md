@@ -9,13 +9,14 @@
 1. `.agents/shared/read_order.md`（按其中指引读取共享文件）
 2. `.agents/gemini/role.md`（本文件）
 3. `.agents/gemini/rules.md`
-4. `docs/architecture_principles.md`
-5. `docs/design/*.md`（全部，利用长上下文能力）
-6. 相关 git history（按需）
+4. `docs/roadmap.md`（跨 phase 蓝图对齐活文档，优先于蓝图原文）
+5. `docs/architecture_principles.md`（仅在 roadmap 需要全量刷新时全文阅读）
+6. `docs/design/*.md`（按需，仅在 roadmap 指向特定差距时深入阅读）
+7. 相关 git history（按需）
 
 ## 可写范围
 
-- `docs/plans/<phase>/design_preview.md` — 阶段收官后的演进方向预览与决策建议
+- `docs/roadmap.md` — 跨 phase 蓝图对齐活文档（phase closeout 时增量更新）
 - `docs/plans/<phase>/context_brief.md` — 上下文摘要
 - `docs/plans/<phase>/consistency_report.md` — 一致性检查报告
 - `docs/active_context.md` — 仅状态更新部分
@@ -38,6 +39,8 @@
 
 ## 状态同步职责
 
-- 阶段收官后产出 design_preview，更新 `docs/active_context.md` 并进入 `waiting_human_decision` 状态，等待人工定夺
-- 收到人工定夺并完成 context_brief 后，更新 `docs/active_context.md` 的产出物和下一步
+- Phase closeout 时增量更新 `docs/roadmap.md`（消化差距、补充新差距、调整队列）
+- 新 phase 启动时从 roadmap 选方向，直接产出 context_brief（常规流程不再产出 design_preview）
+- 仅在蓝图文档发生重大变更时产出 design_preview 并全量刷新 roadmap
+- 完成 context_brief 后，更新 `docs/active_context.md` 的产出物和下一步
 - 完成 consistency_report 后，更新 `docs/active_context.md` 标注一致性检查状态

@@ -4,11 +4,44 @@
 
 ---
 
-## 一、Design Preview 与阶段过渡规则
+## 一、Roadmap 维护规则
 
-当一个 Phase 正式收官（closeout 完成）后，Gemini 需要负责规划下一阶段的候选方向：
+`docs/roadmap.md` 是跨 phase 的蓝图对齐活文档，替代每次 phase 开头的全量蓝图重读。
 
-### design_preview.md 必须包含
+### 更新时机
+
+- **Phase closeout 时（必须）**：Gemini 在 closeout 完成后增量更新 roadmap
+- **蓝图文档重大变更时（触发全量刷新）**：当 `ARCHITECTURE.md` 或 `docs/design/*.md` 发生结构性变更时
+
+### 增量更新内容
+
+1. 将本 phase 解决的差距从"蓝图差距总表"移入"已消化差距"
+2. 补充本 phase 过程中发现的新差距
+3. 根据最新状态调整"推荐 phase 队列"的优先级
+
+### 全量刷新内容
+
+使用多层锚点分析模式（见下方 Design Preview 规则）重新对齐所有 track 的差距。
+
+---
+
+## 二、Design Preview 规则（条件触发）
+
+Design Preview 不再每个 phase 必须产出。仅在以下条件下触发：
+
+### 触发条件
+
+1. `docs/roadmap.md` 尚不存在（首次建立）
+2. 蓝图文档发生重大变更，需要全量刷新 roadmap
+3. Human 显式要求重新评估演进方向
+
+### 常规 phase 启动流程（无需 design_preview）
+
+```
+Gemini 读 roadmap.md → Human 从队列选方向 → Gemini 产出 context_brief → ...
+```
+
+### design_preview.md 必须包含（当触发时）
 
 - **基建现状盘点**：简述系统当前已稳固的核心底座和最新收口的成果。
 - **现状与蓝图差距分析 (Reality vs. Blueprint)**：**[强制采用多层锚点分析模式]**
@@ -27,8 +60,8 @@
 
 ### 触发与等待机制
 
-- **不可越级**：`design_preview.md` 产出后，**必须停下来等待人工（Human Operator）的明确确认**。
-- **触发 Context Brief**：只有在收到人工针对 `design_preview.md` 的明确决策（例如“选择方向 A”）之后，才能据此起草下一阶段的 `context_brief.md`。
+- **常规流程**：Gemini 在 phase closeout 时更新 roadmap，Human 从 roadmap 队列选方向，Gemini 直接产出 context_brief。无需等待 design_preview 审批。
+- **全量刷新流程**：产出 design_preview 后，**必须停下来等待 Human 明确确认**，再据此更新 roadmap 并产出 context_brief。
 
 ---
 

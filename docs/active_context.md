@@ -38,6 +38,8 @@ Phase 27 已完成实现、block 修复、评审、收口并已合并。
 ---
 
 ## 当前产出物
+- `docs/roadmap.md` (claude, 2026-04-14) — 跨 phase 蓝图对齐活文档（新增）
+- `docs/plans/phase28/design_preview.md` (gemini, 2026-04-14)
 - `docs/plans/phase27/design_preview.md` (gemini, 2026-04-13)
 - `docs/plans/phase27/context_brief.md` (gemini, 2026-04-13)
 - `docs/plans/phase27/design_decision.md` (claude, 2026-04-13)
@@ -49,15 +51,14 @@ Phase 27 已完成实现、block 修复、评审、收口并已合并。
 
 已完成：
 
-- **[Gemini]** 完成 Phase 27 设计预览和 context_brief。
-- **[Claude]** 已产出 `design_decision.md`、`risk_assessment.md` 和 `review_comments.md`。
-- **[Codex]** 已完成 3 个实现 slice、修复 review block、并整理 `pr.md` 与 `closeout.md`。
+- **[Gemini]** 完成 Phase 27 设计收口，产出 Phase 28 演进方向预览。
+- **[Claude]** 已产出 Phase 27 的 `design_decision.md`、`risk_assessment.md` 和 `review_comments.md`。
+- **[Claude]** 已建立 `docs/roadmap.md` 并更新 Gemini 控制文档、workflow、AGENTS.md 以适配 roadmap 流程。
+- **[Codex]** 已完成 Phase 27 实现、修复 review block、并整理 `pr.md` 与 `closeout.md`。
 - **[Human]** 已将 Phase 27 合并入主线。
 
 ## 下一步
 
-开始下一轮 fresh kickoff：
-
-1. Human 从 `docs/system_tracks.md` 选择新的 active track
-2. Gemini / Claude 产出下一 phase 的上下文与设计文档
-3. Human 审批后再切出新的 feature branch
+1. Human 审批方向：从 `docs/roadmap.md` 队列中选定 Phase 28 方向（推荐：Knowledge Promotion & Refinement Baseline）
+2. Gemini 基于选定方向直接产出 `context_brief.md`（常规流程，无需 design_preview）
+3. Claude 产出 `design_decision.md` + `risk_assessment.md`
