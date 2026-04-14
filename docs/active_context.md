@@ -5,23 +5,19 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - latest_completed_phase: `Phase 27`
 - latest_completed_slice: `Knowledge-Driven Task Grounding Baseline`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`（Phase 27 已收口并合并，等待下一轮新分支）
-- status: `closeout_complete`
+- active_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
+- active_phase: `Phase 28`
+- active_slice: `Knowledge Promotion & Refinement Baseline`
+- active_branch: `feat/phase28-knowledge-promotion`
+- status: `review_complete`
 
 ---
 
 ## 当前状态说明
 
-Phase 27 已完成实现、block 修复、评审、收口并已合并。
+Phase 28 Knowledge Promotion & Refinement Baseline 已通过 design gate 并进入实现。
 
-当前仓库应视为：
-
-- 已完成一个 retrieval / memory 方向的 grounding baseline phase
-- 不应继续在 Phase 27 名义下扩张范围
-- 下一步应重新选择新的 active track / phase / slice
+源码分析确认 `swl knowledge stage-promote` 已可工作，本轮聚焦补齐易用性缺口：聚合浏览、文本精炼、冲突提示增强。当前已完成 CLI 实现与测试验证。
 
 ---
 
@@ -38,8 +34,16 @@ Phase 27 已完成实现、block 修复、评审、收口并已合并。
 ---
 
 ## 当前产出物
-- `docs/roadmap.md` (claude, 2026-04-14) — 跨 phase 蓝图对齐活文档（新增）
+- `docs/roadmap.md` (claude, 2026-04-14) — 跨 phase 蓝图对齐活文档
 - `docs/plans/phase28/design_preview.md` (gemini, 2026-04-14)
+- `docs/plans/phase28/context_brief.md` (gemini, 2026-04-14)
+- `docs/plans/phase28/design_decision.md` (claude, 2026-04-14)
+- `docs/plans/phase28/risk_assessment.md` (claude, 2026-04-14)
+- `docs/plans/phase28/review_comments.md` (claude, 2026-04-14)
+- `docs/plans/phase28/closeout.md` (codex, 2026-04-14) — Phase 28 closeout
+- `pr.md` (codex, 2026-04-14) — PR body draft for Human
+- `src/swallow/cli.py` (codex, 2026-04-14) — Phase 28 CLI implementation
+- `tests/test_cli.py` (codex, 2026-04-14) — Phase 28 CLI regression coverage
 - `docs/plans/phase27/design_preview.md` (gemini, 2026-04-13)
 - `docs/plans/phase27/context_brief.md` (gemini, 2026-04-13)
 - `docs/plans/phase27/design_decision.md` (claude, 2026-04-13)
@@ -55,10 +59,11 @@ Phase 27 已完成实现、block 修复、评审、收口并已合并。
 - **[Claude]** 已产出 Phase 27 的 `design_decision.md`、`risk_assessment.md` 和 `review_comments.md`。
 - **[Claude]** 已建立 `docs/roadmap.md` 并更新 Gemini 控制文档、workflow、AGENTS.md 以适配 roadmap 流程。
 - **[Codex]** 已完成 Phase 27 实现、修复 review block、并整理 `pr.md` 与 `closeout.md`。
+- **[Codex]** 已完成 Phase 28 实现与验证：新增 `task staged`、补齐 `knowledge stage-promote --text/--force`、更新并修正 CLI 回归测试，`tests/test_cli.py` 全量通过。
+- **[Codex]** 已整理 Phase 28 的 `pr.md` 与 `closeout.md`，当前进入人工提交 / PR 阶段。
 - **[Human]** 已将 Phase 27 合并入主线。
 
 ## 下一步
 
-1. Human 审批方向：从 `docs/roadmap.md` 队列中选定 Phase 28 方向（推荐：Knowledge Promotion & Refinement Baseline）
-2. Gemini 基于选定方向直接产出 `context_brief.md`（常规流程，无需 design_preview）
-3. Claude 产出 `design_decision.md` + `risk_assessment.md`
+- **[Human]** 审查 Phase 28 当前 diff，执行提交，并基于 `pr.md` 创建或更新 PR
+- **[Codex]** 在人工提交或 PR 状态变化后继续同步 `docs/active_context.md`，并在 merge 后更新后续收口入口
