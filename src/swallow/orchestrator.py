@@ -44,7 +44,7 @@ from .knowledge_objects import (
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from .models import Event, RetrievalRequest, TaskState
+from .models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskState
 from .models import DispatchVerdict, evaluate_dispatch_verdict
 from .paths import (
     artifacts_dir,
@@ -753,6 +753,111 @@ def _set_phase(base_dir: Path, state: TaskState, phase: str) -> None:
     )
 
 
+def _record_phase_checkpoint(
+    base_dir: Path,
+    state: TaskState,
+    execution_phase: str,
+    *,
+    skipped: bool = False,
+    source: str = "",
+) -> None:
+    state.execution_phase = execution_phase
+    state.last_phase_checkpoint_at = utc_now()
+    save_state(base_dir, state)
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="task.phase_checkpoint",
+            message=f"Execution phase checkpoint recorded for {execution_phase}.",
+            payload={
+                "phase": state.phase,
+                "status": state.status,
+                "execution_phase": state.execution_phase,
+                "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
+                "skipped": skipped,
+                "source": source or ("reused_artifacts" if skipped else "live_run"),
+            },
+        ),
+    )
+
+
+def _append_phase_recovery_fallback(
+    base_dir: Path,
+    state: TaskState,
+    *,
+    requested_skip_to_phase: str,
+    fallback_phase: str,
+    reason: str,
+) -> None:
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="task.phase_recovery_fallback",
+            message="Selective retry fell back to an earlier execution phase.",
+            payload={
+                "requested_skip_to_phase": requested_skip_to_phase,
+                "fallback_phase": fallback_phase,
+                "reason": reason,
+            },
+        ),
+    )
+
+
+def _load_previous_retrieval_items(base_dir: Path, task_id: str) -> list[RetrievalItem] | None:
+    retrieval_file = retrieval_path(base_dir, task_id)
+    if not retrieval_file.exists():
+        return None
+    try:
+        payload = json.loads(retrieval_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, list):
+        return None
+    items: list[RetrievalItem] = []
+    try:
+        for entry in payload:
+            if not isinstance(entry, dict):
+                return None
+            items.append(RetrievalItem(**entry))
+    except TypeError:
+        return None
+    return items
+
+
+def _load_previous_executor_result(base_dir: Path, state: TaskState) -> ExecutorResult | None:
+    output_path = artifacts_dir(base_dir, state.task_id) / "executor_output.md"
+    if not output_path.exists():
+        return None
+    prompt_path = artifacts_dir(base_dir, state.task_id) / "executor_prompt.md"
+    stdout_path = artifacts_dir(base_dir, state.task_id) / "executor_stdout.txt"
+    stderr_path = artifacts_dir(base_dir, state.task_id) / "executor_stderr.txt"
+    handoff_record: dict[str, object] = {}
+    if handoff_path(base_dir, state.task_id).exists():
+        try:
+            loaded_handoff = json.loads(handoff_path(base_dir, state.task_id).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            loaded_handoff = {}
+        if isinstance(loaded_handoff, dict):
+            handoff_record = loaded_handoff
+    output = output_path.read_text(encoding="utf-8")
+    prompt = prompt_path.read_text(encoding="utf-8") if prompt_path.exists() else ""
+    if prompt.startswith("dialect: "):
+        _, _, prompt = prompt.partition("\n\n")
+    return ExecutorResult(
+        executor_name=state.executor_name,
+        status=state.executor_status if state.executor_status != "pending" else str(handoff_record.get("executor_status", "completed")),
+        message=str(handoff_record.get("executor_message", "")).strip() or output.strip() or "Reused previous executor result.",
+        output=output,
+        prompt=prompt,
+        dialect=state.route_dialect,
+        failure_kind=str(handoff_record.get("failure_kind", "")).strip(),
+        stdout=stdout_path.read_text(encoding="utf-8") if stdout_path.exists() else "",
+        stderr=stderr_path.read_text(encoding="utf-8") if stderr_path.exists() else "",
+    )
+
+
 def _route_knowledge_to_staged(base_dir: Path, state: TaskState) -> list[StagedCandidate]:
     if state.route_taxonomy_memory_authority not in {"canonical-write-forbidden", "staged-knowledge"}:
         return []
@@ -894,10 +999,12 @@ def run_task(
     capability_refs: list[str] | None = None,
     route_mode: str | None = None,
     reset_grounding: bool = False,
+    skip_to_phase: str = "retrieval",
 ) -> TaskState:
     state = load_state(base_dir, task_id)
     previous_status = state.status
     previous_phase = state.phase
+    requested_skip_to_phase = skip_to_phase.strip() or "retrieval"
     if reset_grounding:
         state.grounding_refs = []
         state.grounding_locked = False
@@ -934,6 +1041,8 @@ def run_task(
     state.executor_status = "running"
     state.status = "running"
     state.phase = "intake"
+    state.execution_phase = "pending"
+    state.last_phase_checkpoint_at = ""
     save_state(base_dir, state)
     append_event(
         base_dir,
@@ -1006,9 +1115,25 @@ def run_task(
     if dispatch_verdict.action == "blocked":
         return _apply_blocked_dispatch_verdict(base_dir, state, contract_record, dispatch_verdict)
 
-    retrieval_request = build_task_retrieval_request(state)
     _set_phase(base_dir, state, "retrieval")
-    retrieval_items = run_retrieval(base_dir, state, retrieval_request)
+    retrieval_items: list[RetrievalItem] | None = None
+    if requested_skip_to_phase in {"execution", "analysis"}:
+        retrieval_items = _load_previous_retrieval_items(base_dir, task_id)
+        if retrieval_items is None:
+            _append_phase_recovery_fallback(
+                base_dir,
+                state,
+                requested_skip_to_phase=requested_skip_to_phase,
+                fallback_phase="retrieval",
+                reason="previous retrieval artifacts are missing or invalid",
+            )
+    if retrieval_items is None:
+        retrieval_request = build_task_retrieval_request(state)
+        retrieval_items = run_retrieval(base_dir, state, retrieval_request)
+        retrieval_skipped = False
+    else:
+        retrieval_skipped = True
+    assert retrieval_items is not None
     state.retrieval_count = len(retrieval_items)
     grounding_evidence, reused_grounding = _resolve_grounding_state(base_dir, state, retrieval_items)
     save_state(base_dir, state)
@@ -1028,21 +1153,57 @@ def run_task(
             },
         ),
     )
-
-    state.dispatch_started_at = utc_now()
-    state.topology_dispatch_status = (
-        "mock_remote_dispatched"
-        if state.topology_transport_kind == "mock_remote_transport"
-        else "detached_dispatched"
-        if state.topology_transport_kind == "local_detached_process"
-        else "local_dispatched"
+    _record_phase_checkpoint(
+        base_dir,
+        state,
+        "retrieval_done",
+        skipped=retrieval_skipped,
+        source="previous_retrieval" if retrieval_skipped else "live_retrieval",
     )
-    state.execution_lifecycle = "dispatched"
-    _set_phase(base_dir, state, "executing")
-    executor_result = run_execution(base_dir, state, retrieval_items)
+
+    if requested_skip_to_phase == "analysis":
+        executor_result = _load_previous_executor_result(base_dir, state)
+        if executor_result is None:
+            _append_phase_recovery_fallback(
+                base_dir,
+                state,
+                requested_skip_to_phase=requested_skip_to_phase,
+                fallback_phase="execution",
+                reason="previous executor artifacts are missing or invalid",
+            )
+    else:
+        executor_result = None
+    if executor_result is None:
+        state.dispatch_started_at = utc_now()
+        state.topology_dispatch_status = (
+            "mock_remote_dispatched"
+            if state.topology_transport_kind == "mock_remote_transport"
+            else "detached_dispatched"
+            if state.topology_transport_kind == "local_detached_process"
+            else "local_dispatched"
+        )
+        state.execution_lifecycle = "dispatched"
+        save_state(base_dir, state)
+        _set_phase(base_dir, state, "executing")
+        executor_result = run_execution(base_dir, state, retrieval_items)
+        execution_skipped = False
+    else:
+        state.execution_lifecycle = "reused"
+        state.executor_name = executor_result.executor_name
+        state.executor_status = executor_result.status
+        save_state(base_dir, state)
+        _set_phase(base_dir, state, "executing")
+        execution_skipped = True
     state.executor_name = executor_result.executor_name
     state.executor_status = executor_result.status
     save_state(base_dir, state)
+    _record_phase_checkpoint(
+        base_dir,
+        state,
+        "execution_done",
+        skipped=execution_skipped,
+        source="previous_execution" if execution_skipped else "live_execution",
+    )
 
     _set_phase(base_dir, state, "summarize")
     state.artifact_paths = {
@@ -1101,6 +1262,9 @@ def run_task(
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
     }
+    state.execution_phase = "analysis_done"
+    state.last_phase_checkpoint_at = utc_now()
+    save_state(base_dir, state)
     (
         compatibility_result,
         execution_fit_result,
@@ -1125,6 +1289,7 @@ def run_task(
     state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
     staged_candidates = _route_knowledge_to_staged(base_dir, state)
     save_state(base_dir, state)
+    _record_phase_checkpoint(base_dir, state, "analysis_done", source="live_analysis")
     append_event(
         base_dir,
         Event(
@@ -1178,6 +1343,8 @@ def run_task(
                 "staged_candidate_count": len(staged_candidates),
                 "grounding_refs": state.grounding_refs,
                 "grounding_locked": state.grounding_locked,
+                "execution_phase": state.execution_phase,
+                "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
                 "artifact_paths": state.artifact_paths,
             },
         ),

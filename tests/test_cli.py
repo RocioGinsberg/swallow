@@ -6559,9 +6559,14 @@ class CliLifecycleTest(unittest.TestCase):
                 ("running", "intake"),
                 ("running", "retrieval"),
                 ("running", "retrieval"),
+                ("running", "retrieval"),
+                ("running", "retrieval"),
+                ("running", "executing"),
                 ("running", "executing"),
                 ("running", "executing"),
                 ("running", "summarize"),
+                ("running", "summarize"),
+                ("completed", "summarize"),
                 ("completed", "summarize"),
             ],
         )
@@ -6572,8 +6577,11 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.run_started",
                 "task.phase",
                 "grounding.locked",
+                "task.phase_checkpoint",
                 "task.phase",
+                "task.phase_checkpoint",
                 "task.phase",
+                "task.phase_checkpoint",
                 "task.completed",
             ],
         )
@@ -6886,9 +6894,14 @@ class CliLifecycleTest(unittest.TestCase):
                 ("running", "intake"),
                 ("running", "retrieval"),
                 ("running", "retrieval"),
+                ("running", "retrieval"),
+                ("running", "retrieval"),
+                ("running", "executing"),
                 ("running", "executing"),
                 ("running", "executing"),
                 ("running", "summarize"),
+                ("running", "summarize"),
+                ("failed", "summarize"),
                 ("failed", "summarize"),
             ],
         )
@@ -6899,8 +6912,11 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.run_started",
                 "task.phase",
                 "grounding.locked",
+                "task.phase_checkpoint",
                 "task.phase",
+                "task.phase_checkpoint",
                 "task.phase",
+                "task.phase_checkpoint",
                 "task.failed",
             ],
         )
@@ -7136,8 +7152,10 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "retrieval.completed",
                 "grounding.locked",
+                "task.phase_checkpoint",
                 "task.phase",
                 "executor.completed",
+                "task.phase_checkpoint",
                 "task.phase",
                 "compatibility.completed",
                 "execution_fit.completed",
@@ -7148,6 +7166,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "stop_policy.completed",
                 "checkpoint_snapshot.completed",
                 "artifacts.written",
+                "task.phase_checkpoint",
                 "task.completed",
             ],
         )
@@ -7216,40 +7235,42 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[3]["payload"]["source_types"], ["notes"])
         self.assertEqual(events[4]["payload"]["grounding_locked"], True)
         self.assertEqual(events[4]["payload"]["grounding_refs"], [])
-        self.assertEqual(events[5]["payload"]["phase"], "executing")
-        self.assertEqual(events[5]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[6]["payload"]["status"], "completed")
-        self.assertEqual(events[6]["payload"]["executor_name"], "mock")
-        self.assertEqual(events[6]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[6]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[6]["payload"]["route_executor_family"], "cli")
-        self.assertEqual(events[6]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[6]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[6]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[6]["payload"]["route_capabilities"]["deterministic"], True)
-        self.assertEqual(events[6]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
-        self.assertEqual(events[6]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[6]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[6]["payload"]["attempt_owner_kind"], "local_orchestrator")
-        self.assertEqual(events[6]["payload"]["attempt_owner_ref"], "swl_cli")
-        self.assertEqual(events[6]["payload"]["attempt_ownership_status"], "owned")
-        self.assertTrue(bool(events[6]["payload"]["attempt_owner_assigned_at"]))
-        self.assertEqual(events[6]["payload"]["attempt_transfer_reason"], "")
-        self.assertEqual(events[6]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[6]["payload"]["topology_executor_family"], "cli")
-        self.assertEqual(events[6]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[6]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[6]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[6]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertEqual(events[6]["payload"]["execution_site_contract_kind"], "local_inline")
-        self.assertEqual(events[6]["payload"]["execution_site_boundary"], "same_process")
-        self.assertEqual(events[6]["payload"]["execution_site_contract_status"], "active")
-        self.assertEqual(events[6]["payload"]["execution_site_handoff_required"], False)
-        self.assertTrue(bool(events[6]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[6]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[5]["payload"]["execution_phase"], "retrieval_done")
+        self.assertEqual(events[5]["payload"]["skipped"], False)
+        self.assertEqual(events[6]["payload"]["phase"], "executing")
         self.assertEqual(events[6]["payload"]["execution_lifecycle"], "dispatched")
+        self.assertEqual(events[7]["payload"]["status"], "completed")
+        self.assertEqual(events[7]["payload"]["executor_name"], "mock")
+        self.assertEqual(events[7]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[7]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[7]["payload"]["route_executor_family"], "cli")
+        self.assertEqual(events[7]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[7]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[7]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[7]["payload"]["route_capabilities"]["deterministic"], True)
+        self.assertEqual(events[7]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
+        self.assertEqual(events[7]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[7]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[7]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[7]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[7]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[7]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[7]["payload"]["attempt_transfer_reason"], "")
+        self.assertEqual(events[7]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[7]["payload"]["topology_executor_family"], "cli")
+        self.assertEqual(events[7]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[7]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[7]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[7]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[7]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[7]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[7]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[7]["payload"]["execution_site_handoff_required"], False)
+        self.assertTrue(bool(events[7]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[7]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[7]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(
-            events[6]["payload"]["output_written"],
+            events[7]["payload"]["output_written"],
             [
                 "executor_prompt.md",
                 "executor_output.md",
@@ -7257,76 +7278,83 @@ class CliLifecycleTest(unittest.TestCase):
                 "executor_stderr.txt",
             ],
         )
-        self.assertEqual(events[7]["payload"]["phase"], "summarize")
-        self.assertEqual(events[7]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[8]["payload"]["status"], "passed")
-        self.assertEqual(events[8]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
-        self.assertEqual(events[9]["payload"]["status"], "passed")
-        self.assertEqual(events[9]["payload"]["finding_counts"], {"pass": 7, "warn": 0, "fail": 0})
+        self.assertEqual(events[8]["payload"]["execution_phase"], "execution_done")
+        self.assertEqual(events[8]["payload"]["skipped"], False)
+        self.assertEqual(events[9]["payload"]["phase"], "summarize")
+        self.assertEqual(events[9]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(events[10]["payload"]["status"], "passed")
-        self.assertEqual(events[10]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
+        self.assertEqual(events[10]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[11]["payload"]["status"], "passed")
-        self.assertEqual(events[11]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
+        self.assertEqual(events[11]["payload"]["finding_counts"], {"pass": 7, "warn": 0, "fail": 0})
         self.assertEqual(events[12]["payload"]["status"], "passed")
+        self.assertEqual(events[12]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
         self.assertEqual(events[13]["payload"]["status"], "passed")
-        self.assertEqual(events[14]["payload"]["status"], "warning")
-        self.assertEqual(events[16]["payload"]["status"], "completed")
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
+        self.assertEqual(events[13]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
+        self.assertEqual(events[14]["payload"]["status"], "passed")
+        self.assertEqual(events[15]["payload"]["status"], "passed")
+        self.assertEqual(events[16]["payload"]["status"], "warning")
+        self.assertEqual(events[17]["payload"]["status"], "passed")
+        self.assertEqual(events[17]["payload"]["execution_phase"], "analysis_done")
+        self.assertEqual(events[18]["payload"]["status"], "completed")
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
         self.assertTrue(
-            events[16]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+            events[18]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
         )
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["grounding_evidence_json"].endswith("grounding_evidence.json"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["grounding_evidence_report"].endswith("grounding_evidence_report.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
-        self.assertTrue(events[16]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
-        self.assertEqual(events[17]["payload"]["status"], "completed")
-        self.assertEqual(events[17]["payload"]["phase"], "summarize")
-        self.assertEqual(events[17]["payload"]["retrieval_count"], 1)
-        self.assertEqual(events[17]["payload"]["executor_status"], "completed")
-        self.assertEqual(events[17]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[17]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[17]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[17]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[17]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[17]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[17]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[17]["payload"]["attempt_owner_kind"], "local_orchestrator")
-        self.assertEqual(events[17]["payload"]["attempt_owner_ref"], "swl_cli")
-        self.assertEqual(events[17]["payload"]["attempt_ownership_status"], "owned")
-        self.assertTrue(bool(events[17]["payload"]["attempt_owner_assigned_at"]))
-        self.assertEqual(events[17]["payload"]["attempt_transfer_reason"], "")
-        self.assertEqual(events[17]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[17]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[17]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[17]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[17]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertEqual(events[17]["payload"]["execution_site_contract_kind"], "local_inline")
-        self.assertEqual(events[17]["payload"]["execution_site_boundary"], "same_process")
-        self.assertEqual(events[17]["payload"]["execution_site_contract_status"], "active")
-        self.assertEqual(events[17]["payload"]["execution_site_handoff_required"], False)
-        self.assertTrue(bool(events[17]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[17]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[17]["payload"]["execution_lifecycle"], "completed")
-        self.assertEqual(events[17]["payload"]["compatibility_status"], "passed")
-        self.assertEqual(events[17]["payload"]["execution_fit_status"], "passed")
-        self.assertEqual(events[17]["payload"]["retry_policy_status"], "passed")
-        self.assertEqual(events[17]["payload"]["execution_budget_policy_status"], "passed")
-        self.assertEqual(events[17]["payload"]["stop_policy_status"], "warning")
-        self.assertEqual(events[17]["payload"]["knowledge_policy_status"], "passed")
-        self.assertEqual(events[17]["payload"]["validation_status"], "passed")
-        self.assertEqual(events[17]["payload"]["grounding_locked"], True)
-        self.assertEqual(events[17]["payload"]["grounding_refs"], [])
-        self.assertTrue(events[17]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["grounding_evidence_json"].endswith("grounding_evidence.json"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["grounding_evidence_report"].endswith("grounding_evidence_report.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertTrue(events[18]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+        self.assertEqual(events[19]["payload"]["execution_phase"], "analysis_done")
+        self.assertEqual(events[19]["payload"]["skipped"], False)
+        self.assertEqual(events[20]["payload"]["status"], "completed")
+        self.assertEqual(events[20]["payload"]["phase"], "summarize")
+        self.assertEqual(events[20]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[20]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[20]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[20]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[20]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[20]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[20]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[20]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[20]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[20]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[20]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[20]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[20]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[20]["payload"]["attempt_transfer_reason"], "")
+        self.assertEqual(events[20]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[20]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[20]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[20]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[20]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[20]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[20]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[20]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[20]["payload"]["execution_site_handoff_required"], False)
+        self.assertTrue(bool(events[20]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[20]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[20]["payload"]["execution_lifecycle"], "completed")
+        self.assertEqual(events[20]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[20]["payload"]["execution_fit_status"], "passed")
+        self.assertEqual(events[20]["payload"]["retry_policy_status"], "passed")
+        self.assertEqual(events[20]["payload"]["execution_budget_policy_status"], "passed")
+        self.assertEqual(events[20]["payload"]["stop_policy_status"], "warning")
+        self.assertEqual(events[20]["payload"]["knowledge_policy_status"], "passed")
+        self.assertEqual(events[20]["payload"]["validation_status"], "passed")
+        self.assertEqual(events[20]["payload"]["grounding_locked"], True)
+        self.assertEqual(events[20]["payload"]["grounding_refs"], [])
+        self.assertEqual(events[20]["payload"]["execution_phase"], "analysis_done")
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
 
     def test_failed_task_events_include_failure_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7383,33 +7411,40 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(events[4]["event_type"], "grounding.locked")
         self.assertEqual(events[4]["payload"]["grounding_locked"], True)
-        self.assertEqual(events[6]["event_type"], "executor.failed")
-        self.assertEqual(events[6]["payload"]["status"], "failed")
-        self.assertEqual(events[6]["payload"]["executor_name"], "codex")
-        self.assertEqual(events[6]["payload"]["route_name"], "local-codex")
-        self.assertEqual(events[6]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[6]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[6]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[6]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertTrue(bool(events[6]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[6]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[6]["payload"]["failure_kind"], "launch_error")
-        self.assertEqual(events[8]["event_type"], "compatibility.completed")
-        self.assertEqual(events[8]["payload"]["status"], "passed")
-        self.assertEqual(events[9]["event_type"], "execution_fit.completed")
-        self.assertEqual(events[9]["payload"]["status"], "passed")
-        self.assertEqual(events[10]["event_type"], "knowledge_policy.completed")
+        self.assertEqual(events[5]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[5]["payload"]["execution_phase"], "retrieval_done")
+        self.assertEqual(events[6]["event_type"], "task.phase")
+        self.assertEqual(events[7]["event_type"], "executor.failed")
+        self.assertEqual(events[7]["payload"]["status"], "failed")
+        self.assertEqual(events[7]["payload"]["executor_name"], "codex")
+        self.assertEqual(events[7]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[7]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[7]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[7]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[7]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertTrue(bool(events[7]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[7]["payload"]["execution_lifecycle"], "dispatched")
+        self.assertEqual(events[7]["payload"]["failure_kind"], "launch_error")
+        self.assertEqual(events[8]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[8]["payload"]["execution_phase"], "execution_done")
+        self.assertEqual(events[10]["event_type"], "compatibility.completed")
         self.assertEqual(events[10]["payload"]["status"], "passed")
-        self.assertEqual(events[11]["event_type"], "validation.completed")
+        self.assertEqual(events[11]["event_type"], "execution_fit.completed")
         self.assertEqual(events[11]["payload"]["status"], "passed")
-        self.assertEqual(events[12]["event_type"], "retry_policy.completed")
-        self.assertEqual(events[12]["payload"]["status"], "failed")
-        self.assertEqual(events[13]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[12]["event_type"], "knowledge_policy.completed")
+        self.assertEqual(events[12]["payload"]["status"], "passed")
+        self.assertEqual(events[13]["event_type"], "validation.completed")
         self.assertEqual(events[13]["payload"]["status"], "passed")
-        self.assertEqual(events[14]["event_type"], "stop_policy.completed")
+        self.assertEqual(events[14]["event_type"], "retry_policy.completed")
         self.assertEqual(events[14]["payload"]["status"], "failed")
-        self.assertEqual(events[15]["event_type"], "checkpoint_snapshot.completed")
-        self.assertEqual(events[15]["payload"]["status"], "warning")
+        self.assertEqual(events[15]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[15]["payload"]["status"], "passed")
+        self.assertEqual(events[16]["event_type"], "stop_policy.completed")
+        self.assertEqual(events[16]["payload"]["status"], "failed")
+        self.assertEqual(events[17]["event_type"], "checkpoint_snapshot.completed")
+        self.assertEqual(events[17]["payload"]["status"], "warning")
+        self.assertEqual(events[19]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[19]["payload"]["execution_phase"], "analysis_done")
         self.assertEqual(events[-1]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
@@ -7508,8 +7543,10 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "retrieval.completed",
                 "grounding.locked",
+                "task.phase_checkpoint",
                 "task.phase",
                 "executor.failed",
+                "task.phase_checkpoint",
                 "task.phase",
                 "compatibility.completed",
                 "execution_fit.completed",
@@ -7520,6 +7557,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "stop_policy.completed",
                 "checkpoint_snapshot.completed",
                 "artifacts.written",
+                "task.phase_checkpoint",
                 "task.failed",
             ],
         )
@@ -7531,8 +7569,10 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase",
                 "retrieval.completed",
                 "grounding.locked",
+                "task.phase_checkpoint",
                 "task.phase",
                 "executor.failed",
+                "task.phase_checkpoint",
                 "task.phase",
                 "compatibility.completed",
                 "execution_fit.completed",
@@ -7543,13 +7583,16 @@ class CliLifecycleTest(unittest.TestCase):
                 "stop_policy.completed",
                 "checkpoint_snapshot.completed",
                 "artifacts.written",
+                "task.phase_checkpoint",
                 "task.failed",
                 "task.run_started",
                 "task.phase",
                 "retrieval.completed",
                 "grounding.locked",
+                "task.phase_checkpoint",
                 "task.phase",
                 "executor.failed",
+                "task.phase_checkpoint",
                 "task.phase",
                 "compatibility.completed",
                 "execution_fit.completed",
@@ -7560,23 +7603,211 @@ class CliLifecycleTest(unittest.TestCase):
                 "stop_policy.completed",
                 "checkpoint_snapshot.completed",
                 "artifacts.written",
+                "task.phase_checkpoint",
                 "task.failed",
             ],
         )
-        self.assertEqual(final_events[18]["payload"]["previous_status"], "failed")
-        self.assertEqual(final_events[18]["payload"]["previous_phase"], "summarize")
-        self.assertEqual(final_events[18]["payload"]["status"], "running")
-        self.assertEqual(final_events[18]["payload"]["phase"], "intake")
+        self.assertEqual(final_events[21]["payload"]["previous_status"], "failed")
+        self.assertEqual(final_events[21]["payload"]["previous_phase"], "summarize")
+        self.assertEqual(final_events[21]["payload"]["status"], "running")
+        self.assertEqual(final_events[21]["payload"]["phase"], "intake")
         self.assertEqual(first_events[1]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(first_events[1]["payload"]["attempt_number"], 1)
         self.assertEqual(first_events[1]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(final_events[18]["payload"]["attempt_id"], "attempt-0002")
-        self.assertEqual(final_events[18]["payload"]["attempt_number"], 2)
-        self.assertEqual(final_events[18]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(final_events[21]["payload"]["attempt_id"], "attempt-0002")
+        self.assertEqual(final_events[21]["payload"]["attempt_number"], 2)
+        self.assertEqual(final_events[21]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(final_state["run_attempt_count"], 2)
         self.assertEqual(final_state["current_attempt_id"], "attempt-0002")
         self.assertEqual(final_state["current_attempt_number"], 2)
         self.assertEqual(final_state["execution_lifecycle"], "failed")
+
+    def test_run_persists_execution_phase_checkpoints(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / "notes.md").write_text("# Notes\n\nphase checkpoint\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Phase checkpoints",
+                            "--goal",
+                            "Persist execution checkpoint truth",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            checkpoint_snapshot = json.loads((task_dir / "checkpoint_snapshot.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        phase_events = [event for event in events if event["event_type"] == "task.phase_checkpoint"]
+        self.assertEqual(state["execution_phase"], "analysis_done")
+        self.assertTrue(bool(state["last_phase_checkpoint_at"]))
+        self.assertEqual(checkpoint_snapshot["execution_phase"], "analysis_done")
+        self.assertTrue(bool(checkpoint_snapshot["last_phase_checkpoint_at"]))
+        self.assertEqual(
+            [event["payload"]["execution_phase"] for event in phase_events],
+            ["retrieval_done", "execution_done", "analysis_done"],
+        )
+        self.assertEqual([event["payload"]["skipped"] for event in phase_events], [False, False, False])
+
+    def test_rerun_from_execution_reuses_previous_retrieval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / "notes.md").write_text("# Notes\n\nselective rerun execution\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Selective execution rerun",
+                            "--goal",
+                            "Reuse retrieval artifacts",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+            executor_result = ExecutorResult(
+                executor_name="mock",
+                status="completed",
+                message="Mock executor rerun completed.",
+                output="rerun output",
+                prompt="rerun prompt",
+                dialect="plain_text",
+            )
+            with patch("swallow.harness.retrieve_context", side_effect=AssertionError("retrieval should be skipped")):
+                with patch("swallow.harness.run_executor", return_value=executor_result) as run_executor_mock:
+                    self.assertEqual(
+                        main(
+                            [
+                                "--base-dir",
+                                str(tmp_path),
+                                "task",
+                                "rerun",
+                                task_id,
+                                "--from-phase",
+                                "execution",
+                            ]
+                        ),
+                        0,
+                    )
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        second_attempt_phase_events = [
+            event
+            for event in events
+            if event["event_type"] == "task.phase_checkpoint" and event["payload"].get("source") in {"previous_retrieval", "live_execution", "live_analysis"}
+        ][-3:]
+        self.assertEqual(run_executor_mock.call_count, 1)
+        self.assertEqual(state["run_attempt_count"], 2)
+        self.assertEqual(
+            [(event["payload"]["execution_phase"], event["payload"]["skipped"]) for event in second_attempt_phase_events],
+            [("retrieval_done", True), ("execution_done", False), ("analysis_done", False)],
+        )
+
+    def test_rerun_from_analysis_reuses_previous_execution_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            (tmp_path / "notes.md").write_text("# Notes\n\nselective rerun analysis\n", encoding="utf-8")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "task",
+                            "create",
+                            "--title",
+                            "Selective analysis rerun",
+                            "--goal",
+                            "Reuse executor artifacts",
+                            "--workspace-root",
+                            str(tmp_path),
+                        ]
+                    ),
+                    0,
+                )
+                task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+            with patch("swallow.harness.retrieve_context", side_effect=AssertionError("retrieval should be skipped")):
+                with patch("swallow.harness.run_executor", side_effect=AssertionError("execution should be skipped")):
+                    self.assertEqual(
+                        main(
+                            [
+                                "--base-dir",
+                                str(tmp_path),
+                                "task",
+                                "rerun",
+                                task_id,
+                                "--from-phase",
+                                "analysis",
+                            ]
+                        ),
+                        0,
+                    )
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            inspect_stdout = StringIO()
+            review_stdout = StringIO()
+            with redirect_stdout(inspect_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "inspect", task_id]), 0)
+            with redirect_stdout(review_stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
+
+        second_attempt_phase_events = [
+            event
+            for event in events
+            if event["event_type"] == "task.phase_checkpoint" and event["payload"].get("source") in {"previous_retrieval", "previous_execution", "live_analysis"}
+        ][-3:]
+        self.assertEqual(
+            [(event["payload"]["execution_phase"], event["payload"]["skipped"]) for event in second_attempt_phase_events],
+            [("retrieval_done", True), ("execution_done", True), ("analysis_done", False)],
+        )
+        self.assertIn("execution_phase: analysis_done", inspect_stdout.getvalue())
+        self.assertIn("last_phase_checkpoint_at:", inspect_stdout.getvalue())
+        self.assertIn("execution_phase: analysis_done", review_stdout.getvalue())
+        self.assertIn("last_phase_checkpoint_at:", review_stdout.getvalue())
 
     def test_normalize_executor_name_supports_aliases(self) -> None:
         self.assertEqual(normalize_executor_name("local-summary"), "local")

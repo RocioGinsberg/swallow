@@ -884,6 +884,8 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
         f"recommended_action: {checkpoint_snapshot.get('recommended_path', queue_entry['action'] if queue_entry else 'none')}",
         f"recommended_reason: {checkpoint_snapshot.get('recommended_reason', queue_entry['reason'] if queue_entry else 'no_action_needed')}",
         f"checkpoint_state: {checkpoint_snapshot.get('checkpoint_state', 'pending')}",
+        f"execution_phase: {checkpoint_snapshot.get('execution_phase', getattr(state, 'execution_phase', 'pending') or 'pending')}",
+        f"last_phase_checkpoint_at: {checkpoint_snapshot.get('last_phase_checkpoint_at', getattr(state, 'last_phase_checkpoint_at', '') or '-')}",
         f"recovery_semantics: {checkpoint_snapshot.get('recovery_semantics', 'pending')}",
         f"interruption_kind: {checkpoint_snapshot.get('interruption_kind', 'none')}",
         f"resume_ready: {'yes' if checkpoint_snapshot.get('resume_ready', False) else 'no'}",
@@ -1024,6 +1026,7 @@ def execute_task_run(
     capability_refs: list[str] | None,
     route_mode: str | None,
     reset_grounding: bool = False,
+    skip_to_phase: str = "retrieval",
 ) -> int:
     state = run_task(
         base_dir=base_dir,
@@ -1032,8 +1035,12 @@ def execute_task_run(
         capability_refs=capability_refs,
         route_mode=route_mode,
         reset_grounding=reset_grounding,
+        skip_to_phase=skip_to_phase,
     )
-    print(f"{state.task_id} {state.status} retrieval={state.retrieval_count}")
+    print(
+        f"{state.task_id} {state.status} retrieval={state.retrieval_count} "
+        f"execution_phase={state.execution_phase}"
+    )
     return 0
 
 
@@ -1317,6 +1324,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Override the task routing policy mode for this retry.",
     )
+    retry_parser.add_argument(
+        "--from-phase",
+        default="retrieval",
+        choices=["retrieval", "execution", "analysis"],
+        help="Selective retry checkpoint to restart from. Defaults to retrieval.",
+    )
     resume_parser = task_subparsers.add_parser(
         "resume",
         help="Resume a task on the accepted run path when checkpoint recovery truth allows it.",
@@ -1362,6 +1375,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
         help="Override the task routing policy mode for this rerun.",
+    )
+    rerun_parser.add_argument(
+        "--from-phase",
+        default="retrieval",
+        choices=["retrieval", "execution", "analysis"],
+        help="Selective rerun checkpoint to restart from. Defaults to retrieval.",
     )
     acknowledge_parser = task_subparsers.add_parser(
         "acknowledge",
@@ -1913,7 +1932,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "retry":
         state = load_state(base_dir, args.task_id)
         if is_acknowledged_dispatch_reentry(state):
-            return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
+            return execute_task_run(
+                base_dir,
+                args.task_id,
+                args.executor,
+                args.capability,
+                args.route_mode,
+                skip_to_phase=args.from_phase,
+            )
         retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
         stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
@@ -1925,7 +1951,15 @@ def main(argv: list[str] | None = None) -> int:
                 f"suggested_path={checkpoint_snapshot.get('recommended_path', 'pending')}"
             )
             return 1
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode, reset_grounding=True)
+        return execute_task_run(
+            base_dir,
+            args.task_id,
+            args.executor,
+            args.capability,
+            args.route_mode,
+            reset_grounding=True,
+            skip_to_phase=args.from_phase,
+        )
 
     if args.command == "task" and args.task_command == "resume":
         state = load_state(base_dir, args.task_id)
@@ -1943,7 +1977,15 @@ def main(argv: list[str] | None = None) -> int:
         return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
 
     if args.command == "task" and args.task_command == "rerun":
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode, reset_grounding=True)
+        return execute_task_run(
+            base_dir,
+            args.task_id,
+            args.executor,
+            args.capability,
+            args.route_mode,
+            reset_grounding=True,
+            skip_to_phase=args.from_phase,
+        )
 
     if args.command == "task" and args.task_command == "list":
         states = sorted(
@@ -2166,6 +2208,8 @@ def main(argv: list[str] | None = None) -> int:
             f"attempt_owner_ref: {state.current_attempt_owner_ref}",
             f"attempt_ownership_status: {state.current_attempt_ownership_status}",
             f"execution_lifecycle: {state.execution_lifecycle}",
+            f"execution_phase: {state.execution_phase or 'pending'}",
+            f"last_phase_checkpoint_at: {state.last_phase_checkpoint_at or '-'}",
             f"task_semantics_source_kind: {task_semantics.get('source_kind', state.task_semantics.get('source_kind', 'none') if state.task_semantics else 'none')}",
             f"task_semantics_source_ref: {task_semantics.get('source_ref', state.task_semantics.get('source_ref', '') if state.task_semantics else '') or '-'}",
             f"task_semantics_constraints: {len(task_semantics.get('constraints', state.task_semantics.get('constraints', []) if state.task_semantics else []))}",
@@ -2235,6 +2279,8 @@ def main(argv: list[str] | None = None) -> int:
             f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
             f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
             f"checkpoint_state: {checkpoint_snapshot.get('checkpoint_state', 'pending')}",
+            f"execution_phase: {checkpoint_snapshot.get('execution_phase', state.execution_phase or 'pending')}",
+            f"last_phase_checkpoint_at: {checkpoint_snapshot.get('last_phase_checkpoint_at', state.last_phase_checkpoint_at or '-')}",
             f"recovery_semantics: {checkpoint_snapshot.get('recovery_semantics', 'pending')}",
             f"interruption_kind: {checkpoint_snapshot.get('interruption_kind', 'none')}",
             f"recommended_path: {checkpoint_snapshot.get('recommended_path', 'pending')}",
@@ -2365,6 +2411,8 @@ def main(argv: list[str] | None = None) -> int:
             f"status: {state.status}",
             f"executor_status: {state.executor_status}",
             f"execution_lifecycle: {state.execution_lifecycle}",
+            f"execution_phase: {state.execution_phase or 'pending'}",
+            f"last_phase_checkpoint_at: {state.last_phase_checkpoint_at or '-'}",
             "",
             "Handoff",
             f"route_label: {mock_remote_label or '-'}",
@@ -2377,6 +2425,8 @@ def main(argv: list[str] | None = None) -> int:
             f"handoff_contract_status: {handoff.get('contract_status', 'pending')}",
             f"handoff_contract_kind: {handoff.get('contract_kind', 'pending')}",
             f"checkpoint_state: {checkpoint_snapshot.get('checkpoint_state', 'pending')}",
+            f"execution_phase: {checkpoint_snapshot.get('execution_phase', state.execution_phase or 'pending')}",
+            f"last_phase_checkpoint_at: {checkpoint_snapshot.get('last_phase_checkpoint_at', state.last_phase_checkpoint_at or '-')}",
             f"recovery_semantics: {checkpoint_snapshot.get('recovery_semantics', 'pending')}",
             f"interruption_kind: {checkpoint_snapshot.get('interruption_kind', 'none')}",
             f"recommended_path: {checkpoint_snapshot.get('recommended_path', 'pending')}",
