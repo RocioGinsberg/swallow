@@ -158,6 +158,11 @@ Claude: PR Review
 4. Human 审查并执行该 slice commit
 5. commit 完成后，再进入下一个 slice 或更新状态
 
+**强约束**：
+- 一个 slice 对应一个独立 commit 节奏点；不要把多个 slices 合并成一次“大包提交”
+- 进入下一个 slice 前，前一个 slice 应已经完成人工审查和独立 commit
+- PR 创建前保持 slice 级 commit 历史，不再额外整理成单一汇总提交
+
 **产出**：
 - 代码改动（在 feature branch 上）
 - 测试结果
