@@ -2,41 +2,36 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Core Loop` (Primary) + `Workbench / UX` (Secondary)
-- latest_completed_phase: `Phase 30`
-- latest_completed_slice: `Operator Checkpoint & Selective Retry`
-- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
-- active_phase: `Phase 31`
-- active_slice: `Phase 31 Closeout & PR Prep`
-- active_branch: `feat/phase31-runtime-v0`
-- status: `pr_ready`
+- latest_completed_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
+- latest_completed_phase: `Phase 31`
+- latest_completed_slice: `Runtime v0 — Planner + Executor Interface + Review Gate`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
+- active_branch: `main`
+- status: `direction_gate_pending`
 
 ---
 
 ## 当前状态说明
 
-Phase 31 Runtime v0 已完成实现、review 与 closeout 整理，当前处于 PR 准备完成状态。
+Phase 31 已完成 merge，并已回到 `main`。当前默认入口不再是 Phase 31 的实现或收口，而是**下一轮方向选择 / kickoff 前状态**。
 
-Claude 已完成 roadmap 优先级评审（添加了第三节”推荐 Phase 队列”），并产出 `docs/plans/phase31/kickoff.md`（draft）。
+Phase 31 已形成的稳定 checkpoint：
 
-Phase 31 目标：将隐式的文档驱动调度转化为代码驱动的 Runtime v0 中枢。核心产出为 Planner（Task Card 标准化）、统一 Executor Interface、Review Gate（Schema 校验门禁）。
+- 引入 `TaskCard` 与规则驱动 `Planner v0`
+- 建立 `ExecutorProtocol` 统一执行器接口
+- 在 `run_task()` 中接入非阻断 `ReviewGate`
+- 补齐 `task.planned` / `task.review_gate` 运行期可观测性
 
-kickoff 中拆为 3 个 slice：S1 TaskCard + Planner v0 → S2 ExecutorProtocol + 适配 → S3 ReviewGate + 流程串联。
+当前默认不应继续在 `main` 上顺手扩张：
 
-kickoff 已通过人工审批。Claude 已产出 design_decision.md（三段式重构方案：Planner→Executor→ReviewGate）和 risk_assessment.md（总体中等风险，无高风险 slice）。设计方案已审批通过，并已切出 `feat/phase31-runtime-v0` 进入实现。
+- 1:N TaskCard 拆解
+- ReviewGate 阻断 completion / retry
+- 动态 executor negotiation / fallback matrix
+- 多卡并发编排 / Subtask Orchestrator
 
-S1 已完成并已提交：新增 `TaskCard` dataclass 和 `planner.py` 的规则驱动 `plan()`。
-
-S2 已完成并已提交：为现有执行路径补齐 `ExecutorProtocol`、`LocalCLIExecutor` / `MockExecutor` 适配层，并保持 `harness.run_execution()` 的执行/持久化行为不变。
-
-S3 已完成并已提交：新增 `ReviewGate`，并把 `run_task()` 串成 `Planner → Executor → ReviewGate`，同时保持既有 artifact/state 语义不变。
-
-当前已完成：
-
-- `docs/plans/phase31/closeout.md`
-- `./pr.md`
-
-当前阶段结论：Phase 31 **PR ready / Merge ready**。`current_state.md` 保留到 merge 后再更新，避免把 feature branch 状态误记为主线稳定 checkpoint。
+下一轮应回到 `docs/roadmap.md` 和 `docs/system_tracks.md` 重新选择方向，再启动新的正式 kickoff。
 
 ---
 
@@ -49,7 +44,7 @@ S3 已完成并已提交：新增 `ReviewGate`，并把 `run_task()` 串成 `Pla
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase30/closeout.md`
+6. `docs/plans/phase31/closeout.md`
 
 ---
 
@@ -58,42 +53,18 @@ S3 已完成并已提交：新增 `ReviewGate`，并把 `run_task()` 串成 `Pla
 - `docs/plans/phase31/kickoff.md` (claude, 2026-04-15) — Phase 31 kickoff (approved)
 - `docs/plans/phase31/design_decision.md` (claude, 2026-04-15) — 方案拆解：3 slice，三段式重构
 - `docs/plans/phase31/risk_assessment.md` (claude, 2026-04-15) — 风险评估：总分 15/27，中等风险
-- `src/swallow/models.py` (codex, 2026-04-15) — 新增 `TaskCard` dataclass
-- `src/swallow/planner.py` (codex, 2026-04-15) — 新增规则驱动 `plan()`
-- `tests/test_planner.py` (codex, 2026-04-15) — 覆盖 `TaskCard` 序列化与 Planner 1:1 拆解
-- `git commit 7c5cf54` (human, 2026-04-15) — `feat(phase31): add task card planner baseline`
-- `src/swallow/executor.py` (codex, 2026-04-15) — 新增 `ExecutorProtocol`、`LocalCLIExecutor`、`MockExecutor` 与 `resolve_executor()`
-- `tests/test_executor_protocol.py` (codex, 2026-04-15) — 覆盖协议 runtime-check、resolver 映射与 harness 委托
-- `git commit c0a2eb2` (human, 2026-04-15) — `feat(phase31): add executor protocol adapters`
-- `src/swallow/review_gate.py` (codex, 2026-04-15) — 新增 `ReviewGateResult` 与 `review_executor_output()`
-- `src/swallow/orchestrator.py` (codex, 2026-04-15) — 接入 `plan()`、executor helper、`task.planned` 与 `task.review_gate` 事件
-- `tests/test_review_gate.py` (codex, 2026-04-15) — 覆盖 ReviewGate pass/fail 与 schema placeholder 行为
-- `tests/test_cli.py` (codex, 2026-04-15) — 更新 Runtime v0 事件顺序与 helper patch 覆盖
-- `git commit ad11c05` (human, 2026-04-16) — `feat(phase31): add review gate runtime integration`
 - `docs/plans/phase31/review_comments.md` (claude, 2026-04-16) — PR review: Merge ready, 0 BLOCK, 0 CONCERN
 - `docs/plans/phase31/closeout.md` (codex, 2026-04-16) — Phase 31 closeout: PR ready, stop/go 边界与稳定 checkpoint
-- `pr.md` (codex, 2026-04-16) — PR 描述草稿
 
 ## 当前推进
 
 已完成：
 
-- **[Gemini]** 重写 `docs/roadmap.md`，输出基于全新蓝图的差距分析与 Phase 31-35 演进路线图。
-- **[Claude]** 完成 roadmap 优先级评审，添加第三节”推荐 Phase 队列”（风险批注 + 依赖关系 + 调整建议）。
-- **[Claude]** 产出 `docs/plans/phase31/kickoff.md` (draft)，定义 Phase 31 目标、非目标、设计边界、完成条件与 3-slice 拆解。
-- **[Human]** 审批通过 kickoff。
-- **[Claude]** 产出 `design_decision.md`（TaskCard + Planner v0 / ExecutorProtocol / ReviewGate 三段式方案）和 `risk_assessment.md`（总分 15/27，无高风险 slice）。
-- **[Human]** 审批通过 `design_decision.md` + `risk_assessment.md`，并切出 `feat/phase31-runtime-v0`。
-- **[Codex]** 已完成 S1：`TaskCard + Planner v0`，并通过 `tests/test_planner.py`。
-- **[Human]** 已提交 S1：`feat(phase31): add task card planner baseline`。
-- **[Codex]** 已完成 S2：`ExecutorProtocol + 适配`，并通过 `tests/test_planner.py tests/test_executor_protocol.py`。
-- **[Human]** 已提交 S2：`feat(phase31): add executor protocol adapters`。
-- **[Codex]** 已完成 S3：`ReviewGate + 流程串联`，并通过全量 `216 passed in 5.50s`。
-- **[Human]** 已提交 S3：`feat(phase31): add review gate runtime integration`。
-- **[Claude]** 完成 PR review，结论：**Merge ready**，0 BLOCK，0 CONCERN。
-- **[Codex]** 已完成 Phase 31 closeout 与 PR 文案整理。
+- **[Human]** 已完成 Phase 31 merge，并切换回 `main`。
+- **[Codex]** 已将入口文档切换到“下一阶段启动前”状态。
 
 ## 下一步
 
-- **[Human]** Push branch、创建 PR、merge
-- **[Claude]** merge 后更新 active_context 和 current_state
+- **[Human]** 从 `docs/roadmap.md` 选择下一轮方向
+- **[Gemini / Claude]** 如有需要，刷新 roadmap 优先级与方向判断
+- **[Human]** 确认下一 phase 方向后启动新的 kickoff

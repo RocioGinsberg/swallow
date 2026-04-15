@@ -20,7 +20,7 @@
 
 本仓库当前已经完成：
 
-- Phase 0 到 Phase 30 基线
+- Phase 0 到 Phase 31 基线
 - post-Phase-2 retrieval baseline
 - post-Phase-5 executor / external-input slice
 - post-Phase-5 retrieval / memory-next slice
@@ -39,16 +39,17 @@
 
 当前最近完成的 phase 为：
 
-- **Latest Completed Track**：`Core Loop` (Primary) + `Workbench / UX` (Secondary)
-- **Latest Completed Phase**：`Phase 30`
-- **Latest Completed Slice**：`Operator Checkpoint & Selective Retry`
+- **Latest Completed Track**：`Core Loop` (Primary) + `Execution Topology` (Secondary)
+- **Latest Completed Phase**：`Phase 31`
+- **Latest Completed Slice**：`Runtime v0 — Planner + Executor Interface + Review Gate`
 
-Phase 30 已完成的核心内容包括：
+Phase 31 已完成的核心内容包括：
 
-- 为 `run_task()` 建立 retrieval / execution / analysis 的 phase-level checkpoint
-- 新增 selective retry：`task retry|rerun --from-phase`
-- 为 inspect / review / checkpoint snapshot 补齐 checkpoint phase 可观测性
-- 完成 Phase 30 实现、评审、merge 与 closeout 收口
+- 引入 `TaskCard` 与规则驱动 `Planner v0`
+- 为现有执行路径建立 `ExecutorProtocol` 统一接口
+- 在 `run_task()` 中接入非阻断 `ReviewGate`
+- 新增 `task.planned` / `task.review_gate` 运行期可观测性
+- 完成 Phase 31 实现、评审、merge 与 closeout 收口
 
 当前默认不应继续无边界扩张到：
 
@@ -194,10 +195,13 @@ Phase 30 已完成的核心内容包括：
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase30/closeout.md`
+6. `docs/plans/phase31/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase31/design_decision.md`
+- `docs/plans/phase31/risk_assessment.md`
+- `docs/plans/phase31/review_comments.md`
 - `docs/plans/phase30/design_decision.md`
 - `docs/plans/phase30/risk_assessment.md`
 - `docs/plans/phase30/review_comments.md`
