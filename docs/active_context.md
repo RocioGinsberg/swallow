@@ -7,7 +7,7 @@
 - latest_completed_slice: `Operator Checkpoint & Selective Retry`
 - active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
 - active_phase: `Phase 31`
-- active_slice: `S1 TaskCard + Planner v0`
+- active_slice: `S2 ExecutorProtocol + 适配`
 - active_branch: `feat/phase31-runtime-v0`
 - status: `awaiting_human_commit`
 
@@ -15,7 +15,7 @@
 
 ## 当前状态说明
 
-Phase 31 Runtime v0 已进入分 slice 实现阶段，当前已完成 S1。
+Phase 31 Runtime v0 已进入分 slice 实现阶段，当前已完成 S2。
 
 Claude 已完成 roadmap 优先级评审（添加了第三节”推荐 Phase 队列”），并产出 `docs/plans/phase31/kickoff.md`（draft）。
 
@@ -25,7 +25,9 @@ kickoff 中拆为 3 个 slice：S1 TaskCard + Planner v0 → S2 ExecutorProtocol
 
 kickoff 已通过人工审批。Claude 已产出 design_decision.md（三段式重构方案：Planner→Executor→ReviewGate）和 risk_assessment.md（总体中等风险，无高风险 slice）。设计方案已审批通过，并已切出 `feat/phase31-runtime-v0` 进入实现。
 
-S1 已完成：新增 `TaskCard` dataclass 和 `planner.py` 的规则驱动 `plan()`，当前等待 Human 审查 diff 并执行该 slice 的独立 commit。
+S1 已完成并已提交：新增 `TaskCard` dataclass 和 `planner.py` 的规则驱动 `plan()`。
+
+S2 已完成：为现有执行路径补齐 `ExecutorProtocol`、`LocalCLIExecutor` / `MockExecutor` 适配层，并保持 `harness.run_execution()` 的执行/持久化行为不变。当前等待 Human 审查 diff 并执行该 slice 的独立 commit。
 
 ---
 
@@ -50,6 +52,9 @@ S1 已完成：新增 `TaskCard` dataclass 和 `planner.py` 的规则驱动 `pla
 - `src/swallow/models.py` (codex, 2026-04-15) — 新增 `TaskCard` dataclass
 - `src/swallow/planner.py` (codex, 2026-04-15) — 新增规则驱动 `plan()`
 - `tests/test_planner.py` (codex, 2026-04-15) — 覆盖 `TaskCard` 序列化与 Planner 1:1 拆解
+- `git commit 7c5cf54` (human, 2026-04-15) — `feat(phase31): add task card planner baseline`
+- `src/swallow/executor.py` (codex, 2026-04-15) — 新增 `ExecutorProtocol`、`LocalCLIExecutor`、`MockExecutor` 与 `resolve_executor()`
+- `tests/test_executor_protocol.py` (codex, 2026-04-15) — 覆盖协议 runtime-check、resolver 映射与 harness 委托
 
 ## 当前推进
 
@@ -62,9 +67,11 @@ S1 已完成：新增 `TaskCard` dataclass 和 `planner.py` 的规则驱动 `pla
 - **[Claude]** 产出 `design_decision.md`（TaskCard + Planner v0 / ExecutorProtocol / ReviewGate 三段式方案）和 `risk_assessment.md`（总分 15/27，无高风险 slice）。
 - **[Human]** 审批通过 `design_decision.md` + `risk_assessment.md`，并切出 `feat/phase31-runtime-v0`。
 - **[Codex]** 已完成 S1：`TaskCard + Planner v0`，并通过 `tests/test_planner.py`。
+- **[Human]** 已提交 S1：`feat(phase31): add task card planner baseline`。
+- **[Codex]** 已完成 S2：`ExecutorProtocol + 适配`，并通过 `tests/test_planner.py tests/test_executor_protocol.py`。
 
 ## 下一步
 
-- **[Human]** 审查 S1 diff 并执行独立 commit
-- **[Codex]** 在收到 S1 commit 节奏确认后继续 S2：`ExecutorProtocol + 适配`
+- **[Human]** 审查 S2 diff 并执行独立 commit
+- **[Codex]** 在收到 S2 commit 节奏确认后继续 S3：`ReviewGate + 流程串联`
 - **[Claude]** 实现完成后进行 PR review
