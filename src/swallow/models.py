@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 SYSTEM_ROLES: tuple[str, ...] = (
     "orchestrator",
@@ -379,6 +380,28 @@ class RetrievalItem:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(slots=True)
+class TaskCard:
+    card_id: str = field(default_factory=lambda: uuid4().hex[:12])
+    goal: str = ""
+    input_context: dict[str, Any] = field(default_factory=dict)
+    input_schema: dict[str, Any] = field(default_factory=dict)
+    output_schema: dict[str, Any] = field(default_factory=dict)
+    route_hint: str = ""
+    executor_type: str = "cli"
+    constraints: list[str] = field(default_factory=list)
+    parent_task_id: str = ""
+    status: str = "planned"
+    created_at: str = field(default_factory=utc_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "TaskCard":
+        return cls(**data)
 
 
 @dataclass(slots=True)

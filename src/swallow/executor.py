@@ -7,9 +7,9 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
-from .models import DialectSpec, ExecutorResult, RetrievalItem, TaskState
+from .models import DialectSpec, ExecutorResult, RetrievalItem, TaskCard, TaskState
 from .knowledge_objects import (
     summarize_canonicalization,
     summarize_knowledge_evidence,
@@ -40,6 +40,63 @@ class DialectAdapter(Protocol):
     spec: DialectSpec
 
     def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str: ...
+
+
+@runtime_checkable
+class ExecutorProtocol(Protocol):
+    """Unified executor contract used by Runtime v0 orchestration."""
+
+    def execute(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult: ...
+
+
+def _run_harness_execution(base_dir: Path, state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+    # Imported lazily to avoid turning executor <-> harness into a hard import cycle.
+    from .harness import run_execution
+
+    return run_execution(base_dir, state, retrieval_items)
+
+
+class LocalCLIExecutor:
+    """Adapter for the existing local CLI-backed execution path."""
+
+    def execute(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
+        return _run_harness_execution(base_dir, state, retrieval_items)
+
+
+class MockExecutor:
+    """Adapter for deterministic mock execution routes."""
+
+    def execute(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
+        return _run_harness_execution(base_dir, state, retrieval_items)
+
+
+def resolve_executor(executor_type: str, executor_name: str) -> ExecutorProtocol:
+    normalized_name = normalize_executor_name(executor_name)
+    normalized_type = (executor_type or "").strip().lower()
+
+    if normalized_name in {"mock", "mock-remote"} or normalized_type == "mock":
+        return MockExecutor()
+    return LocalCLIExecutor()
 
 
 class PlainTextDialect:

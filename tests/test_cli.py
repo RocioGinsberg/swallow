@@ -48,6 +48,7 @@ from swallow.models import (
     RouteSpec,
     RetrievalItem,
     RetrievalRequest,
+    TaskCard,
     TaxonomyProfile,
     TaskState,
     ValidationResult,
@@ -2243,7 +2244,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                     with patch(
                         "swallow.orchestrator.write_task_artifacts",
                         return_value=(
@@ -2336,7 +2337,7 @@ class CliLifecycleTest(unittest.TestCase):
                 )
 
             with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                     with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         final_state = run_task(tmp_path, state.task_id, executor_name="mock")
 
@@ -2425,17 +2426,17 @@ class CliLifecycleTest(unittest.TestCase):
                 )
 
             with patch("swallow.orchestrator.run_retrieval", return_value=first_retrieval):
-                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                     with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         first_state = run_task(tmp_path, state.task_id, executor_name="mock")
 
             with patch("swallow.orchestrator.run_retrieval", return_value=second_retrieval):
-                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                     with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         resumed_state = run_task(tmp_path, state.task_id, executor_name="mock")
 
             with patch("swallow.orchestrator.run_retrieval", return_value=second_retrieval):
-                with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                     with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         rerun_state = run_task(tmp_path, state.task_id, executor_name="mock", reset_grounding=True)
 
@@ -2626,7 +2627,7 @@ class CliLifecycleTest(unittest.TestCase):
                 return_value=remote_route,
             ):
                 with patch("swallow.orchestrator.run_retrieval") as retrieval_mock:
-                    with patch("swallow.orchestrator.run_execution") as execution_mock:
+                    with patch("swallow.orchestrator._execute_task_card") as execution_mock:
                         final_state = run_task(tmp_path, state.task_id, executor_name="mock")
 
             task_dir = tmp_path / ".swl" / "tasks" / state.task_id
@@ -4504,7 +4505,7 @@ class CliLifecycleTest(unittest.TestCase):
             with patch("swallow.orchestrator.select_route", return_value=validator_route):
                 with patch("swallow.orchestrator.run_retrieval", return_value=[]):
                     with patch(
-                        "swallow.orchestrator.run_execution",
+                        "swallow.orchestrator._execute_task_card",
                         return_value=ExecutorResult(
                             executor_name="local",
                             status="completed",
@@ -4534,7 +4535,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
             with patch("swallow.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator.run_execution",
+                    "swallow.orchestrator._execute_task_card",
                     return_value=ExecutorResult(
                         executor_name="codex",
                         status="completed",
@@ -6475,7 +6476,7 @@ class CliLifecycleTest(unittest.TestCase):
                 with patch("swallow.orchestrator.save_state"):
                     with patch("swallow.orchestrator.append_event"):
                         with patch("swallow.orchestrator.run_retrieval", side_effect=run_retrieval_spy):
-                            with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                                 with patch(
                                     "swallow.orchestrator.write_task_artifacts",
                                     return_value=(
@@ -6549,7 +6550,7 @@ class CliLifecycleTest(unittest.TestCase):
                 with patch("swallow.orchestrator.save_state", side_effect=save_state_spy):
                     with patch("swallow.orchestrator.append_event", side_effect=append_event_spy):
                         with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                            with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                                 with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_spy):
                                     final_state = run_task(base_dir, created.task_id)
 
@@ -6575,10 +6576,12 @@ class CliLifecycleTest(unittest.TestCase):
             observed_events,
             [
                 "task.run_started",
+                "task.planned",
                 "task.phase",
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
+                "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
                 "task.phase_checkpoint",
@@ -6626,9 +6629,10 @@ class CliLifecycleTest(unittest.TestCase):
             )
             captured_states: list[TaskState] = []
 
-            def run_execution_spy(
+            def execute_task_card_spy(
                 _base_dir: Path,
                 state: TaskState,
+                _card: TaskCard,
                 _retrieval_items: list[RetrievalItem],
             ) -> ExecutorResult:
                 captured_states.append(state)
@@ -6644,7 +6648,7 @@ class CliLifecycleTest(unittest.TestCase):
                     with patch("swallow.orchestrator.save_state"):
                         with patch("swallow.orchestrator.append_event"):
                             with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                                with patch("swallow.orchestrator.run_execution", side_effect=run_execution_spy):
+                                with patch("swallow.orchestrator._execute_task_card", side_effect=execute_task_card_spy):
                                     with patch(
                                         "swallow.orchestrator.write_task_artifacts",
                                         return_value=(
@@ -6704,7 +6708,7 @@ class CliLifecycleTest(unittest.TestCase):
             with patch("swallow.orchestrator.select_route", return_value=validator_route):
                 with patch("swallow.orchestrator.run_retrieval", return_value=[]):
                     with patch(
-                        "swallow.orchestrator.run_execution",
+                        "swallow.orchestrator._execute_task_card",
                         return_value=ExecutorResult(
                             executor_name="local",
                             status="completed",
@@ -6750,9 +6754,10 @@ class CliLifecycleTest(unittest.TestCase):
             )
             captured_states: list[TaskState] = []
 
-            def run_execution_spy(
+            def execute_task_card_spy(
                 _base_dir: Path,
                 state: TaskState,
+                _card: TaskCard,
                 _retrieval_items: list[RetrievalItem],
             ) -> ExecutorResult:
                 captured_states.append(state)
@@ -6767,7 +6772,7 @@ class CliLifecycleTest(unittest.TestCase):
                 with patch("swallow.orchestrator.save_state"):
                     with patch("swallow.orchestrator.append_event"):
                         with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                            with patch("swallow.orchestrator.run_execution", side_effect=run_execution_spy):
+                            with patch("swallow.orchestrator._execute_task_card", side_effect=execute_task_card_spy):
                                 with patch(
                                     "swallow.orchestrator.write_task_artifacts",
                                     return_value=(
@@ -6801,7 +6806,7 @@ class CliLifecycleTest(unittest.TestCase):
 
             with patch("swallow.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator.run_execution",
+                    "swallow.orchestrator._execute_task_card",
                     return_value=ExecutorResult(
                         executor_name="codex",
                         status="completed",
@@ -6884,7 +6889,7 @@ class CliLifecycleTest(unittest.TestCase):
                 with patch("swallow.orchestrator.save_state", side_effect=save_state_spy):
                     with patch("swallow.orchestrator.append_event", side_effect=append_event_spy):
                         with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                            with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                                 with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_spy):
                                     final_state = run_task(base_dir, created.task_id)
 
@@ -6910,10 +6915,12 @@ class CliLifecycleTest(unittest.TestCase):
             observed_events,
             [
                 "task.run_started",
+                "task.planned",
                 "task.phase",
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
+                "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
                 "task.phase_checkpoint",
@@ -7000,7 +7007,7 @@ class CliLifecycleTest(unittest.TestCase):
             with patch("swallow.orchestrator.select_route", return_value=restricted_route):
                 with patch("swallow.orchestrator.run_retrieval", return_value=[]):
                     with patch(
-                        "swallow.orchestrator.run_execution",
+                        "swallow.orchestrator._execute_task_card",
                         return_value=ExecutorResult(
                             executor_name="note-only",
                             status="completed",
@@ -7083,7 +7090,7 @@ class CliLifecycleTest(unittest.TestCase):
 
             with patch("swallow.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator.run_execution",
+                    "swallow.orchestrator._execute_task_card",
                     return_value=ExecutorResult(
                         executor_name="local",
                         status="completed",
@@ -7149,12 +7156,14 @@ class CliLifecycleTest(unittest.TestCase):
             [
                 "task.created",
                 "task.run_started",
+                "task.planned",
                 "task.phase",
                 "retrieval.completed",
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
                 "executor.completed",
+                "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
                 "compatibility.completed",
@@ -7170,6 +7179,12 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.completed",
             ],
         )
+        planned_event = next(event for event in events if event["event_type"] == "task.planned")
+        review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+        self.assertEqual(planned_event["payload"]["card_count"], 1)
+        self.assertEqual(planned_event["payload"]["parent_task_id"], task_id)
+        self.assertEqual(review_gate_event["payload"]["status"], "passed")
+        self.assertFalse(review_gate_event["payload"]["skipped_execution"])
         self.assertEqual(events[0]["payload"]["status"], "created")
         self.assertEqual(events[0]["payload"]["phase"], "intake")
         self.assertEqual(events[0]["payload"]["route_name"], "local-mock")
@@ -7221,56 +7236,56 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["payload"]["dispatch_started_at"], "")
         self.assertEqual(events[1]["payload"]["execution_lifecycle"], "prepared")
         self.assertIn("Selected the route from legacy executor mode", events[1]["payload"]["route_reason"])
-        self.assertEqual(events[2]["payload"]["phase"], "retrieval")
-        self.assertEqual(events[2]["payload"]["status"], "running")
-        self.assertEqual(events[2]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(events[3]["payload"]["count"], 1)
-        self.assertEqual(events[3]["payload"]["query"], "Ordered lifecycle Check persisted phase ordering")
-        self.assertEqual(events[3]["payload"]["source_types_requested"], ["repo", "notes"])
-        self.assertEqual(events[3]["payload"]["context_layers"], ["workspace", "task"])
-        self.assertEqual(events[3]["payload"]["limit"], 8)
-        self.assertEqual(events[3]["payload"]["strategy"], "system_baseline")
-        self.assertEqual(events[3]["payload"]["top_paths"], ["notes.md"])
-        self.assertEqual(events[3]["payload"]["top_citations"], ["notes.md#L1-L3"])
-        self.assertEqual(events[3]["payload"]["source_types"], ["notes"])
-        self.assertEqual(events[4]["payload"]["grounding_locked"], True)
-        self.assertEqual(events[4]["payload"]["grounding_refs"], [])
-        self.assertEqual(events[5]["payload"]["execution_phase"], "retrieval_done")
-        self.assertEqual(events[5]["payload"]["skipped"], False)
-        self.assertEqual(events[6]["payload"]["phase"], "executing")
-        self.assertEqual(events[6]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[7]["payload"]["status"], "completed")
-        self.assertEqual(events[7]["payload"]["executor_name"], "mock")
-        self.assertEqual(events[7]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[7]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[7]["payload"]["route_executor_family"], "cli")
-        self.assertEqual(events[7]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[7]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[7]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[7]["payload"]["route_capabilities"]["deterministic"], True)
-        self.assertEqual(events[7]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
-        self.assertEqual(events[7]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[7]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[7]["payload"]["attempt_owner_kind"], "local_orchestrator")
-        self.assertEqual(events[7]["payload"]["attempt_owner_ref"], "swl_cli")
-        self.assertEqual(events[7]["payload"]["attempt_ownership_status"], "owned")
-        self.assertTrue(bool(events[7]["payload"]["attempt_owner_assigned_at"]))
-        self.assertEqual(events[7]["payload"]["attempt_transfer_reason"], "")
-        self.assertEqual(events[7]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[7]["payload"]["topology_executor_family"], "cli")
-        self.assertEqual(events[7]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[7]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[7]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[7]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertEqual(events[7]["payload"]["execution_site_contract_kind"], "local_inline")
-        self.assertEqual(events[7]["payload"]["execution_site_boundary"], "same_process")
-        self.assertEqual(events[7]["payload"]["execution_site_contract_status"], "active")
-        self.assertEqual(events[7]["payload"]["execution_site_handoff_required"], False)
-        self.assertTrue(bool(events[7]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[7]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[3]["payload"]["phase"], "retrieval")
+        self.assertEqual(events[3]["payload"]["status"], "running")
+        self.assertEqual(events[3]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(events[4]["payload"]["count"], 1)
+        self.assertEqual(events[4]["payload"]["query"], "Ordered lifecycle Check persisted phase ordering")
+        self.assertEqual(events[4]["payload"]["source_types_requested"], ["repo", "notes"])
+        self.assertEqual(events[4]["payload"]["context_layers"], ["workspace", "task"])
+        self.assertEqual(events[4]["payload"]["limit"], 8)
+        self.assertEqual(events[4]["payload"]["strategy"], "system_baseline")
+        self.assertEqual(events[4]["payload"]["top_paths"], ["notes.md"])
+        self.assertEqual(events[4]["payload"]["top_citations"], ["notes.md#L1-L3"])
+        self.assertEqual(events[4]["payload"]["source_types"], ["notes"])
+        self.assertEqual(events[5]["payload"]["grounding_locked"], True)
+        self.assertEqual(events[5]["payload"]["grounding_refs"], [])
+        self.assertEqual(events[6]["payload"]["execution_phase"], "retrieval_done")
+        self.assertEqual(events[6]["payload"]["skipped"], False)
+        self.assertEqual(events[7]["payload"]["phase"], "executing")
         self.assertEqual(events[7]["payload"]["execution_lifecycle"], "dispatched")
+        self.assertEqual(events[8]["payload"]["status"], "completed")
+        self.assertEqual(events[8]["payload"]["executor_name"], "mock")
+        self.assertEqual(events[8]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[8]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[8]["payload"]["route_executor_family"], "cli")
+        self.assertEqual(events[8]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[8]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[8]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[8]["payload"]["route_capabilities"]["deterministic"], True)
+        self.assertEqual(events[8]["payload"]["route_capabilities"]["filesystem_access"], "workspace_read")
+        self.assertEqual(events[8]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[8]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[8]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[8]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[8]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[8]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[8]["payload"]["attempt_transfer_reason"], "")
+        self.assertEqual(events[8]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[8]["payload"]["topology_executor_family"], "cli")
+        self.assertEqual(events[8]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[8]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[8]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[8]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[8]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[8]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[8]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[8]["payload"]["execution_site_handoff_required"], False)
+        self.assertTrue(bool(events[8]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[8]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[8]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(
-            events[7]["payload"]["output_written"],
+            events[8]["payload"]["output_written"],
             [
                 "executor_prompt.md",
                 "executor_output.md",
@@ -7278,83 +7293,84 @@ class CliLifecycleTest(unittest.TestCase):
                 "executor_stderr.txt",
             ],
         )
-        self.assertEqual(events[8]["payload"]["execution_phase"], "execution_done")
-        self.assertEqual(events[8]["payload"]["skipped"], False)
-        self.assertEqual(events[9]["payload"]["phase"], "summarize")
-        self.assertEqual(events[9]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[10]["payload"]["status"], "passed")
-        self.assertEqual(events[10]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
-        self.assertEqual(events[11]["payload"]["status"], "passed")
-        self.assertEqual(events[11]["payload"]["finding_counts"], {"pass": 7, "warn": 0, "fail": 0})
+        self.assertEqual(events[9]["payload"]["status"], "passed")
+        self.assertEqual(events[10]["payload"]["execution_phase"], "execution_done")
+        self.assertEqual(events[10]["payload"]["skipped"], False)
+        self.assertEqual(events[11]["payload"]["phase"], "summarize")
+        self.assertEqual(events[11]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(events[12]["payload"]["status"], "passed")
-        self.assertEqual(events[12]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
+        self.assertEqual(events[12]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
         self.assertEqual(events[13]["payload"]["status"], "passed")
-        self.assertEqual(events[13]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
+        self.assertEqual(events[13]["payload"]["finding_counts"], {"pass": 7, "warn": 0, "fail": 0})
         self.assertEqual(events[14]["payload"]["status"], "passed")
+        self.assertEqual(events[14]["payload"]["finding_counts"], {"pass": 1, "warn": 0, "fail": 0})
         self.assertEqual(events[15]["payload"]["status"], "passed")
-        self.assertEqual(events[16]["payload"]["status"], "warning")
+        self.assertEqual(events[15]["payload"]["finding_counts"], {"pass": 3, "warn": 0, "fail": 0})
+        self.assertEqual(events[16]["payload"]["status"], "passed")
         self.assertEqual(events[17]["payload"]["status"], "passed")
-        self.assertEqual(events[17]["payload"]["execution_phase"], "analysis_done")
-        self.assertEqual(events[18]["payload"]["status"], "completed")
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
-        self.assertTrue(
-            events[18]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
-        )
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["grounding_evidence_json"].endswith("grounding_evidence.json"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["grounding_evidence_report"].endswith("grounding_evidence_report.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
-        self.assertTrue(events[18]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+        self.assertEqual(events[18]["payload"]["status"], "warning")
+        self.assertEqual(events[19]["payload"]["status"], "passed")
         self.assertEqual(events[19]["payload"]["execution_phase"], "analysis_done")
-        self.assertEqual(events[19]["payload"]["skipped"], False)
         self.assertEqual(events[20]["payload"]["status"], "completed")
-        self.assertEqual(events[20]["payload"]["phase"], "summarize")
-        self.assertEqual(events[20]["payload"]["retrieval_count"], 1)
-        self.assertEqual(events[20]["payload"]["executor_status"], "completed")
-        self.assertEqual(events[20]["payload"]["route_name"], "local-mock")
-        self.assertEqual(events[20]["payload"]["route_backend"], "deterministic_test")
-        self.assertEqual(events[20]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[20]["payload"]["route_remote_capable"], False)
-        self.assertEqual(events[20]["payload"]["route_transport_kind"], "local_process")
-        self.assertEqual(events[20]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[20]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[20]["payload"]["attempt_owner_kind"], "local_orchestrator")
-        self.assertEqual(events[20]["payload"]["attempt_owner_ref"], "swl_cli")
-        self.assertEqual(events[20]["payload"]["attempt_ownership_status"], "owned")
-        self.assertTrue(bool(events[20]["payload"]["attempt_owner_assigned_at"]))
-        self.assertEqual(events[20]["payload"]["attempt_transfer_reason"], "")
-        self.assertEqual(events[20]["payload"]["topology_route_name"], "local-mock")
-        self.assertEqual(events[20]["payload"]["topology_execution_site"], "local")
-        self.assertEqual(events[20]["payload"]["topology_transport_kind"], "local_process")
-        self.assertEqual(events[20]["payload"]["topology_remote_capable_intent"], False)
-        self.assertEqual(events[20]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertEqual(events[20]["payload"]["execution_site_contract_kind"], "local_inline")
-        self.assertEqual(events[20]["payload"]["execution_site_boundary"], "same_process")
-        self.assertEqual(events[20]["payload"]["execution_site_contract_status"], "active")
-        self.assertEqual(events[20]["payload"]["execution_site_handoff_required"], False)
-        self.assertTrue(bool(events[20]["payload"]["dispatch_requested_at"]))
-        self.assertTrue(bool(events[20]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[20]["payload"]["execution_lifecycle"], "completed")
-        self.assertEqual(events[20]["payload"]["compatibility_status"], "passed")
-        self.assertEqual(events[20]["payload"]["execution_fit_status"], "passed")
-        self.assertEqual(events[20]["payload"]["retry_policy_status"], "passed")
-        self.assertEqual(events[20]["payload"]["execution_budget_policy_status"], "passed")
-        self.assertEqual(events[20]["payload"]["stop_policy_status"], "warning")
-        self.assertEqual(events[20]["payload"]["knowledge_policy_status"], "passed")
-        self.assertEqual(events[20]["payload"]["validation_status"], "passed")
-        self.assertEqual(events[20]["payload"]["grounding_locked"], True)
-        self.assertEqual(events[20]["payload"]["grounding_refs"], [])
-        self.assertEqual(events[20]["payload"]["execution_phase"], "analysis_done")
-        self.assertTrue(events[20]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["summary"].endswith("summary.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["resume_note"].endswith("resume_note.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["route_report"].endswith("route_report.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["topology_report"].endswith("topology_report.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["execution_site_report"].endswith("execution_site_report.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["dispatch_report"].endswith("dispatch_report.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["handoff_report"].endswith("handoff_report.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["execution_fit_report"].endswith("execution_fit_report.md"))
+        self.assertTrue(
+            events[20]["payload"]["artifact_paths"]["compatibility_report"].endswith("compatibility_report.md")
+        )
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["source_grounding"].endswith("source_grounding.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["grounding_evidence_json"].endswith("grounding_evidence.json"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["grounding_evidence_report"].endswith("grounding_evidence_report.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["retrieval_report"].endswith("retrieval_report.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["validation_report"].endswith("validation_report.md"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["task_memory"].endswith("memory.json"))
+        self.assertTrue(events[20]["payload"]["artifact_paths"]["knowledge_policy_report"].endswith("knowledge_policy_report.md"))
+        self.assertEqual(events[21]["payload"]["execution_phase"], "analysis_done")
+        self.assertEqual(events[21]["payload"]["skipped"], False)
+        self.assertEqual(events[22]["payload"]["status"], "completed")
+        self.assertEqual(events[22]["payload"]["phase"], "summarize")
+        self.assertEqual(events[22]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[22]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[22]["payload"]["route_name"], "local-mock")
+        self.assertEqual(events[22]["payload"]["route_backend"], "deterministic_test")
+        self.assertEqual(events[22]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[22]["payload"]["route_remote_capable"], False)
+        self.assertEqual(events[22]["payload"]["route_transport_kind"], "local_process")
+        self.assertEqual(events[22]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[22]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[22]["payload"]["attempt_owner_kind"], "local_orchestrator")
+        self.assertEqual(events[22]["payload"]["attempt_owner_ref"], "swl_cli")
+        self.assertEqual(events[22]["payload"]["attempt_ownership_status"], "owned")
+        self.assertTrue(bool(events[22]["payload"]["attempt_owner_assigned_at"]))
+        self.assertEqual(events[22]["payload"]["attempt_transfer_reason"], "")
+        self.assertEqual(events[22]["payload"]["topology_route_name"], "local-mock")
+        self.assertEqual(events[22]["payload"]["topology_execution_site"], "local")
+        self.assertEqual(events[22]["payload"]["topology_transport_kind"], "local_process")
+        self.assertEqual(events[22]["payload"]["topology_remote_capable_intent"], False)
+        self.assertEqual(events[22]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertEqual(events[22]["payload"]["execution_site_contract_kind"], "local_inline")
+        self.assertEqual(events[22]["payload"]["execution_site_boundary"], "same_process")
+        self.assertEqual(events[22]["payload"]["execution_site_contract_status"], "active")
+        self.assertEqual(events[22]["payload"]["execution_site_handoff_required"], False)
+        self.assertTrue(bool(events[22]["payload"]["dispatch_requested_at"]))
+        self.assertTrue(bool(events[22]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[22]["payload"]["execution_lifecycle"], "completed")
+        self.assertEqual(events[22]["payload"]["compatibility_status"], "passed")
+        self.assertEqual(events[22]["payload"]["execution_fit_status"], "passed")
+        self.assertEqual(events[22]["payload"]["retry_policy_status"], "passed")
+        self.assertEqual(events[22]["payload"]["execution_budget_policy_status"], "passed")
+        self.assertEqual(events[22]["payload"]["stop_policy_status"], "warning")
+        self.assertEqual(events[22]["payload"]["knowledge_policy_status"], "passed")
+        self.assertEqual(events[22]["payload"]["validation_status"], "passed")
+        self.assertEqual(events[22]["payload"]["grounding_locked"], True)
+        self.assertEqual(events[22]["payload"]["grounding_refs"], [])
+        self.assertEqual(events[22]["payload"]["execution_phase"], "analysis_done")
+        self.assertTrue(events[22]["payload"]["artifact_paths"]["executor_output"].endswith("executor_output.md"))
 
     def test_failed_task_events_include_failure_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7409,42 +7425,44 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertTrue(bool(events[1]["payload"]["dispatch_requested_at"]))
         self.assertEqual(events[1]["payload"]["dispatch_started_at"], "")
         self.assertEqual(events[1]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(events[4]["event_type"], "grounding.locked")
-        self.assertEqual(events[4]["payload"]["grounding_locked"], True)
-        self.assertEqual(events[5]["event_type"], "task.phase_checkpoint")
-        self.assertEqual(events[5]["payload"]["execution_phase"], "retrieval_done")
-        self.assertEqual(events[6]["event_type"], "task.phase")
-        self.assertEqual(events[7]["event_type"], "executor.failed")
-        self.assertEqual(events[7]["payload"]["status"], "failed")
-        self.assertEqual(events[7]["payload"]["executor_name"], "codex")
-        self.assertEqual(events[7]["payload"]["route_name"], "local-codex")
-        self.assertEqual(events[7]["payload"]["route_execution_site"], "local")
-        self.assertEqual(events[7]["payload"]["attempt_id"], "attempt-0001")
-        self.assertEqual(events[7]["payload"]["attempt_number"], 1)
-        self.assertEqual(events[7]["payload"]["topology_dispatch_status"], "local_dispatched")
-        self.assertTrue(bool(events[7]["payload"]["dispatch_started_at"]))
-        self.assertEqual(events[7]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[7]["payload"]["failure_kind"], "launch_error")
-        self.assertEqual(events[8]["event_type"], "task.phase_checkpoint")
-        self.assertEqual(events[8]["payload"]["execution_phase"], "execution_done")
-        self.assertEqual(events[10]["event_type"], "compatibility.completed")
-        self.assertEqual(events[10]["payload"]["status"], "passed")
-        self.assertEqual(events[11]["event_type"], "execution_fit.completed")
-        self.assertEqual(events[11]["payload"]["status"], "passed")
-        self.assertEqual(events[12]["event_type"], "knowledge_policy.completed")
+        self.assertEqual(events[5]["event_type"], "grounding.locked")
+        self.assertEqual(events[5]["payload"]["grounding_locked"], True)
+        self.assertEqual(events[6]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[6]["payload"]["execution_phase"], "retrieval_done")
+        self.assertEqual(events[7]["event_type"], "task.phase")
+        self.assertEqual(events[8]["event_type"], "executor.failed")
+        self.assertEqual(events[8]["payload"]["status"], "failed")
+        self.assertEqual(events[8]["payload"]["executor_name"], "codex")
+        self.assertEqual(events[8]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[8]["payload"]["route_execution_site"], "local")
+        self.assertEqual(events[8]["payload"]["attempt_id"], "attempt-0001")
+        self.assertEqual(events[8]["payload"]["attempt_number"], 1)
+        self.assertEqual(events[8]["payload"]["topology_dispatch_status"], "local_dispatched")
+        self.assertTrue(bool(events[8]["payload"]["dispatch_started_at"]))
+        self.assertEqual(events[8]["payload"]["execution_lifecycle"], "dispatched")
+        self.assertEqual(events[8]["payload"]["failure_kind"], "launch_error")
+        self.assertEqual(events[9]["event_type"], "task.review_gate")
+        self.assertEqual(events[9]["payload"]["status"], "failed")
+        self.assertEqual(events[10]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[10]["payload"]["execution_phase"], "execution_done")
+        self.assertEqual(events[12]["event_type"], "compatibility.completed")
         self.assertEqual(events[12]["payload"]["status"], "passed")
-        self.assertEqual(events[13]["event_type"], "validation.completed")
+        self.assertEqual(events[13]["event_type"], "execution_fit.completed")
         self.assertEqual(events[13]["payload"]["status"], "passed")
-        self.assertEqual(events[14]["event_type"], "retry_policy.completed")
-        self.assertEqual(events[14]["payload"]["status"], "failed")
-        self.assertEqual(events[15]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[14]["event_type"], "knowledge_policy.completed")
+        self.assertEqual(events[14]["payload"]["status"], "passed")
+        self.assertEqual(events[15]["event_type"], "validation.completed")
         self.assertEqual(events[15]["payload"]["status"], "passed")
-        self.assertEqual(events[16]["event_type"], "stop_policy.completed")
+        self.assertEqual(events[16]["event_type"], "retry_policy.completed")
         self.assertEqual(events[16]["payload"]["status"], "failed")
-        self.assertEqual(events[17]["event_type"], "checkpoint_snapshot.completed")
-        self.assertEqual(events[17]["payload"]["status"], "warning")
-        self.assertEqual(events[19]["event_type"], "task.phase_checkpoint")
-        self.assertEqual(events[19]["payload"]["execution_phase"], "analysis_done")
+        self.assertEqual(events[17]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[17]["payload"]["status"], "passed")
+        self.assertEqual(events[18]["event_type"], "stop_policy.completed")
+        self.assertEqual(events[18]["payload"]["status"], "failed")
+        self.assertEqual(events[19]["event_type"], "checkpoint_snapshot.completed")
+        self.assertEqual(events[19]["payload"]["status"], "warning")
+        self.assertEqual(events[21]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[21]["payload"]["execution_phase"], "analysis_done")
         self.assertEqual(events[-1]["payload"]["status"], "failed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
@@ -7540,12 +7558,14 @@ class CliLifecycleTest(unittest.TestCase):
             [
                 "task.created",
                 "task.run_started",
+                "task.planned",
                 "task.phase",
                 "retrieval.completed",
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
                 "executor.failed",
+                "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
                 "compatibility.completed",
@@ -7566,12 +7586,14 @@ class CliLifecycleTest(unittest.TestCase):
             [
                 "task.created",
                 "task.run_started",
+                "task.planned",
                 "task.phase",
                 "retrieval.completed",
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
                 "executor.failed",
+                "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
                 "compatibility.completed",
@@ -7586,12 +7608,14 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase_checkpoint",
                 "task.failed",
                 "task.run_started",
+                "task.planned",
                 "task.phase",
                 "retrieval.completed",
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
                 "executor.failed",
+                "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
                 "compatibility.completed",
@@ -7607,16 +7631,17 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.failed",
             ],
         )
-        self.assertEqual(final_events[21]["payload"]["previous_status"], "failed")
-        self.assertEqual(final_events[21]["payload"]["previous_phase"], "summarize")
-        self.assertEqual(final_events[21]["payload"]["status"], "running")
-        self.assertEqual(final_events[21]["payload"]["phase"], "intake")
+        second_run_started = final_events[len(first_events)]
+        self.assertEqual(second_run_started["payload"]["previous_status"], "failed")
+        self.assertEqual(second_run_started["payload"]["previous_phase"], "summarize")
+        self.assertEqual(second_run_started["payload"]["status"], "running")
+        self.assertEqual(second_run_started["payload"]["phase"], "intake")
         self.assertEqual(first_events[1]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(first_events[1]["payload"]["attempt_number"], 1)
         self.assertEqual(first_events[1]["payload"]["execution_lifecycle"], "prepared")
-        self.assertEqual(final_events[21]["payload"]["attempt_id"], "attempt-0002")
-        self.assertEqual(final_events[21]["payload"]["attempt_number"], 2)
-        self.assertEqual(final_events[21]["payload"]["execution_lifecycle"], "prepared")
+        self.assertEqual(second_run_started["payload"]["attempt_id"], "attempt-0002")
+        self.assertEqual(second_run_started["payload"]["attempt_number"], 2)
+        self.assertEqual(second_run_started["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(final_state["run_attempt_count"], 2)
         self.assertEqual(final_state["current_attempt_id"], "attempt-0002")
         self.assertEqual(final_state["current_attempt_number"], 2)
@@ -8514,7 +8539,7 @@ class CliLifecycleTest(unittest.TestCase):
                 with patch("swallow.orchestrator.save_state", side_effect=save_state_spy):
                     with patch("swallow.orchestrator.append_event"):
                         with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                            with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                                 with patch(
                                     "swallow.orchestrator.write_task_artifacts",
                                     return_value=(
@@ -8673,7 +8698,7 @@ class CliLifecycleTest(unittest.TestCase):
                 with patch("swallow.orchestrator.save_state"):
                     with patch("swallow.orchestrator.append_event"):
                         with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                            with patch("swallow.orchestrator.run_execution", return_value=executor_result):
+                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
                                 with patch(
                                     "swallow.orchestrator.write_task_artifacts",
                                     return_value=(
