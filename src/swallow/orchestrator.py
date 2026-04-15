@@ -23,13 +23,12 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .capability_enforcement import CapabilityConstraint, enforce_capability_constraints
-from .executor import normalize_executor_name, resolve_dialect_name
+from .executor import normalize_executor_name, resolve_dialect_name, resolve_executor
 from .dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
 from .grounding import build_grounding_evidence, extract_grounding_entries
 from .harness import (
     build_remote_handoff_contract_record,
     build_remote_handoff_contract_report,
-    run_execution,
     run_retrieval,
     write_task_artifacts,
 )
@@ -44,7 +43,7 @@ from .knowledge_objects import (
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from .models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskState
+from .models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskCard, TaskState
 from .models import DispatchVerdict, evaluate_dispatch_verdict
 from .paths import (
     artifacts_dir,
@@ -80,6 +79,8 @@ from .paths import (
 )
 from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
+from .planner import plan
+from .review_gate import review_executor_output
 from .staged_knowledge import StagedCandidate, submit_staged_candidate
 from .store import (
     append_event,
@@ -116,6 +117,16 @@ def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint
 
 def _serialize_capability_constraints(constraints: list[CapabilityConstraint]) -> list[dict[str, object]]:
     return [constraint.to_dict() for constraint in constraints]
+
+
+def _execute_task_card(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+) -> ExecutorResult:
+    executor = resolve_executor(card.executor_type, state.executor_name)
+    return executor.execute(base_dir, state, card, retrieval_items)
 
 
 def _load_locked_grounding_evidence(base_dir: Path, state: TaskState) -> dict[str, object] | None:
@@ -1115,6 +1126,24 @@ def run_task(
     if dispatch_verdict.action == "blocked":
         return _apply_blocked_dispatch_verdict(base_dir, state, contract_record, dispatch_verdict)
 
+    cards = plan(state)
+    card = cards[0]
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type="task.planned",
+            message="Task planned into runtime task cards.",
+            payload={
+                "card_count": len(cards),
+                "card_id": card.card_id,
+                "route_hint": card.route_hint,
+                "executor_type": card.executor_type,
+                "parent_task_id": card.parent_task_id,
+            },
+        ),
+    )
+
     _set_phase(base_dir, state, "retrieval")
     retrieval_items: list[RetrievalItem] | None = None
     if requested_skip_to_phase in {"execution", "analysis"}:
@@ -1185,7 +1214,7 @@ def run_task(
         state.execution_lifecycle = "dispatched"
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
-        executor_result = run_execution(base_dir, state, retrieval_items)
+        executor_result = _execute_task_card(base_dir, state, card, retrieval_items)
         execution_skipped = False
     else:
         state.execution_lifecycle = "reused"
@@ -1197,6 +1226,24 @@ def run_task(
     state.executor_name = executor_result.executor_name
     state.executor_status = executor_result.status
     save_state(base_dir, state)
+    review_gate_result = review_executor_output(executor_result, card)
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type="task.review_gate",
+            message=review_gate_result.message,
+            payload={
+                "status": review_gate_result.status,
+                "checks": review_gate_result.checks,
+                "card_id": card.card_id,
+                "executor_name": executor_result.executor_name,
+                "executor_status": executor_result.status,
+                "skipped_execution": execution_skipped,
+                "source": "previous_execution" if execution_skipped else "live_execution",
+            },
+        ),
+    )
     _record_phase_checkpoint(
         base_dir,
         state,
