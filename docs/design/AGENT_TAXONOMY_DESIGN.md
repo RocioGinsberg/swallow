@@ -125,20 +125,42 @@
 
 ## 7. Swallow 典型角色模式 (Canonical Role Patterns)
 
-为进一步具象化，以下是当前系统设计下的典型角色指派模板：
+结合系统长期的通用代理协作（Claude、Gemini、Codex 作为不同认知层级的通用代理）与不断扩展的专项代理生态，以下是系统中的核心典型角色指派模板：
 
-1.  **代码执行智能体 (Code Agent)**
-    *   `general-executor / local / task-state / code-execution`
-    *   职责：代码编辑、命令执行、测试、补丁生成。需警惕范围蔓延或偏离设计规范的风险。
-2.  **API 规划智能体 (API Planning Agent)**
-    *   `general-executor / cloud-backed / task-state / planning-and-summarization`
-    *   职责：提供结构化规划草案、路由判断建议与交接准备。
-3.  **记忆提纯者 (Memory Curator)**
-    *   `specialist / local-or-cloud-backed / task-memory + staged-knowledge / memory-curation` + `canonical-write-forbidden`
-    *   职责：压缩任务历史、编写交接恢复说明、提出可重用的知识候选对象。
-4.  **知识审查者 (Knowledge Review Agent)**
-    *   `validator / cloud-backed / staged-knowledge / knowledge-review` + `canonical-write-forbidden`
-    *   职责：评估候选知识对象的质量、识别冗余与冲突、推荐通过或拒绝。
-5.  **失败分析助手 (Failure Analysis Agent)**
-    *   `specialist / local-or-cloud-backed / task-memory / failure-analysis`
-    *   职责：读取日志，提出故障根因假说，建议重试与恢复策略。
+### 7.1 通用代理的认知领域分野 (Cognitive Domains of General Agents)
+这三者在系统中不是互相替代的竞品，而是代表不同的高阶认知模式：
+1.  **施工与执行者 (Implementation Executor / e.g., Codex)**
+    *   `general-executor / local / task-state / implementation`
+    *   **核心认知**：稳健施工。
+    *   **职责**：明确的实现任务、修 bug、补测试、代码修改、终端命令执行。擅长将抽象要求转化为可落地的代码和 Diff。
+2.  **规划与审查者 (Planner & Reviewer / e.g., Claude)**
+    *   `general-executor / cloud-backed / task-state / planning-and-review`
+    *   **核心认知**：方案判断、任务拆解与风险识别。
+    *   **职责**：方案比较、大改动前的约束建模、过程纠偏、复杂的逻辑反思与审查。
+3.  **知识与上下文整合者 (Knowledge & Consistency Agent / e.g., Gemini)**
+    *   `general-executor / cloud-backed / task-state / knowledge-integration`
+    *   **核心认知**：长上下文吸收与一致性维护。
+    *   **职责**：大仓库理解、长历史记录或多文档汇总、Wiki 草稿生成、文档与实现的一致性检查。
+
+### 7.2 核心专项智能体 (Core Specialist Agents)
+专项 Agent 应当优先使用低成本 API 或本地模型，处理高度标准化的输入输出。
+1.  **图书管理员 Agent (Librarian Agent)**
+    *   `specialist / cloud-backed / staged-knowledge / memory-curation`
+    *   **职责**：系统记忆质量的守门人。负责任务结束后的降噪摘要提炼、知识库冲突检测与合并仲裁、周期性记忆衰减（归档过时信息）。**权限例外**：允许写入 Staged-Knowledge，但必须生成详细变更日志供审计。
+2.  **外部会话摄入 Agent (Ingestion Specialist)**
+    *   `specialist / cloud-backed / staged-knowledge / conversation-ingestion`
+    *   **职责**：将外部（ChatGPT/Claude Web 等）非结构化脑暴聊天记录转化为结构化的知识资产。负责识别有效结论、提取被否决的路径，并带上来源标注进入知识库暂存区。
+3.  **文献解析 Agent (Literature Specialist)**
+    *   `specialist / cloud-backed / task-memory / domain-rag-parsing`
+    *   **职责**：服务于学术等领域的高级解析器。不是简单总结，而是从批量 PDF 中提取结构化对比表（数据集、模型、指标）、识别引用关系与冲突。需要挂载专门的 Domain RAG Package。
+4.  **编排策略顾问 Agent (Meta-Optimizer)**
+    *   `specialist / cloud-backed / read-only / workflow-optimization`
+    *   **职责**：定期扫描 Event Log 和已归档任务轨迹。识别反复出现的模式以提议新 Workflow、发现脆弱环节提议 Skill 优化、分析模型路由表现以建议策略调整。**输出仅为供人类决定的提案**。
+
+### 7.3 核心验证者 (Core Validators)
+1.  **质量审查 Agent (Quality Reviewer / Validator)**
+    *   `validator / cloud-backed / stateless / artifact-validation`
+    *   **职责**：在关键节点对其他 Agent 产出进行**独立校验**（如：代码脚本是否能跑通、提取表格是否与原文一致）。**绝对无状态**且**无修复能力**（发现问题只返回错误列表打回重做），确保防线干净。
+2.  **一致性审查者 (Consistency Review Agent)**
+    *   `validator / cloud-backed / stateless / consistency-check`
+    *   职责：评估候选知识对象的质量、识别冗余与架构偏离。
