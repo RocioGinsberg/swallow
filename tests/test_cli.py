@@ -60,6 +60,7 @@ from swallow.paths import (
     canonical_registry_path,
     canonical_reuse_policy_path,
     canonical_reuse_regression_path,
+    knowledge_wiki_entry_path,
     remote_handoff_contract_path,
 )
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
@@ -1284,6 +1285,9 @@ class CliLifecycleTest(unittest.TestCase):
                 for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
+            wiki_entry = json.loads(
+                knowledge_wiki_entry_path(tmp_path, "task-stage-promote", "knowledge-0002").read_text(encoding="utf-8")
+            )
             reuse_policy = json.loads(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"))
 
         self.assertIn(f"{candidate.candidate_id} staged_promoted", stdout.getvalue())
@@ -1292,6 +1296,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["canonical_id"], f"canonical-{candidate.candidate_id}")
         self.assertEqual(canonical_records[0]["source_task_id"], "task-stage-promote")
         self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0002")
+        self.assertEqual(wiki_entry["stage"], "canonical")
+        self.assertEqual(wiki_entry["store_type"], "wiki")
+        self.assertEqual(wiki_entry["promoted_by"], "swl_cli")
         self.assertEqual(reuse_policy["reuse_visible_count"], 1)
 
     def test_cli_stage_promote_accepts_refined_text_without_mutating_staged_candidate(self) -> None:

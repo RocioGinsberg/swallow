@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .paths import knowledge_objects_path, task_root
+from .paths import task_root
+from .store import load_knowledge_objects
 
 
 @dataclass(slots=True)
@@ -25,12 +25,7 @@ def _source_object_exists(base_dir: Path, source_task_id: str, source_object_id:
         return False
     if not task_root(base_dir, source_task_id).exists():
         return False
-    payload_path = knowledge_objects_path(base_dir, source_task_id)
-    if not payload_path.exists():
-        return False
-    payload = json.loads(payload_path.read_text(encoding="utf-8"))
-    if not isinstance(payload, list):
-        return False
+    payload = load_knowledge_objects(base_dir, source_task_id)
     return any(str(item.get("object_id", "")).strip() == source_object_id for item in payload if isinstance(item, dict))
 
 

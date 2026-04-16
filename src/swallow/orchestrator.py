@@ -87,6 +87,7 @@ from .store import (
     append_canonical_record,
     append_canonical_reuse_evaluation,
     append_knowledge_decision,
+    load_knowledge_objects,
     load_state,
     save_capability_assembly,
     save_capability_manifest,
@@ -873,12 +874,8 @@ def _route_knowledge_to_staged(base_dir: Path, state: TaskState) -> list[StagedC
     if state.route_taxonomy_memory_authority not in {"canonical-write-forbidden", "staged-knowledge"}:
         return []
 
-    knowledge_objects: list[dict[str, object]] = []
-    if knowledge_objects_path(base_dir, state.task_id).exists():
-        loaded = json.loads(knowledge_objects_path(base_dir, state.task_id).read_text(encoding="utf-8"))
-        if isinstance(loaded, list):
-            knowledge_objects = loaded
-    elif isinstance(state.knowledge_objects, list):
+    knowledge_objects = load_knowledge_objects(base_dir, state.task_id)
+    if not knowledge_objects and isinstance(state.knowledge_objects, list):
         knowledge_objects = list(state.knowledge_objects)
 
     staged_candidates: list[StagedCandidate] = []
