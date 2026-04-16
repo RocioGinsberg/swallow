@@ -5,6 +5,7 @@ from .models import TaskCard, TaskState, build_librarian_taxonomy_profile
 
 
 LIBRARIAN_BLOCKED_AUTHORITIES = {"canonical-write-forbidden", "staged-knowledge"}
+MAX_SUBTASK_CARDS = 4
 
 
 def _base_input_context(state: TaskState) -> dict[str, object]:
@@ -32,15 +33,77 @@ def _should_plan_librarian_card(state: TaskState, promotion_ready_ids: list[str]
     return state.route_taxonomy_memory_authority not in LIBRARIAN_BLOCKED_AUTHORITIES
 
 
+def _normalized_constraints(state: TaskState) -> list[str]:
+    raw_constraints = state.task_semantics.get("constraints", []) if state.task_semantics else []
+    return [str(item).strip() for item in raw_constraints if str(item).strip()]
+
+
+def _next_action_proposals(state: TaskState) -> list[str]:
+    semantics = state.task_semantics if state.task_semantics else {}
+    raw_actions = semantics.get("next_action_proposals", [])
+    proposals: list[str] = []
+    seen: set[str] = set()
+    for item in raw_actions:
+        normalized = str(item).strip()
+        if not normalized or normalized in seen:
+            continue
+        proposals.append(normalized)
+        seen.add(normalized)
+        if len(proposals) >= MAX_SUBTASK_CARDS:
+            break
+    return proposals
+
+
+def _parallel_subtasks_requested(constraints: list[str]) -> bool:
+    for item in constraints:
+        normalized = item.lower()
+        if "parallel_subtasks" in normalized or "parallel subtasks" in normalized:
+            return True
+    return False
+
+
+def _build_subtask_cards(
+    state: TaskState,
+    *,
+    constraints: list[str],
+    input_context: dict[str, object],
+    next_actions: list[str],
+    parallel_requested: bool,
+) -> list[TaskCard]:
+    cards: list[TaskCard] = []
+    for index, action in enumerate(next_actions, start=1):
+        depends_on = [] if parallel_requested or index == 1 else [cards[-1].card_id]
+        cards.append(
+            TaskCard(
+                goal=action,
+                input_context={
+                    **input_context,
+                    "parent_goal": state.goal,
+                    "subtask_goal": action,
+                    "planning_mode": "parallel" if parallel_requested else "sequential",
+                },
+                input_schema={},
+                output_schema={},
+                route_hint=state.route_name,
+                executor_type=state.route_executor_family,
+                constraints=list(constraints),
+                depends_on=depends_on,
+                subtask_index=index,
+                parent_task_id=state.task_id,
+            )
+        )
+    return cards
+
+
 def plan(state: TaskState) -> list[TaskCard]:
     """Build Runtime v0 task cards from the current task state.
 
-    Phase 31 keeps planning intentionally static: one task state maps to one task
-    card so the later executor/review integration can adopt a stable interface
-    without changing orchestration semantics.
+    Phase 33 keeps planning rule-driven but extends the Runtime v0 baseline with
+    a bounded 1:N split. Librarian promotion still wins over generic subtask
+    decomposition so knowledge writeback remains explicitly gated.
     """
 
-    constraints = state.task_semantics.get("constraints", []) if state.task_semantics else []
+    constraints = _normalized_constraints(state)
     input_context = _base_input_context(state)
     promotion_ready_ids = _promotion_ready_object_ids(state)
     if _should_plan_librarian_card(state, promotion_ready_ids):
@@ -72,9 +135,22 @@ def plan(state: TaskState) -> list[TaskCard]:
             route_hint="librarian-local",
             executor_type="librarian",
             constraints=list(constraints),
+            depends_on=[],
+            subtask_index=1,
             parent_task_id=state.task_id,
         )
         return [card]
+
+    next_actions = _next_action_proposals(state)
+    if len(next_actions) > 1:
+        parallel_requested = _parallel_subtasks_requested(constraints)
+        return _build_subtask_cards(
+            state,
+            constraints=constraints,
+            input_context=input_context,
+            next_actions=next_actions,
+            parallel_requested=parallel_requested,
+        )
 
     card = TaskCard(
         goal=state.goal,
@@ -84,6 +160,8 @@ def plan(state: TaskState) -> list[TaskCard]:
         route_hint=state.route_name,
         executor_type=state.route_executor_family,
         constraints=list(constraints),
+        depends_on=[],
+        subtask_index=1,
         parent_task_id=state.task_id,
     )
     return [card]

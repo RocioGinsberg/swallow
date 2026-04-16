@@ -47,6 +47,8 @@ class PlannerTest(unittest.TestCase):
         )
         self.assertEqual(card.status, "planned")
         self.assertEqual(card.output_schema, {})
+        self.assertEqual(card.depends_on, [])
+        self.assertEqual(card.subtask_index, 1)
         self.assertTrue(card.card_id)
         self.assertTrue(card.created_at)
 
@@ -94,6 +96,71 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(card.input_context["librarian_taxonomy"]["system_role"], "specialist")
         self.assertEqual(card.input_context["librarian_taxonomy"]["memory_authority"], "canonical-promotion")
         self.assertEqual(card.output_schema["const"]["kind"], "librarian_change_log_v0")
+        self.assertEqual(card.depends_on, [])
+        self.assertEqual(card.subtask_index, 1)
+
+    def test_plan_builds_sequential_subtask_cards_from_multiple_next_actions(self) -> None:
+        state = TaskState(
+            task_id="task-sequential",
+            title="Decompose runtime work",
+            goal="Implement a bounded multi-card planner",
+            workspace_root="/tmp/workspace",
+            task_semantics={
+                "constraints": ["Keep planning rule-driven"],
+                "next_action_proposals": [
+                    "Extract TaskCard dependency metadata",
+                    "Teach planner to emit multiple task cards",
+                    "Add planner regression coverage",
+                ],
+            },
+            route_name="local-codex",
+            route_executor_family="cli",
+        )
+
+        cards = plan(state)
+
+        self.assertEqual(len(cards), 3)
+        self.assertEqual([card.subtask_index for card in cards], [1, 2, 3])
+        self.assertEqual([card.goal for card in cards], state.task_semantics["next_action_proposals"])
+        self.assertEqual(cards[0].depends_on, [])
+        self.assertEqual(cards[1].depends_on, [cards[0].card_id])
+        self.assertEqual(cards[2].depends_on, [cards[1].card_id])
+        self.assertTrue(all(card.input_context["planning_mode"] == "sequential" for card in cards))
+        self.assertTrue(all(card.input_context["parent_goal"] == state.goal for card in cards))
+
+    def test_plan_builds_parallel_subtask_cards_when_parallel_hint_present(self) -> None:
+        state = TaskState(
+            task_id="task-parallel",
+            title="Parallel runtime work",
+            goal="Fan out independent subtask cards",
+            workspace_root="/tmp/workspace",
+            task_semantics={
+                "constraints": [
+                    "parallel_subtasks",
+                    "Limit the planner to a bounded split",
+                ],
+                "next_action_proposals": [
+                    "Implement TaskCard dependency fields",
+                    "Add planner fan-out logic",
+                    "Write multi-card planner tests",
+                    "Document slice validation",
+                    "Ignore overflow action",
+                ],
+            },
+            route_name="local-codex",
+            route_executor_family="cli",
+        )
+
+        cards = plan(state)
+
+        self.assertEqual(len(cards), 4)
+        self.assertEqual([card.subtask_index for card in cards], [1, 2, 3, 4])
+        self.assertEqual(
+            [card.goal for card in cards],
+            state.task_semantics["next_action_proposals"][:4],
+        )
+        self.assertTrue(all(card.depends_on == [] for card in cards))
+        self.assertTrue(all(card.input_context["planning_mode"] == "parallel" for card in cards))
 
     def test_task_card_serializes_round_trip(self) -> None:
         card = TaskCard(
@@ -101,6 +168,8 @@ class PlannerTest(unittest.TestCase):
             route_hint="local-mock",
             executor_type="mock",
             constraints=["Do not persist task cards in v0"],
+            depends_on=["card-a"],
+            subtask_index=2,
             parent_task_id="task-456",
             input_context={"title": "Planner serialization"},
             input_schema={"kind": "task_input_v0"},

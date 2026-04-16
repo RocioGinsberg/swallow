@@ -420,6 +420,8 @@ class TaskCard:
     route_hint: str = ""
     executor_type: str = "cli"
     constraints: list[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
+    subtask_index: int = 1
     parent_task_id: str = ""
     status: str = "planned"
     created_at: str = field(default_factory=utc_now)
