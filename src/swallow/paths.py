@@ -18,6 +18,18 @@ def staged_knowledge_root(base_dir: Path) -> Path:
     return app_root(base_dir) / "staged_knowledge"
 
 
+def knowledge_root(base_dir: Path) -> Path:
+    return app_root(base_dir) / "knowledge"
+
+
+def knowledge_evidence_root(base_dir: Path) -> Path:
+    return knowledge_root(base_dir) / "evidence"
+
+
+def knowledge_wiki_root(base_dir: Path) -> Path:
+    return knowledge_root(base_dir) / "wiki"
+
+
 def tasks_root(base_dir: Path) -> Path:
     return app_root(base_dir) / "tasks"
 
@@ -60,6 +72,22 @@ def task_semantics_path(base_dir: Path, task_id: str) -> Path:
 
 def knowledge_objects_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "knowledge_objects.json"
+
+
+def task_knowledge_evidence_root(base_dir: Path, task_id: str) -> Path:
+    return knowledge_evidence_root(base_dir) / task_id
+
+
+def task_knowledge_wiki_root(base_dir: Path, task_id: str) -> Path:
+    return knowledge_wiki_root(base_dir) / task_id
+
+
+def knowledge_evidence_entry_path(base_dir: Path, task_id: str, object_id: str) -> Path:
+    return task_knowledge_evidence_root(base_dir, task_id) / f"{object_id}.json"
+
+
+def knowledge_wiki_entry_path(base_dir: Path, task_id: str, entry_id: str) -> Path:
+    return task_knowledge_wiki_root(base_dir, task_id) / f"{entry_id}.json"
 
 
 def knowledge_policy_path(base_dir: Path, task_id: str) -> Path:

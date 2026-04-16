@@ -87,6 +87,7 @@ from .store import (
     append_canonical_record,
     append_canonical_reuse_evaluation,
     append_knowledge_decision,
+    load_knowledge_objects,
     load_state,
     save_capability_assembly,
     save_capability_manifest,
@@ -421,6 +422,10 @@ def create_task(
         "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
         "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
         "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
+        "librarian_change_log": str((artifacts_dir(base_dir, task_id) / "librarian_change_log.json").resolve()),
+        "librarian_change_log_report": str(
+            (artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md").resolve()
+        ),
         "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
         "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
         "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
@@ -666,18 +671,43 @@ def decide_task_knowledge(
     object_id: str,
     decision_type: str,
     decision_target: str,
+    caller_authority: str = "task-state",
     note: str = "",
     decided_by: str = "swl_cli",
 ) -> TaskState:
     state = load_state(base_dir, task_id)
-    updated_objects, decision_record = apply_knowledge_decision(
-        list(state.knowledge_objects or []),
-        object_id=object_id,
-        decision_type=decision_type,
-        decision_target=decision_target,
-        note=note,
-        decided_by=decided_by,
-    )
+    current_objects = load_knowledge_objects(base_dir, task_id)
+    if not current_objects:
+        current_objects = list(state.knowledge_objects or [])
+    try:
+        updated_objects, decision_record = apply_knowledge_decision(
+            current_objects,
+            object_id=object_id,
+            decision_type=decision_type,
+            decision_target=decision_target,
+            caller_authority=caller_authority,
+            note=note,
+            decided_by=decided_by,
+        )
+    except PermissionError as exc:
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type="knowledge.promotion.unauthorized",
+                message="Unauthorized canonical promotion was blocked.",
+                payload={
+                    "object_id": object_id,
+                    "decision_type": decision_type,
+                    "decision_target": decision_target,
+                    "caller_authority": caller_authority,
+                    "decided_by": decided_by,
+                    "note": note.strip(),
+                    "error": str(exc),
+                },
+            ),
+        )
+        raise
     state.knowledge_objects = updated_objects
     knowledge_partition = build_knowledge_partition(state.knowledge_objects)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
@@ -873,12 +903,8 @@ def _route_knowledge_to_staged(base_dir: Path, state: TaskState) -> list[StagedC
     if state.route_taxonomy_memory_authority not in {"canonical-write-forbidden", "staged-knowledge"}:
         return []
 
-    knowledge_objects: list[dict[str, object]] = []
-    if knowledge_objects_path(base_dir, state.task_id).exists():
-        loaded = json.loads(knowledge_objects_path(base_dir, state.task_id).read_text(encoding="utf-8"))
-        if isinstance(loaded, list):
-            knowledge_objects = loaded
-    elif isinstance(state.knowledge_objects, list):
+    knowledge_objects = load_knowledge_objects(base_dir, state.task_id)
+    if not knowledge_objects and isinstance(state.knowledge_objects, list):
         knowledge_objects = list(state.knowledge_objects)
 
     staged_candidates: list[StagedCandidate] = []
@@ -1262,6 +1288,10 @@ def run_task(
         "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
         "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
         "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
+        "librarian_change_log": str((artifacts_dir(base_dir, task_id) / "librarian_change_log.json").resolve()),
+        "librarian_change_log_report": str(
+            (artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md").resolve()
+        ),
         "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
         "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
         "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),

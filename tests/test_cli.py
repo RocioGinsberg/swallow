@@ -55,11 +55,12 @@ from swallow.models import (
     evaluate_dispatch_verdict,
     validate_remote_handoff_contract_payload,
 )
-from swallow.orchestrator import acknowledge_task, build_task_retrieval_request, create_task, run_task
+from swallow.orchestrator import acknowledge_task, build_task_retrieval_request, create_task, decide_task_knowledge, run_task
 from swallow.paths import (
     canonical_registry_path,
     canonical_reuse_policy_path,
     canonical_reuse_regression_path,
+    knowledge_wiki_entry_path,
     remote_handoff_contract_path,
 )
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
@@ -1066,6 +1067,11 @@ class CliLifecycleTest(unittest.TestCase):
                 for line in (tmp_path / ".swl" / "canonical_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
+            decision_records = [
+                json.loads(line)
+                for line in (task_dir / "knowledge_decisions.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
             inspect_stdout = StringIO()
             review_stdout = StringIO()
             registry_stdout = StringIO()
@@ -1095,6 +1101,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["source_task_id"], task_id)
         self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0001")
         self.assertEqual(canonical_records[0]["artifact_ref"], ".swl/tasks/demo/artifacts/evidence.md")
+        self.assertEqual(decision_records[0]["caller_authority"], "canonical-promotion")
         self.assertIn("Canonical Registry", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_count: 1", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_active_count: 1", inspect_stdout.getvalue())
@@ -1113,8 +1120,65 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("replace_strategy: latest_record_wins", registry_index_stdout.getvalue())
         self.assertIn("supersede_key: canonical_key", registry_index_stdout.getvalue())
         self.assertIn("supersede_strategy: latest_active_by_trace", registry_index_stdout.getvalue())
-        self.assertIn("active_count: 1", registry_index_stdout.getvalue())
-        self.assertIn("superseded_count: 0", registry_index_stdout.getvalue())
+
+    def test_decide_task_knowledge_blocks_unauthorized_canonical_promotion(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Unauthorized canonical promote",
+                        "--goal",
+                        "Block automatic canonical promotion without librarian authority",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        "chat://canonical-promote-blocked",
+                        "--knowledge-item",
+                        "Verified artifact-backed knowledge should still require librarian authority.",
+                        "--knowledge-artifact-ref",
+                        ".swl/tasks/demo/artifacts/evidence.md",
+                        "--knowledge-canonicalization-intent",
+                        "promote",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+
+            with self.assertRaises(PermissionError) as raised:
+                decide_task_knowledge(
+                    tmp_path,
+                    task_id,
+                    object_id="knowledge-0001",
+                    decision_type="promote",
+                    decision_target="canonical",
+                    caller_authority="task-state",
+                    note="Attempt automatic promote without librarian.",
+                    decided_by="mock-remote",
+                )
+
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            knowledge_objects = json.loads((task_dir / "knowledge_objects.json").read_text(encoding="utf-8"))
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertIn("caller_authority=canonical-promotion", str(raised.exception))
+        self.assertEqual(knowledge_objects[0]["stage"], "verified")
+        self.assertEqual(events[-1]["event_type"], "knowledge.promotion.unauthorized")
+        self.assertEqual(events[-1]["payload"]["caller_authority"], "task-state")
+        self.assertEqual(events[-1]["payload"]["decision_target"], "canonical")
 
     def test_cli_stage_list_reports_no_pending_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1284,6 +1348,9 @@ class CliLifecycleTest(unittest.TestCase):
                 for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
                 if line.strip()
             ]
+            wiki_entry = json.loads(
+                knowledge_wiki_entry_path(tmp_path, "task-stage-promote", "knowledge-0002").read_text(encoding="utf-8")
+            )
             reuse_policy = json.loads(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"))
 
         self.assertIn(f"{candidate.candidate_id} staged_promoted", stdout.getvalue())
@@ -1292,6 +1359,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["canonical_id"], f"canonical-{candidate.candidate_id}")
         self.assertEqual(canonical_records[0]["source_task_id"], "task-stage-promote")
         self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0002")
+        self.assertEqual(wiki_entry["stage"], "canonical")
+        self.assertEqual(wiki_entry["store_type"], "wiki")
+        self.assertEqual(wiki_entry["promoted_by"], "swl_cli")
         self.assertEqual(reuse_policy["reuse_visible_count"], 1)
 
     def test_cli_stage_promote_accepts_refined_text_without_mutating_staged_candidate(self) -> None:

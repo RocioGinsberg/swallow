@@ -6,7 +6,14 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import MEMORY_AUTHORITIES, SYSTEM_ROLES, TaxonomyProfile
+from swallow.models import (
+    LIBRARIAN_MEMORY_AUTHORITY,
+    LIBRARIAN_SYSTEM_ROLE,
+    MEMORY_AUTHORITIES,
+    SYSTEM_ROLES,
+    TaxonomyProfile,
+    build_librarian_taxonomy_profile,
+)
 
 
 class TaxonomyProfileTest(unittest.TestCase):
@@ -39,3 +46,9 @@ class TaxonomyProfileTest(unittest.TestCase):
 
         self.assertIn("Invalid memory_authority: invalid-memory-authority", str(raised.exception))
         self.assertIn(", ".join(MEMORY_AUTHORITIES), str(raised.exception))
+
+    def test_build_librarian_taxonomy_profile_uses_specialist_canonical_promotion(self) -> None:
+        profile = build_librarian_taxonomy_profile()
+
+        self.assertEqual(profile.system_role, LIBRARIAN_SYSTEM_ROLE)
+        self.assertEqual(profile.memory_authority, LIBRARIAN_MEMORY_AUTHORITY)
