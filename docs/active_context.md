@@ -5,33 +5,32 @@
 - latest_completed_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
 - latest_completed_phase: `Phase 31`
 - latest_completed_slice: `Runtime v0 — Planner + Executor Interface + Review Gate`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Retrieval / Memory`
+- active_phase: `Phase 32`
+- active_slice: `S1: Evidence/Wiki 双层存储`
 - active_branch: `main`
-- status: `direction_gate_pending`
+- status: `s1_completed_waiting_human_commit`
 
 ---
 
 ## 当前状态说明
 
-Phase 31 已完成 merge，并已回到 `main`。当前默认入口不再是 Phase 31 的实现或收口，而是**下一轮方向选择 / kickoff 前状态**。
+Phase 32 kickoff 已完成并经 Human 口头确认进入实现。Codex 已完成 **S1: Evidence/Wiki 双层存储** 的代码落地与回归验证，当前工作树仍在 `main`，尚未切到本轮 feature branch，也尚未进行 slice 提交。
 
-Phase 31 已形成的稳定 checkpoint：
+本次 S1 已完成的核心内容：
 
-- 引入 `TaskCard` 与规则驱动 `Planner v0`
-- 建立 `ExecutorProtocol` 统一执行器接口
-- 在 `run_task()` 中接入非阻断 `ReviewGate`
-- 补齐 `task.planned` / `task.review_gate` 运行期可观测性
+- 新增 `knowledge_store.py`，将 task knowledge view 拆分为 Evidence Store + Wiki Store，并保留 merged view 兼容层
+- 为 `KnowledgeObject` 增加 `store_type`，新增 `WikiEntry` 扩展模型
+- 在 `store.save_knowledge_objects()` 中同步持久化双层存储与旧 `knowledge_objects.json` 兼容镜像
+- CLI 的 intake / inspect / review / knowledge-review-queue / knowledge-objects-json 已切到 merged view
+- `knowledge stage-promote` 现在会同步写入 Wiki Store
+- 全量测试已通过：`218 passed`
 
-当前默认不应继续在 `main` 上顺手扩张：
+当前下一步不应跳过：
 
-- 1:N TaskCard 拆解
-- ReviewGate 阻断 completion / retry
-- 动态 executor negotiation / fallback matrix
-- 多卡并发编排 / Subtask Orchestrator
-
-下一轮应回到 `docs/roadmap.md` 和 `docs/system_tracks.md` 重新选择方向，再启动新的正式 kickoff。
+- Human 审阅 S1 diff
+- Human 先切出 `feat/phase32-knowledge-dual-layer`（或等价命名）并提交 S1
+- Codex 在 S1 commit 后继续 S2：权限校验 + Librarian 角色边界
 
 ---
 
@@ -63,6 +62,14 @@ Phase 31 已形成的稳定 checkpoint：
 ---
 
 ## 当前产出物
+- `docs/plans/phase32/kickoff.md` (claude, 2026-04-16) — Phase 32 kickoff: 3 slice，双层存储 + 权限校验 + Librarian 集成，风险 7/15 低
+- `docs/plans/phase32/context_brief.md` (gemini, 2026-04-16) — Phase 32 目标总结与边界控制
+- `src/swallow/knowledge_store.py` (codex, 2026-04-16) — S1 双层知识存储读写 API + merged view 兼容层
+- `src/swallow/store.py` (codex, 2026-04-16) — `save_knowledge_objects()` 接入双层持久化，新增 `load_knowledge_objects()`
+- `src/swallow/cli.py` (codex, 2026-04-16) — intake / inspect / review / queue 改读 merged view；stage-promote 同步写 Wiki Store
+- `src/swallow/models.py` (codex, 2026-04-16) — `KnowledgeObject.store_type` + `WikiEntry`
+- `tests/test_knowledge_store.py` (codex, 2026-04-16) — S1 存储分层与 overlay 回归测试
+- `tests/test_cli.py` (codex, 2026-04-16) — stage-promote 写入 Wiki Store 覆盖
 - `docs/roadmap.md` (gemini+claude, 2026-04-15) — 差距分析 + 5-Phase 路线图 + 推荐队列优先级排序与风险批注
 - `docs/plans/phase31/kickoff.md` (claude, 2026-04-15) — Phase 31 kickoff (approved)
 - `docs/plans/phase31/design_decision.md` (claude, 2026-04-15) — 方案拆解：3 slice，三段式重构
@@ -76,9 +83,20 @@ Phase 31 已形成的稳定 checkpoint：
 
 - **[Human]** 已完成 Phase 31 merge，并切换回 `main`。
 - **[Codex]** 已将入口文档切换到“下一阶段启动前”状态。
+- **[Gemini]** 已根据 roadmap 输出 Phase 32 的 context_brief。
+- **[Claude]** 已完成 Gateway 设计融合（design_gateway.md 内化至蓝图）+ 技术选型写入。
+- **[Claude]** 已完成 Phase 32 kickoff 撰写（3 slice 方案拆解 + 风险评估）。
+- **[Codex]** 已完成 S1：Evidence/Wiki 双层存储，实现 merged view 兼容层并接通 CLI/operator 视图。
+- **[Codex]** 已完成 S1 回归验证：`.venv/bin/python -m pytest` → `218 passed in 5.75s`。
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` 选择下一轮方向
-- **[Gemini / Claude]** 如有需要，刷新 roadmap 优先级与方向判断
-- **[Human]** 确认下一 phase 方向后启动新的 kickoff
+- **[Human]** 审阅当前 S1 diff，并先切换到 `feat/phase32-knowledge-dual-layer`（或等价 feature branch）
+- **[Human]** 执行 S1 独立提交，不与后续 S2/S3 混包
+- **[Codex]** 在 Human 完成 S1 commit 后进入 S2：promotion 权限校验 + Librarian 角色边界
+- **[Claude]** 如 Codex 完成后需要 PR review，待指派
+
+## 当前阻塞项
+
+- 等待人工审批: S1 实现 diff
+- 等待人工操作: 从 `main` 切出 Phase 32 feature branch，并完成 S1 独立 commit
