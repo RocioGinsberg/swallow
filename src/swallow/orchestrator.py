@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 
 from dataclasses import replace
 from pathlib import Path
@@ -80,8 +81,9 @@ from .paths import (
 from .retrieval import build_retrieval_request
 from .router import normalize_route_mode, select_route
 from .planner import plan
-from .review_gate import review_executor_output
+from .review_gate import ReviewGateResult, review_executor_output
 from .staged_knowledge import StagedCandidate, submit_staged_candidate
+from .subtask_orchestrator import SubtaskOrchestrator, SubtaskOrchestratorResult, SubtaskRunRecord
 from .store import (
     append_event,
     append_canonical_record,
@@ -128,6 +130,329 @@ def _execute_task_card(
 ) -> ExecutorResult:
     executor = resolve_executor(card.executor_type, state.executor_name)
     return executor.execute(base_dir, state, card, retrieval_items)
+
+
+def _write_subtask_attempt_artifacts(
+    base_dir: Path,
+    task_id: str,
+    record: SubtaskRunRecord,
+    *,
+    attempt_number: int,
+) -> None:
+    executor_result = record.executor_result or ExecutorResult(
+        executor_name="subtask-orchestrator",
+        status="failed",
+        message="Missing subtask executor result.",
+    )
+    review_gate_result = record.review_gate_result
+    prompt_with_dialect = (
+        f"dialect: {executor_result.dialect or 'plain_text'}\n\n{executor_result.prompt}"
+    )
+    prefix = f"subtask_{record.subtask_index}_attempt{attempt_number}"
+    write_artifact(base_dir, task_id, f"{prefix}_executor_prompt.md", prompt_with_dialect)
+    write_artifact(
+        base_dir,
+        task_id,
+        f"{prefix}_executor_output.md",
+        executor_result.output or executor_result.message or "(no executor output)",
+    )
+    write_artifact(base_dir, task_id, f"{prefix}_executor_stdout.txt", executor_result.stdout or "")
+    write_artifact(base_dir, task_id, f"{prefix}_executor_stderr.txt", executor_result.stderr or "")
+    if review_gate_result is not None:
+        write_artifact(
+            base_dir,
+            task_id,
+            f"{prefix}_review_gate.json",
+            json.dumps(review_gate_result.to_dict(), indent=2),
+        )
+
+
+def _write_parent_executor_artifacts(
+    base_dir: Path,
+    state: TaskState,
+    executor_result: ExecutorResult,
+) -> None:
+    prompt_with_dialect = (
+        f"dialect: {executor_result.dialect or state.route_dialect or 'plain_text'}\n\n{executor_result.prompt}"
+    )
+    write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt_with_dialect)
+    write_artifact(base_dir, state.task_id, "executor_output.md", executor_result.output or executor_result.message)
+    write_artifact(base_dir, state.task_id, "executor_stdout.txt", executor_result.stdout)
+    write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
+
+
+def _append_parent_executor_event(
+    base_dir: Path,
+    state: TaskState,
+    executor_result: ExecutorResult,
+) -> None:
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type=f"executor.{executor_result.status}",
+            message=executor_result.message,
+            payload={
+                "status": executor_result.status,
+                "executor_name": executor_result.executor_name,
+                "route_mode": state.route_mode,
+                "route_name": state.route_name,
+                "route_backend": state.route_backend,
+                "route_executor_family": state.route_executor_family,
+                "route_execution_site": state.route_execution_site,
+                "route_remote_capable": state.route_remote_capable,
+                "route_transport_kind": state.route_transport_kind,
+                "route_dialect": state.route_dialect,
+                "route_capabilities": state.route_capabilities,
+                "attempt_id": state.current_attempt_id,
+                "attempt_number": state.current_attempt_number,
+                "attempt_owner_kind": state.current_attempt_owner_kind,
+                "attempt_owner_ref": state.current_attempt_owner_ref,
+                "attempt_ownership_status": state.current_attempt_ownership_status,
+                "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+                "attempt_transfer_reason": state.current_attempt_transfer_reason,
+                "topology_route_name": state.topology_route_name,
+                "topology_executor_family": state.topology_executor_family,
+                "topology_execution_site": state.topology_execution_site,
+                "topology_transport_kind": state.topology_transport_kind,
+                "topology_remote_capable_intent": state.topology_remote_capable_intent,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_site_contract_kind": state.execution_site_contract_kind,
+                "execution_site_boundary": state.execution_site_boundary,
+                "execution_site_contract_status": state.execution_site_contract_status,
+                "execution_site_handoff_required": state.execution_site_handoff_required,
+                "execution_site_contract_reason": state.execution_site_contract_reason,
+                "dispatch_requested_at": state.dispatch_requested_at,
+                "dispatch_started_at": state.dispatch_started_at,
+                "execution_lifecycle": state.execution_lifecycle,
+                "dialect": executor_result.dialect or state.route_dialect,
+                "failure_kind": executor_result.failure_kind,
+                "output_written": [
+                    "executor_prompt.md",
+                    "executor_output.md",
+                    "executor_stdout.txt",
+                    "executor_stderr.txt",
+                ],
+            },
+        ),
+    )
+
+
+def _append_subtask_events(
+    base_dir: Path,
+    task_id: str,
+    record: SubtaskRunRecord,
+    *,
+    attempt_number: int,
+) -> None:
+    executor_result = record.executor_result or ExecutorResult(
+        executor_name="subtask-orchestrator",
+        status="failed",
+        message="Missing subtask executor result.",
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=task_id,
+            event_type=f"subtask.{record.subtask_index}.execution",
+            message=f"Subtask {record.subtask_index} execution completed.",
+            payload={
+                "attempt_number": attempt_number,
+                "card_id": record.card_id,
+                "goal": record.goal,
+                "depends_on": record.depends_on,
+                "subtask_index": record.subtask_index,
+                "executor_name": executor_result.executor_name,
+                "executor_status": executor_result.status,
+                "status": record.status,
+            },
+        ),
+    )
+    if record.review_gate_result is not None:
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type=f"subtask.{record.subtask_index}.review_gate",
+                message=record.review_gate_result.message,
+                payload={
+                    "attempt_number": attempt_number,
+                    "card_id": record.card_id,
+                    "goal": record.goal,
+                    "status": record.review_gate_result.status,
+                    "checks": record.review_gate_result.checks,
+                    "executor_name": executor_result.executor_name,
+                    "executor_status": executor_result.status,
+                },
+            ),
+        )
+
+
+def _build_subtask_review_gate_result(
+    result: SubtaskOrchestratorResult,
+    attempt_counts: dict[str, int],
+) -> ReviewGateResult:
+    checks: list[dict[str, object]] = []
+    for record in result.records:
+        attempts = attempt_counts.get(record.card_id, 1)
+        executor_status = record.executor_result.status if record.executor_result is not None else "failed"
+        review_status = record.review_gate_result.status if record.review_gate_result is not None else "failed"
+        checks.append(
+            {
+                "name": f"subtask_{record.subtask_index}_review_gate",
+                "passed": record.status == "completed",
+                "detail": (
+                    f"goal={record.goal}; attempts={attempts}; "
+                    f"executor_status={executor_status}; review_status={review_status}"
+                ),
+            }
+        )
+    all_passed = all(check["passed"] for check in checks)
+    return ReviewGateResult(
+        status="passed" if all_passed else "failed",
+        message="All review gate checks passed."
+        if all_passed
+        else "One or more review gate checks failed.",
+        checks=checks,
+    )
+
+
+def _build_subtask_executor_result(
+    result: SubtaskOrchestratorResult,
+    attempt_counts: dict[str, int],
+) -> ExecutorResult:
+    prompt_lines = [
+        "# Subtask Orchestrator Plan",
+        "",
+        f"- card_count: {len(result.records)}",
+        "",
+        "## Cards",
+    ]
+    lines = [
+        "# Subtask Orchestrator Result",
+        "",
+        f"- card_count: {len(result.records)}",
+        f"- completed_count: {result.completed_count}",
+        f"- failed_count: {result.failed_count}",
+        f"- max_parallelism: {result.max_parallelism}",
+        "",
+        "## Subtasks",
+    ]
+    for record in result.records:
+        executor_result = record.executor_result
+        review_gate_result = record.review_gate_result
+        prompt_lines.extend(
+            [
+                f"- [{record.subtask_index}] {record.goal}",
+                f"  depends_on: {', '.join(record.depends_on) if record.depends_on else 'none'}",
+            ]
+        )
+        lines.extend(
+            [
+                f"- [{record.subtask_index}] {record.goal}",
+                f"  attempts: {attempt_counts.get(record.card_id, 1)}",
+                f"  status: {record.status}",
+                f"  depends_on: {', '.join(record.depends_on) if record.depends_on else 'none'}",
+                f"  executor_name: {executor_result.executor_name if executor_result else 'unknown'}",
+                f"  executor_status: {executor_result.status if executor_result else 'failed'}",
+                f"  review_gate_status: {review_gate_result.status if review_gate_result else 'failed'}",
+            ]
+        )
+    status = "completed" if result.failed_count == 0 else "failed"
+    return ExecutorResult(
+        executor_name="subtask-orchestrator",
+        status=status,
+        message="All subtasks completed successfully."
+        if status == "completed"
+        else "One or more subtasks failed after review feedback retry.",
+        prompt="\n".join(prompt_lines),
+        output="\n".join(lines),
+        dialect="plain_text",
+        failure_kind="" if status == "completed" else "review_gate_retry_exhausted",
+    )
+
+
+def _run_subtask_orchestration(
+    base_dir: Path,
+    state: TaskState,
+    cards: list[TaskCard],
+    retrieval_items: list[RetrievalItem],
+) -> tuple[ExecutorResult, ReviewGateResult, SubtaskOrchestratorResult]:
+    def execute_subtask(
+        _unused_base_dir: Path,
+        isolated_state: TaskState,
+        card: TaskCard,
+        subtask_retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
+            return _execute_task_card(Path(tmp), isolated_state, card, subtask_retrieval_items)
+
+    orchestrator = SubtaskOrchestrator(execute_subtask, review_executor_output)
+    result = orchestrator.run(base_dir, state, cards, retrieval_items)
+    attempt_counts = {record.card_id: 1 for record in result.records}
+    failed_records = [record for record in result.records if record.status != "completed"]
+    if failed_records:
+        cards_by_id = {card.card_id: card for card in cards}
+        records_by_id = {record.card_id: record for record in result.records}
+        for record in result.records:
+            _write_subtask_attempt_artifacts(base_dir, state.task_id, record, attempt_number=1)
+            _append_subtask_events(base_dir, state.task_id, record, attempt_number=1)
+        for failed_record in failed_records:
+            attempt_counts[failed_record.card_id] = 2
+            append_event(
+                base_dir,
+                Event(
+                    task_id=state.task_id,
+                    event_type=f"subtask.{failed_record.subtask_index}.retry_requested",
+                    message=f"Retry requested for subtask {failed_record.subtask_index} after review failure.",
+                    payload={
+                        "card_id": failed_record.card_id,
+                        "goal": failed_record.goal,
+                        "previous_status": failed_record.status,
+                    },
+                ),
+            )
+            retry_card = replace(cards_by_id[failed_record.card_id], depends_on=[])
+            retry_result = orchestrator.run(base_dir, state, [retry_card], retrieval_items)
+            retry_record = retry_result.records[0]
+            records_by_id[failed_record.card_id] = retry_record
+            _write_subtask_attempt_artifacts(base_dir, state.task_id, retry_record, attempt_number=2)
+            _append_subtask_events(base_dir, state.task_id, retry_record, attempt_number=2)
+            if retry_record.status != "completed":
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id=state.task_id,
+                        event_type=f"subtask.{retry_record.subtask_index}.review_gate_retry_exhausted",
+                        message=f"Retry exhausted for subtask {retry_record.subtask_index}.",
+                        payload={
+                            "card_id": retry_record.card_id,
+                            "goal": retry_record.goal,
+                            "attempt_count": 2,
+                            "final_status": retry_record.status,
+                        },
+                    ),
+                )
+        result.records = [records_by_id[card.card_id] for card in cards]
+        result.failed_card_ids = [record.card_id for record in result.records if record.status != "completed"]
+        result.failed_count = len(result.failed_card_ids)
+        result.completed_count = len(result.records) - result.failed_count
+        result.status = "completed" if result.failed_count == 0 else "failed"
+        result.message = (
+            "All subtasks completed successfully."
+            if result.failed_count == 0
+            else f"{result.failed_count} subtasks failed execution or review."
+        )
+    else:
+        for record in result.records:
+            _write_subtask_attempt_artifacts(base_dir, state.task_id, record, attempt_number=1)
+            _append_subtask_events(base_dir, state.task_id, record, attempt_number=1)
+
+    review_gate_result = _build_subtask_review_gate_result(result, attempt_counts)
+    executor_result = _build_subtask_executor_result(result, attempt_counts)
+    _write_parent_executor_artifacts(base_dir, state, executor_result)
+    _append_parent_executor_event(base_dir, state, executor_result)
+    return executor_result, review_gate_result, result
 
 
 def _load_locked_grounding_evidence(base_dir: Path, state: TaskState) -> dict[str, object] | None:
@@ -1154,6 +1479,7 @@ def run_task(
 
     cards = plan(state)
     card = cards[0]
+    multi_card_plan = len(cards) > 1
     append_event(
         base_dir,
         Event(
@@ -1163,8 +1489,10 @@ def run_task(
             payload={
                 "card_count": len(cards),
                 "card_id": card.card_id,
+                "card_ids": [planned_card.card_id for planned_card in cards],
                 "route_hint": card.route_hint,
                 "executor_type": card.executor_type,
+                "subtask_indices": [planned_card.subtask_index for planned_card in cards],
                 "parent_task_id": card.parent_task_id,
             },
         ),
@@ -1216,7 +1544,16 @@ def run_task(
         source="previous_retrieval" if retrieval_skipped else "live_retrieval",
     )
 
-    if requested_skip_to_phase == "analysis":
+    if requested_skip_to_phase == "analysis" and multi_card_plan:
+        _append_phase_recovery_fallback(
+            base_dir,
+            state,
+            requested_skip_to_phase=requested_skip_to_phase,
+            fallback_phase="execution",
+            reason="previous multi-card execution artifacts cannot be selectively reused",
+        )
+        executor_result = None
+    elif requested_skip_to_phase == "analysis":
         executor_result = _load_previous_executor_result(base_dir, state)
         if executor_result is None:
             _append_phase_recovery_fallback(
@@ -1228,6 +1565,7 @@ def run_task(
             )
     else:
         executor_result = None
+    subtask_result: SubtaskOrchestratorResult | None = None
     if executor_result is None:
         state.dispatch_started_at = utc_now()
         state.topology_dispatch_status = (
@@ -1240,7 +1578,16 @@ def run_task(
         state.execution_lifecycle = "dispatched"
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
-        executor_result = _execute_task_card(base_dir, state, card, retrieval_items)
+        if multi_card_plan:
+            executor_result, review_gate_result, subtask_result = _run_subtask_orchestration(
+                base_dir,
+                state,
+                cards,
+                retrieval_items,
+            )
+        else:
+            executor_result = _execute_task_card(base_dir, state, card, retrieval_items)
+            review_gate_result = review_executor_output(executor_result, card)
         execution_skipped = False
     else:
         state.execution_lifecycle = "reused"
@@ -1248,11 +1595,11 @@ def run_task(
         state.executor_status = executor_result.status
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
+        review_gate_result = review_executor_output(executor_result, card)
         execution_skipped = True
     state.executor_name = executor_result.executor_name
     state.executor_status = executor_result.status
     save_state(base_dir, state)
-    review_gate_result = review_executor_output(executor_result, card)
     append_event(
         base_dir,
         Event(
@@ -1263,8 +1610,11 @@ def run_task(
                 "status": review_gate_result.status,
                 "checks": review_gate_result.checks,
                 "card_id": card.card_id,
+                "card_count": len(cards),
+                "card_ids": [planned_card.card_id for planned_card in cards],
                 "executor_name": executor_result.executor_name,
                 "executor_status": executor_result.status,
+                "failed_card_ids": subtask_result.failed_card_ids if subtask_result is not None else [],
                 "skipped_execution": execution_skipped,
                 "source": "previous_execution" if execution_skipped else "live_execution",
             },
