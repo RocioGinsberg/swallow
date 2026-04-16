@@ -95,20 +95,20 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-当前仓库已经形成 **Phase 27** 的稳定 checkpoint。
+当前仓库已经形成 **Phase 32** 的稳定 checkpoint。
 
-最近完成的方向是：
+最近完成并已合入主线的 checkpoint 是：
 
-- **Primary Track**：`Retrieval / Memory`
-- **Secondary Track**：`Workbench / UX`
-- **Latest Completed Slice**：`Knowledge-Driven Task Grounding Baseline`
+- **Track Focus**：`Retrieval / Memory`
+- **Latest Completed Phase**：`Phase 32`
+- **Latest Completed Slice**：`Knowledge Dual-Layer + Librarian Write Guard`
 
-当前仓库处于 **phase 之间的 fresh kickoff 状态**：
+当前分支状态处于 **Phase 33 PR ready / Merge Gate**：
 
-- `active_track: none_selected`
-- `active_phase: none_selected`
-- `active_slice: fresh_kickoff_required`
-- `active_branch: main`
+- `active_track: Execution Topology (Primary) + Core Loop (Secondary)`
+- `active_phase: Phase 33`
+- `active_slice: Closeout + Merge Gate`
+- `active_branch: feat/phase33-subtask-orchestrator`
 
 当前系统已经具备：
 
@@ -117,12 +117,15 @@ swallow 长期围绕五层组织：
 - mock-remote dispatch gate 与 remote-handoff contract 可视化，但未扩张为真实 remote execution
 - taxonomy 元数据、taxonomy-aware routing guard，以及 operator-facing taxonomy visibility
 - staged knowledge capture、review queue、promote / reject 决策与 capability-aware 写入边界
+- Evidence Store + Wiki Store 双层 task knowledge 结构、canonical promotion authority 校验，以及规则驱动的 `LibrarianExecutor`
 - canonical knowledge registry、reuse visibility、dedupe / supersede audit 与 regression inspection 路径
 - canonical retrieval 命中的 grounding evidence artifact、锁定的 grounding refs，以及可稳定 resume 的 grounding 状态
+- 有界 1:N `TaskCard` 规划、基于 DAG 的 subtask orchestration，以及父任务级 artifact / event 聚合
+- 面向多卡执行的 ReviewGate 单次 retry feedback loop
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
 - repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构
 
-当前重点已经不是继续证明“最小可运行 demo”，而是把仓库视为已完成 Phase 27 收口的稳定基线，等待下一轮 fresh kickoff，而不是继续在已完成 phase 上无边界扩张。
+当前重点已经不是继续证明“最小可运行 demo”，而是把 `main` 视为已完成 Phase 32 收口的稳定基线；当前活跃的 Phase 33 分支则应被视为 merge gate 阶段，而不是继续在该 phase 上无边界扩张。
 
 ---
 
