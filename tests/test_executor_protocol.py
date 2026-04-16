@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.executor import ExecutorProtocol, LocalCLIExecutor, MockExecutor, resolve_executor
+from swallow.librarian_executor import LibrarianExecutor
 from swallow.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
 
 
@@ -16,6 +17,7 @@ class ExecutorProtocolTest(unittest.TestCase):
     def test_runtime_v0_executors_satisfy_protocol(self) -> None:
         self.assertIsInstance(LocalCLIExecutor(), ExecutorProtocol)
         self.assertIsInstance(MockExecutor(), ExecutorProtocol)
+        self.assertIsInstance(LibrarianExecutor(), ExecutorProtocol)
 
     def test_resolve_executor_routes_mock_names_to_mock_executor(self) -> None:
         self.assertIsInstance(resolve_executor("cli", "mock"), MockExecutor)
@@ -25,6 +27,10 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(resolve_executor("cli", "codex"), LocalCLIExecutor)
         self.assertIsInstance(resolve_executor("cli", "local"), LocalCLIExecutor)
         self.assertIsInstance(resolve_executor("cli", "note-only"), LocalCLIExecutor)
+
+    def test_resolve_executor_routes_librarian_type_to_librarian_executor(self) -> None:
+        self.assertIsInstance(resolve_executor("librarian", "local"), LibrarianExecutor)
+        self.assertIsInstance(resolve_executor("cli", "librarian"), LibrarianExecutor)
 
     def test_local_cli_executor_delegates_to_harness_run_execution(self) -> None:
         state = TaskState(

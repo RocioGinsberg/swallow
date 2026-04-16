@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 import sys
@@ -62,6 +63,89 @@ class ReviewGateTest(unittest.TestCase):
         self.assertTrue(result.checks[-1]["passed"])
         self.assertEqual(result.checks[-1]["detail"], "schema validation skipped in v0")
         self.assertIsInstance(result, ReviewGateResult)
+
+    def test_review_gate_validates_librarian_change_log_schema(self) -> None:
+        result = review_executor_output(
+            ExecutorResult(
+                executor_name="librarian",
+                status="completed",
+                message="ok",
+                output=json.dumps(
+                    {
+                        "kind": "librarian_change_log_v0",
+                        "task_id": "task-4",
+                        "generated_at": "2026-04-16T00:00:00+00:00",
+                        "candidate_count": 1,
+                        "promoted_count": 1,
+                        "skipped_count": 0,
+                        "entries": [],
+                        "change_log_artifact": ".swl/tasks/task-4/artifacts/librarian_change_log.json",
+                    }
+                ),
+            ),
+            TaskCard(
+                goal="Validate librarian output",
+                parent_task_id="task-4",
+                output_schema={
+                    "required": [
+                        "kind",
+                        "task_id",
+                        "generated_at",
+                        "candidate_count",
+                        "promoted_count",
+                        "skipped_count",
+                        "entries",
+                        "change_log_artifact",
+                    ],
+                    "const": {"kind": "librarian_change_log_v0"},
+                },
+            ),
+        )
+
+        self.assertEqual(result.status, "passed")
+        self.assertEqual(result.checks[-1]["name"], "output_schema")
+        self.assertTrue(result.checks[-1]["passed"])
+        self.assertIn("validated structured output schema", result.checks[-1]["detail"])
+
+    def test_review_gate_fails_librarian_change_log_schema_mismatch(self) -> None:
+        result = review_executor_output(
+            ExecutorResult(
+                executor_name="librarian",
+                status="completed",
+                message="not ok",
+                output=json.dumps(
+                    {
+                        "kind": "unexpected_kind",
+                        "task_id": "task-5",
+                        "generated_at": "2026-04-16T00:00:00+00:00",
+                        "candidate_count": 1,
+                        "promoted_count": 0,
+                    }
+                ),
+            ),
+            TaskCard(
+                goal="Validate librarian output mismatch",
+                parent_task_id="task-5",
+                output_schema={
+                    "required": [
+                        "kind",
+                        "task_id",
+                        "generated_at",
+                        "candidate_count",
+                        "promoted_count",
+                        "skipped_count",
+                        "entries",
+                        "change_log_artifact",
+                    ],
+                    "const": {"kind": "librarian_change_log_v0"},
+                },
+            ),
+        )
+
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(result.checks[-1]["name"], "output_schema")
+        self.assertFalse(result.checks[-1]["passed"])
+        self.assertIn("missing required fields", result.checks[-1]["detail"])
 
 
 if __name__ == "__main__":

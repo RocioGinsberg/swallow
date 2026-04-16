@@ -422,6 +422,10 @@ def create_task(
         "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
         "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
         "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
+        "librarian_change_log": str((artifacts_dir(base_dir, task_id) / "librarian_change_log.json").resolve()),
+        "librarian_change_log_report": str(
+            (artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md").resolve()
+        ),
         "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
         "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
         "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
@@ -1284,6 +1288,10 @@ def run_task(
         "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
         "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
         "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
+        "librarian_change_log": str((artifacts_dir(base_dir, task_id) / "librarian_change_log.json").resolve()),
+        "librarian_change_log_report": str(
+            (artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md").resolve()
+        ),
         "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
         "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
         "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),

@@ -75,7 +75,18 @@ from .store import (
 
 
 ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("Core Run Record", ("task_semantics_report", "summary", "resume_note", "executor_output", "executor_prompt")),
+    (
+        "Core Run Record",
+        (
+            "task_semantics_report",
+            "summary",
+            "resume_note",
+            "executor_output",
+            "executor_prompt",
+            "librarian_change_log",
+            "librarian_change_log_report",
+        ),
+    ),
     (
         "Routing And Topology",
         (

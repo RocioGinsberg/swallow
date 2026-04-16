@@ -7,15 +7,15 @@
 - latest_completed_slice: `Runtime v0 — Planner + Executor Interface + Review Gate`
 - active_track: `Retrieval / Memory`
 - active_phase: `Phase 32`
-- active_slice: `S2: 权限校验 + Librarian 角色`
+- active_slice: `S3: LibrarianExecutor + 流程集成`
 - active_branch: `feat/phase32-knowledge-dual-layer`
-- status: `s2_completed_waiting_human_commit`
+- status: `s3_completed_waiting_human_commit`
 
 ---
 
 ## 当前状态说明
 
-Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 提交到 `feat/phase32-knowledge-dual-layer`，Codex 已完成 **S2: 权限校验 + Librarian 角色** 实现与回归验证，当前等待 Human 审阅并执行 S2 独立提交。
+Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 / S2 提交到 `feat/phase32-knowledge-dual-layer`，Codex 已完成 **S3: LibrarianExecutor + 流程集成** 实现并完成回归验证，当前等待 Human 审阅并执行 S3 独立提交。
 
 本次 S1 已完成的核心内容：
 
@@ -34,10 +34,14 @@ Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 提交到 `fea
 - `task knowledge-promote` 现以 Librarian authority 执行 canonical promotion
 - 回归测试已通过：`.venv/bin/python -m pytest` → `220 passed`
 
-当前下一步不应跳过：
+本次 S3 已完成的核心内容：
 
-- Human 审阅 S2 diff 并执行独立提交
-- Codex 在 S2 commit 后继续 S3：LibrarianExecutor + 流程集成
+- 新增 `librarian_executor.py`，以规则驱动方式完成 verified + artifact-backed + promote-intent knowledge 的提纯、去重、canonical promotion 与 change log 产出
+- `planner.py` 在本地且具 canonical write authority 的 promotion-ready 场景下生成 `librarian` TaskCard，并声明 change log 输出 schema
+- `executor.py` 新增 `librarian` executor 解析分支，`run_task()` 可直接进入 Librarian 执行链
+- `review_gate.py` 现在会对 Librarian change log 做 JSON schema 基线校验，而旧 v0 placeholder 行为保持兼容
+- `orchestrator.py` / `cli.py` 已将 `librarian_change_log` 纳入 artifact surface，便于 inspect / review 使用
+- 全量测试已通过：`.venv/bin/python -m pytest` → `225 passed in 5.89s`
 
 ---
 
@@ -76,10 +80,18 @@ Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 提交到 `fea
 - `src/swallow/cli.py` (codex, 2026-04-16) — S1 merged view + S2 canonical promote authority 接线
 - `src/swallow/models.py` (codex, 2026-04-16) — S1 `KnowledgeObject.store_type` / `WikiEntry` + S2 Librarian taxonomy 常量
 - `src/swallow/knowledge_review.py` (codex, 2026-04-16) — S2 caller authority 校验 + decision record 扩展
-- `src/swallow/orchestrator.py` (codex, 2026-04-16) — S2 unauthorized promotion 事件 + authority 传递
+- `src/swallow/librarian_executor.py` (codex, 2026-04-16) — S3 LibrarianExecutor：规则驱动 canonical promotion + change log artifact
+- `src/swallow/planner.py` (codex, 2026-04-16) — S3 promotion-ready librarian TaskCard 选择逻辑
+- `src/swallow/executor.py` (codex, 2026-04-16) — S3 `librarian` executor 解析
+- `src/swallow/review_gate.py` (codex, 2026-04-16) — S3 Librarian change log schema 校验
+- `src/swallow/orchestrator.py` (codex, 2026-04-16) — S2 unauthorized promotion 事件 + S3 librarian artifact surface
 - `tests/test_knowledge_store.py` (codex, 2026-04-16) — S1 存储分层与 overlay 回归测试
 - `tests/test_cli.py` (codex, 2026-04-16) — S1 stage-promote 写 Wiki Store + S2 authority 成功/阻断覆盖
 - `tests/test_taxonomy.py` (codex, 2026-04-16) — S2 Librarian taxonomy helper 覆盖
+- `tests/test_planner.py` (codex, 2026-04-16) — S3 librarian TaskCard 规划覆盖
+- `tests/test_review_gate.py` (codex, 2026-04-16) — S3 change log schema 校验覆盖
+- `tests/test_executor_protocol.py` (codex, 2026-04-16) — S3 librarian executor 解析覆盖
+- `tests/test_librarian_executor.py` (codex, 2026-04-16) — S3 `run_task()` canonical promotion 集成测试
 - `docs/roadmap.md` (gemini+claude, 2026-04-15) — 差距分析 + 5-Phase 路线图 + 推荐队列优先级排序与风险批注
 - `docs/plans/phase31/kickoff.md` (claude, 2026-04-15) — Phase 31 kickoff (approved)
 - `docs/plans/phase31/design_decision.md` (claude, 2026-04-15) — 方案拆解：3 slice，三段式重构
@@ -101,14 +113,16 @@ Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 提交到 `fea
 - **[Human]** 已完成 S1 提交，并切换到 `feat/phase32-knowledge-dual-layer`。
 - **[Codex]** 已完成 S2：canonical promotion authority 校验、Librarian taxonomy 常量、unauthorized promotion 事件。
 - **[Codex]** 已完成 S2 回归验证：`.venv/bin/python -m pytest` → `220 passed in 5.87s`。
+- **[Human]** 已完成 S2 提交。
+- **[Codex]** 已完成 S3：LibrarianExecutor、planner 自动切换、review gate schema 校验与 artifact surface 集成。
+- **[Codex]** 已完成 S3 回归验证：`.venv/bin/python -m pytest` → `225 passed in 5.89s`。
 
 ## 下一步
 
-- **[Human]** 审阅当前 S2 diff，并执行 S2 独立提交
-- **[Codex]** 在 Human 完成 S2 commit 后进入 S3：LibrarianExecutor + Planner / ReviewGate 集成
-- **[Claude]** 如 Codex 完成后需要 PR review，待指派
+- **[Human]** 审阅当前 S3 diff，并执行 S3 独立提交
+- **[Claude]** 如进入 Phase 32 收口，继续执行 review / closeout
+- **[Codex]** 在 Human 完成 S3 commit 后继续配合 review 修订或 closeout 同步
 
 ## 当前阻塞项
 
-- 等待人工审批: S2 实现 diff
-- 等待人工操作: 执行 S2 独立提交
+- 无

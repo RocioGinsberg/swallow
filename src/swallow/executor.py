@@ -91,9 +91,14 @@ class MockExecutor:
 
 
 def resolve_executor(executor_type: str, executor_name: str) -> ExecutorProtocol:
+    raw_name = (executor_name or "").strip().lower()
     normalized_name = normalize_executor_name(executor_name)
     normalized_type = (executor_type or "").strip().lower()
 
+    if raw_name == "librarian" or normalized_type == "librarian":
+        from .librarian_executor import LibrarianExecutor
+
+        return LibrarianExecutor()
     if normalized_name in {"mock", "mock-remote"} or normalized_type == "mock":
         return MockExecutor()
     return LocalCLIExecutor()
