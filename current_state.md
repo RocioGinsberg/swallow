@@ -33,17 +33,17 @@
 
 ## 当前稳定 checkpoint
 
-- repository_state: `phase32_pr_ready`
-- latest_completed_phase: `Phase 31`
-- latest_completed_slice: `Runtime v0 — Planner + Executor Interface + Review Gate`
-- checkpoint_type: `phase31_stable + phase32_pr_ready`
+- repository_state: `runnable`
+- latest_completed_phase: `Phase 32`
+- latest_completed_slice: `知识双层架构 + Librarian Agent (写回防线)`
+- checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-16`
 
 说明：
 
-- Phase 0 到 Phase 31 已完成并形成稳定 checkpoint
-- Phase 32 已完成实现、测试、review 与 closeout，当前处于 `feat/phase32-knowledge-dual-layer` 的 PR ready 状态，尚未 merge 回 `main`
-- 当前主线稳定 checkpoint 仍是 Phase 31；Phase 32 的 merge gate 由人工执行
+- Phase 0 到 Phase 32 已完成并形成稳定 checkpoint
+- Phase 32 已完成实现、测试、review、closeout 并合入 `main`
+- 当前默认不再继续扩张已完成的 Phase 32，而应重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -51,19 +51,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `Retrieval / Memory`
-- active_phase: `Phase 32`
-- active_slice: `Closeout + Merge Gate`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
 
 说明：
 
 - Phase 32 已完成双层知识存储、canonical promotion authority 校验与 LibrarianExecutor 集成。
-- 当前默认不是继续改代码，而是：
-  1. 阅读 `docs/plans/phase32/closeout.md`
-  2. 阅读 `docs/plans/phase32/review_comments.md`
-  3. 使用根目录 `pr.md` 创建或更新 PR 描述
-  4. 由 Human 执行 merge gate
-- merge 完成后，再切回下一轮 kickoff 入口状态。
+- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown。
 
 ---
 
@@ -73,13 +68,14 @@
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/plans/phase32/closeout.md`
-4. `docs/plans/phase32/review_comments.md`
-5. `docs/roadmap.md`
-6. `current_state.md`
+3. `docs/roadmap.md`
+4. `docs/system_tracks.md`
+5. `current_state.md`
+6. `docs/plans/phase32/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase32/review_comments.md`
 - `pr.md`
 - `docs/plans/phase32/kickoff.md`
 - `docs/plans/phase32/context_brief.md`
@@ -109,7 +105,7 @@
 
 ```bash
 .venv/bin/python -m pytest
-git log --oneline main..HEAD
+.venv/bin/python -m swallow.cli --help
 ```
 
 ---
@@ -150,5 +146,6 @@ cd /home/rocio/projects/swallow
 sed -n '1,120p' current_state.md
 ```
 然后按“恢复时优先读取”的顺序进入当前工作上下文；如果 Phase 32 仍未 merge，优先完成 PR / merge gate，而不是继续扩张实现范围。
+然后按“恢复时优先读取”的顺序进入当前工作上下文。
 
 ---
