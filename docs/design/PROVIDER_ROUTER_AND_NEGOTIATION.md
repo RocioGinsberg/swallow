@@ -1,5 +1,33 @@
 # 模型路由与能力协商设计 (Provider Router & Capability Negotiation)
 
+## 0. Gateway 设计哲学 (Gateway Design Philosophy)
+
+本文档描述的模型路由与能力协商机制，是 Swallow 模型网关层（第 6 层）的实现方案。在进入具体设计前，以下五条原则锚定了网关层的长期设计边界：
+
+### 0.1 逻辑模型身份 vs 物理路由身份
+
+系统请求的是一种**逻辑能力**（如"强推理"、"长上下文"、"代码补全"），而非特定的 endpoint。同一逻辑能力可能经由多条物理通道到达（官方 API、聚合器、本地部署）。网关层的核心工作是维护这个映射关系，而不是把二者等同。
+
+### 0.2 能力语义 vs 供应商语义
+
+项目内部使用自己的能力词汇表（task family、capability tier）。供应商使用自己的产品命名和 API 结构。这两套词汇不应混淆。当供应商改名、重新打包产品、或调整 API 时，项目的内部语言不应被迫重写。网关层正是这两套词汇之间的翻译层。
+
+### 0.3 聚合器是上游，不是网关本身
+
+OpenRouter 等聚合器可以作为物理路由之一，但网关层不应在概念上坍缩为聚合器的薄封装。路由身份、策略语义、观测逻辑应由项目自主持有。
+
+### 0.4 本地模型是一等公民
+
+本地部署的模型（如 ollama 上的开源模型）应当和云端模型一样，经由同一个网关表面接入。它们的成本结构、延迟特性、能力天花板与云端不同，但这些差异应在路由元数据中体现，而非通过绕开网关的特殊通道处理。
+
+### 0.5 可观测性服务于任务语义
+
+纯粹的供应商流量监控（每分钟请求数、HTTP 错误率）是必要但不充分的。网关层的遥测应当关联**任务族标签**（planning / review / extraction / retrieval），这样 Meta-Optimizer 才能回答"哪类任务在哪条路由上表现最差"这样的战略性问题。
+
+> 完整的架构哲学论述见 `GATEWAY_PHILOSOPHY.md`。
+
+---
+
 ## 1. 核心定位：智能网关与方言翻译器
 
 在多模型生态并存的时代，Swallow 系统的架构不能被单一的大模型供应商（Vendor Lock-in）所绑架。在第 6 层（模型接入与路由层），我们引入了区别于普通 API 转发网关的核心组件——**能力协商 器 (Capability Negotiator)** 与 **方言适配器 (Dialect Translators)**。
@@ -40,18 +68,21 @@
 
 在离线网络、成本压缩策略、主备切换，或系统默认的“三阶通用代理（Codex / Claude / Gemini）”因网络故障、速率限制（Rate Limit）暂时不可用时，系统必须具备强大的平滑降级与角色替补策略。
 
-### 4.1 通用认知角色的替补与降级矩阵 (Cognitive Role Fallback Matrix)
-系统依赖三大模型分别承担“施工”、“规划/审查”和“知识整合”角色。当首选模型不可用时，Router 将触发基于认知角色的替补逻辑：
+### 4.1 执行级通道降级矩阵 (Execution-Level Fallback Matrix)
 
-1.  **施工执行者 (Codex) 不可用时**：
-    *   **平滑替补**：路由至其他擅长代码补全与工具调用的模型（如 Claude 3.5 Sonnet 或 DeepSeek Coder V2）。
-    *   **降级执行**：如果强力代码模型均不可用，将大 Diff 任务降级为逐行/逐块的局部修改指令，交由一般模型分批次完成。
-2.  **规划与审查者 (Claude) 不可用时**：
-    *   **平滑替补**：路由至 GPT-4o 或具备极强逻辑反思能力的模型。
-    *   **机制降级**：如果逻辑强模型不可用，系统将**加强 Review Gate 的确信度阈值**，或强制要求人类介入确认任务拆解清单，绝不让逻辑较弱的模型（如本地 7B 模型）强行生成高风险的架构调整计划。
-3.  **知识整合者 (Gemini) 不可用时**：
-    *   **平滑替补**：使用其他具备 128k+ 长上下文窗口的模型（如 Claude 3 Opus/Sonnet 或 GPT-4-Turbo）。
-    *   **机制降级**：由于失去 Context Caching 的成本优势，系统会自动触发**强制上下文压缩**，要求 Librarian Agent 缩小 RAG 召回窗口，放弃对全量代码库的直接阅读，转而依赖摘要层（Wiki）进行降级整合。
+当编排层 Strategy Router 已选定能力级别后，若首选物理通道不可用，网关层按以下规则切换备选通道。**网关层只处理”通道不通”，不判断”能力是否足够”**——后者由编排层的 Strategy Router 负责（见 `ORCHESTRATION_AND_HANDOFF_DESIGN.md` §2.1）。
+
+1.  **施工执行通道不可用时**：
+    *   **通道切换**：路由至备选代码补全通道（如 Claude Sonnet、DeepSeek Coder V2）。
+    *   **上报编排层**：如果所有满足能力要求的通道均不可用，上报 Strategy Router 决定是否降级任务粒度或挂起至 `waiting_human`。
+2.  **规划与审查通道不可用时**：
+    *   **通道切换**：路由至备选强推理通道（如 GPT-4o）。
+    *   **上报编排层**：如果所有强推理通道均不可用，上报 Strategy Router 触发 Review Gate 的人工介入流程。
+3.  **知识整合通道不可用时**：
+    *   **通道切换**：路由至备选长上下文通道（如 Claude Opus/Sonnet 128k+）。
+    *   **上报编排层**：如果 Context Caching 不可用，上报 Strategy Router 决定是否启用上下文压缩策略。
+
+> **设计边界**：策略性降级约束（如”禁止弱模型做架构规划”、”降级后加强 Review Gate 置信度阈值”、”要求 Librarian Agent 缩小 RAG 召回窗口”）已迁移至编排层。详见 `ORCHESTRATION_AND_HANDOFF_DESIGN.md` §2.1（Strategy Router）和 §2.4.1（降级场景下的 Review Gate 联动）。
 
 ### 4.2 ReAct 风格降级转化 (Tool Capability Fallback)
 当能力协商器发现目标（或替补）模型不具备原生工具调用（Native Tool Calling / Structured Outputs）能力时：
@@ -61,3 +92,75 @@
 ### 4.2 降级事件审计与安全阻断
 *   **审计记录**：这种降级行为会在系统事件流 (Event Log) 中被打上 `tool_execution_degraded` 标签，为后续的链路排障提供追踪依据。
 *   **坚守 State Store 防线**：如果弱模型在降级状态下由于幻觉生成了非法的工具参数，系统也不必惊慌。由于上层的 State Store 具备严格的单一事实防线和 Schema 校验，非法的状态突变会在此处被直接丢弃并打回重试，或者挂起至 `waiting_human` 状态，形成系统级的安全兜底。
+
+---
+
+## 5. 技术选型参考 (Technology Selection Reference)
+
+> 选型评估日期：2026-04-16。技术生态变化快，实施前应重新验证。
+
+### 5.1 Provider Connector 层：首选 TensorZero
+
+网关层的 Provider Connector（负责实际对接 LLM 供应商 API）推荐使用 **TensorZero**。
+
+**选型理由**：
+
+| 维度 | TensorZero | 与 Swallow 哲学的契合 |
+|---|---|---|
+| 语言 | Rust（编译型二进制分发） | 无 pip/npm 供应链投毒风险 |
+| 性能 | <1ms P99 @ 10k QPS | 网关层"应该透明"得到物理保障 |
+| 结构化推理 | 内置 "function" 概念 | 天然对应 Swallow task family，遥测自带任务语义标签 |
+| 配置方式 | 声明式 TOML，GitOps 驱动 | 与 Git Truth Layer 哲学一致 |
+| A/B 实验 | 内置 variant 路由 | Strategy Router 可直接利用做模型对比 |
+| Fallback | 内置自动降级 | 可复用于 Execution Fallback，减少自建工作量 |
+| 可观测性 | 结构化推理追踪 + 反馈收集 | 直接喂 Meta-Optimizer，无需额外 ETL |
+
+**供应商覆盖**：原生支持 Anthropic、OpenAI、Google (Vertex/AI Studio)、AWS Bedrock、Azure、Mistral、Groq、OpenRouter、vLLM、xAI 等 15+ 供应商。覆盖 Swallow 当前需求。
+
+**备选方案**：如果 TensorZero 的供应商覆盖不足，**Portkey Gateway**（2026.3 完全开源，200+ LLM，50+ Guardrails，Node.js）是第二选择。
+
+**明确排除**：
+*   **LiteLLM**：2026.3 供应链投毒事件（PyPI 版本 1.82.7/1.82.8 泄露用户凭证）+ Python GIL 高并发瓶颈 + 运维重（需 Redis + PostgreSQL）。
+*   **Kong AI Gateway**：企业级 API 管理工具，对 Swallow 当前规模而言过于重量级，定价模型不适合。
+
+### 5.2 架构定位：Connector 而非 Gateway 本身
+
+**核心原则：TensorZero 是 Provider Connector，不是 Swallow 的第 6 层。**
+
+Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fallback 的上报机制）不应坍缩到任何外部产品中。TensorZero 的角色是**替代手写 SDK 集成的苦力活**，提供统一 API 调用 + 内置遥测，但路由决策权、语义转换、降级策略仍归 Swallow 自建层持有。
+
+```
+第 6 层  Swallow Gateway Core（自建）
+  ├── Route Resolver         — 自建，消费 Strategy Router 的逻辑标识
+  ├── Dialect Adapters       — 自建，Swallow 特有的语义转换（§3）
+  ├── Execution Fallback     — 自建上报机制 + 复用 TensorZero 内置 fallback
+  └── TensorZero Gateway     — Provider Connector + 遥测收集器
+
+第 7 层  LLM Providers / Local Models (ollama, vLLM, etc.)
+```
+
+### 5.3 已知聚合器通道
+
+以下聚合平台均提供 OpenAI 兼容接口，可在 Route Resolver 中作为物理通道注册。它们的定位是**上游供应商**，不是网关本身（§0.3）。
+
+| 聚合器 | base_url | 接入方式 | 备注 |
+|---|---|---|---|
+| **AiHubMix** | `https://aihubmix.com/v1` | OpenAI SDK，改 base_url + api_key | 460+ 模型，按量付费，支持 Claude 原生 v1/messages 接口 |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | OpenAI SDK 兼容 | 广泛的开源/闭源模型覆盖 |
+
+在 TensorZero 中，将上述聚合器声明为 OpenAI-compatible provider 即可接入，无需特殊适配。
+
+### 5.4 外部治理壳：Cloudflare（远期）
+
+Cloudflare 不参与网关内部逻辑，定位为**外部流量入口的治理壳**：
+
+*   **域名反代**：通过 Cloudflare Workers/Tunnel 为网关统一入口域名，隐藏后端拓扑
+*   **边缘缓存**：对幂等的 RAG 检索类请求做 CDN 级缓存
+*   **DDoS / Rate Limit**：保护网关免受外部滥用
+*   **引入时机**：当项目需要公网暴露或多租户接入时。当前阶段（本地优先）不引入
+
+> 详见 `GATEWAY_PHILOSOPHY.md` §3（外部治理壳）。
+
+### 5.5 技术栈演化预期
+
+当前阶段以 Python 快速验证为主。初步成型后将向更轻量、高性能的方向改写（如 Go/Rust）。选型时已优先考虑与语言无关的集成方式（TensorZero 通过 HTTP API 接入，不绑定特定语言 SDK），确保技术栈迁移时 Provider Connector 层无需更换。
