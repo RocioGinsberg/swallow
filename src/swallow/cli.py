@@ -21,6 +21,7 @@ from .canonical_registry import (
     build_staged_canonical_key,
 )
 from .doctor import diagnose_codex, format_codex_doctor_result
+from .knowledge_store import persist_wiki_entry_from_record
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .orchestrator import (
@@ -50,7 +51,6 @@ from .paths import (
     handoff_path,
     knowledge_decisions_path,
     knowledge_index_path,
-    knowledge_objects_path,
     knowledge_partition_path,
     knowledge_policy_path,
     memory_path,
@@ -66,6 +66,7 @@ from .staged_knowledge import StagedCandidate, load_staged_candidates, update_st
 from .store import (
     append_canonical_record,
     iter_task_states,
+    load_knowledge_objects,
     load_state,
     save_canonical_registry_index,
     save_canonical_reuse_policy,
@@ -254,9 +255,7 @@ def build_policy_snapshot(
 def build_intake_snapshot(base_dir: Path, task_id: str) -> list[str]:
     state = load_state(base_dir, task_id)
     task_semantics = load_json_if_exists(task_semantics_path(base_dir, task_id))
-    knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, task_id))
-    if not isinstance(knowledge_objects, list):
-        knowledge_objects = []
+    knowledge_objects = load_knowledge_objects(base_dir, task_id)
     knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
     knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
     knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
@@ -328,9 +327,7 @@ def build_knowledge_review_snapshot(
 
 
 def summarize_knowledge_attention(base_dir: Path, task_id: str) -> dict[str, str]:
-    knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, task_id))
-    if not isinstance(knowledge_objects, list):
-        knowledge_objects = []
+    knowledge_objects = load_knowledge_objects(base_dir, task_id)
     decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, task_id))
     queue = build_review_queue(knowledge_objects, decisions)
     state_counts = dict(queue.get("state_counts", {}))
@@ -1797,7 +1794,9 @@ def main(argv: list[str] | None = None) -> int:
             "swl_cli",
             decision_note,
         )
-        append_canonical_record(base_dir, build_stage_canonical_record(updated, refined_text=args.text))
+        canonical_record = build_stage_canonical_record(updated, refined_text=args.text)
+        persist_wiki_entry_from_record(base_dir, canonical_record)
+        append_canonical_record(base_dir, canonical_record)
         canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
         canonical_index = build_canonical_registry_index(canonical_records)
         canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
@@ -2122,9 +2121,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-review-queue":
-        knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
-        if not isinstance(knowledge_objects, list):
-            knowledge_objects = []
+        knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
         decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         print(build_review_queue_report(build_review_queue(knowledge_objects, decisions)))
         return 0
@@ -2167,9 +2164,7 @@ def main(argv: list[str] | None = None) -> int:
         canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
         retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
         task_semantics = load_json_if_exists(task_semantics_path(base_dir, args.task_id))
-        knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
-        if not isinstance(knowledge_objects, list):
-            knowledge_objects = []
+        knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
         if not isinstance(retrieval, list):
             retrieval = []
         mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state, topology) else ""
@@ -2369,7 +2364,7 @@ def main(argv: list[str] | None = None) -> int:
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
         knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
         knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
-        knowledge_objects = load_json_if_exists(knowledge_objects_path(base_dir, args.task_id))
+        knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
         knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
         canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
         canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
@@ -2658,7 +2653,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-objects-json":
-        print(json.dumps(json.loads(knowledge_objects_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
+        print(json.dumps(load_knowledge_objects(base_dir, args.task_id), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-partition-json":

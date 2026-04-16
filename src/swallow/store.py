@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Iterable
 
+from .knowledge_store import load_task_knowledge_view, persist_task_knowledge_view
 from .models import (
     Event,
     RetrievalItem,
@@ -30,6 +31,7 @@ from .paths import (
     events_path,
     handoff_path,
     remote_handoff_contract_path,
+    knowledge_evidence_root,
     knowledge_decisions_path,
     knowledge_index_path,
     knowledge_objects_path,
@@ -47,6 +49,7 @@ from .paths import (
     tasks_root,
     topology_path,
     validation_path,
+    knowledge_wiki_root,
 )
 
 
@@ -55,6 +58,8 @@ def ensure_task_layout(base_dir: Path, task_id: str) -> None:
     artifacts_dir(base_dir, task_id).mkdir(parents=True, exist_ok=True)
     tasks_root(base_dir).mkdir(parents=True, exist_ok=True)
     canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
+    knowledge_evidence_root(base_dir).mkdir(parents=True, exist_ok=True)
+    knowledge_wiki_root(base_dir).mkdir(parents=True, exist_ok=True)
 
 
 def save_state(base_dir: Path, state: TaskState) -> None:
@@ -137,10 +142,15 @@ def save_task_semantics(base_dir: Path, task_id: str, payload: dict[str, object]
 
 def save_knowledge_objects(base_dir: Path, task_id: str, payload: list[dict[str, object]]) -> None:
     ensure_task_layout(base_dir, task_id)
+    normalized_payload = persist_task_knowledge_view(base_dir, task_id, payload)
     knowledge_objects_path(base_dir, task_id).write_text(
-        json.dumps(payload, indent=2) + "\n",
+        json.dumps(normalized_payload, indent=2) + "\n",
         encoding="utf-8",
     )
+
+
+def load_knowledge_objects(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    return load_task_knowledge_view(base_dir, task_id)
 
 
 def save_knowledge_policy(base_dir: Path, task_id: str, payload: dict[str, object]) -> None:

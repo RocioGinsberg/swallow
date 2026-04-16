@@ -263,9 +263,27 @@ class KnowledgeObject:
     retrieval_eligible: bool = False
     knowledge_reuse_scope: str = "task_only"
     canonicalization_intent: str = "none"
+    store_type: str = "evidence"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "KnowledgeObject":
+        return cls(**data)
+
+
+@dataclass(slots=True)
+class WikiEntry(KnowledgeObject):
+    promoted_by: str = ""
+    promoted_at: str = ""
+    change_log_ref: str = ""
+    source_evidence_ids: list[str] = field(default_factory=list)
+    store_type: str = "wiki"
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "WikiEntry":
+        return cls(**data)
 
 
 @dataclass(slots=True)
