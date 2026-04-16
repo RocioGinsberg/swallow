@@ -64,7 +64,8 @@ status: living-document
 *   **目标**：实现能力协商、方言翻译以及防止单点故障的降级矩阵。
 *   **核心任务**：
     *   完善 `Dialect Translators`：全面落实 Claude XML、Codex FIM 与 Gemini Context Caching 的底层 Prompt 装配逻辑。
-    *   实现 **认知角色替补与降级矩阵 (Cognitive Role Fallback Matrix)**：当 Codex/Claude/Gemini 等主力大模型 API 断联或超限时，Router 能自动触发（平滑替补 / ReAct 格式降级 / 强制上下文压缩等）预案。
+    *   实现 **认知角色替补与降级矩阵 (Cognitive Role Fallback Matrix)**：由 Strategy Router（编排层）与 Model Gateway（第 6 层）协作完成。Strategy Router 负责策略判断（能力下限断言、降级粒度决策、`waiting_human` 挂起），Gateway 负责执行层面的通道切换和 ReAct 格式降级。当主力执行器（如 Codex/Claude/Gemini）不可用时，Strategy Router 决定降级策略，Gateway 执行通道替补。
+    *   支持**同角色多执行器并存**：在 `resolve_executor()` 中注册多个实现（如 Codex + Cursor），Strategy Router 根据任务类型、可用性或用户偏好选择具体执行器。
 *   **产出价值**：构建极高可用性的本地调度系统，无惧外部 API 波动。
 
 ### Phase 35: 自我进化与 Meta-Optimizer 顾问 (Self-Evolution)
@@ -120,6 +121,8 @@ Phase 32 与 33 无硬依赖，理论可并行，建议串行以控制带宽。
 
 **Phase 34 — Dialect + 降级矩阵**
 - ⚠️ 本路线风险最高的 Phase。建议分期：Phase 34 仅实现 Dialect Translator 框架 + 1-2 个 concrete dialect（Claude XML + Codex FIM），降级矩阵只做”主力不可用时 fallback 到通用 API”的最简二元降级。全量降级策略追加到 Phase 35。
+- 降级矩阵的职责已拆分：Strategy Router（编排层 §2.1）做策略判断，Model Gateway（第 6 层 §4.1）做通道切换。Phase 34 需同步实现两侧。
+- 可同步验证多执行器并存：注册 Cursor executor 作为 Codex 的备选执行器 PoC。
 
 **Phase 35 — Meta-Optimizer**
 - 探索性 Phase，风险低。准入条件：Phase 31-33 的 Event Log schema 已 freeze。Telemetry 数据采集依赖前序 Phase 的事件格式稳定。

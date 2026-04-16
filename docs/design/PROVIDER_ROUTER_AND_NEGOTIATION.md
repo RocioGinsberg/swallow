@@ -99,11 +99,13 @@ OpenRouter 等聚合器可以作为物理路由之一，但网关层不应在概
 
 > 选型评估日期：2026-04-16。技术生态变化快，实施前应重新验证。
 
-### 5.1 Provider Connector 层：首选 TensorZero
+### 5.1 Provider Connector 层：双层架构（推理优化 + 渠道管理）
 
-网关层的 Provider Connector（负责实际对接 LLM 供应商 API）推荐使用 **TensorZero**。
+网关层的 Provider Connector 采用双层架构，分别解决两个正交问题：
 
-**选型理由**：
+#### 推理优化层：TensorZero
+
+负责结构化推理追踪、A/B 实验和任务语义遥测。
 
 | 维度 | TensorZero | 与 Swallow 哲学的契合 |
 |---|---|---|
@@ -112,12 +114,30 @@ OpenRouter 等聚合器可以作为物理路由之一，但网关层不应在概
 | 结构化推理 | 内置 "function" 概念 | 天然对应 Swallow task family，遥测自带任务语义标签 |
 | 配置方式 | 声明式 TOML，GitOps 驱动 | 与 Git Truth Layer 哲学一致 |
 | A/B 实验 | 内置 variant 路由 | Strategy Router 可直接利用做模型对比 |
-| Fallback | 内置自动降级 | 可复用于 Execution Fallback，减少自建工作量 |
 | 可观测性 | 结构化推理追踪 + 反馈收集 | 直接喂 Meta-Optimizer，无需额外 ETL |
 
-**供应商覆盖**：原生支持 Anthropic、OpenAI、Google (Vertex/AI Studio)、AWS Bedrock、Azure、Mistral、Groq、OpenRouter、vLLM、xAI 等 15+ 供应商。覆盖 Swallow 当前需求。
+#### 渠道管理层：new-api（自部署）
 
-**备选方案**：如果 TensorZero 的供应商覆盖不足，**Portkey Gateway**（2026.3 完全开源，200+ LLM，50+ Guardrails，Node.js）是第二选择。
+负责多渠道/多 key 统一管理、格式互转和额度控制。
+
+| 维度 | new-api (QuantumNous) | 与 Swallow 哲学的契合 |
+|---|---|---|
+| 语言 | Go | 性能好，部署简单（单 Docker 容器） |
+| 核心能力 | 多租户 API 管理 + OpenAI/Claude/Gemini 三格式互转 | 替代外部聚合器（AiHubMix 等），自持渠道管理权 |
+| Key 管理 | 多渠道、多 key、额度分配、消费统计面板 | 运维可视化，成本治理 |
+| 许可证 | AGPLv3 | 自用无传染性风险，对外提供服务需注意 |
+| 格式转换 | 原生支持 Claude/Gemini 格式输出 | 比 TensorZero 更强的多格式覆盖 |
+
+> 项目地址：https://github.com/QuantumNous/new-api
+
+#### 两层协作关系
+
+两者定位不同，可以共存也可以只用其一：
+
+- **完整方案**：new-api 作为渠道管理网关（管理多 key、供应商接入、额度监控），TensorZero 叠加在其上做推理优化和遥测
+- **轻量起步**：先只部署 new-api + Swallow 自建 thin wrapper，推理优化和遥测后续引入
+
+**备选方案**：如果两者均不适用，**Portkey Gateway**（2026.3 完全开源，200+ LLM，50+ Guardrails，Node.js）是第三选择。
 
 **明确排除**：
 *   **LiteLLM**：2026.3 供应链投毒事件（PyPI 版本 1.82.7/1.82.8 泄露用户凭证）+ Python GIL 高并发瓶颈 + 运维重（需 Redis + PostgreSQL）。
@@ -125,23 +145,25 @@ OpenRouter 等聚合器可以作为物理路由之一，但网关层不应在概
 
 ### 5.2 架构定位：Connector 而非 Gateway 本身
 
-**核心原则：TensorZero 是 Provider Connector，不是 Swallow 的第 6 层。**
+**核心原则：Provider Connector 层的所有组件都不是 Swallow 的第 6 层本身。**
 
-Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fallback 的上报机制）不应坍缩到任何外部产品中。TensorZero 的角色是**替代手写 SDK 集成的苦力活**，提供统一 API 调用 + 内置遥测，但路由决策权、语义转换、降级策略仍归 Swallow 自建层持有。
+Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fallback 的上报机制）不应坍缩到任何外部产品中。Provider Connector 层的角色是**替代手写 SDK 集成的苦力活**，提供统一 API 调用 + 渠道管理 + 遥测，但路由决策权、语义转换、降级策略仍归 Swallow 自建层持有。
 
 ```
 第 6 层  Swallow Gateway Core（自建）
   ├── Route Resolver         — 自建，消费 Strategy Router 的逻辑标识
   ├── Dialect Adapters       — 自建，Swallow 特有的语义转换（§3）
-  ├── Execution Fallback     — 自建上报机制 + 复用 TensorZero 内置 fallback
-  └── TensorZero Gateway     — Provider Connector + 遥测收集器
+  ├── Execution Fallback     — 自建上报机制
+  └── Provider Connector 层
+        ├── new-api          — 渠道管理 + 格式互转 + 额度控制（自部署）
+        └── TensorZero       — 推理优化 + 遥测收集器（可选叠加）
 
 第 7 层  LLM Providers / Local Models (ollama, vLLM, etc.)
 ```
 
 ### 5.3 已知聚合器通道
 
-以下聚合平台均提供 OpenAI 兼容接口，可在 Route Resolver 中作为物理通道注册。它们的定位是**上游供应商**，不是网关本身（§0.3）。
+以下聚合平台均提供 OpenAI 兼容接口，可在 Route Resolver 中作为物理通道注册。它们的定位是**上游供应商**，不是网关本身（§0.3）。自部署 new-api 后，这些平台可作为 new-api 的上游渠道接入，无需在 Swallow 侧逐一配置。
 
 | 聚合器 | base_url | 接入方式 | 备注 |
 |---|---|---|---|

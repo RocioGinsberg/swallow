@@ -142,6 +142,26 @@
     *   **核心认知**：长上下文吸收与一致性维护。
     *   **职责**：大仓库理解、长历史记录或多文档汇总、Wiki 草稿生成、文档与实现的一致性检查。
 
+#### 同角色多执行器并存 (Multiple Executors per Cognitive Role)
+
+同一认知角色可以有多个具体执行器实现并存。系统角色与具体工具是**正交**的：
+
+```
+general-executor / local / task-state / codex-cli      → Codex CLI
+general-executor / local / task-state / cursor-cli      → Cursor CLI
+general-executor / cloud-backed / task-state / claude-api  → Claude API 直调
+```
+
+在代码层面，所有执行器共享 `ExecutorProtocol` 统一接口。新增执行器只需实现 `execute()` 方法并在 `resolve_executor()` 中注册别名。
+
+**路由约束**：由编排层的 Strategy Router 决定为特定任务选择哪个执行器，执行器本身不做竞争性抢活。合理的多执行器场景包括：
+
+*   **按任务类型路由**：单文件修改 → Codex，多文件重构 → Cursor
+*   **按可用性降级**：首选执行器不可用时 fallback 到备选（由 Strategy Router 的降级策略预判决定）
+*   **按用户偏好**：CLI flag `--executor cursor` 显式指定
+
+**不允许的模式**：同一任务同时发给多个执行器做竞速（Debate / Racing 模式属于 Phase 33+ 的 Debate Topology 范畴，当前明确延后）。
+
 ### 7.2 核心专项智能体 (Core Specialist Agents)
 专项 Agent 应当优先使用低成本 API 或本地模型，处理高度标准化的输入输出。
 1.  **图书管理员 Agent (Librarian Agent)**
