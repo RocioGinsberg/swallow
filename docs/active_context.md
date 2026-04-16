@@ -7,15 +7,15 @@
 - latest_completed_slice: `Runtime v0 — Planner + Executor Interface + Review Gate`
 - active_track: `Retrieval / Memory`
 - active_phase: `Phase 32`
-- active_slice: `S3: LibrarianExecutor + 流程集成`
+- active_slice: `Closeout + Merge Gate`
 - active_branch: `feat/phase32-knowledge-dual-layer`
-- status: `s3_completed_waiting_human_commit`
+- status: `phase32_pr_ready_waiting_merge_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 / S2 提交到 `feat/phase32-knowledge-dual-layer`，Codex 已完成 **S3: LibrarianExecutor + 流程集成** 实现并完成回归验证，当前等待 Human 审阅并执行 S3 独立提交。
+Phase 32 kickoff、3 个实现 slice 与 review 已完成。当前 `feat/phase32-knowledge-dual-layer` 已进入 **Closeout + Merge Gate**：`closeout.md` 与 `pr.md` 已准备就绪，等待 Human push 分支、创建 PR 并执行 merge 决策。
 
 本次 S1 已完成的核心内容：
 
@@ -34,7 +34,7 @@ Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 / S2 提交到
 - `task knowledge-promote` 现以 Librarian authority 执行 canonical promotion
 - 回归测试已通过：`.venv/bin/python -m pytest` → `220 passed`
 
-本次 S3 已完成的核心内容：
+本次 Phase 32 已完成的核心内容：
 
 - 新增 `librarian_executor.py`，以规则驱动方式完成 verified + artifact-backed + promote-intent knowledge 的提纯、去重、canonical promotion 与 change log 产出
 - `planner.py` 在本地且具 canonical write authority 的 promotion-ready 场景下生成 `librarian` TaskCard，并声明 change log 输出 schema
@@ -42,6 +42,8 @@ Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 / S2 提交到
 - `review_gate.py` 现在会对 Librarian change log 做 JSON schema 基线校验，而旧 v0 placeholder 行为保持兼容
 - `orchestrator.py` / `cli.py` 已将 `librarian_change_log` 纳入 artifact surface，便于 inspect / review 使用
 - 全量测试已通过：`.venv/bin/python -m pytest` → `225 passed in 5.89s`
+- Claude review 已完成：`Merge ready — 0 BLOCK, 0 CONCERN, 1 NOTE`
+- `docs/plans/phase32/closeout.md` 与根目录 `pr.md` 已完成收口准备
 
 ---
 
@@ -51,10 +53,10 @@ Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 / S2 提交到
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/roadmap.md`
-4. `docs/system_tracks.md`
-5. `current_state.md`
-6. `docs/plans/phase31/closeout.md`
+3. `docs/plans/phase32/closeout.md`
+4. `docs/plans/phase32/review_comments.md`
+5. `docs/roadmap.md`
+6. `current_state.md`
 
 ---
 
@@ -73,6 +75,9 @@ Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 / S2 提交到
 ---
 
 ## 当前产出物
+- `docs/plans/phase32/review_comments.md` (claude, 2026-04-16) — PR review: Merge ready, 0 BLOCK, 0 CONCERN, 1 NOTE
+- `docs/plans/phase32/closeout.md` (codex, 2026-04-16) — Phase 32 closeout: PR ready, 范围收口与稳定边界确认
+- `pr.md` (codex, 2026-04-16) — Phase 32 PR 文案，供 Human 创建/更新 PR 描述
 - `docs/plans/phase32/kickoff.md` (claude, 2026-04-16) — Phase 32 kickoff: 3 slice，双层存储 + 权限校验 + Librarian 集成，风险 7/15 低
 - `docs/plans/phase32/context_brief.md` (gemini, 2026-04-16) — Phase 32 目标总结与边界控制
 - `src/swallow/knowledge_store.py` (codex, 2026-04-16) — S1 双层知识存储读写 API + merged view 兼容层
@@ -117,12 +122,15 @@ Phase 32 kickoff 已完成并进入实现分支。Human 已将 S1 / S2 提交到
 - **[Codex]** 已完成 S3：LibrarianExecutor、planner 自动切换、review gate schema 校验与 artifact surface 集成。
 - **[Codex]** 已完成 S3 回归验证：`.venv/bin/python -m pytest` → `225 passed in 5.89s`。
 
+- **[Claude]** 已完成 Phase 32 PR review（Merge ready, 0 BLOCK, 1 NOTE）。
+- **[Codex]** 已完成 Phase 32 closeout 与 `pr.md` 准备，等待 Human 执行 Merge Gate。
+
 ## 下一步
 
-- **[Human]** 审阅当前 S3 diff，并执行 S3 独立提交
-- **[Claude]** 如进入 Phase 32 收口，继续执行 review / closeout
-- **[Codex]** 在 Human 完成 S3 commit 后继续配合 review 修订或 closeout 同步
+- **[Human]** push 当前分支并创建/更新 PR，使用根目录 `pr.md` 作为描述
+- **[Human]** 结合 `docs/plans/phase32/review_comments.md` 执行 Merge Gate 决策
+- **[Codex]** 在 Human merge 后将入口文档切回下一轮 kickoff 状态
 
 ## 当前阻塞项
 
-- 无
+- 等待人工操作: push branch / 创建 PR / merge 决策
