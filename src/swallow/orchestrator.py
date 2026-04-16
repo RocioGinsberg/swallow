@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+import threading
 
 from dataclasses import replace
 from pathlib import Path
@@ -108,6 +109,14 @@ from .task_semantics import build_task_semantics
 from .models import utc_now
 
 
+STANDARD_SUBTASK_ARTIFACT_NAMES = {
+    "executor_prompt.md",
+    "executor_output.md",
+    "executor_stdout.txt",
+    "executor_stderr.txt",
+}
+
+
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
     enforced_capabilities, applied_constraints = enforce_capability_constraints(
         state.route_taxonomy_role,
@@ -138,6 +147,7 @@ def _write_subtask_attempt_artifacts(
     record: SubtaskRunRecord,
     *,
     attempt_number: int,
+    extra_artifacts: dict[str, str] | None = None,
 ) -> None:
     executor_result = record.executor_result or ExecutorResult(
         executor_name="subtask-orchestrator",
@@ -165,6 +175,27 @@ def _write_subtask_attempt_artifacts(
             f"{prefix}_review_gate.json",
             json.dumps(review_gate_result.to_dict(), indent=2),
         )
+    for artifact_name, content in sorted((extra_artifacts or {}).items()):
+        write_artifact(base_dir, task_id, f"{prefix}_{artifact_name}", content)
+
+
+def _collect_subtask_extra_artifacts(
+    subtask_base_dir: Path,
+    task_id: str,
+) -> dict[str, str]:
+    subtask_artifacts_dir = artifacts_dir(subtask_base_dir, task_id)
+    if not subtask_artifacts_dir.exists():
+        return {}
+
+    extra_artifacts: dict[str, str] = {}
+    for artifact_path in sorted(subtask_artifacts_dir.rglob("*")):
+        if not artifact_path.is_file():
+            continue
+        relative_name = artifact_path.relative_to(subtask_artifacts_dir).as_posix().replace("/", "__")
+        if relative_name in STANDARD_SUBTASK_ARTIFACT_NAMES:
+            continue
+        extra_artifacts[relative_name] = artifact_path.read_text(encoding="utf-8", errors="replace")
+    return extra_artifacts
 
 
 def _write_parent_executor_artifacts(
@@ -378,6 +409,9 @@ def _run_subtask_orchestration(
     cards: list[TaskCard],
     retrieval_items: list[RetrievalItem],
 ) -> tuple[ExecutorResult, ReviewGateResult, SubtaskOrchestratorResult]:
+    subtask_extra_artifacts: dict[str, dict[str, str]] = {}
+    subtask_extra_artifacts_lock = threading.Lock()
+
     def execute_subtask(
         _unused_base_dir: Path,
         isolated_state: TaskState,
@@ -385,7 +419,12 @@ def _run_subtask_orchestration(
         subtask_retrieval_items: list[RetrievalItem],
     ) -> ExecutorResult:
         with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
-            return _execute_task_card(Path(tmp), isolated_state, card, subtask_retrieval_items)
+            subtask_base_dir = Path(tmp)
+            executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, subtask_retrieval_items)
+            extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+            with subtask_extra_artifacts_lock:
+                subtask_extra_artifacts[card.card_id] = extra_artifacts
+            return executor_result
 
     orchestrator = SubtaskOrchestrator(execute_subtask, review_executor_output)
     result = orchestrator.run(base_dir, state, cards, retrieval_items)
@@ -395,7 +434,13 @@ def _run_subtask_orchestration(
         cards_by_id = {card.card_id: card for card in cards}
         records_by_id = {record.card_id: record for record in result.records}
         for record in result.records:
-            _write_subtask_attempt_artifacts(base_dir, state.task_id, record, attempt_number=1)
+            _write_subtask_attempt_artifacts(
+                base_dir,
+                state.task_id,
+                record,
+                attempt_number=1,
+                extra_artifacts=subtask_extra_artifacts.get(record.card_id, {}),
+            )
             _append_subtask_events(base_dir, state.task_id, record, attempt_number=1)
         for failed_record in failed_records:
             attempt_counts[failed_record.card_id] = 2
@@ -416,7 +461,13 @@ def _run_subtask_orchestration(
             retry_result = orchestrator.run(base_dir, state, [retry_card], retrieval_items)
             retry_record = retry_result.records[0]
             records_by_id[failed_record.card_id] = retry_record
-            _write_subtask_attempt_artifacts(base_dir, state.task_id, retry_record, attempt_number=2)
+            _write_subtask_attempt_artifacts(
+                base_dir,
+                state.task_id,
+                retry_record,
+                attempt_number=2,
+                extra_artifacts=subtask_extra_artifacts.get(retry_record.card_id, {}),
+            )
             _append_subtask_events(base_dir, state.task_id, retry_record, attempt_number=2)
             if retry_record.status != "completed":
                 append_event(
@@ -445,7 +496,13 @@ def _run_subtask_orchestration(
         )
     else:
         for record in result.records:
-            _write_subtask_attempt_artifacts(base_dir, state.task_id, record, attempt_number=1)
+            _write_subtask_attempt_artifacts(
+                base_dir,
+                state.task_id,
+                record,
+                attempt_number=1,
+                extra_artifacts=subtask_extra_artifacts.get(record.card_id, {}),
+            )
             _append_subtask_events(base_dir, state.task_id, record, attempt_number=1)
 
     review_gate_result = _build_subtask_review_gate_result(result, attempt_counts)

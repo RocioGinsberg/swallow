@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import ExecutorResult, ValidationResult
 from swallow.orchestrator import create_task, run_task
+from swallow.store import write_artifact
 
 
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
@@ -69,6 +70,12 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
                 attempts[subtask_index] = attempts.get(subtask_index, 0) + 1
                 attempt_number = attempts[subtask_index]
                 should_fail_review = subtask_index == 2 and attempt_number == 1
+                write_artifact(
+                    _base_dir,
+                    str(_state.task_id),
+                    "custom_trace.md",
+                    f"subtask {subtask_index} attempt {attempt_number} trace",
+                )
                 return ExecutorResult(
                     executor_name="local",
                     status="completed",
@@ -121,6 +128,14 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             self.assertTrue((artifacts_dir / "subtask_1_attempt1_executor_output.md").exists())
             self.assertTrue((artifacts_dir / "subtask_2_attempt1_executor_output.md").exists())
             self.assertTrue((artifacts_dir / "subtask_2_attempt2_executor_output.md").exists())
+            self.assertEqual(
+                (artifacts_dir / "subtask_1_attempt1_custom_trace.md").read_text(encoding="utf-8").strip(),
+                "subtask 1 attempt 1 trace",
+            )
+            self.assertEqual(
+                (artifacts_dir / "subtask_2_attempt2_custom_trace.md").read_text(encoding="utf-8").strip(),
+                "subtask 2 attempt 2 trace",
+            )
             self.assertIn(
                 "# Subtask Orchestrator Result",
                 (artifacts_dir / "executor_output.md").read_text(encoding="utf-8"),
