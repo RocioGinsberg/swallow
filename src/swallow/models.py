@@ -22,6 +22,9 @@ MEMORY_AUTHORITIES: tuple[str, ...] = (
     "canonical-promotion",
 )
 
+LIBRARIAN_SYSTEM_ROLE = "specialist"
+LIBRARIAN_MEMORY_AUTHORITY = "canonical-promotion"
+
 
 @dataclass(slots=True)
 class RouteCapabilities:
@@ -118,6 +121,13 @@ class TaxonomyProfile:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def build_librarian_taxonomy_profile() -> TaxonomyProfile:
+    return TaxonomyProfile(
+        system_role=LIBRARIAN_SYSTEM_ROLE,
+        memory_authority=LIBRARIAN_MEMORY_AUTHORITY,
+    )
 
 
 @dataclass(slots=True)

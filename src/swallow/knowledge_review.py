@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .knowledge_index import invalidation_reason_for
 from .knowledge_objects import canonicalization_status_for, is_retrieval_reuse_ready
-from .models import utc_now
+from .models import LIBRARIAN_MEMORY_AUTHORITY, utc_now
 
 
 def summarize_object_state(item: dict[str, object]) -> dict[str, object]:
@@ -142,6 +142,7 @@ def apply_knowledge_decision(
     object_id: str,
     decision_type: str,
     decision_target: str,
+    caller_authority: str,
     note: str = "",
     decided_by: str = "swl_cli",
 ) -> tuple[list[dict[str, object]], dict[str, object]]:
@@ -160,6 +161,7 @@ def apply_knowledge_decision(
     updated_item = dict(selected_item)
     stage = str(updated_item.get("stage", "raw"))
     evidence_status = str(updated_item.get("evidence_status", "unbacked"))
+    normalized_caller_authority = caller_authority.strip()
 
     if decision_type == "promote":
         if stage != "verified":
@@ -170,6 +172,10 @@ def apply_knowledge_decision(
             updated_item["retrieval_eligible"] = True
             updated_item["knowledge_reuse_scope"] = "retrieval_candidate"
         elif decision_target == "canonical":
+            if normalized_caller_authority != LIBRARIAN_MEMORY_AUTHORITY:
+                raise PermissionError(
+                    "Canonical promotion requires caller_authority=canonical-promotion."
+                )
             updated_item["stage"] = "canonical"
             if str(updated_item.get("canonicalization_intent", "none")) == "none":
                 updated_item["canonicalization_intent"] = "promote"
@@ -197,6 +203,7 @@ def apply_knowledge_decision(
         "new_state": summarize_object_state(updated_item),
         "decided_at": utc_now(),
         "decided_by": decided_by,
+        "caller_authority": normalized_caller_authority,
         "note": note.strip(),
     }
     return updated_objects, decision_record
@@ -220,6 +227,7 @@ def build_knowledge_decisions_report(decisions: list[dict[str, object]]) -> str:
                 f"- {decision.get('object_id', 'unknown')} {decision.get('decision_type', 'unknown')} {decision.get('decision_target', 'unknown')}",
                 f"  decided_at: {decision.get('decided_at', 'unknown')}",
                 f"  decided_by: {decision.get('decided_by', 'unknown')}",
+                f"  caller_authority: {decision.get('caller_authority', '') or 'unknown'}",
                 f"  note: {decision.get('note', '') or 'none'}",
                 f"  previous_state: {decision.get('previous_state', {})}",
                 f"  new_state: {decision.get('new_state', {})}",

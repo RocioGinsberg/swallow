@@ -24,6 +24,7 @@ from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_store import persist_wiki_entry_from_record
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
+from .models import LIBRARIAN_MEMORY_AUTHORITY
 from .orchestrator import (
     acknowledge_task,
     append_task_knowledge_capture,
@@ -1886,6 +1887,7 @@ def main(argv: list[str] | None = None) -> int:
             object_id=args.object_id,
             decision_type="promote",
             decision_target=args.target,
+            caller_authority=LIBRARIAN_MEMORY_AUTHORITY,
             note=args.note,
         )
         print(f"{state.task_id} knowledge_promoted object={args.object_id} target={args.target}")

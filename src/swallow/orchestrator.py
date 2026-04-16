@@ -667,18 +667,43 @@ def decide_task_knowledge(
     object_id: str,
     decision_type: str,
     decision_target: str,
+    caller_authority: str = "task-state",
     note: str = "",
     decided_by: str = "swl_cli",
 ) -> TaskState:
     state = load_state(base_dir, task_id)
-    updated_objects, decision_record = apply_knowledge_decision(
-        list(state.knowledge_objects or []),
-        object_id=object_id,
-        decision_type=decision_type,
-        decision_target=decision_target,
-        note=note,
-        decided_by=decided_by,
-    )
+    current_objects = load_knowledge_objects(base_dir, task_id)
+    if not current_objects:
+        current_objects = list(state.knowledge_objects or [])
+    try:
+        updated_objects, decision_record = apply_knowledge_decision(
+            current_objects,
+            object_id=object_id,
+            decision_type=decision_type,
+            decision_target=decision_target,
+            caller_authority=caller_authority,
+            note=note,
+            decided_by=decided_by,
+        )
+    except PermissionError as exc:
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type="knowledge.promotion.unauthorized",
+                message="Unauthorized canonical promotion was blocked.",
+                payload={
+                    "object_id": object_id,
+                    "decision_type": decision_type,
+                    "decision_target": decision_target,
+                    "caller_authority": caller_authority,
+                    "decided_by": decided_by,
+                    "note": note.strip(),
+                    "error": str(exc),
+                },
+            ),
+        )
+        raise
     state.knowledge_objects = updated_objects
     knowledge_partition = build_knowledge_partition(state.knowledge_objects)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
