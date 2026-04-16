@@ -96,20 +96,20 @@ It is about:
 
 ## Current Implementation Snapshot
 
-The repository now has stable checkpoints through **Phase 27**.
+The repository now has stable checkpoints through **Phase 32**.
 
-The latest completed track is:
+The latest merged checkpoint is:
 
-- **Primary**: `Retrieval / Memory`
-- **Secondary**: `Workbench / UX`
-- **Latest completed slice**: `Knowledge-Driven Task Grounding Baseline`
+- **Track focus**: `Retrieval / Memory`
+- **Latest completed phase**: `Phase 32`
+- **Latest completed slice**: `Knowledge Dual-Layer + Librarian Write Guard`
 
-The current state is **between phases**:
+The current branch state is **Phase 33 PR-ready / merge-gate**:
 
-- `active_track: none_selected`
-- `active_phase: none_selected`
-- `active_slice: fresh_kickoff_required`
-- `active_branch: main`
+- `active_track: Execution Topology (Primary) + Core Loop (Secondary)`
+- `active_phase: Phase 33`
+- `active_slice: Closeout + Merge Gate`
+- `active_branch: feat/phase33-subtask-orchestrator`
 
 In practice, the current system already includes:
 
@@ -118,13 +118,16 @@ In practice, the current system already includes:
 - mock-remote dispatch gating and remote-handoff contract visibility without widening into real remote execution
 - taxonomy metadata, taxonomy-aware routing guards, and operator-facing taxonomy visibility
 - staged knowledge capture, review queues, promotion / rejection decisions, and capability-aware write boundaries
+- an Evidence Store + Wiki Store task-knowledge split, canonical-promotion authority checks, and a rule-driven `LibrarianExecutor`
 - canonical knowledge registry, reuse visibility, dedupe / supersede audit, and regression inspection paths
 - canonical-sourced task grounding evidence artifacts, locked grounding refs, and resume-stable grounding state
+- bounded 1:N `TaskCard` planning, DAG-based subtask orchestration, and parent-task artifact / event aggregation
+- a ReviewGate-driven single-retry feedback loop for multi-card execution
 - operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
 - retrieval over repository files and Markdown / Obsidian notes, with reusable knowledge kept explicit and policy-gated
 
 The focus is no longer to prove a minimal runnable demo.  
-The current checkpoint should be treated as a stable baseline after Phase 27 closeout, waiting for a fresh kickoff rather than continuing to expand the completed phase.
+The current `main` checkpoint should be treated as the stable baseline after Phase 32 closeout, while the active Phase 33 branch should be treated as merge-gate work rather than a prompt to keep expanding the phase before merge.
 
 ---
 
