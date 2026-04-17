@@ -21,7 +21,10 @@ class RouteTelemetryStats:
     fallback_trigger_count: int = 0
     degraded_count: int = 0
     total_latency_ms: int = 0
+    total_cost: float = 0.0
     event_count: int = 0
+    task_families: set[str] = field(default_factory=set)
+    cost_samples: list[float] = field(default_factory=list)
 
     def success_rate(self) -> float:
         return self.success_count / self.event_count if self.event_count else 0.0
@@ -34,6 +37,9 @@ class RouteTelemetryStats:
 
     def average_latency_ms(self) -> int:
         return int(round(self.total_latency_ms / self.event_count)) if self.event_count else 0
+
+    def average_cost(self) -> float:
+        return round(self.total_cost / self.event_count, 6) if self.event_count else 0.0
 
 
 @dataclass(slots=True)
@@ -86,6 +92,19 @@ def _coerce_nonnegative_int(value: object) -> int:
     return 0
 
 
+def _coerce_nonnegative_float(value: object) -> float:
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, int | float):
+        return max(float(value), 0.0)
+    if isinstance(value, str):
+        try:
+            return max(float(value.strip()), 0.0)
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
 def _recent_task_event_paths(base_dir: Path, last_n: int) -> list[tuple[str, Path]]:
     root = tasks_root(base_dir)
     if not root.exists():
@@ -131,8 +150,14 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
                 route_name = str(payload.get("physical_route") or payload.get("route_name") or "unknown").strip()
                 route_name = route_name or "unknown"
                 route_stats = route_stats_by_name.setdefault(route_name, RouteTelemetryStats(route_name=route_name))
+                task_family = str(payload.get("task_family", "")).strip()
+                token_cost = _coerce_nonnegative_float(payload.get("token_cost", 0.0))
                 route_stats.event_count += 1
                 route_stats.total_latency_ms += _coerce_nonnegative_int(payload.get("latency_ms", 0))
+                route_stats.total_cost += token_cost
+                route_stats.cost_samples.append(token_cost)
+                if task_family:
+                    route_stats.task_families.add(task_family)
                 if bool(payload.get("degraded", False)):
                     route_stats.degraded_count += 1
                 if event_type == EVENT_EXECUTOR_COMPLETED:
@@ -207,6 +232,10 @@ def build_optimization_proposals(
             proposals.append(
                 f"Track degradation on `{stats.route_name}`: {stats.degraded_count}/{stats.event_count} executor events were degraded."
             )
+        if stats.average_cost() >= 0.25:
+            proposals.append(
+                f"Review route `{stats.route_name}`: average estimated cost is ${stats.average_cost():.2f}/task across {stats.event_count} executor events."
+            )
 
     for fingerprint in failure_fingerprints:
         if fingerprint.count >= 2:
@@ -216,8 +245,37 @@ def build_optimization_proposals(
                 f"{', '.join(sorted(fingerprint.routes))}."
             )
 
+    routes_by_task_family: dict[str, list[RouteTelemetryStats]] = {}
+    for stats in route_stats:
+        for task_family in stats.task_families:
+            routes_by_task_family.setdefault(task_family, []).append(stats)
+
+    for task_family, family_routes in sorted(routes_by_task_family.items()):
+        if len(family_routes) < 2:
+            continue
+        ranked_routes = sorted(family_routes, key=lambda item: (item.average_cost(), item.route_name))
+        cheapest = ranked_routes[0]
+        most_expensive = ranked_routes[-1]
+        if most_expensive.average_cost() >= 0.10 and most_expensive.average_cost() >= cheapest.average_cost() * 2:
+            proposals.append(
+                f"Compare cost for task_family `{task_family}`: route `{most_expensive.route_name}` averages ${most_expensive.average_cost():.2f}/task versus `{cheapest.route_name}` at ${cheapest.average_cost():.2f}/task."
+            )
+
+    for stats in route_stats:
+        if len(stats.cost_samples) < 4:
+            continue
+        midpoint = len(stats.cost_samples) // 2
+        recent_average = sum(stats.cost_samples[:midpoint]) / max(midpoint, 1)
+        historical_average = sum(stats.cost_samples[midpoint:]) / max(len(stats.cost_samples) - midpoint, 1)
+        if recent_average >= 0.10 and recent_average >= historical_average * 1.5:
+            proposals.append(
+                f"Watch cost trend on `{stats.route_name}`: recent estimated cost rose from ${historical_average:.2f} to ${recent_average:.2f} per executor event."
+            )
+
     if not proposals and route_stats:
-        proposals.append("No immediate route, fallback, or degradation anomalies crossed the current heuristic thresholds.")
+        proposals.append(
+            "No immediate route, fallback, degradation, or cost anomalies crossed the current heuristic thresholds."
+        )
     return proposals
 
 
@@ -253,6 +311,7 @@ def build_meta_optimizer_report(snapshot: MetaOptimizerSnapshot) -> str:
             f"failure_rate={stats.failure_rate():.0%} "
             f"fallback_rate={stats.fallback_rate():.0%} "
             f"avg_latency_ms={stats.average_latency_ms()} "
+            f"avg_cost=${stats.average_cost():.6f} "
             f"degraded={stats.degraded_count}/{stats.event_count}"
         )
 
@@ -289,6 +348,19 @@ def build_meta_optimizer_report(snapshot: MetaOptimizerSnapshot) -> str:
             )
     else:
         lines.append("- degraded_routes: none")
+
+    lines.extend(
+        [
+            "",
+            "## Cost Summary",
+        ]
+    )
+    for stats in snapshot.route_stats:
+        lines.append(
+            f"- {stats.route_name}: total_cost=${stats.total_cost:.6f} "
+            f"avg_cost=${stats.average_cost():.6f} "
+            f"task_families={', '.join(sorted(stats.task_families)) or 'unknown'}"
+        )
 
     lines.extend(
         [

@@ -40,7 +40,9 @@ class MetaOptimizerTest(unittest.TestCase):
                         "payload": {
                             "physical_route": "local-codex",
                             "logical_model": "codex",
+                            "task_family": "execution",
                             "latency_ms": 12,
+                            "token_cost": 0.0,
                             "degraded": False,
                             "failure_kind": "launch_error",
                             "error_code": "launch_error",
@@ -64,7 +66,9 @@ class MetaOptimizerTest(unittest.TestCase):
                         "payload": {
                             "physical_route": "local-summary",
                             "logical_model": "local",
+                            "task_family": "execution",
                             "latency_ms": 4,
+                            "token_cost": 0.0,
                             "degraded": True,
                             "error_code": "",
                         },
@@ -81,7 +85,9 @@ class MetaOptimizerTest(unittest.TestCase):
                         "payload": {
                             "physical_route": "local-codex",
                             "logical_model": "codex",
+                            "task_family": "execution",
                             "latency_ms": 8,
+                            "token_cost": 0.0,
                             "degraded": False,
                             "failure_kind": "launch_error",
                             "error_code": "launch_error",
@@ -100,9 +106,121 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertIn("local-summary: success_rate=100% failure_rate=0% fallback_rate=0%", report)
             self.assertIn("failure_kind=launch_error error_code=launch_error count=2 routes=local-codex", report)
             self.assertIn("degraded_executor_events: 1/3", report)
+            self.assertIn("## Cost Summary", report)
+            self.assertIn("local-summary: total_cost=$0.000000 avg_cost=$0.000000 task_families=execution", report)
             self.assertIn("Review route `local-codex`", report)
             self.assertIn("Investigate repeated failure fingerprint `launch_error/launch_error`", report)
             self.assertEqual(artifact_path.read_text(encoding="utf-8"), report)
+
+    def test_run_meta_optimizer_generates_cost_proposals(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_a = base_dir / ".swl" / "tasks" / "cost-a"
+            task_b = base_dir / ".swl" / "tasks" / "cost-b"
+            task_c = base_dir / ".swl" / "tasks" / "cost-c"
+            _write_events(
+                task_a,
+                [
+                    {
+                        "task_id": "cost-a",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Claude review done.",
+                        "payload": {
+                            "physical_route": "api-claude-review",
+                            "logical_model": "claude",
+                            "task_family": "review",
+                            "latency_ms": 30,
+                            "token_cost": 0.12,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                    {
+                        "task_id": "cost-a",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Claude review done again.",
+                        "payload": {
+                            "physical_route": "api-claude-review",
+                            "logical_model": "claude",
+                            "task_family": "review",
+                            "latency_ms": 35,
+                            "token_cost": 0.18,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                ],
+            )
+            _write_events(
+                task_b,
+                [
+                    {
+                        "task_id": "cost-b",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Claude review spiked.",
+                        "payload": {
+                            "physical_route": "api-claude-review",
+                            "logical_model": "claude",
+                            "task_family": "review",
+                            "latency_ms": 36,
+                            "token_cost": 0.42,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                    {
+                        "task_id": "cost-b",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Claude review spiked again.",
+                        "payload": {
+                            "physical_route": "api-claude-review",
+                            "logical_model": "claude",
+                            "task_family": "review",
+                            "latency_ms": 39,
+                            "token_cost": 0.48,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                ],
+            )
+            _write_events(
+                task_c,
+                [
+                    {
+                        "task_id": "cost-c",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Local review summary done.",
+                        "payload": {
+                            "physical_route": "local-summary-review",
+                            "logical_model": "local",
+                            "task_family": "review",
+                            "latency_ms": 5,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                ],
+            )
+
+            snapshot, _artifact_path, report = run_meta_optimizer(base_dir, last_n=100)
+            expensive_route = next(stats for stats in snapshot.route_stats if stats.route_name == "api-claude-review")
+            self.assertAlmostEqual(expensive_route.total_cost, 1.2)
+            self.assertAlmostEqual(expensive_route.average_cost(), 0.3)
+            self.assertIn("api-claude-review: total_cost=$1.200000 avg_cost=$0.300000 task_families=review", report)
+            self.assertIn(
+                "Review route `api-claude-review`: average estimated cost is $0.30/task across 4 executor events.",
+                report,
+            )
+            self.assertIn(
+                "Compare cost for task_family `review`: route `api-claude-review` averages $0.30/task versus `local-summary-review` at $0.00/task.",
+                report,
+            )
+            self.assertIn(
+                "Watch cost trend on `api-claude-review`: recent estimated cost rose from $0.15 to $0.45 per executor event.",
+                report,
+            )
 
     def test_run_meta_optimizer_handles_empty_task_registry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -135,7 +253,9 @@ class MetaOptimizerTest(unittest.TestCase):
                         "payload": {
                             "physical_route": "local-summary",
                             "logical_model": "local",
+                            "task_family": "execution",
                             "latency_ms": 3,
+                            "token_cost": 0.0,
                             "degraded": False,
                             "error_code": "",
                         },
