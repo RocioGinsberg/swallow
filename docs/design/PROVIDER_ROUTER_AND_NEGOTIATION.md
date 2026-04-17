@@ -172,16 +172,38 @@ Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fa
 
 在 TensorZero 中，将上述聚合器声明为 OpenAI-compatible provider 即可接入，无需特殊适配。
 
-### 5.4 外部治理壳：Cloudflare（远期）
+### 5.4 外部治理壳：Cloudflare
 
-Cloudflare 不参与网关内部逻辑，定位为**外部流量入口的治理壳**：
+Cloudflare 不参与网关内部逻辑，定位为**VPS 侧服务的外部流量入口治理壳**：
 
-*   **域名反代**：通过 Cloudflare Workers/Tunnel 为网关统一入口域名，隐藏后端拓扑
+*   **域名反代**：通过 Cloudflare 为 VPS 上的 new-api / Open WebUI 统一入口域名，隐藏后端 IP
 *   **边缘缓存**：对幂等的 RAG 检索类请求做 CDN 级缓存
-*   **DDoS / Rate Limit**：保护网关免受外部滥用
-*   **引入时机**：当项目需要公网暴露或多租户接入时。当前阶段（本地优先）不引入
+*   **DDoS / Rate Limit**：保护 VPS 服务免受外部滥用
+*   **可选 Tunnel**：通过 Cloudflare Tunnel 暴露本地 Control Center 供远程访问
 
-> 详见 `GATEWAY_PHILOSOPHY.md` §3（外部治理壳）。
+**关键区分**：Cloudflare 只套在 VPS 前面，不套在本地 Swallow Runtime 前面。本地 Runtime 是 Cloudflare 的客户端（通过 HTTPS 访问 `api.yourdomain.com`），不是被它保护的服务端。
+
+**部署拓扑概览**：
+
+```
+本地机器（编排侧）
+  swl CLI → Swallow Runtime
+    ├── Strategy Router (RouteRegistry)  — 纯本地，零延迟
+    ├── Dialect Adapters                 — 纯本地
+    └── HTTP 请求 → api.yourdomain.com
+
+Cloudflare（治理壳）
+  api.yourdomain.com → VPS
+  chat.yourdomain.com → VPS
+
+VPS 主机（服务侧）
+  new-api (:3000)      → 渠道管理 + 格式互转
+  TensorZero (:3001)   → 推理遥测（可选）
+  Open WebUI (:3002)   → 探索性对话面板
+```
+
+> 完整部署拓扑详见 `INTERACTION_AND_WORKBENCH.md` §4.5。
+> 治理壳哲学详见 `GATEWAY_PHILOSOPHY.md` §3。
 
 ### 5.5 技术栈演化预期
 
