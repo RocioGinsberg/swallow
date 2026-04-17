@@ -4,7 +4,12 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .models import utc_now
+from .models import (
+    EVENT_EXECUTOR_COMPLETED,
+    EVENT_EXECUTOR_FAILED,
+    EVENT_TASK_EXECUTION_FALLBACK,
+    utc_now,
+)
 from .paths import optimization_proposals_path, tasks_root
 
 
@@ -122,7 +127,7 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
             if not isinstance(payload, dict):
                 payload = {}
 
-            if event_type in {"executor.completed", "executor.failed"}:
+            if event_type in {EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED}:
                 route_name = str(payload.get("physical_route") or payload.get("route_name") or "unknown").strip()
                 route_name = route_name or "unknown"
                 route_stats = route_stats_by_name.setdefault(route_name, RouteTelemetryStats(route_name=route_name))
@@ -130,7 +135,7 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
                 route_stats.total_latency_ms += _coerce_nonnegative_int(payload.get("latency_ms", 0))
                 if bool(payload.get("degraded", False)):
                     route_stats.degraded_count += 1
-                if event_type == "executor.completed":
+                if event_type == EVENT_EXECUTOR_COMPLETED:
                     route_stats.success_count += 1
                 else:
                     route_stats.failure_count += 1
@@ -144,7 +149,7 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
                     fingerprint.routes.add(route_name)
                 continue
 
-            if event_type == "task.execution_fallback":
+            if event_type == EVENT_TASK_EXECUTION_FALLBACK:
                 previous_route_name = str(payload.get("previous_route_name", "")).strip()
                 if not previous_route_name:
                     continue

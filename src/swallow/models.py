@@ -324,6 +324,7 @@ class TaskState:
     route_model_hint: str = "codex"
     route_dialect: str = "plain_text"
     route_reason: str = "Default local Codex route."
+    route_is_fallback: bool = False
     route_capabilities: dict[str, Any] = field(default_factory=dict)
     topology_route_name: str = "local-codex"
     topology_executor_family: str = "cli"
@@ -372,6 +373,12 @@ class Event:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+EVENT_RETRIEVAL_COMPLETED = "retrieval.completed"
+EVENT_EXECUTOR_COMPLETED = "executor.completed"
+EVENT_EXECUTOR_FAILED = "executor.failed"
+EVENT_TASK_EXECUTION_FALLBACK = "task.execution_fallback"
 
 
 @dataclass(slots=True)

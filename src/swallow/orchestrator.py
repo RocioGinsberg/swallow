@@ -45,9 +45,19 @@ from .knowledge_objects import (
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from .models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, RouteSpec, TaskCard, TaskState
-from .models import build_telemetry_fields
-from .models import DispatchVerdict, evaluate_dispatch_verdict
+from .models import (
+    DispatchVerdict,
+    EVENT_TASK_EXECUTION_FALLBACK,
+    Event,
+    ExecutorResult,
+    RetrievalItem,
+    RetrievalRequest,
+    RouteSpec,
+    TaskCard,
+    TaskState,
+    build_telemetry_fields,
+    evaluate_dispatch_verdict,
+)
 from .paths import (
     artifacts_dir,
     capability_assembly_path,
@@ -159,6 +169,7 @@ def _apply_route_spec_to_state(
     state.route_model_hint = route.model_hint
     state.route_dialect = resolve_dialect_name(route.dialect_hint, route.model_hint)
     state.route_reason = reason
+    state.route_is_fallback = False
     original_route_capabilities = route.capabilities.to_dict()
     state.route_capabilities = dict(original_route_capabilities)
     return original_route_capabilities
@@ -309,7 +320,7 @@ def _append_parent_executor_event(
             | build_telemetry_fields(
                 state,
                 latency_ms=executor_result.latency_ms,
-                degraded="fallback route" in str(state.route_reason).lower(),
+                degraded=state.route_is_fallback,
                 error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
             ).to_dict(),
         ),
@@ -362,6 +373,7 @@ def _run_binary_fallback(
         f"Selected fallback route '{fallback_route.name}' after executor failure on '{primary_route_name}'."
     )
     _apply_route_spec_to_state(state, fallback_route, fallback_reason)
+    state.route_is_fallback = True
     applied_constraints = _apply_capability_enforcement(state)
     _apply_execution_topology(state, dispatch_status=_dispatch_status_for_transport(state.route_transport_kind))
     _apply_execution_site_contract(state)
@@ -383,7 +395,7 @@ def _run_binary_fallback(
         base_dir,
         Event(
             task_id=state.task_id,
-            event_type="task.execution_fallback",
+            event_type=EVENT_TASK_EXECUTION_FALLBACK,
             message=f"Fallback route '{fallback_route.name}' executed after primary executor failure.",
             payload={
                 "previous_route_name": primary_route_name,

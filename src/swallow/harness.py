@@ -21,6 +21,9 @@ from .knowledge_objects import (
 from .knowledge_policy import build_knowledge_policy_report, evaluate_knowledge_policy
 from .models import (
     CompatibilityResult,
+    EVENT_EXECUTOR_COMPLETED,
+    EVENT_EXECUTOR_FAILED,
+    EVENT_RETRIEVAL_COMPLETED,
     ExecutionFitResult,
     Event,
     ExecutionBudgetPolicyResult,
@@ -70,7 +73,7 @@ def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -
         base_dir,
         Event(
             task_id=state.task_id,
-            event_type="retrieval.completed",
+            event_type=EVENT_RETRIEVAL_COMPLETED,
             message="Retrieved local repository and note context.",
             payload={
                 "count": len(retrieval_items),
@@ -109,7 +112,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
         base_dir,
         Event(
             task_id=state.task_id,
-            event_type=f"executor.{executor_result.status}",
+            event_type=EVENT_EXECUTOR_COMPLETED if executor_result.status == "completed" else EVENT_EXECUTOR_FAILED,
             message=executor_result.message,
             payload={
                 "status": executor_result.status,
@@ -156,7 +159,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
             | build_telemetry_fields(
                 state,
                 latency_ms=executor_result.latency_ms,
-                degraded="fallback route" in str(state.route_reason).lower(),
+                degraded=state.route_is_fallback,
                 error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
             ).to_dict(),
         ),

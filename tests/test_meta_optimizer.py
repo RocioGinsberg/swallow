@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.cli import main
 from swallow.meta_optimizer import build_meta_optimizer_snapshot, run_meta_optimizer
+from swallow.models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED, EVENT_TASK_EXECUTION_FALLBACK
 from swallow.paths import optimization_proposals_path
 
 
@@ -34,7 +35,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 [
                     {
                         "task_id": "task-a",
-                        "event_type": "executor.failed",
+                        "event_type": EVENT_EXECUTOR_FAILED,
                         "message": "Codex launch failed.",
                         "payload": {
                             "physical_route": "local-codex",
@@ -47,7 +48,7 @@ class MetaOptimizerTest(unittest.TestCase):
                     },
                     {
                         "task_id": "task-a",
-                        "event_type": "task.execution_fallback",
+                        "event_type": EVENT_TASK_EXECUTION_FALLBACK,
                         "message": "Fallback executed.",
                         "payload": {
                             "previous_route_name": "local-codex",
@@ -58,7 +59,7 @@ class MetaOptimizerTest(unittest.TestCase):
                     },
                     {
                         "task_id": "task-a",
-                        "event_type": "executor.completed",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
                         "message": "Fallback completed.",
                         "payload": {
                             "physical_route": "local-summary",
@@ -75,7 +76,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 [
                     {
                         "task_id": "task-b",
-                        "event_type": "executor.failed",
+                        "event_type": EVENT_EXECUTOR_FAILED,
                         "message": "Codex launch failed again.",
                         "payload": {
                             "physical_route": "local-codex",
@@ -129,7 +130,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 json.dumps(
                     {
                         "task_id": "readonly-task",
-                        "event_type": "executor.completed",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
                         "message": "Completed.",
                         "payload": {
                             "physical_route": "local-summary",
