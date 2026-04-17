@@ -9,7 +9,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import ValidationResult
+from swallow.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianExecutor
+from swallow.models import TaskCard, TaskState, ValidationResult
 from swallow.orchestrator import create_task, run_task
 from swallow.store import load_state, save_knowledge_objects, save_state
 
@@ -30,6 +31,69 @@ def _load_json_lines(path: Path) -> list[dict[str, object]]:
 
 
 class LibrarianExecutorIntegrationTest(unittest.TestCase):
+    def test_librarian_executor_returns_side_effect_plan_without_persisting(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-librarian-side-effect"
+            state = TaskState(
+                task_id=task_id,
+                title="Promote verified evidence",
+                goal="Return a side-effect plan instead of mutating state directly",
+                workspace_root=str(tmp_path),
+                executor_name="librarian",
+            )
+            state.knowledge_objects = [
+                {
+                    "object_id": "knowledge-0001",
+                    "text": "Promote   this   fact",
+                    "stage": "verified",
+                    "source_kind": "external_knowledge_capture",
+                    "source_ref": "chat://librarian",
+                    "task_linked": True,
+                    "captured_at": "2026-04-16T00:00:00+00:00",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": f".swl/tasks/{task_id}/artifacts/evidence.md",
+                    "retrieval_eligible": False,
+                    "knowledge_reuse_scope": "task_only",
+                    "canonicalization_intent": "promote",
+                }
+            ]
+            save_state(tmp_path, state)
+            save_knowledge_objects(tmp_path, task_id, state.knowledge_objects)
+            original_state = (tmp_path / ".swl" / "tasks" / task_id / "state.json").read_text(encoding="utf-8")
+            original_knowledge = (tmp_path / ".swl" / "tasks" / task_id / "knowledge_objects.json").read_text(
+                encoding="utf-8"
+            )
+            (tmp_path / ".swl" / "tasks" / task_id / "artifacts" / "evidence.md").write_text(
+                "artifact-backed evidence\n",
+                encoding="utf-8",
+            )
+            card = TaskCard(
+                card_id="card-librarian",
+                goal="Promote canonical-ready evidence with the librarian executor",
+                executor_type="librarian",
+                route_hint="librarian-local",
+                input_context={"promotion_ready_object_ids": ["knowledge-0001"]},
+                output_schema={"type": "object", "const": {"kind": LIBRARIAN_CHANGE_LOG_KIND}},
+            )
+
+            result = LibrarianExecutor().execute(tmp_path, state, card, [])
+
+            self.assertEqual(result.status, "completed")
+            self.assertEqual(result.executor_name, "librarian")
+            self.assertEqual(result.side_effects["kind"], LIBRARIAN_CHANGE_LOG_KIND)
+            self.assertEqual(len(result.side_effects["knowledge_decision_records"]), 1)
+            self.assertEqual(len(result.side_effects["canonical_records"]), 1)
+            self.assertEqual(result.side_effects["updated_knowledge_objects"][0]["stage"], "canonical")
+            self.assertFalse((tmp_path / ".swl" / "canonical_knowledge" / "registry.jsonl").exists())
+            self.assertFalse((tmp_path / ".swl" / "tasks" / task_id / "knowledge_decisions.jsonl").exists())
+            self.assertFalse((tmp_path / ".swl" / "tasks" / task_id / "artifacts" / "librarian_change_log.json").exists())
+            self.assertEqual((tmp_path / ".swl" / "tasks" / task_id / "state.json").read_text(encoding="utf-8"), original_state)
+            self.assertEqual(
+                (tmp_path / ".swl" / "tasks" / task_id / "knowledge_objects.json").read_text(encoding="utf-8"),
+                original_knowledge,
+            )
+
     def test_run_task_promotes_local_promotion_ready_evidence_with_librarian_executor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

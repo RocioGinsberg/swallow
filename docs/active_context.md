@@ -7,15 +7,15 @@
 - latest_completed_slice: `Event Telemetry + Meta-Optimizer + Dialect Data Layer`
 - active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
 - active_phase: `Phase 36`
-- active_slice: `kickoff_drafted_waiting_human_approval`
-- active_branch: `main`
-- status: `kickoff_pending_approval`
+- active_slice: `S1_librarian_state_mutation_complete`
+- active_branch: `feat/phase36-concern-cleanup`
+- status: `s1_ready_waiting_human_commit`
 
 ---
 
 ## 当前状态说明
 
-Phase 36 已进入 kickoff 阶段。本轮目标是集中消化 concerns_backlog 中 5 条 Open concern（S1: LibrarianExecutor state mutation 收口；S2: 4 条 API 级 concern 批量清理），等待 Human 审批后进入实现。
+Phase 36 已进入实现阶段。本轮目标是集中消化 concerns_backlog 中 5 条 Open concern（S1: LibrarianExecutor state mutation 收口；S2: 4 条 API 级 concern 批量清理）。当前实现分支已切到 `feat/phase36-concern-cleanup`；S1 现已完成实现与全量验证，等待 Human 按 slice 节奏提交后继续 S2。
 
 ---
 
@@ -105,11 +105,10 @@ Phase 36 已进入 kickoff 阶段。本轮目标是集中消化 concerns_backlog
 
 ## 下一步
 
-- **[Human]** 审批 `docs/plans/phase36/kickoff.md`，确认 scope 与非目标
-- **[Human]** 审批后切出实现分支 `feat/phase36-concern-cleanup`
-- **[Gemini]** 如需要，产出 Phase 36 context_brief
-- **[Codex]** 获批后按 S1 → S2 顺序实现
+- **[Human]** 审查并执行 S1 slice commit
+- **[Codex]** 在 S1 commit 后继续 S2 API concern 批量消化
+- **[Gemini]** 如后续补出 `docs/plans/phase36/context_brief.md`，仅作为辅助上下文，不阻塞当前实现节奏
 
 ## 当前阻塞项
 
-- 等待 Human: Phase 36 kickoff 审批
+- 暂无

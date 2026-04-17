@@ -466,6 +466,7 @@ class ExecutorResult:
     latency_ms: int = 0
     stdout: str = ""
     stderr: str = ""
+    side_effects: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
