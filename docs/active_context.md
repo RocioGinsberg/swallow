@@ -2,40 +2,41 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
-- latest_completed_phase: `Phase 34`
-- latest_completed_slice: `Cognitive Router + Dialect Framework + Binary Fallback`
-- active_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
-- active_phase: `Phase 35`
-- active_slice: `phase35_review_followup_complete`
-- active_branch: `feat/phase35-meta-optimizer`
-- status: `review_completed_waiting_human_merge`
+- latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
+- latest_completed_phase: `Phase 35`
+- latest_completed_slice: `Event Telemetry + Meta-Optimizer + Dialect Data Layer`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
+- active_branch: `main`
+- status: `phase35_merged_waiting_next_kickoff`
 
 ---
 
 ## 当前状态说明
 
-Phase 35 实现与 review 均已完成。Claude review 结论：Merge ready（0 BLOCK, 2 CONCERN, 1 NOTE）。C1/C2 已在当前分支继续修正：fallback telemetry 现使用显式 `route_is_fallback` 布尔状态，事件类型也已抽成共享常量；closeout / review_comments / concerns_backlog / `pr.md` 均已同步。
+Phase 35 已完成实现、review follow-up、merge 与收口，并已合入 `main`。当前默认入口不再停留在 Phase 35 的 review / merge 语义，而是回到“等待下一轮 kickoff”状态；下一步应从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择新 phase。
 
 ---
 
 ## 当前关键文档
 
-当前实现开始前，优先读取：
+当前新一轮工作开始前，优先读取：
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/plans/phase35/closeout.md`
-4. `docs/plans/phase35/kickoff.md`
-5. `docs/plans/phase35/context_brief.md`
-6. `docs/roadmap.md`
+3. `docs/roadmap.md`
+4. `docs/system_tracks.md`
+5. `current_state.md`
+6. `docs/plans/phase35/closeout.md`
 
 仅在需要时再读取：
 
-- `pr.md`
+- `docs/plans/phase35/review_comments.md`
+- `docs/plans/phase35/kickoff.md`
+- `docs/plans/phase35/context_brief.md`
 - `docs/concerns_backlog.md`
-- `docs/plans/phase34/closeout.md`
-- `docs/plans/phase34/review_comments.md`
+- `pr.md`
 
 ---
 
@@ -58,7 +59,7 @@ Phase 35 实现与 review 均已完成。Claude review 结论：Merge ready（0 
 - `docs/concerns_backlog.md` (codex, 2026-04-17) — Phase 34 review follow-up 状态同步：C1 记入 Open，C2 移入 Resolved
 - `docs/plans/phase35/context_brief.md` (gemini, 2026-04-17) — Phase 35 context brief，status 已收口为 `final`
 - `docs/plans/phase35/kickoff.md` (claude, 2026-04-17) — Phase 35 kickoff: 3 slice (Event Telemetry + Meta-Optimizer + Dialect Data Layer)，风险 11/27，status 已收口为 `final`
-- `docs/plans/phase35/closeout.md` (codex, 2026-04-17) — Phase 35 implementation closeout: slice 完成情况、稳定边界、测试基线与 review / PR 准备状态
+- `docs/plans/phase35/closeout.md` (codex, 2026-04-17) — Phase 35 closeout: slice 完成情况、review follow-up、稳定边界与 merge 建议
 - `src/swallow/models.py` (codex, 2026-04-17) — S1: 新增 `TelemetryFields`、`ExecutorResult.latency_ms` 与 telemetry helper
 - `src/swallow/harness.py` (codex, 2026-04-17) — S1: executor event 注入标准 telemetry，并记录执行 latency
 - `src/swallow/orchestrator.py` (codex, 2026-04-17) — S1: parent executor event 与 `task.execution_fallback` 补齐 telemetry / latency
@@ -75,9 +76,9 @@ Phase 35 实现与 review 均已完成。Claude review 结论：Merge ready（0 
 - `src/swallow/dialect_adapters/codex_fim.py` (codex, 2026-04-17) — S3: Codex FIM 改为复用共享 prompt data
 - `tests/test_dialect_adapters.py` (codex, 2026-04-17) — S3: 覆盖共享 prompt data 聚合与 structured markdown 消费路径
 - `docs/concerns_backlog.md` (codex, 2026-04-17) — S3: Phase 29 structured_markdown prompt data duplication concern 已标记为 Resolved
-- `docs/plans/phase35/review_comments.md` (claude, 2026-04-17) — Phase 35 review: Merge ready, 0 BLOCK, 2 CONCERN, 1 NOTE
-- `current_state.md` (codex, 2026-04-17) — Phase 35 implementation-complete recovery entrypoint，明确当前分支待 review / PR sync
-- `pr.md` (codex, 2026-04-17, ignored) — 已更新为 Phase 35 PR 文案，反映 3 个 slice commit 与当前 review pending 状态
+- `docs/plans/phase35/review_comments.md` (claude, 2026-04-17) — Phase 35 review: Merge ready, 0 BLOCK, 2 CONCERN, 1 NOTE，follow-up 已吸收
+- `current_state.md` (codex, 2026-04-17) — Phase 35 merged recovery entrypoint，默认回到 fresh kickoff
+- `pr.md` (codex, 2026-04-17, ignored) — Phase 35 PR 文案归档，可作为已合并实现摘要参考
 
 ---
 
@@ -85,7 +86,7 @@ Phase 35 实现与 review 均已完成。Claude review 结论：Merge ready（0 
 
 已完成：
 
-- **[Human]** 已将 Phase 34 合入 `main`，并批准 Phase 35 kickoff，切出实现分支 `feat/phase35-meta-optimizer`。
+- **[Human]** 已将 Phase 35 合入 `main`。
 - **[Claude]** 已完成 Phase 35 kickoff，定义 S1 `Event Telemetry`、S2 `Meta-Optimizer`、S3 `Dialect Data Layer`。
 - **[Gemini]** 已完成 Phase 35 context brief，并已收口为 `final`。
 - **[Codex]** 已完成 S1 `Event Telemetry Schema Extension`：为 executor 事件注入 `task_family / logical_model / physical_route / latency_ms / degraded / error_code`，为 fallback 事件补齐 latency，并通过全量 `pytest`（244 passed）。
@@ -97,12 +98,13 @@ Phase 35 实现与 review 均已完成。Claude review 结论：Merge ready（0 
 - **[Codex]** 已完成 Phase 35 closeout 与本地 `pr.md` 更新，当前进入 review / PR 同步准备阶段。
 - **[Claude]** 已完成 Phase 35 review：0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready。
 - **[Codex]** 已吸收 review follow-up：修正 C1 degraded fallback 判定与 C2 事件类型常量复用，并通过全量 `pytest`（249 passed）。
+- **[Human]** 已完成 merge，当前入口已切回 `main`。
 
 ## 下一步
 
-- **[Human]** 审查 review follow-up diff，并决定是否追加一个 fix commit
-- **[Human]** push 分支，更新 PR 后继续 merge 决策
-- **[Codex]** 如 merge 后切回 `main`，再同步状态指针到下一阶段入口
+- **[Human]** 从 `docs/roadmap.md` / `docs/system_tracks.md` 选择下一轮 active track / phase
+- **[Claude]** 为下一轮产出 kickoff
+- **[Codex]** 在新 phase 获批并切分支后开始下一轮实现
 
 ## 当前阻塞项
 

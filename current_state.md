@@ -36,14 +36,14 @@
 - repository_state: `runnable`
 - latest_completed_phase: `Phase 35`
 - latest_completed_slice: `Event Telemetry + Meta-Optimizer + Dialect Data Layer`
-- checkpoint_type: `implementation_complete_waiting_review`
+- checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-17`
 
 说明：
 
-- 当前分支 `feat/phase35-meta-optimizer` 已完成 3 个 slice 实现、slice commit 与 phase closeout，且通过全量 `249 passed in 5.71s`
-- 根目录 `pr.md` 与 `docs/plans/phase35/closeout.md` 已同步到当前实现状态，当前语义为 review / PR sync ready
-- `main` 上最近已合入的稳定 checkpoint 仍是 Phase 34；Phase 35 尚未写入 review / merge 结论
+- Phase 35 已完成 3 个 slice 实现、review follow-up、closeout 与 merge，并已在 `main` 上形成新的稳定 checkpoint
+- `docs/plans/phase35/closeout.md` 与 `docs/plans/phase35/review_comments.md` 已反映当前 merge-ready / follow-up 已吸收的最终状态
+- 当前默认不再继续扩张已完成的 Phase 35，而应重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -51,15 +51,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
-- active_phase: `Phase 35`
-- active_slice: `review_and_pr_sync_required`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
 
 说明：
 
-- 当前不是 fresh kickoff 阶段，而是 Phase 35 实现完成后的 review / PR 同步阶段
-- 下一步应先进入 Claude review，必要时吸收 review follow-up，再决定 merge
-- 只有在 Phase 35 merge 完成后，才应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择下一轮方向
+- Phase 35 已完成并合入 `main`
+- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
 
 ---
 
@@ -69,16 +68,18 @@
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/plans/phase35/closeout.md`
-4. `docs/plans/phase35/kickoff.md`
-5. `docs/plans/phase35/context_brief.md`
-6. `current_state.md`
+3. `docs/roadmap.md`
+4. `docs/system_tracks.md`
+5. `current_state.md`
+6. `docs/plans/phase35/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase35/review_comments.md`
 - `pr.md`
 - `docs/concerns_backlog.md`
-- `docs/plans/phase35/review_comments.md`
+- `docs/plans/phase35/kickoff.md`
+- `docs/plans/phase35/context_brief.md`
 - `docs/roadmap.md`
 - `docs/system_tracks.md`
 - `docs/plans/phase34/closeout.md`
@@ -122,7 +123,6 @@
 
 ## 当前已知问题
 
-- Claude review 尚未执行，因此当前 closeout 只代表实现完成，不代表 review / merge 已结束。
 - `CodexFIMDialect` 仍未转义任务文本中的 `<fim_prefix>` / `<fim_suffix>` 字符串；该 concern 已记录在 `docs/concerns_backlog.md`。
 - 遥测 schema 当前仍不包含 `token_cost`，因此 `meta-optimize` 只能基于成功率 / fallback / latency / error_code 产出建议。
 - `meta-optimize` 当前为只读分析入口，不会自动采纳提案，也不会直接修改 route policy 或 task state。
