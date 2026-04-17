@@ -9,6 +9,7 @@ import tempfile
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from .dialect_adapters import ClaudeXMLDialect, CodexFIMDialect
 from .models import DialectSpec, ExecutorResult, RetrievalItem, TaskCard, TaskState
 from .knowledge_objects import (
     summarize_canonicalization,
@@ -108,7 +109,7 @@ class PlainTextDialect:
     spec = DialectSpec(
         name="plain_text",
         description="Default identity transform for existing plain text executor prompts.",
-        supported_model_hints=["codex", "mock", "mock-remote", "local"],
+        supported_model_hints=["mock", "mock-remote", "local"],
     )
 
     def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
@@ -262,6 +263,8 @@ class StructuredMarkdownDialect:
 BUILTIN_DIALECTS: dict[str, DialectAdapter] = {
     "plain_text": PlainTextDialect(),
     "structured_markdown": StructuredMarkdownDialect(),
+    "claude_xml": ClaudeXMLDialect(),
+    "codex_fim": CodexFIMDialect(),
 }
 
 
@@ -279,12 +282,12 @@ def resolve_executor_name(state: TaskState) -> str:
 
 
 def resolve_dialect_name(dialect_hint: str | None = None, model_hint: str | None = None) -> str:
-    normalized_hint = (dialect_hint or "").strip()
+    normalized_hint = (dialect_hint or "").strip().lower()
     if normalized_hint in BUILTIN_DIALECTS:
         return normalized_hint
-    normalized_model_hint = (model_hint or "").strip()
+    normalized_model_hint = (model_hint or "").strip().lower()
     for name, adapter in BUILTIN_DIALECTS.items():
-        if normalized_model_hint in adapter.spec.supported_model_hints:
+        if any(hint and hint in normalized_model_hint for hint in adapter.spec.supported_model_hints):
             return name
     return "plain_text"
 
