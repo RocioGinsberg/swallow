@@ -34,16 +34,16 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 36`
-- latest_completed_slice: `Concern Cleanup + LibrarianExecutor Refactoring`
+- latest_completed_phase: `Phase 37`
+- latest_completed_slice: `Control Center Baseline`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-18`
 
 说明：
 
-- Phase 36 仍是当前已合入 `main` 的最近稳定 checkpoint
-- Phase 37 已在 `feat/phase37-control-center` 上完成实现与 closeout，当前为 review pending / PR sync ready
-- 如需恢复当前工作，应优先进入 `docs/plans/phase37/closeout.md`，而不是回退到 Phase 36 的实现细节
+- Phase 37 已完成实现、review、review follow-up 与 merge，并已在 `main` 上形成新的稳定 checkpoint
+- `docs/plans/phase37/closeout.md` 与 `docs/plans/phase37/review_comments.md` 已反映当前 merged / closeout 完成状态
+- 当前默认不再继续扩张已完成的 Phase 37，而应重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -51,14 +51,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
-- active_phase: `Phase 37`
-- active_slice: `review_pending_pr_sync_ready`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
 
 说明：
 
-- 当前分支上的主要工作不是继续实现，而是同步 PR 描述并完成 review
-- 只有在 Phase 37 merge 完成后，默认入口才会回到 `fresh_kickoff_required`
+- Phase 37 已完成并合入 `main`
+- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
 
 ---
 
@@ -75,11 +75,11 @@
 
 仅在需要时再读取：
 
+- `docs/plans/phase37/review_comments.md`
 - `docs/plans/phase37/kickoff.md`
 - `pr.md`
 - `docs/plans/phase36/closeout.md`
 - `docs/plans/phase36/review_comments.md`
-- `pr.md`
 - `docs/concerns_backlog.md`
 - `docs/plans/phase35/closeout.md`
 - `docs/plans/phase35/kickoff.md`
