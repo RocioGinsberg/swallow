@@ -8092,6 +8092,38 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(persisted["route_taxonomy_memory_authority"], "task-state")
         self.assertEqual(persisted["route_capabilities"]["execution_kind"], "artifact_generation")
 
+    def test_cli_help_lists_serve_command(self) -> None:
+        stdout = StringIO()
+
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        self.assertIn("serve", stdout.getvalue())
+
+    def test_cli_serve_dispatches_to_control_center_server(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            with patch("swallow.web.server.serve_control_center") as serve_mock:
+                self.assertEqual(main(["--base-dir", str(tmp_path), "serve", "--host", "127.0.0.1", "--port", "8123"]), 0)
+
+        serve_mock.assert_called_once_with(tmp_path.resolve(), host="127.0.0.1", port=8123)
+
+    def test_cli_serve_reports_missing_optional_dependencies_without_breaking_other_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stdout = StringIO()
+
+            with patch(
+                "swallow.web.server.serve_control_center",
+                side_effect=RuntimeError("FastAPI is required for `swl serve`."),
+            ):
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "serve"]), 1)
+
+        self.assertIn("FastAPI is required for `swl serve`.", stdout.getvalue())
+
     def test_create_task_persists_route_dialect_for_default_codex_route(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
