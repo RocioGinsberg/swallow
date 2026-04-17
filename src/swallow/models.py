@@ -723,6 +723,7 @@ class RouteSpec:
     backend_kind: str
     model_hint: str
     dialect_hint: str = ""
+    fallback_route_name: str = ""
     executor_family: str = "cli"
     execution_site: str = "local"
     remote_capable: bool = False

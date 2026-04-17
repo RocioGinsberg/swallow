@@ -23,27 +23,27 @@
 
 - `docs/active_context.md`
 
-当前 phase 计划请看：
+当前 phase 收口材料请看：
 
-- `docs/plans/<active-phase>/kickoff.md`
-- `docs/plans/<active-phase>/breakdown.md`
-- `docs/plans/<active-phase>/closeout.md`
+- `docs/plans/<phase>/closeout.md`
+- `docs/plans/<phase>/review_comments.md`
+- `pr.md`
 
 ---
 
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 33`
-- latest_completed_slice: `Subtask Orchestrator + 并发编排 (1:N Planner + Review Feedback Loop)`
+- latest_completed_phase: `Phase 34`
+- latest_completed_slice: `Cognitive Router + Dialect Framework + Binary Fallback`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-17`
 
 说明：
 
-- Phase 0 到 Phase 33 已完成并形成稳定 checkpoint
-- Phase 33 已完成实现、测试、review、closeout 并合入 `main`
-- 当前默认不再继续扩张已完成的 Phase 33，而应重新从 roadmap 选择下一轮方向
+- Phase 0 到 Phase 34 已在当前分支形成稳定 checkpoint
+- Phase 34 已完成 Strategy Router、concrete dialect adapters 与单次 binary fallback 的实现、测试、review follow-up 和收口材料整理
+- 当前默认不再继续扩张已完成的 Phase 34，而应在 merge 后重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -57,8 +57,8 @@
 
 说明：
 
-- Phase 33 已完成有界 1:N Planner、SubtaskOrchestrator、ReviewGate 单次 retry 闭环与父任务级 artifact/event 聚合。
-- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown。
+- Phase 34 已在当前分支完成收口，`feat/phase34-strategy-router` 仅保留用于 PR / merge
+- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
 
 ---
 
@@ -71,18 +71,18 @@
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase33/closeout.md`
+6. `docs/plans/phase34/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase33/review_comments.md`
+- `docs/plans/phase34/review_comments.md`
 - `pr.md`
-- `docs/plans/phase33/kickoff.md`
-- `docs/plans/phase33/context_brief.md`
+- `docs/plans/phase34/kickoff.md`
+- `docs/plans/phase34/context_brief.md`
+- `docs/plans/phase33/closeout.md`
+- `docs/plans/phase33/review_comments.md`
 - `docs/plans/phase32/closeout.md`
 - `docs/plans/phase32/review_comments.md`
-- `docs/plans/phase32/kickoff.md`
-- `docs/plans/phase32/context_brief.md`
 - `docs/plans/phase31/design_decision.md`
 - `docs/plans/phase31/risk_assessment.md`
 - `docs/plans/phase31/review_comments.md`
@@ -117,6 +117,7 @@
 ## 当前已知问题
 
 - 真实 codex exec 在当前环境中仍可能因 outbound network / WebSocket 受限而失败。
+- `CodexFIMDialect` 仍未转义任务文本中的 `<fim_prefix>` / `<fim_suffix>` 字符串；该 concern 已记录在 `docs/concerns_backlog.md`。
 - Phase 22 的 taxonomy-aware routing baseline 目前仍是 taxonomy metadata + defensive dispatch guard baseline，不应误解为当前系统已经建立完整 RBAC、动态 taxonomy 注册、capability negotiation 或全量权限治理。
 - Phase 23 仅补齐 operator-facing taxonomy visibility，不应误解为系统已经建立 taxonomy-aware route selection、权限审批流增强或更复杂的 UI 层。
 - Phase 24 仅建立 staged knowledge pipeline baseline，不应误解为系统已经具备 staged 自动晋升、staged retrieval integration、跨任务候选合并或复杂 review workflow。
@@ -129,19 +130,21 @@
 - Phase 31 仅建立 Runtime v0 的 TaskCard + Planner、ExecutorProtocol 与非阻断 ReviewGate baseline，不应误解为系统已经具备 1:N planner 拆解、动态 executor negotiation、ReviewGate 阻断 completion、multi-card 并发编排或 fallback matrix。
 - Phase 32 仅建立 Evidence/Wiki 双层存储、canonical promotion authority 防线与规则驱动 LibrarianExecutor baseline，不应误解为系统已经具备外部会话摄入、向量检索、Librarian 语义提纯、staged 自动晋升或 canonical 冲突仲裁。
 - Phase 33 仅建立有界 1:N Planner、SubtaskOrchestrator、ReviewGate 单次 retry 闭环与父任务级 artifact/event 聚合 baseline，不应误解为系统已经具备 Debate Topology、Literature Specialist、动态 executor negotiation、stateful 多卡写回或并发 knowledge_store 写保护。
+- Phase 34 仅建立 capability-aware Strategy Router、Claude XML / Codex FIM concrete dialect 与 route-level binary fallback baseline，不应误解为系统已经具备 provider connector 部署、链式降级矩阵、运行时健康探测、成本感知路由或动态 negotiation。
 
 ## 当前收口规则
 
 - 在 phase 或 major slice 收口时，本文件才需要更新。
 - 平时开发过程中，不应把高频状态写入本文件。
 
-- 本文件更新时，通常检查以下内容是否变化：
-  - 最新稳定 checkpoint
-  - 最近完成的 phase
-  - 当前默认继续方向
-  - 恢复时优先读取文件
-  - 最小验证命令
-  - 已知问题
+本文件更新时，通常检查以下内容是否变化：
+
+- 最新稳定 checkpoint
+- 最近完成的 phase
+- 当前默认继续方向
+- 恢复时优先读取文件
+- 最小验证命令
+- 已知问题
 
 如果这些内容没有变化，不需要更新本文件。
 
@@ -151,7 +154,7 @@
 
 ```bash
 cd /home/rocio/projects/swallow
-sed -n '1,120p' current_state.md
+sed -n '1,140p' current_state.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。

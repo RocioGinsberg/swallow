@@ -4855,24 +4855,24 @@ class CliLifecycleTest(unittest.TestCase):
 
         output = stdout.getvalue()
         self.assertIn(f"Task Review: {task_id}", output)
-        self.assertIn("status: failed", output)
-        self.assertIn("handoff_status: resume_from_failure", output)
+        self.assertIn("status: completed", output)
+        self.assertIn("handoff_status: review_completed_run", output)
         self.assertIn("handoff_contract_status: ready", output)
-        self.assertIn("handoff_contract_kind: failure_resume", output)
-        self.assertIn("checkpoint_state: resume_ready", output)
-        self.assertIn("recovery_semantics: interruption_recovery", output)
-        self.assertIn("interruption_kind: launch_error", output)
-        self.assertIn("recommended_path: resume", output)
+        self.assertIn("handoff_contract_kind: operator_review", output)
+        self.assertIn("checkpoint_state: review_ready", output)
+        self.assertIn("recovery_semantics: completed_run_review", output)
+        self.assertIn("interruption_kind: none", output)
+        self.assertIn("recommended_path: review", output)
         self.assertIn("handoff_next_owner_kind: operator", output)
         self.assertIn("handoff_next_owner_ref: swl_cli", output)
-        self.assertIn("retry_policy_status: failed", output)
+        self.assertIn("retry_policy_status: passed", output)
         self.assertIn("execution_budget_policy_status: passed", output)
         self.assertIn("retryable: no", output)
-        self.assertIn("retry_decision: non_retryable_failure", output)
-        self.assertIn("stop_policy_status: failed", output)
+        self.assertIn("retry_decision: completed_no_retry", output)
+        self.assertIn("stop_policy_status: warning", output)
         self.assertIn("stop_required: yes", output)
-        self.assertIn("stop_decision: stop_and_escalate", output)
-        self.assertIn("blocking_reason: launch_error", output)
+        self.assertIn("stop_decision: checkpoint_review", output)
+        self.assertIn("blocking_reason: -", output)
         self.assertIn("knowledge_policy_status: passed", output)
         self.assertIn("knowledge_index_active_reusable: 0", output)
         self.assertIn("knowledge_index_inactive_reusable: 0", output)
@@ -5851,12 +5851,21 @@ class CliLifecycleTest(unittest.TestCase):
                 )
                 memory = json.loads((tasks_dir / task_id / "memory.json").read_text(encoding="utf-8"))
 
-                self.assertIn('"status": "failed"', state)
-                self.assertIn("Codex binary not found", summary)
-                self.assertIn("Codex binary not found", executor_output)
+                fallback_primary_output = (
+                    tasks_dir / task_id / "artifacts" / "fallback_primary_executor_output.md"
+                ).read_text(encoding="utf-8")
+                fallback_primary_stderr = (
+                    tasks_dir / task_id / "artifacts" / "fallback_primary_executor_stderr.txt"
+                ).read_text(encoding="utf-8")
+
+                self.assertIn('"status": "completed"', state)
+                self.assertIn("Selected fallback route 'local-summary'", summary)
+                self.assertIn("# Local Executor Update", executor_output)
                 self.assertEqual(executor_stdout.strip(), "")
-                self.assertIn("definitely-not-a-real-codex-binary", executor_stderr)
-                self.assertEqual(memory["status"], "failed")
+                self.assertEqual(executor_stderr.strip(), "")
+                self.assertIn("Codex binary not found", fallback_primary_output)
+                self.assertIn("definitely-not-a-real-codex-binary", fallback_primary_stderr)
+                self.assertEqual(memory["status"], "completed")
 
     def test_codex_timeout_preserves_partial_output(self) -> None:
         state = TaskState(
@@ -6974,6 +6983,7 @@ class CliLifecycleTest(unittest.TestCase):
                 ("running", "executing"),
                 ("running", "executing"),
                 ("running", "executing"),
+                ("running", "executing"),
                 ("running", "summarize"),
                 ("running", "summarize"),
                 ("failed", "summarize"),
@@ -6990,6 +7000,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
+                "task.execution_fallback",
                 "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
@@ -6998,6 +7009,7 @@ class CliLifecycleTest(unittest.TestCase):
             ],
         )
         self.assertEqual(final_state.status, "failed")
+        self.assertEqual(final_state.route_name, "local-summary")
         self.assertEqual(final_state.phase, "summarize")
 
     def test_run_task_routes_promote_intent_knowledge_to_staged_for_canonical_forbidden_route(self) -> None:
@@ -7480,7 +7492,7 @@ class CliLifecycleTest(unittest.TestCase):
                     if line.strip()
                 ]
 
-        self.assertEqual(events[-1]["event_type"], "task.failed")
+        self.assertEqual(events[-1]["event_type"], "task.completed")
         self.assertEqual(events[1]["event_type"], "task.run_started")
         self.assertEqual(events[1]["payload"]["previous_status"], "created")
         self.assertEqual(events[1]["payload"]["previous_phase"], "intake")
@@ -7511,32 +7523,39 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertTrue(bool(events[8]["payload"]["dispatch_started_at"]))
         self.assertEqual(events[8]["payload"]["execution_lifecycle"], "dispatched")
         self.assertEqual(events[8]["payload"]["failure_kind"], "launch_error")
-        self.assertEqual(events[9]["event_type"], "task.review_gate")
-        self.assertEqual(events[9]["payload"]["status"], "failed")
-        self.assertEqual(events[10]["event_type"], "task.phase_checkpoint")
-        self.assertEqual(events[10]["payload"]["execution_phase"], "execution_done")
-        self.assertEqual(events[12]["event_type"], "compatibility.completed")
-        self.assertEqual(events[12]["payload"]["status"], "passed")
-        self.assertEqual(events[13]["event_type"], "execution_fit.completed")
-        self.assertEqual(events[13]["payload"]["status"], "passed")
-        self.assertEqual(events[14]["event_type"], "knowledge_policy.completed")
+        self.assertEqual(events[9]["event_type"], "executor.completed")
+        self.assertEqual(events[9]["payload"]["executor_name"], "local")
+        self.assertEqual(events[9]["payload"]["route_name"], "local-summary")
+        self.assertEqual(events[10]["event_type"], "task.execution_fallback")
+        self.assertEqual(events[10]["payload"]["previous_route_name"], "local-codex")
+        self.assertEqual(events[10]["payload"]["fallback_route_name"], "local-summary")
+        self.assertEqual(events[10]["payload"]["fallback_status"], "completed")
+        self.assertEqual(events[11]["event_type"], "task.review_gate")
+        self.assertEqual(events[11]["payload"]["status"], "passed")
+        self.assertEqual(events[12]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[12]["payload"]["execution_phase"], "execution_done")
+        self.assertEqual(events[14]["event_type"], "compatibility.completed")
         self.assertEqual(events[14]["payload"]["status"], "passed")
-        self.assertEqual(events[15]["event_type"], "validation.completed")
+        self.assertEqual(events[15]["event_type"], "execution_fit.completed")
         self.assertEqual(events[15]["payload"]["status"], "passed")
-        self.assertEqual(events[16]["event_type"], "retry_policy.completed")
-        self.assertEqual(events[16]["payload"]["status"], "failed")
-        self.assertEqual(events[17]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[16]["event_type"], "knowledge_policy.completed")
+        self.assertEqual(events[16]["payload"]["status"], "passed")
+        self.assertEqual(events[17]["event_type"], "validation.completed")
         self.assertEqual(events[17]["payload"]["status"], "passed")
-        self.assertEqual(events[18]["event_type"], "stop_policy.completed")
-        self.assertEqual(events[18]["payload"]["status"], "failed")
-        self.assertEqual(events[19]["event_type"], "checkpoint_snapshot.completed")
-        self.assertEqual(events[19]["payload"]["status"], "warning")
-        self.assertEqual(events[21]["event_type"], "task.phase_checkpoint")
-        self.assertEqual(events[21]["payload"]["execution_phase"], "analysis_done")
-        self.assertEqual(events[-1]["payload"]["status"], "failed")
+        self.assertEqual(events[18]["event_type"], "retry_policy.completed")
+        self.assertEqual(events[18]["payload"]["status"], "passed")
+        self.assertEqual(events[19]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[19]["payload"]["status"], "passed")
+        self.assertEqual(events[20]["event_type"], "stop_policy.completed")
+        self.assertEqual(events[20]["payload"]["status"], "warning")
+        self.assertEqual(events[21]["event_type"], "checkpoint_snapshot.completed")
+        self.assertEqual(events[21]["payload"]["status"], "passed")
+        self.assertEqual(events[23]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[23]["payload"]["execution_phase"], "analysis_done")
+        self.assertEqual(events[-1]["payload"]["status"], "completed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
-        self.assertEqual(events[-1]["payload"]["executor_status"], "failed")
-        self.assertEqual(events[-1]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[-1]["payload"]["executor_status"], "completed")
+        self.assertEqual(events[-1]["payload"]["route_name"], "local-summary")
         self.assertEqual(events[-1]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[-1]["payload"]["route_remote_capable"], False)
         self.assertEqual(events[-1]["payload"]["compatibility_status"], "passed")
@@ -7619,9 +7638,9 @@ class CliLifecycleTest(unittest.TestCase):
                     if line.strip()
                 ]
 
-        self.assertEqual(first_state["status"], "failed")
+        self.assertEqual(first_state["status"], "completed")
         self.assertEqual(first_state["phase"], "summarize")
-        self.assertEqual(final_state["status"], "failed")
+        self.assertEqual(final_state["status"], "completed")
         self.assertEqual(final_state["phase"], "summarize")
         self.assertEqual(
             [event["event_type"] for event in first_events],
@@ -7635,6 +7654,8 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase_checkpoint",
                 "task.phase",
                 "executor.failed",
+                "executor.completed",
+                "task.execution_fallback",
                 "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
@@ -7648,7 +7669,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "checkpoint_snapshot.completed",
                 "artifacts.written",
                 "task.phase_checkpoint",
-                "task.failed",
+                "task.completed",
             ],
         )
         self.assertEqual(
@@ -7663,6 +7684,8 @@ class CliLifecycleTest(unittest.TestCase):
                 "task.phase_checkpoint",
                 "task.phase",
                 "executor.failed",
+                "executor.completed",
+                "task.execution_fallback",
                 "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
@@ -7676,7 +7699,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "checkpoint_snapshot.completed",
                 "artifacts.written",
                 "task.phase_checkpoint",
-                "task.failed",
+                "task.completed",
                 "task.run_started",
                 "task.planned",
                 "task.phase",
@@ -7684,7 +7707,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
-                "executor.failed",
+                "executor.completed",
                 "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
@@ -7698,11 +7721,11 @@ class CliLifecycleTest(unittest.TestCase):
                 "checkpoint_snapshot.completed",
                 "artifacts.written",
                 "task.phase_checkpoint",
-                "task.failed",
+                "task.completed",
             ],
         )
         second_run_started = final_events[len(first_events)]
-        self.assertEqual(second_run_started["payload"]["previous_status"], "failed")
+        self.assertEqual(second_run_started["payload"]["previous_status"], "completed")
         self.assertEqual(second_run_started["payload"]["previous_phase"], "summarize")
         self.assertEqual(second_run_started["payload"]["status"], "running")
         self.assertEqual(second_run_started["payload"]["phase"], "intake")
@@ -7715,7 +7738,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(final_state["run_attempt_count"], 2)
         self.assertEqual(final_state["current_attempt_id"], "attempt-0002")
         self.assertEqual(final_state["current_attempt_number"], 2)
-        self.assertEqual(final_state["execution_lifecycle"], "failed")
+        self.assertEqual(final_state["execution_lifecycle"], "completed")
 
     def test_run_persists_execution_phase_checkpoints(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7911,10 +7934,12 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_resolve_dialect_name_prefers_route_hint_and_falls_back_to_plain_text(self) -> None:
         self.assertEqual(resolve_dialect_name("structured_markdown", "codex"), "structured_markdown")
+        self.assertEqual(resolve_dialect_name("", "codex"), "codex_fim")
+        self.assertEqual(resolve_dialect_name("", "claude-3-5-sonnet"), "claude_xml")
         self.assertEqual(resolve_dialect_name("", "mock"), "plain_text")
         self.assertEqual(resolve_dialect_name("", "unknown-provider"), "plain_text")
 
-    def test_build_formatted_executor_prompt_uses_structured_markdown_for_codex_route(self) -> None:
+    def test_build_formatted_executor_prompt_uses_codex_fim_for_codex_route(self) -> None:
         state = TaskState(
             task_id="dialect123",
             title="Dialect formatting",
@@ -7923,7 +7948,11 @@ class CliLifecycleTest(unittest.TestCase):
             route_name="local-codex",
             route_backend="local_cli",
             route_model_hint="codex",
-            route_dialect="structured_markdown",
+            route_dialect="codex_fim",
+            route_capabilities={
+                "execution_kind": "code_execution",
+                "supports_tool_loop": True,
+            },
         )
         retrieval_items = [
             RetrievalItem(
@@ -7938,13 +7967,11 @@ class CliLifecycleTest(unittest.TestCase):
 
         prompt = build_formatted_executor_prompt(state, retrieval_items)
 
-        self.assertIn("# Swallow Executor Task", prompt)
-        self.assertIn("## Task", prompt)
-        self.assertIn("## Route", prompt)
-        self.assertIn("## Retrieved Context", prompt)
-        self.assertIn("## Instructions", prompt)
-        self.assertIn("- route_dialect: structured_markdown", prompt)
-        self.assertIn("- [notes] notes.md#L1-L2 title=Notes: Dialect-sensitive context preview.", prompt)
+        self.assertTrue(prompt.startswith("<fim_prefix>\n"))
+        self.assertIn("<fim_suffix>", prompt)
+        self.assertIn("Route: local-codex", prompt)
+        self.assertIn("notes.md#L1-L2", prompt)
+        self.assertIn("Return a concise execution update", prompt)
 
     def test_resolve_executor_name_prefers_state_over_legacy_env(self) -> None:
         state = TaskState(
@@ -8001,8 +8028,8 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
         self.assertEqual(state.route_name, "local-codex")
-        self.assertEqual(state.route_dialect, "structured_markdown")
-        self.assertEqual(persisted["route_dialect"], "structured_markdown")
+        self.assertEqual(state.route_dialect, "codex_fim")
+        self.assertEqual(persisted["route_dialect"], "codex_fim")
 
     def test_select_route_uses_override_before_legacy_mode(self) -> None:
         state = TaskState(
@@ -8868,6 +8895,9 @@ class CliLifecycleTest(unittest.TestCase):
 
             task_dir = tmp_path / ".swl" / "tasks" / task_id
             prompt = (task_dir / "artifacts" / "executor_prompt.md").read_text(encoding="utf-8")
+            primary_prompt = (task_dir / "artifacts" / "fallback_primary_executor_prompt.md").read_text(
+                encoding="utf-8"
+            )
             events = [
                 json.loads(line)
                 for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
@@ -8881,12 +8911,17 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
 
         executor_event = next(event for event in events if event["event_type"] == "executor.failed")
-        self.assertTrue(prompt.startswith("dialect: structured_markdown\n\n"))
-        self.assertIn("# Swallow Executor Task", prompt)
-        self.assertIn("## Task", prompt)
-        self.assertEqual(executor_event["payload"]["dialect"], "structured_markdown")
-        self.assertIn("dialect: structured_markdown", inspect_stdout.getvalue())
-        self.assertIn("dialect: structured_markdown", review_stdout.getvalue())
+        fallback_event = next(event for event in events if event["event_type"] == "task.execution_fallback")
+        self.assertTrue(prompt.startswith("dialect: plain_text\n\n"))
+        self.assertIn("Executor: local", prompt)
+        self.assertIn("Route: local-summary", prompt)
+        self.assertTrue(primary_prompt.startswith("dialect: codex_fim\n\n"))
+        self.assertIn("<fim_prefix>", primary_prompt)
+        self.assertIn("<fim_suffix>", primary_prompt)
+        self.assertEqual(executor_event["payload"]["dialect"], "codex_fim")
+        self.assertEqual(fallback_event["payload"]["fallback_route_name"], "local-summary")
+        self.assertIn("dialect: plain_text", inspect_stdout.getvalue())
+        self.assertIn("dialect: plain_text", review_stdout.getvalue())
 
     def test_reused_verified_knowledge_is_visible_in_retrieval_memory_and_rerun_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

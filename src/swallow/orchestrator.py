@@ -45,7 +45,7 @@ from .knowledge_objects import (
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from .models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, TaskCard, TaskState
+from .models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, RouteSpec, TaskCard, TaskState
 from .models import DispatchVerdict, evaluate_dispatch_verdict
 from .paths import (
     artifacts_dir,
@@ -80,7 +80,7 @@ from .paths import (
     validation_path,
 )
 from .retrieval import build_retrieval_request
-from .router import normalize_route_mode, select_route
+from .router import fallback_route_for, normalize_route_mode, select_route
 from .planner import plan
 from .review_gate import ReviewGateResult, review_executor_output
 from .staged_knowledge import StagedCandidate, submit_staged_candidate
@@ -116,6 +116,13 @@ STANDARD_SUBTASK_ARTIFACT_NAMES = {
     "executor_stderr.txt",
 }
 
+EXECUTOR_ARTIFACT_NAMES = (
+    "executor_prompt.md",
+    "executor_output.md",
+    "executor_stdout.txt",
+    "executor_stderr.txt",
+)
+
 
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
     enforced_capabilities, applied_constraints = enforce_capability_constraints(
@@ -129,6 +136,39 @@ def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint
 
 def _serialize_capability_constraints(constraints: list[CapabilityConstraint]) -> list[dict[str, object]]:
     return [constraint.to_dict() for constraint in constraints]
+
+
+def _apply_route_spec_to_state(
+    state: TaskState,
+    route: RouteSpec,
+    reason: str,
+    *,
+    update_executor_name: bool = True,
+) -> dict[str, object]:
+    if update_executor_name:
+        state.executor_name = route.executor_name
+    state.route_name = route.name
+    state.route_backend = route.backend_kind
+    state.route_executor_family = route.executor_family
+    state.route_execution_site = route.execution_site
+    state.route_remote_capable = route.remote_capable
+    state.route_transport_kind = route.transport_kind
+    state.route_taxonomy_role = route.taxonomy.system_role
+    state.route_taxonomy_memory_authority = route.taxonomy.memory_authority
+    state.route_model_hint = route.model_hint
+    state.route_dialect = resolve_dialect_name(route.dialect_hint, route.model_hint)
+    state.route_reason = reason
+    original_route_capabilities = route.capabilities.to_dict()
+    state.route_capabilities = dict(original_route_capabilities)
+    return original_route_capabilities
+
+
+def _dispatch_status_for_transport(transport_kind: str) -> str:
+    if transport_kind == "mock_remote_transport":
+        return "mock_remote_dispatched"
+    if transport_kind == "local_detached_process":
+        return "detached_dispatched"
+    return "local_dispatched"
 
 
 def _execute_task_card(
@@ -267,6 +307,95 @@ def _append_parent_executor_event(
             },
         ),
     )
+
+
+def _write_prefixed_executor_artifacts(
+    base_dir: Path,
+    task_id: str,
+    *,
+    prefix: str,
+) -> list[str]:
+    written: list[str] = []
+    task_artifacts_dir = artifacts_dir(base_dir, task_id)
+    for artifact_name in EXECUTOR_ARTIFACT_NAMES:
+        source_path = task_artifacts_dir / artifact_name
+        if not source_path.exists():
+            continue
+        prefixed_name = f"{prefix}_{artifact_name}"
+        write_artifact(
+            base_dir,
+            task_id,
+            prefixed_name,
+            source_path.read_text(encoding="utf-8", errors="replace"),
+        )
+        written.append(prefixed_name)
+    return written
+
+
+def _run_binary_fallback(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+    primary_result: ExecutorResult,
+) -> tuple[ExecutorResult, TaskCard, bool]:
+    fallback_route = fallback_route_for(state.route_name)
+    if fallback_route is None or fallback_route.name == state.route_name:
+        return primary_result, card, False
+
+    primary_route_name = state.route_name
+    primary_executor_name = primary_result.executor_name
+    primary_failure_kind = primary_result.failure_kind
+    primary_artifacts = _write_prefixed_executor_artifacts(
+        base_dir,
+        state.task_id,
+        prefix="fallback_primary",
+    )
+    fallback_reason = (
+        f"Selected fallback route '{fallback_route.name}' after executor failure on '{primary_route_name}'."
+    )
+    _apply_route_spec_to_state(state, fallback_route, fallback_reason)
+    applied_constraints = _apply_capability_enforcement(state)
+    _apply_execution_topology(state, dispatch_status=_dispatch_status_for_transport(state.route_transport_kind))
+    _apply_execution_site_contract(state)
+    state.executor_status = "running"
+    save_state(base_dir, state)
+
+    fallback_card = replace(
+        card,
+        route_hint=fallback_route.name,
+        executor_type=fallback_route.executor_family,
+    )
+    fallback_result = _execute_task_card(base_dir, state, fallback_card, retrieval_items)
+    fallback_artifacts = _write_prefixed_executor_artifacts(
+        base_dir,
+        state.task_id,
+        prefix="fallback",
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="task.execution_fallback",
+            message=f"Fallback route '{fallback_route.name}' executed after primary executor failure.",
+            payload={
+                "previous_route_name": primary_route_name,
+                "previous_executor_name": primary_executor_name,
+                "previous_failure_kind": primary_failure_kind,
+                "previous_status": primary_result.status,
+                "fallback_route_name": fallback_route.name,
+                "fallback_executor_name": fallback_result.executor_name,
+                "fallback_status": fallback_result.status,
+                "fallback_failure_kind": fallback_result.failure_kind,
+                "fallback_route_reason": state.route_reason,
+                "fallback_route_capabilities": state.route_capabilities,
+                "capability_constraints_applied": _serialize_capability_constraints(applied_constraints),
+                "primary_artifacts_written": primary_artifacts,
+                "fallback_artifacts_written": fallback_artifacts,
+            },
+        ),
+    )
+    return fallback_result, fallback_card, True
 
 
 def _append_subtask_events(
@@ -681,18 +810,11 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
     state.executor_name = "local"
     state.route_mode = "summary"
     route_selection = select_route(state, executor_override=state.executor_name, route_mode_override=state.route_mode)
-    state.route_name = route_selection.route.name
-    state.route_backend = route_selection.route.backend_kind
-    state.route_executor_family = route_selection.route.executor_family
-    state.route_execution_site = route_selection.route.execution_site
-    state.route_remote_capable = route_selection.route.remote_capable
-    state.route_transport_kind = route_selection.route.transport_kind
-    state.route_taxonomy_role = route_selection.route.taxonomy.system_role
-    state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
-    state.route_model_hint = route_selection.route.model_hint
-    state.route_dialect = resolve_dialect_name(route_selection.route.dialect_hint, route_selection.route.model_hint)
-    state.route_reason = "Operator acknowledged blocked dispatch and forced a local execution path."
-    state.route_capabilities = route_selection.route.capabilities.to_dict()
+    _apply_route_spec_to_state(
+        state,
+        route_selection.route,
+        "Operator acknowledged blocked dispatch and forced a local execution path.",
+    )
     applied_constraints = _apply_capability_enforcement(state)
     _apply_execution_topology(state, dispatch_status="acknowledged")
     _apply_execution_site_contract(state)
@@ -785,18 +907,8 @@ def create_task(
         route_mode=normalize_route_mode(route_mode),
     )
     initial_route = select_route(state, route_mode_override=state.route_mode)
-    state.route_name = initial_route.route.name
-    state.route_backend = initial_route.route.backend_kind
-    state.route_executor_family = initial_route.route.executor_family
-    state.route_execution_site = initial_route.route.execution_site
-    state.route_remote_capable = initial_route.route.remote_capable
-    state.route_transport_kind = initial_route.route.transport_kind
-    state.route_taxonomy_role = initial_route.route.taxonomy.system_role
-    state.route_taxonomy_memory_authority = initial_route.route.taxonomy.memory_authority
-    state.route_model_hint = initial_route.route.model_hint
-    state.route_dialect = resolve_dialect_name(initial_route.route.dialect_hint, initial_route.route.model_hint)
-    state.route_reason = initial_route.reason
-    state.route_capabilities = initial_route.route.capabilities.to_dict()
+    _apply_route_spec_to_state(state, initial_route.route, initial_route.reason, update_executor_name=False)
+    state.executor_name = normalize_executor_name(executor_name)
     _apply_execution_topology(state, dispatch_status="not_requested")
     _apply_execution_site_contract(state)
     state.artifact_paths = {
@@ -1439,20 +1551,7 @@ def run_task(
         save_capability_assembly(base_dir, task_id, state.capability_assembly)
     state.route_mode = normalize_route_mode(route_mode or state.route_mode)
     route_selection = select_route(state, executor_name, route_mode)
-    state.executor_name = route_selection.route.executor_name
-    state.route_name = route_selection.route.name
-    state.route_backend = route_selection.route.backend_kind
-    state.route_executor_family = route_selection.route.executor_family
-    state.route_execution_site = route_selection.route.execution_site
-    state.route_remote_capable = route_selection.route.remote_capable
-    state.route_transport_kind = route_selection.route.transport_kind
-    state.route_taxonomy_role = route_selection.route.taxonomy.system_role
-    state.route_taxonomy_memory_authority = route_selection.route.taxonomy.memory_authority
-    state.route_model_hint = route_selection.route.model_hint
-    state.route_dialect = resolve_dialect_name(route_selection.route.dialect_hint, route_selection.route.model_hint)
-    state.route_reason = route_selection.reason
-    original_route_capabilities = route_selection.route.capabilities.to_dict()
-    state.route_capabilities = dict(original_route_capabilities)
+    original_route_capabilities = _apply_route_spec_to_state(state, route_selection.route, route_selection.reason)
     applied_constraints = _apply_capability_enforcement(state)
     _begin_execution_attempt(state)
     _apply_execution_topology(state, dispatch_status="planned")
@@ -1626,11 +1725,7 @@ def run_task(
     if executor_result is None:
         state.dispatch_started_at = utc_now()
         state.topology_dispatch_status = (
-            "mock_remote_dispatched"
-            if state.topology_transport_kind == "mock_remote_transport"
-            else "detached_dispatched"
-            if state.topology_transport_kind == "local_detached_process"
-            else "local_dispatched"
+            _dispatch_status_for_transport(state.topology_transport_kind)
         )
         state.execution_lifecycle = "dispatched"
         save_state(base_dir, state)
@@ -1644,6 +1739,14 @@ def run_task(
             )
         else:
             executor_result = _execute_task_card(base_dir, state, card, retrieval_items)
+            if executor_result.status == "failed":
+                executor_result, card, _ = _run_binary_fallback(
+                    base_dir,
+                    state,
+                    card,
+                    retrieval_items,
+                    executor_result,
+                )
             review_gate_result = review_executor_output(executor_result, card)
         execution_skipped = False
     else:
