@@ -7,15 +7,15 @@
 - latest_completed_slice: `Control Center Baseline`
 - active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 38`
-- active_slice: `S2_meta_optimizer_cost_complete`
+- active_slice: `S3_cost_estimator_protocol_complete`
 - active_branch: `feat/phase38-cost-telemetry`
-- status: `s2_ready_waiting_human_commit`
+- status: `s3_ready_waiting_human_commit`
 
 ---
 
 ## 当前状态说明
 
-Phase 38 已进入实现阶段。本轮目标是为遥测补齐 `token_cost` 字段（S1 本地成本估算 + S2 Meta-Optimizer 成本维度升级 + S3 CostEstimator 接口预留），零外部依赖，不部署 Provider Connector。S1 已完成：`TelemetryFields` 与 `ExecutorResult` 已补齐成本相关字段，executor / fallback 事件开始写入本地估算 `token_cost`。S2 现已完成：Meta-Optimizer 已开始聚合 `total_cost` / `avg_cost`、输出成本摘要，并生成高成本路由、同 task family 成本对比与成本上升趋势提案；全量 `pytest` 已通过（265 passed）。
+Phase 38 已进入实现阶段。本轮目标是为遥测补齐 `token_cost` 字段（S1 本地成本估算 + S2 Meta-Optimizer 成本维度升级 + S3 CostEstimator 接口预留），零外部依赖，不部署 Provider Connector。S1 已完成：`TelemetryFields` 与 `ExecutorResult` 已补齐成本相关字段，executor / fallback 事件开始写入本地估算 `token_cost`。S2 已完成：Meta-Optimizer 已开始聚合 `total_cost` / `avg_cost`、输出成本摘要，并生成高成本路由、同 task family 成本对比与成本上升趋势提案。S3 现已完成：`cost_estimation.py` 已补 `CostEstimator` protocol 和默认 `StaticCostEstimator`，`harness.run_execution()` 已通过可注入 estimator 计算 telemetry 成本；全量 `pytest` 已通过（267 passed）。
 
 ---
 
@@ -107,9 +107,9 @@ Phase 38 已进入实现阶段。本轮目标是为遥测补齐 `token_cost` 字
 
 ## 下一步
 
-- **[Human]** 审查 S2 diff 并执行 slice commit
-- **[Codex]** 在 S2 提交后继续实现 S3：CostEstimator protocol / `StaticCostEstimator`
+- **[Human]** 审查 S3 diff 并执行 slice commit
+- **[Codex]** 在 S3 提交后整理 Phase 38 closeout 文档和 `pr.md`
 
 ## 当前阻塞项
 
-- 等待 Human: 审查并提交 S2 slice
+- 等待 Human: 审查并提交 S3 slice

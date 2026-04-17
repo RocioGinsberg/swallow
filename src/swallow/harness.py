@@ -7,7 +7,7 @@ from time import perf_counter
 
 from .checkpoint_snapshot import build_checkpoint_snapshot_report, evaluate_checkpoint_snapshot
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
-from .cost_estimation import estimate_cost
+from .cost_estimation import DEFAULT_COST_ESTIMATOR, CostEstimator
 from .execution_budget_policy import build_execution_budget_policy_report, evaluate_execution_budget_policy
 from .execution_fit import build_execution_fit_report, evaluate_execution_fit
 from .executor import build_failure_recommendations, run_executor
@@ -96,7 +96,13 @@ def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -
     return retrieval_items
 
 
-def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+def run_execution(
+    base_dir: Path,
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    *,
+    cost_estimator: CostEstimator = DEFAULT_COST_ESTIMATOR,
+) -> ExecutorResult:
     started_at = perf_counter()
     executor_result = run_executor(state, retrieval_items)
     executor_result = replace(
@@ -104,7 +110,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
         latency_ms=max(int((perf_counter() - started_at) * 1000), 0),
     )
     prompt_body = executor_result.prompt
-    token_cost = estimate_cost(
+    token_cost = cost_estimator.estimate(
         state.route_model_hint,
         executor_result.estimated_input_tokens,
         executor_result.estimated_output_tokens,
