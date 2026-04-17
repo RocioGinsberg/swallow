@@ -4,6 +4,10 @@ from ..dialect_data import collect_prompt_data
 from ..models import DialectSpec, RetrievalItem, TaskState
 
 
+def _escape_fim_markers(value: str) -> str:
+    return value.replace("<fim_prefix>", "[fim_prefix]").replace("<fim_suffix>", "[fim_suffix]")
+
+
 class CodexFIMDialect:
     spec = DialectSpec(
         name="codex_fim",
@@ -22,9 +26,9 @@ class CodexFIMDialect:
         prefix_lines = [
             "# Swallow Codex FIM Task",
             "",
-            f"Task ID: {prompt_data.task.task_id}",
-            f"Title: {prompt_data.task.title}",
-            f"Goal: {prompt_data.task.goal}",
+            f"Task ID: {_escape_fim_markers(prompt_data.task.task_id)}",
+            f"Title: {_escape_fim_markers(prompt_data.task.title)}",
+            f"Goal: {_escape_fim_markers(prompt_data.task.goal)}",
             f"Route: {prompt_data.route.route_name}",
             f"Model Hint: {prompt_data.route.route_model_hint}",
             "",
@@ -32,7 +36,7 @@ class CodexFIMDialect:
             *retrieval_lines,
             "",
             "Raw Executor Prompt:",
-            raw_prompt.strip(),
+            _escape_fim_markers(raw_prompt.strip()),
         ]
         suffix_lines = [
             "Return a concise execution update with:",

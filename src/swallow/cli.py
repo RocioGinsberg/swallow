@@ -657,6 +657,12 @@ def build_stage_promote_preflight_notices(
     canonical_records: list[dict[str, object]],
     candidate: StagedCandidate,
 ) -> list[dict[str, str]]:
+    """Build structured preflight notices for stage promotion decisions.
+
+    The return shape is intentionally `list[dict[str, str]]`. Earlier drafts used
+    plain strings, but the CLI has already standardized on structured notice
+    records so downstream formatting can stay explicit and stable.
+    """
     preview_record = build_stage_canonical_record(candidate)
     canonical_id = str(preview_record.get("canonical_id", "")).strip()
     canonical_key = str(preview_record.get("canonical_key", "")).strip()

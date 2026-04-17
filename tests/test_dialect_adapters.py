@@ -272,6 +272,27 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertNotIn("<fim_prefix>", prompt)
         self.assertIn("You are the executor for a swallow workflow task.", prompt)
 
+    def test_codex_fim_escapes_user_controlled_fim_markers(self) -> None:
+        state = TaskState(
+            task_id="task-<fim_prefix>-001",
+            title="Escape <fim_prefix> in title",
+            goal="Keep <fim_suffix> markers inside task metadata from breaking the wrapper",
+            workspace_root="/tmp",
+            route_name="local-codex",
+            route_model_hint="codex",
+            route_dialect="codex_fim",
+            route_capabilities={"execution_kind": "code_execution"},
+        )
+
+        prompt = build_formatted_executor_prompt(state, [])
+
+        self.assertTrue(prompt.startswith("<fim_prefix>\n"))
+        self.assertEqual(prompt.count("<fim_prefix>"), 1)
+        self.assertEqual(prompt.count("<fim_suffix>"), 1)
+        self.assertIn("Task ID: task-[fim_prefix]-001", prompt)
+        self.assertIn("Title: Escape [fim_prefix] in title", prompt)
+        self.assertIn("Goal: Keep [fim_suffix] markers inside task metadata", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

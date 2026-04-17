@@ -199,6 +199,31 @@ def _execute_task_card(
     return executor.execute(base_dir, state, card, retrieval_items)
 
 
+def _append_canonical_write_guard_warning(base_dir: Path, state: TaskState, card: TaskCard) -> None:
+    raw_executor_name = (state.executor_name or "").strip().lower()
+    normalized_executor_type = (card.executor_type or "").strip().lower()
+    is_librarian_executor = raw_executor_name == "librarian" or normalized_executor_type == "librarian"
+    if not state.route_capabilities.get("canonical_write_guard") or is_librarian_executor:
+        return
+
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="task.canonical_write_guard_warning",
+            message="Canonical write guard is active on a non-librarian executor route; continuing in audit mode.",
+            payload={
+                "executor_name": state.executor_name,
+                "executor_type": card.executor_type,
+                "route_name": state.route_name,
+                "route_taxonomy_role": state.route_taxonomy_role,
+                "route_taxonomy_memory_authority": state.route_taxonomy_memory_authority,
+                "canonical_write_guard": True,
+            },
+        ),
+    )
+
+
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
     if not path.exists():
         return []
@@ -913,7 +938,7 @@ def _apply_blocked_dispatch_verdict(
     return state
 
 
-def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
+def acknowledge_task(base_dir: Path, task_id: str, *, route_mode: str = "summary") -> TaskState:
     state = load_state(base_dir, task_id)
     if state.status != "dispatch_blocked":
         raise ValueError(f"Only dispatch_blocked tasks can be acknowledged; current status is {state.status}.")
@@ -921,8 +946,8 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
     previous_status = state.status
     previous_phase = state.phase
     state.executor_name = "local"
-    state.route_mode = "summary"
-    route_selection = select_route(state, executor_override=state.executor_name, route_mode_override=state.route_mode)
+    state.route_mode = normalize_route_mode(route_mode)
+    route_selection = select_route(state, route_mode_override=state.route_mode)
     _apply_route_spec_to_state(
         state,
         route_selection.route,
@@ -1851,6 +1876,7 @@ def run_task(
                 retrieval_items,
             )
         else:
+            _append_canonical_write_guard_warning(base_dir, state, card)
             executor_result = _execute_task_card(base_dir, state, card, retrieval_items)
             state = _apply_librarian_side_effects(base_dir, state, executor_result)
             if executor_result.status == "failed":
