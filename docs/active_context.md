@@ -3,19 +3,19 @@
 ## 当前轮次
 
 - latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
-- latest_completed_phase: `Phase 37`
-- latest_completed_slice: `Control Center Baseline`
-- active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
-- active_phase: `Phase 38`
-- active_slice: `phase38_review_complete`
-- active_branch: `feat/phase38-cost-telemetry`
-- status: `review_completed_waiting_human_merge`
+- latest_completed_phase: `Phase 38`
+- latest_completed_slice: `Cost Telemetry Baseline`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
+- active_branch: `main`
+- status: `phase38_merged_waiting_next_kickoff`
 
 ---
 
 ## 当前状态说明
 
-Phase 38 实现与 review 均已完成。Claude review 结论：Merge ready（0 BLOCK, 1 CONCERN, 0 NOTE）。`docs/plans/phase38/review_comments.md` 已收口为 `final`；唯一 concern C1（fallback 成本未计入 route stats）已记入 `docs/concerns_backlog.md`，作为后续 meta_optimizer 成本逻辑的 backlog follow-up，不阻塞当前 merge。Tag 评估：暂不打新 tag（内部遥测扩展，无用户可感知变化）。
+Phase 38 已完成实现、review 与 merge，当前真相分支已回到 `main`。本轮为执行遥测补齐了 `token_cost` 基线、Meta-Optimizer 成本维度与 `CostEstimator` protocol 预留；唯一 review concern C1（fallback 成本未计入 route stats）已记入 `docs/concerns_backlog.md`，留待后续触碰 meta_optimizer 成本逻辑时吸收。当前默认不再继续停留在 Phase 38 的 merge 语义，而应重新从 roadmap 选择下一轮 kickoff。
 
 ---
 
@@ -28,10 +28,12 @@ Phase 38 实现与 review 均已完成。Claude review 结论：Merge ready（0 
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase37/closeout.md`
+6. `docs/plans/phase38/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase38/review_comments.md`
+- `docs/plans/phase38/kickoff.md`
 - `docs/plans/phase37/review_comments.md`
 - `docs/plans/phase37/kickoff.md`
 - `docs/plans/phase36/closeout.md`
@@ -107,10 +109,10 @@ Phase 38 实现与 review 均已完成。Claude review 结论：Merge ready（0 
 
 ## 下一步
 
-- **[Human]** 阅读 `docs/plans/phase38/review_comments.md`，确认后合并
-- **[Human]** merge 后不打新 tag（建议等用户可感知功能后打 v0.3.0）
-- **[Codex]** 下次触碰 meta_optimizer 成本逻辑时吸收 C1 fallback 成本统计
+- **[Human]** 从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择下一轮方向
+- **[Claude]** 产出下一轮 kickoff / 风险评估
+- **[Codex]** 在新 phase 获批并切出 feature branch 后继续实现
 
 ## 当前阻塞项
 
-- 等待 Human: 确认 review + merge 决策
+- 等待 Human: 选择下一轮 phase 方向

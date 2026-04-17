@@ -34,16 +34,16 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 37`
-- latest_completed_slice: `Control Center Baseline`
+- latest_completed_phase: `Phase 38`
+- latest_completed_slice: `Cost Telemetry Baseline`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-18`
 
 说明：
 
-- Phase 37 仍是当前已 merge 的最新稳定 checkpoint
-- `docs/plans/phase37/closeout.md` 与 `docs/plans/phase37/review_comments.md` 已反映当前 merged / closeout 完成状态
-- Phase 38 已在 `feat/phase38-cost-telemetry` 上完成实现与 slice 拆 commit，但尚未进入 review / merge，因此还不是新的 stable checkpoint
+- Phase 38 已完成实现、review、收口与 merge，并已在 `main` 上形成新的稳定 checkpoint
+- `docs/plans/phase38/closeout.md` 与 `docs/plans/phase38/review_comments.md` 已反映当前 merged / closeout 完成状态
+- 当前默认不再继续扩张已完成的 Phase 38，而应重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -51,14 +51,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
-- active_phase: `Phase 38`
-- active_slice: `review_pending`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
 
 说明：
 
-- Phase 38 已完成实现，当前在 `feat/phase38-cost-telemetry`
-- 下一步不是重新 kickoff，而是先完成 review、review follow-up（如有）与 merge 决策
+- Phase 38 已完成并合入 `main`
+- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
 
 ---
 
@@ -75,8 +75,8 @@
 
 仅在需要时再读取：
 
-- `docs/plans/phase38/kickoff.md`
 - `docs/plans/phase38/review_comments.md`
+- `docs/plans/phase38/kickoff.md`
 - `docs/plans/phase37/review_comments.md`
 - `docs/plans/phase37/kickoff.md`
 - `pr.md`
@@ -131,6 +131,7 @@
 
 - `_apply_librarian_side_effects()` 当前仍是顺序持久化 + 索引重建，若中途失败可能导致 state 与 index 不一致；该 concern 已记录在 `docs/concerns_backlog.md`。
 - 遥测 schema 当前的 `token_cost` 仍是本地估算，不代表真实 provider billing。
+- `EVENT_TASK_EXECUTION_FALLBACK` 的 `token_cost` 当前尚未计入 Meta-Optimizer route stats；该 concern 已记录在 `docs/concerns_backlog.md`。
 - `meta-optimize` 当前为只读分析入口，不会自动采纳提案，也不会直接修改 route policy 或 task state。
 - `StaticCostEstimator` 的定价表是硬编码常量，后续需要独立 phase 才能切到 provider usage 驱动。
 - 真实 codex exec 在当前环境中仍可能因 outbound network / WebSocket 受限而失败。
