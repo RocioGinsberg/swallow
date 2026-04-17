@@ -1098,6 +1098,13 @@ def build_parser() -> argparse.ArgumentParser:
         default=100,
         help="Maximum number of recent task event logs to scan. Defaults to 100.",
     )
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Run the read-only control center API server.",
+        description="Run the read-only control center API server.",
+    )
+    serve_parser.add_argument("--host", default="127.0.0.1", help="Host interface to bind. Defaults to 127.0.0.1.")
+    serve_parser.add_argument("--port", type=int, default=8037, help="Port to bind. Defaults to 8037.")
 
     knowledge_stage_list_parser = knowledge_subparsers.add_parser(
         "stage-list",
@@ -1858,6 +1865,16 @@ def main(argv: list[str] | None = None) -> int:
         _snapshot, artifact_path, report = run_meta_optimizer(base_dir, last_n=args.last_n)
         print(report, end="")
         print(f"artifact: {artifact_path}")
+        return 0
+
+    if args.command == "serve":
+        try:
+            from .web.server import serve_control_center
+
+            serve_control_center(base_dir, host=args.host, port=args.port)
+        except RuntimeError as exc:
+            print(str(exc))
+            return 1
         return 0
 
     if args.command == "task" and args.task_command == "create":
