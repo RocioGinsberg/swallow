@@ -7,15 +7,15 @@
 - latest_completed_slice: `Control Center Baseline`
 - active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 38`
-- active_slice: `phase38_implementation_complete_review_pending`
+- active_slice: `phase38_review_complete`
 - active_branch: `feat/phase38-cost-telemetry`
-- status: `review_pending_pr_sync_ready`
+- status: `review_completed_waiting_human_merge`
 
 ---
 
 ## 当前状态说明
 
-Phase 38 已完成实现与 slice 拆 commit，当前状态为 review pending / PR sync ready。本轮为执行遥测补齐了 `token_cost` 基线：S1 在 executor / fallback 事件中写入本地估算成本，S2 为 Meta-Optimizer 增加成本聚合与提案，S3 预留 `CostEstimator` protocol 与默认 `StaticCostEstimator`。当前全量回归基线为 `267 passed in 6.23s`，下一步进入 Claude review，而不是继续扩张到 provider connector 部署。
+Phase 38 实现与 review 均已完成。Claude review 结论：Merge ready（0 BLOCK, 1 CONCERN, 0 NOTE）。`docs/plans/phase38/review_comments.md` 已收口为 `final`；唯一 concern C1（fallback 成本未计入 route stats）已记入 `docs/concerns_backlog.md`，作为后续 meta_optimizer 成本逻辑的 backlog follow-up，不阻塞当前 merge。Tag 评估：暂不打新 tag（内部遥测扩展，无用户可感知变化）。
 
 ---
 
@@ -107,11 +107,10 @@ Phase 38 已完成实现与 slice 拆 commit，当前状态为 review pending / 
 
 ## 下一步
 
-- **[Codex]** 已完成 Phase 38 closeout 文档与本地 `pr.md` 更新
-- **[Human]** push 当前分支，并用 `pr.md` 同步 PR 描述
-- **[Claude]** 执行 Phase 38 review
+- **[Human]** 阅读 `docs/plans/phase38/review_comments.md`，确认后合并
+- **[Human]** merge 后不打新 tag（建议等用户可感知功能后打 v0.3.0）
+- **[Codex]** 下次触碰 meta_optimizer 成本逻辑时吸收 C1 fallback 成本统计
 
 ## 当前阻塞项
 
-- 等待 Human: push 分支并创建 / 更新 PR
-- 等待 Claude: Phase 38 review
+- 等待 Human: 确认 review + merge 决策
