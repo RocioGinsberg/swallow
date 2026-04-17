@@ -125,11 +125,37 @@ class WebApiPayloadsTest(unittest.TestCase):
             failed_state.phase = "summarize"
             save_state(tmp_path, failed_state)
 
+            review_needed = create_task(
+                base_dir=tmp_path,
+                title="Review task",
+                goal="Represent needs-review focus",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            review_state = load_state(tmp_path, review_needed.task_id)
+            review_state.status = "running"
+            review_state.phase = "executing"
+            review_state.executor_status = "pending"
+            save_state(tmp_path, review_state)
+
             active_payload = build_tasks_payload(tmp_path, focus="active")
             failed_payload = build_tasks_payload(tmp_path, focus="failed")
+            review_payload = build_tasks_payload(tmp_path, focus="needs-review")
+            all_payload = build_tasks_payload(tmp_path, focus="all")
 
-        self.assertEqual([item["task_id"] for item in active_payload["tasks"]], [created.task_id])
+        self.assertEqual(
+            {item["task_id"] for item in active_payload["tasks"]},
+            {created.task_id, review_needed.task_id},
+        )
         self.assertEqual([item["task_id"] for item in failed_payload["tasks"]], [failed.task_id])
+        self.assertEqual(
+            {item["task_id"] for item in review_payload["tasks"]},
+            {created.task_id, failed.task_id, review_needed.task_id},
+        )
+        self.assertEqual(
+            {item["task_id"] for item in all_payload["tasks"]},
+            {created.task_id, failed.task_id, review_needed.task_id},
+        )
 
     def test_build_task_artifact_payload_rejects_unknown_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -144,6 +170,20 @@ class WebApiPayloadsTest(unittest.TestCase):
 
             with self.assertRaises(FileNotFoundError):
                 build_task_artifact_payload(tmp_path, created.task_id, "missing.md")
+
+    def test_build_task_artifact_payload_rejects_parent_traversal_segments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Artifact task",
+                goal="Reject traversal artifact requests",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+
+            with self.assertRaises(ValueError):
+                build_task_artifact_payload(tmp_path, created.task_id, "../state.json")
 
 
 if __name__ == "__main__":

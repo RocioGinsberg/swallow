@@ -7,15 +7,15 @@
 - latest_completed_slice: `Concern Cleanup + LibrarianExecutor Refactoring`
 - active_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
 - active_phase: `Phase 37`
-- active_slice: `phase37_closeout_complete`
+- active_slice: `phase37_review_followup_complete`
 - active_branch: `feat/phase37-control-center`
-- status: `review_pending_pr_sync_ready`
+- status: `merge_ready_pr_synced`
 
 ---
 
 ## 当前状态说明
 
-Phase 37 已完成实现与 closeout，当前语义为 **review pending / PR sync ready**。本轮已在 `.swl/` 目录之上构建只读 Web 控制中心原型（S1 JSON API + S2 单页仪表盘 + S3 Artifact Review 双栏），严格只读，无前端构建工具链。当前已切到实现分支 `feat/phase37-control-center`，等待 Human push 分支并同步 PR 描述，然后进入 Claude review。
+Phase 37 实现、review 与 review follow-up 均已完成。Claude review 结论：Merge ready（0 BLOCK, 2 CONCERN, 0 NOTE）；C1（artifact 路径校验）和 C2（focus filter 测试覆盖）已在当前分支吸收。Tag 评估：建议 merge 后打 `v0.2.0`（Control Center 为首个用户可感知新入口）。
 
 ---
 
@@ -106,11 +106,11 @@ Phase 37 已完成实现与 closeout，当前语义为 **review pending / PR syn
 
 ## 下一步
 
-- **[Human]** push 当前分支并用根目录 `pr.md` 同步 PR 描述
-- **[Claude]** 进入 Phase 37 review
-- **[Codex]** 如有 review follow-up，在同一分支继续吸收
-- **[Gemini]** 如需要，补充 Phase 37 context_brief
+- **[Human]** 用更新后的 `pr.md` 同步 PR 描述，并决定 merge
+- **[Codex]** merge 后同步 Phase 37 merged 状态入口
+- **[Human]** merge 后打 tag: `git tag -a v0.2.0 -m "Control Center baseline + concern cleanup"`
+- **[Codex]** 打 tag 后更新 README / AGENTS.md 中的 tag 引用
 
 ## 当前阻塞项
 
-- 等待 Human: push 分支并同步 PR 描述
+- 等待 Human: merge + tag 决策

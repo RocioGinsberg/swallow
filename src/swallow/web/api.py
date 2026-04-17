@@ -148,6 +148,9 @@ def build_task_artifacts_payload(base_dir: Path, task_id: str) -> dict[str, obje
 
 
 def build_task_artifact_payload(base_dir: Path, task_id: str, artifact_name: str) -> dict[str, object]:
+    if ".." in artifact_name.split("/"):
+        raise ValueError("Invalid artifact name")
+
     state = load_state(base_dir, task_id)
     for artifact in _collect_artifact_index(base_dir, task_id, state.artifact_paths):
         if artifact["name"] != artifact_name:
@@ -220,6 +223,8 @@ def create_fastapi_app(base_dir: Path):
     def task_artifact(task_id: str, artifact_name: str) -> dict[str, object]:
         try:
             return build_task_artifact_payload(base_dir, task_id, artifact_name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
