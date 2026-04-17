@@ -2,7 +2,7 @@
 author: claude
 phase: 36
 slice: concern-cleanup
-status: draft
+status: final
 depends_on: [docs/roadmap.md, docs/plans/phase35/closeout.md, docs/concerns_backlog.md]
 ---
 
