@@ -5,17 +5,17 @@
 - latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
 - latest_completed_phase: `Phase 35`
 - latest_completed_slice: `Event Telemetry + Meta-Optimizer + Dialect Data Layer`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
+- active_phase: `Phase 36`
+- active_slice: `kickoff_drafted_waiting_human_approval`
 - active_branch: `main`
-- status: `phase35_merged_waiting_next_kickoff`
+- status: `kickoff_pending_approval`
 
 ---
 
 ## 当前状态说明
 
-Phase 35 已完成实现、review follow-up、merge 与收口，并已合入 `main`。当前默认入口不再停留在 Phase 35 的 review / merge 语义，而是回到“等待下一轮 kickoff”状态；下一步应从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择新 phase。
+Phase 36 已进入 kickoff 阶段。本轮目标是集中消化 concerns_backlog 中 5 条 Open concern（S1: LibrarianExecutor state mutation 收口；S2: 4 条 API 级 concern 批量清理），等待 Human 审批后进入实现。
 
 ---
 
@@ -101,13 +101,15 @@ Phase 35 已完成实现、review follow-up、merge 与收口，并已合入 `ma
 - **[Claude]** 已完成 Phase 35 review：0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready。
 - **[Codex]** 已吸收 review follow-up：修正 C1 degraded fallback 判定与 C2 事件类型常量复用，并通过全量 `pytest`（249 passed）。
 - **[Human]** 已完成 merge，当前入口已切回 `main`。
+- **[Claude]** 已完成 Phase 36 kickoff：2 slice（S1 LibrarianExecutor 收口 + S2 API concern 批量消化），风险 7/18 低。
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` / `docs/system_tracks.md` 选择下一轮 active track / phase
-- **[Claude]** 为下一轮产出 kickoff
-- **[Codex]** 在新 phase 获批并切分支后开始下一轮实现
+- **[Human]** 审批 `docs/plans/phase36/kickoff.md`，确认 scope 与非目标
+- **[Human]** 审批后切出实现分支 `feat/phase36-concern-cleanup`
+- **[Gemini]** 如需要，产出 Phase 36 context_brief
+- **[Codex]** 获批后按 S1 → S2 顺序实现
 
 ## 当前阻塞项
 
-- 暂无
+- 等待 Human: Phase 36 kickoff 审批
