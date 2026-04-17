@@ -5,17 +5,17 @@
 - latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
 - latest_completed_phase: `Phase 36`
 - latest_completed_slice: `Concern Cleanup + LibrarianExecutor Refactoring`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
+- active_phase: `Phase 37`
+- active_slice: `kickoff_drafted_waiting_human_approval`
 - active_branch: `main`
-- status: `phase36_merged_waiting_next_kickoff`
+- status: `kickoff_pending_approval`
 
 ---
 
 ## 当前状态说明
 
-Phase 36 已完成实现、review、closeout 与 merge。5 条积压 Open concern 已全部消化，C1（Librarian 持久化原子性）已记入 backlog。当前稳定入口已切回 `main`，下一步应重新从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择新 phase，而不是继续停留在 Phase 36 的 merge 语义。Tag 评估：暂不打新 tag（内部技术债清理，无用户可感知能力增量）。
+Phase 37 已进入 kickoff 阶段。本轮目标是在 `.swl/` 目录之上构建只读 Web 控制中心原型（S1 JSON API + S2 单页仪表盘 + S3 Artifact Review 双栏），严格只读，无前端构建工具链。等待 Human 审批后进入实现。
 
 ---
 
@@ -105,10 +105,11 @@ Phase 36 已完成实现、review、closeout 与 merge。5 条积压 Open concer
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择下一阶段方向
-- **[Codex]** 在新 phase 方案确认后开始新的 kickoff / slice 实现
-- **[Claude]** 继续为下一阶段提供 kickoff / 风险评估；Phase 36 merge 后仍不建议单独打 tag
+- **[Human]** 审批 `docs/plans/phase37/kickoff.md`，确认 scope（只读 + 极简栈 + 无前端构建）
+- **[Human]** 审批后切出实现分支 `feat/phase37-control-center`
+- **[Gemini]** 如需要，产出 Phase 37 context_brief
+- **[Codex]** 获批后按 S1 → S2 → S3 顺序实现
 
 ## 当前阻塞项
 
-- 等待 Human: 选择下一阶段并触发新的 kickoff
+- 等待 Human: Phase 37 kickoff 审批
