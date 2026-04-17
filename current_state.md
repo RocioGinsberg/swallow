@@ -41,9 +41,9 @@
 
 说明：
 
-- Phase 0 到 Phase 34 已在当前分支形成稳定 checkpoint
-- Phase 34 已完成 Strategy Router、concrete dialect adapters 与单次 binary fallback 的实现、测试、review follow-up 和收口材料整理
-- 当前默认不再继续扩张已完成的 Phase 34，而应在 merge 后重新从 roadmap 选择下一轮方向
+- Phase 0 到 Phase 34 已在 `main` 上形成稳定 checkpoint
+- Phase 34 已完成 Strategy Router、concrete dialect adapters 与单次 binary fallback 的实现、测试、review follow-up、收口并已合入 `main`
+- 当前默认不再继续扩张已完成的 Phase 34，而应重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -57,7 +57,7 @@
 
 说明：
 
-- Phase 34 已在当前分支完成收口，`feat/phase34-strategy-router` 仅保留用于 PR / merge
+- Phase 34 已完成并合入 `main`
 - 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
 
 ---

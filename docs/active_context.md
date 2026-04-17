@@ -8,14 +8,14 @@
 - active_track: `none_selected`
 - active_phase: `none_selected`
 - active_slice: `fresh_kickoff_required`
-- active_branch: `feat/phase34-strategy-router`
-- status: `phase34_closeout_ready_waiting_human_pr`
+- active_branch: `main`
+- status: `phase34_merged_waiting_next_kickoff`
 
 ---
 
 ## 当前状态说明
 
-Phase 34 已在当前分支完成 3 个实现 slice、review follow-up 与收口材料整理。当前 `feat/phase34-strategy-router` 分支不再有活跃实现任务，只保留用于人工审阅、push、更新 PR 与 merge 决策。
+Phase 34 已完成实现、review follow-up、closeout 与 merge，当前真相分支为 `main`。当前仓库不再有活跃 phase；默认入口已切回“从 roadmap 选择下一轮方向并重新 kickoff”。
 
 本轮核心目标已全部达成：编排层已从静态 executor 映射升级为 capability-aware `Strategy Router`，网关本地侧已落地 `ClaudeXMLDialect` / `CodexFIMDialect` 两个 concrete adapter，并建立 `local-codex -> local-summary` 的一次性 binary fallback。注意：本轮仍不涉及 Provider Connector 层（`new-api` / TensorZero）的实际部署。
 
@@ -67,7 +67,7 @@ Phase 34 已在当前分支完成 3 个实现 slice、review follow-up 与收口
 
 已完成：
 
-- **[Human]** 已完成 Phase 34 的 slice-based commit 历史整理。
+- **[Human]** 已完成 Phase 34 的 slice-based commit 历史整理，并已将 Phase 34 合入 `main`。
 - **[Claude]** 已完成 Phase 34 kickoff 与 review 文档；review 结论为 Merge ready。
 - **[Gemini]** 已完成 Phase 34 context_brief，并已收口为 `final`。
 - **[Codex]** 已完成 S1 `RouteRegistry + Strategy Router`、S2 `Dialect Adapters`、S3 `Binary Fallback` 的实现与测试。
@@ -76,10 +76,10 @@ Phase 34 已在当前分支完成 3 个实现 slice、review follow-up 与收口
 
 ## 下一步
 
-- **[Human]** 审查 `docs/plans/phase34/closeout.md` 与 `pr.md`
-- **[Human]** push `feat/phase34-strategy-router` 并创建或更新 PR
-- **[Human]** 在确认 review 结论与收口材料一致后做 merge 决策
+- **[Human]** 从 `docs/roadmap.md` / `docs/system_tracks.md` 选择下一轮方向
+- **[Claude / Gemini]** 在新 phase 被选定后产出 kickoff 所需设计 / context 材料
+- **[Codex]** 在新 kickoff 获批后进入下一轮实现
 
 ## 当前阻塞项
 
-- 等待人工执行 PR 更新 / merge gate：`docs/plans/phase34/closeout.md` 与 `pr.md` 已就绪
+- 无阻塞项；等待人工选择下一轮 phase / slice
