@@ -22,6 +22,7 @@ from .canonical_registry import (
 )
 from .doctor import diagnose_codex, format_codex_doctor_result
 from .knowledge_store import persist_wiki_entry_from_record
+from .meta_optimizer import run_meta_optimizer
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .models import LIBRARIAN_MEMORY_AUTHORITY
@@ -1080,6 +1081,17 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge_subparsers = knowledge_parser.add_subparsers(dest="knowledge_command", required=True)
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostic commands.")
     doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=True)
+    meta_optimize_parser = subparsers.add_parser(
+        "meta-optimize",
+        help="Scan recent task event logs and emit a read-only optimization proposal report.",
+        description="Scan recent task event logs and emit a read-only optimization proposal report.",
+    )
+    meta_optimize_parser.add_argument(
+        "--last-n",
+        type=int,
+        default=100,
+        help="Maximum number of recent task event logs to scan. Defaults to 100.",
+    )
 
     knowledge_stage_list_parser = knowledge_subparsers.add_parser(
         "stage-list",
@@ -1834,6 +1846,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "knowledge" and args.knowledge_command == "canonical-audit":
         canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
         print(build_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
+        return 0
+
+    if args.command == "meta-optimize":
+        _snapshot, artifact_path, report = run_meta_optimizer(base_dir, last_n=args.last_n)
+        print(report, end="")
+        print(f"artifact: {artifact_path}")
         return 0
 
     if args.command == "task" and args.task_command == "create":

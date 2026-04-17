@@ -4948,6 +4948,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(raised.exception.code, 0)
         self.assertIn("task                Task workbench and lifecycle commands.", stdout.getvalue())
         self.assertIn("knowledge           Global staged knowledge review commands.", stdout.getvalue())
+        self.assertIn("meta-optimize       Scan recent task event logs and emit a read-only", stdout.getvalue())
 
     def test_task_help_includes_capability_commands(self) -> None:
         stdout = StringIO()
