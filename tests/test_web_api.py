@@ -45,6 +45,12 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertIn("/api/tasks?focus=", payload)
         self.assertIn("/api/tasks/${encodeURIComponent(state.selectedTaskId)}/events", payload)
         self.assertIn("Refresh", payload)
+        self.assertIn("artifact-left-select", payload)
+        self.assertIn("artifact-right-select", payload)
+        self.assertIn("artifact-left-content", payload)
+        self.assertIn("artifact-right-content", payload)
+        self.assertIn("Left Artifact", payload)
+        self.assertIn("Right Artifact", payload)
 
     def test_create_fastapi_app_exposes_root_dashboard_when_optional_dependency_is_available(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
