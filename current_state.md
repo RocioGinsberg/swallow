@@ -34,16 +34,16 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 35`
-- latest_completed_slice: `Event Telemetry + Meta-Optimizer + Dialect Data Layer`
+- latest_completed_phase: `Phase 36`
+- latest_completed_slice: `Concern Cleanup + LibrarianExecutor Refactoring`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-18`
 
 说明：
 
-- Phase 35 仍是当前已合入 `main` 的最近稳定 checkpoint
-- Phase 36 已在 `feat/phase36-concern-cleanup` 上完成实现、review 与 closeout，当前为 merge ready / PR sync ready
-- 如需恢复当前工作，应优先进入 `docs/plans/phase36/closeout.md` / `docs/plans/phase36/review_comments.md`，而不是回退到 Phase 35 实现细节
+- Phase 36 已完成实现、review、closeout 与 merge，并已在 `main` 上形成新的稳定 checkpoint
+- `docs/plans/phase36/closeout.md` 与 `docs/plans/phase36/review_comments.md` 已反映当前 merged / closeout 完成状态
+- 当前默认不再继续扩张已完成的 Phase 36，而应重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -51,14 +51,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
-- active_phase: `Phase 36`
-- active_slice: `merge_ready_pr_sync_ready`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
 
 说明：
 
-- 当前分支上的主要工作不是继续实现，而是同步 PR 描述并完成 merge 决策
-- 只有在 Phase 36 merge 完成后，默认入口才会回到 `fresh_kickoff_required`
+- Phase 36 已完成并合入 `main`
+- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
 
 ---
 
