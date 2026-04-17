@@ -5,17 +5,17 @@
 - latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
 - latest_completed_phase: `Phase 37`
 - latest_completed_slice: `Control Center Baseline`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`
-- status: `phase37_merged_waiting_next_kickoff`
+- active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
+- active_phase: `Phase 38`
+- active_slice: `phase38_review_complete`
+- active_branch: `feat/phase38-cost-telemetry`
+- status: `review_completed_waiting_human_merge`
 
 ---
 
 ## 当前状态说明
 
-Phase 37 已完成实现、review、review follow-up 与 merge。Control Center baseline 已进入稳定 checkpoint，C1（artifact 路径校验）和 C2（focus filter 测试覆盖）也已在合并前吸收。当前稳定入口已切回 `main`，下一步应重新从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择新 phase，而不是继续停留在 Phase 37 的 review / merge 语义。
+Phase 38 实现与 review 均已完成。Claude review 结论：Merge ready（0 BLOCK, 1 CONCERN, 0 NOTE）。`docs/plans/phase38/review_comments.md` 已收口为 `final`；唯一 concern C1（fallback 成本未计入 route stats）已记入 `docs/concerns_backlog.md`，作为后续 meta_optimizer 成本逻辑的 backlog follow-up，不阻塞当前 merge。Tag 评估：暂不打新 tag（内部遥测扩展，无用户可感知变化）。
 
 ---
 
@@ -107,10 +107,10 @@ Phase 37 已完成实现、review、review follow-up 与 merge。Control Center 
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择下一阶段方向
-- **[Codex]** 在新 phase 方案确认后开始新的 kickoff / slice 实现
-- **[Human]** 如已决定打 tag，可在当前 merged checkpoint 上执行 `v0.2.0`
+- **[Human]** 阅读 `docs/plans/phase38/review_comments.md`，确认后合并
+- **[Human]** merge 后不打新 tag（建议等用户可感知功能后打 v0.3.0）
+- **[Codex]** 下次触碰 meta_optimizer 成本逻辑时吸收 C1 fallback 成本统计
 
 ## 当前阻塞项
 
-- 等待 Human: 选择下一阶段并触发新的 kickoff
+- 等待 Human: 确认 review + merge 决策
