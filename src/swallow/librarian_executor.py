@@ -20,7 +20,6 @@ from .knowledge_objects import (
 )
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from .knowledge_store import persist_wiki_entry_from_record
 from .models import (
     ExecutorResult,
     LIBRARIAN_MEMORY_AUTHORITY,
@@ -29,19 +28,7 @@ from .models import (
     TaskState,
     utc_now,
 )
-from .paths import canonical_registry_path, knowledge_decisions_path
-from .store import (
-    append_canonical_record,
-    append_knowledge_decision,
-    load_knowledge_objects,
-    save_canonical_registry_index,
-    save_canonical_reuse_policy,
-    save_knowledge_index,
-    save_knowledge_objects,
-    save_knowledge_partition,
-    save_state,
-    write_artifact,
-)
+from .store import load_knowledge_objects
 
 
 LIBRARIAN_EXECUTOR_NAME = "librarian"
@@ -188,10 +175,6 @@ class LibrarianExecutor:
                 "- workflow: dedupe, normalize, verify evidence pointers, promote canonical-ready entries, emit change log",
             ]
         )
-        write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt)
-        write_artifact(base_dir, state.task_id, "executor_stdout.txt", "")
-        write_artifact(base_dir, state.task_id, "executor_stderr.txt", "")
-
         knowledge_objects = load_knowledge_objects(base_dir, state.task_id)
         if not knowledge_objects:
             knowledge_objects = [dict(item) for item in (state.knowledge_objects or [])]
@@ -211,6 +194,8 @@ class LibrarianExecutor:
         entries: list[dict[str, object]] = []
         updated_objects = [dict(item) for item in knowledge_objects]
         seen_canonical_keys: set[str] = set()
+        decision_records: list[dict[str, object]] = []
+        canonical_records: list[dict[str, object]] = []
 
         for candidate in candidates:
             object_id = str(candidate.get("object_id", "")).strip()
@@ -284,7 +269,7 @@ class LibrarianExecutor:
                 note="Promoted by LibrarianExecutor after rule-driven normalization.",
                 decided_by=LIBRARIAN_EXECUTOR_NAME,
             )
-            append_knowledge_decision(base_dir, state.task_id, decision_record)
+            decision_records.append(decision_record)
             promoted_object = next(item for item in updated_objects if str(item.get("object_id", "")).strip() == object_id)
             canonical_record = build_canonical_record(
                 task_id=state.task_id,
@@ -293,8 +278,7 @@ class LibrarianExecutor:
                 decision_record=decision_record,
             )
             canonical_record["decision_ref"] = _build_change_log_ref(state.task_id, object_id)
-            append_canonical_record(base_dir, canonical_record)
-            persist_wiki_entry_from_record(base_dir, canonical_record)
+            canonical_records.append(canonical_record)
             entries.append(
                 {
                     "object_id": object_id,
@@ -309,23 +293,6 @@ class LibrarianExecutor:
                 }
             )
 
-        state.knowledge_objects = updated_objects
-        save_state(base_dir, state)
-        save_knowledge_objects(base_dir, state.task_id, state.knowledge_objects)
-        knowledge_partition = build_knowledge_partition(state.knowledge_objects)
-        knowledge_index = build_knowledge_index(state.knowledge_objects)
-        save_knowledge_partition(base_dir, state.task_id, knowledge_partition)
-        save_knowledge_index(base_dir, state.task_id, knowledge_index)
-
-        decisions_path = knowledge_decisions_path(base_dir, state.task_id)
-        registry_path = canonical_registry_path(base_dir)
-        all_decisions = _load_json_lines(decisions_path)
-        all_canonical_records = _load_json_lines(registry_path)
-        canonical_index = build_canonical_registry_index(all_canonical_records)
-        canonical_reuse_summary = build_canonical_reuse_summary(all_canonical_records)
-        save_canonical_registry_index(base_dir, canonical_index)
-        save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
-
         promoted_count = sum(1 for entry in entries if entry.get("action") == "promoted")
         change_log_payload = {
             "kind": LIBRARIAN_CHANGE_LOG_KIND,
@@ -338,16 +305,6 @@ class LibrarianExecutor:
             "change_log_artifact": f".swl/tasks/{state.task_id}/artifacts/librarian_change_log.json",
         }
         output = json.dumps(change_log_payload, indent=2)
-        write_artifact(base_dir, state.task_id, "executor_output.md", output)
-        write_artifact(base_dir, state.task_id, "librarian_change_log.json", output)
-        write_artifact(base_dir, state.task_id, "librarian_change_log_report.md", build_librarian_change_log_report(change_log_payload))
-        write_artifact(base_dir, state.task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state.knowledge_objects))
-        write_artifact(base_dir, state.task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
-        write_artifact(base_dir, state.task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
-        write_artifact(base_dir, state.task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report(all_decisions))
-        write_artifact(base_dir, state.task_id, "canonical_registry_report.md", build_canonical_registry_report(all_canonical_records))
-        write_artifact(base_dir, state.task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(canonical_index))
-        write_artifact(base_dir, state.task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(canonical_reuse_summary))
 
         message = (
             "Librarian promoted canonical evidence."
@@ -363,4 +320,11 @@ class LibrarianExecutor:
             dialect="plain_text",
             stdout="",
             stderr="",
+            side_effects={
+                "kind": LIBRARIAN_CHANGE_LOG_KIND,
+                "updated_knowledge_objects": updated_objects,
+                "knowledge_decision_records": decision_records,
+                "canonical_records": canonical_records,
+                "change_log_payload": change_log_payload,
+            },
         )

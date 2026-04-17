@@ -5,17 +5,17 @@
 - latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
 - latest_completed_phase: `Phase 35`
 - latest_completed_slice: `Event Telemetry + Meta-Optimizer + Dialect Data Layer`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`
-- status: `phase35_merged_waiting_next_kickoff`
+- active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
+- active_phase: `Phase 36`
+- active_slice: `phase36_closeout_complete`
+- active_branch: `feat/phase36-concern-cleanup`
+- status: `merge_ready_pr_sync_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 35 已完成实现、review follow-up、merge 与收口，并已合入 `main`。当前默认入口不再停留在 Phase 35 的 review / merge 语义，而是回到“等待下一轮 kickoff”状态；下一步应从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择新 phase。
+Phase 36 实现、review 与 closeout 均已完成。Claude review 结论：Merge ready（0 BLOCK, 1 CONCERN, 0 NOTE）。5 条积压 Open concern 全部消化，C1（Librarian 持久化原子性）已记入 backlog。`closeout.md` 与本地 `pr.md` 已同步，当前进入 merge ready / PR sync ready 状态。Tag 评估：暂不打新 tag（内部技术债清理，无用户可感知能力增量）。
 
 ---
 
@@ -28,13 +28,13 @@ Phase 35 已完成实现、review follow-up、merge 与收口，并已合入 `ma
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase35/closeout.md`
+6. `docs/plans/phase36/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase35/review_comments.md`
-- `docs/plans/phase35/kickoff.md`
-- `docs/plans/phase35/context_brief.md`
+- `docs/plans/phase36/review_comments.md`
+- `docs/plans/phase36/kickoff.md`
+- `docs/plans/phase35/closeout.md`
 - `docs/concerns_backlog.md`
 - `pr.md`
 
@@ -101,13 +101,14 @@ Phase 35 已完成实现、review follow-up、merge 与收口，并已合入 `ma
 - **[Claude]** 已完成 Phase 35 review：0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready。
 - **[Codex]** 已吸收 review follow-up：修正 C1 degraded fallback 判定与 C2 事件类型常量复用，并通过全量 `pytest`（249 passed）。
 - **[Human]** 已完成 merge，当前入口已切回 `main`。
+- **[Claude]** 已完成 Phase 36 kickoff：2 slice（S1 LibrarianExecutor 收口 + S2 API concern 批量消化），风险 7/18 低。
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` / `docs/system_tracks.md` 选择下一轮 active track / phase
-- **[Claude]** 为下一轮产出 kickoff
-- **[Codex]** 在新 phase 获批并切分支后开始下一轮实现
+- **[Human]** 用根目录 `pr.md` 同步 PR 描述，并决定 merge
+- **[Codex]** merge 后将状态指针切回 fresh kickoff 入口
+- **[Claude]** merge 后不打新 tag（Phase 36 为内部清理，建议等 Phase 37 Control Center 后打 v0.2.0）
 
 ## 当前阻塞项
 
-- 暂无
+- 等待 Human: 同步 PR 描述并执行 merge 决策

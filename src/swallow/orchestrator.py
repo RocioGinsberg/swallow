@@ -45,6 +45,12 @@ from .knowledge_objects import (
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
+from .knowledge_store import persist_wiki_entry_from_record
+from .librarian_executor import (
+    LIBRARIAN_CHANGE_LOG_KIND,
+    build_knowledge_objects_report as build_librarian_knowledge_objects_report,
+    build_librarian_change_log_report,
+)
 from .models import (
     DispatchVerdict,
     EVENT_TASK_EXECUTION_FALLBACK,
@@ -191,6 +197,112 @@ def _execute_task_card(
 ) -> ExecutorResult:
     executor = resolve_executor(card.executor_type, state.executor_name)
     return executor.execute(base_dir, state, card, retrieval_items)
+
+
+def _append_canonical_write_guard_warning(base_dir: Path, state: TaskState, card: TaskCard) -> None:
+    raw_executor_name = (state.executor_name or "").strip().lower()
+    normalized_executor_type = (card.executor_type or "").strip().lower()
+    is_librarian_executor = raw_executor_name == "librarian" or normalized_executor_type == "librarian"
+    if not state.route_capabilities.get("canonical_write_guard") or is_librarian_executor:
+        return
+
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="task.canonical_write_guard_warning",
+            message="Canonical write guard is active on a non-librarian executor route; continuing in audit mode.",
+            payload={
+                "executor_name": state.executor_name,
+                "executor_type": card.executor_type,
+                "route_name": state.route_name,
+                "route_taxonomy_role": state.route_taxonomy_role,
+                "route_taxonomy_memory_authority": state.route_taxonomy_memory_authority,
+                "canonical_write_guard": True,
+            },
+        ),
+    )
+
+
+def _load_json_lines(path: Path) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+
+    records: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        payload = json.loads(stripped)
+        if isinstance(payload, dict):
+            records.append(payload)
+    return records
+
+
+def _apply_librarian_side_effects(
+    base_dir: Path,
+    state: TaskState,
+    executor_result: ExecutorResult,
+) -> TaskState:
+    if executor_result.executor_name != "librarian":
+        return state
+    if executor_result.status != "completed":
+        return state
+
+    side_effects = executor_result.side_effects if isinstance(executor_result.side_effects, dict) else {}
+    if str(side_effects.get("kind", "")).strip() != LIBRARIAN_CHANGE_LOG_KIND:
+        return state
+
+    updated_knowledge_objects = side_effects.get("updated_knowledge_objects", [])
+    if not isinstance(updated_knowledge_objects, list):
+        return state
+    decision_records = side_effects.get("knowledge_decision_records", [])
+    canonical_records = side_effects.get("canonical_records", [])
+    change_log_payload = side_effects.get("change_log_payload", {})
+    if not isinstance(decision_records, list) or not isinstance(canonical_records, list) or not isinstance(change_log_payload, dict):
+        return state
+
+    for decision_record in decision_records:
+        if isinstance(decision_record, dict):
+            append_knowledge_decision(base_dir, state.task_id, decision_record)
+    for canonical_record in canonical_records:
+        if not isinstance(canonical_record, dict):
+            continue
+        append_canonical_record(base_dir, canonical_record)
+        persist_wiki_entry_from_record(base_dir, canonical_record)
+
+    state.knowledge_objects = [dict(item) for item in updated_knowledge_objects if isinstance(item, dict)]
+    save_state(base_dir, state)
+    save_knowledge_objects(base_dir, state.task_id, state.knowledge_objects)
+
+    knowledge_partition = build_knowledge_partition(state.knowledge_objects)
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
+    save_knowledge_partition(base_dir, state.task_id, knowledge_partition)
+    save_knowledge_index(base_dir, state.task_id, knowledge_index)
+
+    all_decisions = _load_json_lines(knowledge_decisions_path(base_dir, state.task_id))
+    all_canonical_records = _load_json_lines(canonical_registry_path(base_dir))
+    canonical_index = build_canonical_registry_index(all_canonical_records)
+    canonical_reuse_summary = build_canonical_reuse_summary(all_canonical_records)
+    save_canonical_registry_index(base_dir, canonical_index)
+    save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
+
+    output = executor_result.output or json.dumps(change_log_payload, indent=2)
+    write_artifact(base_dir, state.task_id, "librarian_change_log.json", output)
+    write_artifact(base_dir, state.task_id, "librarian_change_log_report.md", build_librarian_change_log_report(change_log_payload))
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "knowledge_objects_report.md",
+        build_librarian_knowledge_objects_report(state.knowledge_objects),
+    )
+    write_artifact(base_dir, state.task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
+    write_artifact(base_dir, state.task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
+    write_artifact(base_dir, state.task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report(all_decisions))
+    write_artifact(base_dir, state.task_id, "canonical_registry_report.md", build_canonical_registry_report(all_canonical_records))
+    write_artifact(base_dir, state.task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(canonical_index))
+    write_artifact(base_dir, state.task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(canonical_reuse_summary))
+    return state
 
 
 def _write_subtask_attempt_artifacts(
@@ -826,7 +938,7 @@ def _apply_blocked_dispatch_verdict(
     return state
 
 
-def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
+def acknowledge_task(base_dir: Path, task_id: str, *, route_mode: str = "summary") -> TaskState:
     state = load_state(base_dir, task_id)
     if state.status != "dispatch_blocked":
         raise ValueError(f"Only dispatch_blocked tasks can be acknowledged; current status is {state.status}.")
@@ -834,8 +946,8 @@ def acknowledge_task(base_dir: Path, task_id: str) -> TaskState:
     previous_status = state.status
     previous_phase = state.phase
     state.executor_name = "local"
-    state.route_mode = "summary"
-    route_selection = select_route(state, executor_override=state.executor_name, route_mode_override=state.route_mode)
+    state.route_mode = normalize_route_mode(route_mode)
+    route_selection = select_route(state, route_mode_override=state.route_mode)
     _apply_route_spec_to_state(
         state,
         route_selection.route,
@@ -1764,7 +1876,9 @@ def run_task(
                 retrieval_items,
             )
         else:
+            _append_canonical_write_guard_warning(base_dir, state, card)
             executor_result = _execute_task_card(base_dir, state, card, retrieval_items)
+            state = _apply_librarian_side_effects(base_dir, state, executor_result)
             if executor_result.status == "failed":
                 executor_result, card, _ = _run_binary_fallback(
                     base_dir,

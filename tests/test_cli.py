@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.cli import main
+from swallow.cli import build_stage_promote_preflight_notices, main
 from swallow.compatibility import build_compatibility_report, evaluate_route_compatibility
 from swallow.capabilities import (
     DEFAULT_CAPABILITY_MANIFEST,
@@ -1617,6 +1617,38 @@ class CliLifecycleTest(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn(f"[SUPERSEDE] canonical_id=canonical-{first.candidate_id}", output)
         self.assertIn(f"{second.candidate_id} staged_promoted canonical_id=canonical-{second.candidate_id}", output)
+
+    def test_stage_promote_preflight_notices_return_structured_notice_records(self) -> None:
+        candidate = StagedCandidate(
+            candidate_id="staged-fixedid",
+            text="Re-promote an already seeded canonical record.",
+            source_task_id="task-stage-idempotent",
+            source_object_id="knowledge-0012",
+        )
+
+        notices = build_stage_promote_preflight_notices(
+            [
+                {
+                    "canonical_id": "canonical-staged-fixedid",
+                    "canonical_key": "task-object:task-stage-idempotent:knowledge-0012",
+                    "text": "Re-promote an already seeded canonical record.",
+                    "canonical_status": "active",
+                }
+            ],
+            candidate,
+        )
+
+        self.assertEqual(
+            notices,
+            [
+                {
+                    "notice_type": "idempotent",
+                    "canonical_id": "canonical-staged-fixedid",
+                    "text_preview": "Re-promote an already seeded canonical record.",
+                }
+            ],
+        )
+        self.assertTrue(all(isinstance(value, str) for value in notices[0].values()))
 
     def test_cli_stage_promote_does_not_print_preflight_notice_for_fresh_record(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -4199,6 +4231,28 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(acknowledged.executor_name, "local")
         self.assertEqual(acknowledged.route_name, "local-summary")
         self.assertEqual(events[-1]["event_type"], "task.dispatch_acknowledged")
+
+    def test_task_acknowledge_accepts_route_mode_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Dispatch blocked task",
+                goal="Allow operator acknowledgement with an alternate local mode",
+                workspace_root=tmp_path,
+            )
+            persisted = load_state(tmp_path, state.task_id)
+            persisted.artifact_paths["task_semantics_json"] = "missing-artifact.md"
+            save_state(tmp_path, persisted)
+            blocked = run_task(tmp_path, state.task_id, executor_name="mock-remote")
+
+            acknowledged = acknowledge_task(tmp_path, blocked.task_id, route_mode="offline")
+
+        self.assertEqual(blocked.status, "dispatch_blocked")
+        self.assertEqual(acknowledged.status, "running")
+        self.assertEqual(acknowledged.route_mode, "offline")
+        self.assertEqual(acknowledged.executor_name, "note-only")
+        self.assertEqual(acknowledged.route_name, "local-note")
 
     def test_task_acknowledge_applies_capability_enforcement_to_reselected_route(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7120,6 +7174,10 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(staged_records[0]["taxonomy_role"], "specialist")
         self.assertEqual(staged_records[0]["taxonomy_memory_authority"], "canonical-write-forbidden")
         self.assertEqual(staged_records[0]["status"], "pending")
+        guard_warning = next(event for event in events if event["event_type"] == "task.canonical_write_guard_warning")
+        self.assertEqual(guard_warning["payload"]["canonical_write_guard"], True)
+        self.assertEqual(guard_warning["payload"]["executor_name"], "note-only")
+        self.assertEqual(guard_warning["payload"]["route_taxonomy_memory_authority"], "canonical-write-forbidden")
         self.assertTrue(any(event["event_type"] == "task.knowledge_staged" for event in events))
         self.assertEqual(events[-1]["payload"]["staged_candidate_count"], 1)
 
