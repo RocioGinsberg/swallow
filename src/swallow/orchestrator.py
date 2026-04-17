@@ -46,6 +46,7 @@ from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
 from .models import Event, ExecutorResult, RetrievalItem, RetrievalRequest, RouteSpec, TaskCard, TaskState
+from .models import build_telemetry_fields
 from .models import DispatchVerdict, evaluate_dispatch_verdict
 from .paths import (
     artifacts_dir,
@@ -304,7 +305,13 @@ def _append_parent_executor_event(
                     "executor_stdout.txt",
                     "executor_stderr.txt",
                 ],
-            },
+            }
+            | build_telemetry_fields(
+                state,
+                latency_ms=executor_result.latency_ms,
+                degraded="fallback route" in str(state.route_reason).lower(),
+                error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
+            ).to_dict(),
         ),
     )
 
@@ -390,6 +397,9 @@ def _run_binary_fallback(
                 "fallback_route_reason": state.route_reason,
                 "fallback_route_capabilities": state.route_capabilities,
                 "capability_constraints_applied": _serialize_capability_constraints(applied_constraints),
+                "previous_latency_ms": primary_result.latency_ms,
+                "latency_ms": fallback_result.latency_ms,
+                "degraded": True,
                 "primary_artifacts_written": primary_artifacts,
                 "fallback_artifacts_written": fallback_artifacts,
             },
@@ -529,6 +539,10 @@ def _build_subtask_executor_result(
         output="\n".join(lines),
         dialect="plain_text",
         failure_kind="" if status == "completed" else "review_gate_retry_exhausted",
+        latency_ms=sum(
+            max((record.executor_result.latency_ms if record.executor_result is not None else 0), 0)
+            for record in result.records
+        ),
     )
 
 

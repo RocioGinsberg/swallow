@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 from pathlib import Path
+from time import perf_counter
 
 from .checkpoint_snapshot import build_checkpoint_snapshot_report, evaluate_checkpoint_snapshot
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
@@ -31,6 +32,7 @@ from .models import (
     RetryPolicyResult,
     StopPolicyResult,
     TaskState,
+    build_telemetry_fields,
     ValidationResult,
 )
 from .retrieval import retrieve_context, summarize_reused_knowledge
@@ -91,7 +93,12 @@ def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -
 
 
 def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+    started_at = perf_counter()
     executor_result = run_executor(state, retrieval_items)
+    executor_result = replace(
+        executor_result,
+        latency_ms=max(int((perf_counter() - started_at) * 1000), 0),
+    )
     prompt_body = executor_result.prompt
     prompt_with_dialect = f"dialect: {executor_result.dialect or state.route_dialect or 'plain_text'}\n\n{prompt_body}"
     write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt_with_dialect)
@@ -145,7 +152,13 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                     "executor_stdout.txt",
                     "executor_stderr.txt",
                 ],
-            },
+            }
+            | build_telemetry_fields(
+                state,
+                latency_ms=executor_result.latency_ms,
+                degraded="fallback route" in str(state.route_reason).lower(),
+                error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
+            ).to_dict(),
         ),
     )
     return executor_result
