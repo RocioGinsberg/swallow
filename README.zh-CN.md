@@ -95,7 +95,7 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-**当前 tag: `v0.1.0`**
+**当前 tag: `v0.2.0`**
 
 > 本节仅在打新 tag 时更新。实时开发进度请查阅 `docs/active_context.md` 和 `docs/roadmap.md`。
 
@@ -106,15 +106,16 @@ swallow 长期围绕五层组织：
 - mock-remote dispatch gate 与 remote-handoff contract 可视化，但未扩张为真实 remote execution
 - taxonomy 元数据、taxonomy-aware routing guard，以及 operator-facing taxonomy visibility
 - staged knowledge capture、review queue、promote / reject 决策与 capability-aware 写入边界
-- Evidence Store + Wiki Store 双层 task knowledge 结构、canonical promotion authority 校验，以及规则驱动的 `LibrarianExecutor`
+- Evidence Store + Wiki Store 双层 task knowledge 结构、canonical promotion authority 校验，以及规则驱动的 `LibrarianExecutor`（side-effect 已收口：executor 只返回结构化 payload，orchestrator 接管全部持久化）
 - canonical knowledge registry、reuse visibility、dedupe / supersede audit 与 regression inspection 路径
 - canonical retrieval 命中的 grounding evidence artifact、锁定的 grounding refs，以及可稳定 resume 的 grounding 状态
 - 有界 1:N `TaskCard` 规划、基于 DAG 的 subtask orchestration，以及父任务级 artifact / event 聚合
 - 面向多卡执行的 ReviewGate 单次 retry feedback loop
 - 基于能力矩阵的 Strategy Router + `RouteRegistry`，四级候选匹配（精确 → 家族+站点 → 能力 → 兜底），以及 route 级 binary fallback
-- Claude XML 与 Codex FIM 方言适配器，以及共享的 `dialect_data` prompt 数据采集层
+- Claude XML 与 Codex FIM 方言适配器，以及共享的 `dialect_data` prompt 数据采集层（含 FIM 标记转义）
 - 结构化 executor 事件遥测（`task_family`、`logical_model`、`physical_route`、`latency_ms`、`degraded`、`error_code`）
 - 只读 Meta-Optimizer：扫描任务事件日志，产出 route 健康度、故障指纹与降级趋势优化提案
+- 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图，零写入 `.swl/`，无前端构建工具链
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
 - repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构
 
@@ -307,6 +308,13 @@ Meta-optimizer（只读事件日志分析）：
 ```bash
 swl meta-optimize
 swl meta-optimize --last-n 50
+```
+
+控制中心（只读 Web 仪表盘）：
+
+```bash
+swl serve
+swl serve --port 8037 --host 127.0.0.1
 ```
 
 canonical registry record 是显式持久化的 canonical knowledge 输出，不等于自动全局记忆，也不会自动开启广义 retrieval reuse。

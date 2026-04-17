@@ -96,7 +96,7 @@ It is about:
 
 ## Current Implementation Snapshot
 
-**Current tag: `v0.1.0`**
+**Current tag: `v0.2.0`**
 
 > This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
 
@@ -107,15 +107,16 @@ In practice, the current system includes:
 - mock-remote dispatch gating and remote-handoff contract visibility without widening into real remote execution
 - taxonomy metadata, taxonomy-aware routing guards, and operator-facing taxonomy visibility
 - staged knowledge capture, review queues, promotion / rejection decisions, and capability-aware write boundaries
-- an Evidence Store + Wiki Store task-knowledge split, canonical-promotion authority checks, and a rule-driven `LibrarianExecutor`
+- an Evidence Store + Wiki Store task-knowledge split, canonical-promotion authority checks, and a rule-driven `LibrarianExecutor` with side-effect isolation (executor returns structured payload, orchestrator handles all persistence)
 - canonical knowledge registry, reuse visibility, dedupe / supersede audit, and regression inspection paths
 - canonical-sourced task grounding evidence artifacts, locked grounding refs, and resume-stable grounding state
 - bounded 1:N `TaskCard` planning, DAG-based subtask orchestration, and parent-task artifact / event aggregation
 - a ReviewGate-driven single-retry feedback loop for multi-card execution
 - a capability-aware Strategy Router with `RouteRegistry`, four-tier candidate matching (exact → family+site → capability → summary fallback), and route-level binary fallback
-- Claude XML and Codex FIM dialect adapters with a shared `dialect_data` prompt collection layer
+- Claude XML and Codex FIM dialect adapters with a shared `dialect_data` prompt collection layer and FIM marker escaping
 - structured executor event telemetry (`task_family`, `logical_model`, `physical_route`, `latency_ms`, `degraded`, `error_code`)
 - a read-only Meta-Optimizer that scans task event logs and emits route health, failure fingerprint, and degradation trend proposals
+- a read-only Web Control Center (`swl serve`): FastAPI JSON API + single-page HTML dashboard + dual-pane artifact review, zero writes to `.swl/`, no frontend build toolchain
 - operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
 - retrieval over repository files and Markdown / Obsidian notes, with reusable knowledge kept explicit and policy-gated
 
@@ -312,6 +313,13 @@ Meta-optimizer (read-only event log analysis):
 ```bash
 swl meta-optimize
 swl meta-optimize --last-n 50
+```
+
+Control Center (read-only web dashboard):
+
+```bash
+swl serve
+swl serve --port 8037 --host 127.0.0.1
 ```
 
 Canonical registry records are explicit persisted outputs for promoted canonical knowledge. They are not automatic global memory and do not automatically enable broad retrieval reuse.
