@@ -5,17 +5,17 @@
 - latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
 - latest_completed_phase: `Phase 37`
 - latest_completed_slice: `Control Center Baseline`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`
-- status: `phase37_merged_waiting_next_kickoff`
+- active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
+- active_phase: `Phase 38`
+- active_slice: `S1_cost_telemetry_complete`
+- active_branch: `feat/phase38-cost-telemetry`
+- status: `s1_ready_waiting_human_commit`
 
 ---
 
 ## 当前状态说明
 
-Phase 37 已完成实现、review、review follow-up 与 merge。Control Center baseline 已进入稳定 checkpoint，C1（artifact 路径校验）和 C2（focus filter 测试覆盖）也已在合并前吸收。当前稳定入口已切回 `main`，下一步应重新从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择新 phase，而不是继续停留在 Phase 37 的 review / merge 语义。
+Phase 38 已进入实现阶段。本轮目标是为遥测补齐 `token_cost` 字段（S1 本地成本估算 + S2 Meta-Optimizer 成本维度升级 + S3 CostEstimator 接口预留），零外部依赖，不部署 Provider Connector。S1 已完成：`TelemetryFields` 与 `ExecutorResult` 已补齐成本相关字段，executor / fallback 事件开始写入本地估算 `token_cost`，全量 `pytest` 已通过（264 passed）。
 
 ---
 
@@ -107,10 +107,10 @@ Phase 37 已完成实现、review、review follow-up 与 merge。Control Center 
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择下一阶段方向
-- **[Codex]** 在新 phase 方案确认后开始新的 kickoff / slice 实现
-- **[Human]** 如已决定打 tag，可在当前 merged checkpoint 上执行 `v0.2.0`
+- **[Codex]** 完成 S1：补齐 `token_cost` / estimated tokens 字段、executor telemetry 注入与 fallback 事件对齐
+- **[Human]** 审查 S1 diff 并执行 slice commit
+- **[Codex]** 在 S1 提交后继续实现 S2：Meta-Optimizer 成本维度升级
 
 ## 当前阻塞项
 
-- 等待 Human: 选择下一阶段并触发新的 kickoff
+- 等待 Human: 审查并提交 S1 slice

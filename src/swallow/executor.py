@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 import shutil
 import subprocess
 import sys
@@ -9,6 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from .cost_estimation import estimate_tokens
 from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
 from .dialect_adapters import ClaudeXMLDialect, CodexFIMDialect
 from .models import DialectSpec, ExecutorResult, RetrievalItem, TaskCard, TaskState
@@ -265,7 +267,7 @@ def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) 
     else:
         result = run_codex_executor(state, retrieval_items, prompt)
     result.dialect = state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint)
-    return result
+    return _attach_estimated_usage(result)
 
 
 def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
@@ -305,7 +307,8 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
             env=child_env,
         )
         if completed.returncode != 0:
-            return ExecutorResult(
+            return _attach_estimated_usage(
+                ExecutorResult(
                 executor_name=resolve_executor_name(state),
                 status="failed",
                 message="Detached local executor child process failed.",
@@ -315,11 +318,13 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
                 failure_kind="launch_error",
                 stdout=completed.stdout,
                 stderr=completed.stderr,
+                )
             )
         try:
             payload = json.loads(result_json.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            return ExecutorResult(
+            return _attach_estimated_usage(
+                ExecutorResult(
                 executor_name=resolve_executor_name(state),
                 status="failed",
                 message="Detached local executor did not return a readable result.",
@@ -329,8 +334,17 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
                 failure_kind="generic_failure",
                 stdout=completed.stdout,
                 stderr=f"{completed.stderr}\n{exc}".strip(),
+                )
             )
     return ExecutorResult(**payload)
+
+
+def _attach_estimated_usage(result: ExecutorResult) -> ExecutorResult:
+    return replace(
+        result,
+        estimated_input_tokens=estimate_tokens(result.prompt),
+        estimated_output_tokens=estimate_tokens(result.output),
+    )
 
 
 def run_mock_executor(prompt: str) -> ExecutorResult:

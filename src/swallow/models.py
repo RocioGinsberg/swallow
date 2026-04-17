@@ -388,6 +388,7 @@ class TelemetryFields:
     physical_route: str
     latency_ms: int
     degraded: bool
+    token_cost: float = 0.0
     error_code: str = ""
 
     def to_dict(self) -> dict[str, Any]:
@@ -464,6 +465,8 @@ class ExecutorResult:
     dialect: str = "plain_text"
     failure_kind: str = ""
     latency_ms: int = 0
+    estimated_input_tokens: int = 0
+    estimated_output_tokens: int = 0
     stdout: str = ""
     stderr: str = ""
     side_effects: dict[str, Any] = field(default_factory=dict)
@@ -491,6 +494,7 @@ def build_telemetry_fields(
     *,
     latency_ms: int,
     degraded: bool,
+    token_cost: float = 0.0,
     error_code: str = "",
 ) -> TelemetryFields:
     logical_model = str(state.route_model_hint or state.executor_name or "unknown").strip() or "unknown"
@@ -501,6 +505,7 @@ def build_telemetry_fields(
         physical_route=physical_route,
         latency_ms=max(int(latency_ms or 0), 0),
         degraded=bool(degraded),
+        token_cost=max(float(token_cost or 0.0), 0.0),
         error_code=str(error_code).strip(),
     )
 

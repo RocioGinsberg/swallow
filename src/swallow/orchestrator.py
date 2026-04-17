@@ -25,6 +25,7 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .capability_enforcement import CapabilityConstraint, enforce_capability_constraints
+from .cost_estimation import estimate_cost
 from .executor import normalize_executor_name, resolve_dialect_name, resolve_executor
 from .dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
 from .grounding import build_grounding_evidence, extract_grounding_entries
@@ -381,6 +382,11 @@ def _append_parent_executor_event(
     state: TaskState,
     executor_result: ExecutorResult,
 ) -> None:
+    token_cost = estimate_cost(
+        state.route_model_hint,
+        executor_result.estimated_input_tokens,
+        executor_result.estimated_output_tokens,
+    )
     append_event(
         base_dir,
         Event(
@@ -433,6 +439,7 @@ def _append_parent_executor_event(
                 state,
                 latency_ms=executor_result.latency_ms,
                 degraded=state.route_is_fallback,
+                token_cost=token_cost,
                 error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
             ).to_dict(),
         ),
@@ -503,6 +510,11 @@ def _run_binary_fallback(
         state.task_id,
         prefix="fallback",
     )
+    fallback_token_cost = estimate_cost(
+        state.route_model_hint,
+        fallback_result.estimated_input_tokens,
+        fallback_result.estimated_output_tokens,
+    )
     append_event(
         base_dir,
         Event(
@@ -524,6 +536,7 @@ def _run_binary_fallback(
                 "previous_latency_ms": primary_result.latency_ms,
                 "latency_ms": fallback_result.latency_ms,
                 "degraded": True,
+                "token_cost": fallback_token_cost,
                 "primary_artifacts_written": primary_artifacts,
                 "fallback_artifacts_written": fallback_artifacts,
             },

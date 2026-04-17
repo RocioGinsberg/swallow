@@ -104,9 +104,11 @@ class BinaryFallbackTest(unittest.TestCase):
             self.assertEqual(executor_completed["payload"]["logical_model"], "local")
             self.assertEqual(executor_completed["payload"]["physical_route"], "local-summary")
             self.assertTrue(executor_completed["payload"]["degraded"])
+            self.assertEqual(executor_completed["payload"]["token_cost"], 0.0)
             self.assertEqual(executor_completed["payload"]["error_code"], "")
             self.assertGreaterEqual(fallback_event["payload"]["latency_ms"], 0)
             self.assertIn("previous_latency_ms", fallback_event["payload"])
+            self.assertEqual(fallback_event["payload"]["token_cost"], 0.0)
             self.assertTrue((artifacts_dir / "fallback_primary_executor_output.md").exists())
             self.assertTrue((artifacts_dir / "fallback_executor_output.md").exists())
             self.assertEqual(
@@ -179,9 +181,11 @@ class BinaryFallbackTest(unittest.TestCase):
             self.assertEqual(executor_failures[0]["payload"]["logical_model"], "codex")
             self.assertEqual(executor_failures[0]["payload"]["error_code"], "launch_error")
             self.assertFalse(executor_failures[0]["payload"]["degraded"])
+            self.assertGreaterEqual(executor_failures[0]["payload"]["token_cost"], 0.0)
             self.assertEqual(executor_failures[1]["payload"]["logical_model"], "local")
             self.assertEqual(executor_failures[1]["payload"]["error_code"], "local_failure")
             self.assertTrue(executor_failures[1]["payload"]["degraded"])
+            self.assertEqual(executor_failures[1]["payload"]["token_cost"], 0.0)
             self.assertTrue((artifacts_dir / "fallback_primary_executor_output.md").exists())
             self.assertTrue((artifacts_dir / "fallback_executor_output.md").exists())
             self.assertEqual(

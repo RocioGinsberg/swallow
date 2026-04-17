@@ -7,6 +7,7 @@ from time import perf_counter
 
 from .checkpoint_snapshot import build_checkpoint_snapshot_report, evaluate_checkpoint_snapshot
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
+from .cost_estimation import estimate_cost
 from .execution_budget_policy import build_execution_budget_policy_report, evaluate_execution_budget_policy
 from .execution_fit import build_execution_fit_report, evaluate_execution_fit
 from .executor import build_failure_recommendations, run_executor
@@ -103,6 +104,11 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
         latency_ms=max(int((perf_counter() - started_at) * 1000), 0),
     )
     prompt_body = executor_result.prompt
+    token_cost = estimate_cost(
+        state.route_model_hint,
+        executor_result.estimated_input_tokens,
+        executor_result.estimated_output_tokens,
+    )
     prompt_with_dialect = f"dialect: {executor_result.dialect or state.route_dialect or 'plain_text'}\n\n{prompt_body}"
     write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt_with_dialect)
     write_artifact(base_dir, state.task_id, "executor_output.md", executor_result.output or executor_result.message)
@@ -160,6 +166,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                 state,
                 latency_ms=executor_result.latency_ms,
                 degraded=state.route_is_fallback,
+                token_cost=token_cost,
                 error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
             ).to_dict(),
         ),
