@@ -18,6 +18,7 @@ from swallow.web.api import (
     build_task_knowledge_payload,
     build_task_payload,
     build_tasks_payload,
+    create_fastapi_app,
 )
 
 
@@ -33,6 +34,32 @@ def _tree_checksum(path: Path) -> str:
 
 
 class WebApiPayloadsTest(unittest.TestCase):
+    def test_control_center_static_index_contains_dashboard_sections(self) -> None:
+        index_path = Path(__file__).resolve().parents[1] / "src" / "swallow" / "web" / "static" / "index.html"
+        payload = index_path.read_text(encoding="utf-8")
+
+        self.assertIn("Swallow Control Center", payload)
+        self.assertIn("id=\"task-list\"", payload)
+        self.assertIn("id=\"event-list\"", payload)
+        self.assertIn("id=\"artifact-list\"", payload)
+        self.assertIn("/api/tasks?focus=", payload)
+        self.assertIn("/api/tasks/${encodeURIComponent(state.selectedTaskId)}/events", payload)
+        self.assertIn("Refresh", payload)
+
+    def test_create_fastapi_app_exposes_root_dashboard_when_optional_dependency_is_available(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            try:
+                app = create_fastapi_app(tmp_path)
+            except RuntimeError as exc:
+                self.assertIn("FastAPI is required", str(exc))
+                return
+
+        route_paths = {getattr(route, "path", "") for route in app.routes}
+        self.assertIn("/", route_paths)
+        self.assertIn("/api/tasks", route_paths)
+        self.assertIn("/api/health", route_paths)
+
     def test_web_api_payloads_are_read_only_and_return_expected_task_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

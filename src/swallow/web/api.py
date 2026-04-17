@@ -8,6 +8,10 @@ from ..paths import artifacts_dir, events_path
 from ..store import iter_task_states, load_knowledge_objects, load_state
 
 
+def _static_dir() -> Path:
+    return Path(__file__).resolve().parent / "static"
+
+
 def _filter_task_states(states: list[object], focus: str) -> list[object]:
     if focus == "all":
         return states
@@ -168,12 +172,20 @@ def build_task_knowledge_payload(base_dir: Path, task_id: str) -> dict[str, obje
 def create_fastapi_app(base_dir: Path):
     try:
         from fastapi import FastAPI, HTTPException
+        from fastapi.responses import FileResponse
+        from fastapi.staticfiles import StaticFiles
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
             "FastAPI is required for `swl serve`. Install `fastapi` and `uvicorn` to use the control center."
         ) from exc
 
     app = FastAPI(title="Swallow Control Center", version="0.1.0")
+    static_dir = _static_dir()
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+    @app.get("/")
+    def index() -> FileResponse:
+        return FileResponse(static_dir / "index.html")
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
