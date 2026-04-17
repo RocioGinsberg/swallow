@@ -9,30 +9,9 @@ import tempfile
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
 from .dialect_adapters import ClaudeXMLDialect, CodexFIMDialect
 from .models import DialectSpec, ExecutorResult, RetrievalItem, TaskCard, TaskState
-from .knowledge_objects import (
-    summarize_canonicalization,
-    summarize_knowledge_evidence,
-    summarize_knowledge_reuse,
-    summarize_knowledge_stages,
-)
-from .retrieval import summarize_reused_knowledge
-
-
-DEFAULT_EXECUTOR = "codex"
-EXECUTOR_ALIASES = {
-    "": DEFAULT_EXECUTOR,
-    "codex": "codex",
-    "mock": "mock",
-    "mock-remote": "mock-remote",
-    "mock_remote": "mock-remote",
-    "note-only": "note-only",
-    "note_only": "note-only",
-    "local": "local",
-    "local-summary": "local",
-    "local_summary": "local",
-}
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
 
@@ -124,126 +103,108 @@ class StructuredMarkdownDialect:
     )
 
     def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+        del raw_prompt
+        prompt_data = collect_prompt_data(state, retrieval_items)
         lines = [
             "# Swallow Executor Task",
             "",
             "## Task",
-            f"- task_id: {state.task_id}",
-            f"- title: {state.title}",
-            f"- goal: {state.goal}",
-            f"- executor: {resolve_executor_name(state)}",
+            f"- task_id: {prompt_data.task.task_id}",
+            f"- title: {prompt_data.task.title}",
+            f"- goal: {prompt_data.task.goal}",
+            f"- executor: {prompt_data.task.executor}",
             "",
             "## Route",
-            f"- route_mode: {state.route_mode or 'auto'}",
-            f"- route_name: {state.route_name or 'pending'}",
-            f"- route_backend: {state.route_backend or 'pending'}",
-            f"- route_executor_family: {state.route_executor_family or 'pending'}",
-            f"- route_execution_site: {state.route_execution_site or 'pending'}",
-            f"- route_remote_capable: {'yes' if state.route_remote_capable else 'no'}",
-            f"- route_transport_kind: {state.route_transport_kind or 'pending'}",
-            f"- route_model_hint: {state.route_model_hint or 'pending'}",
-            f"- route_dialect: {state.route_dialect or 'plain_text'}",
-            f"- route_capabilities: {format_route_capabilities(state.route_capabilities)}",
+            f"- route_mode: {prompt_data.route.route_mode}",
+            f"- route_name: {prompt_data.route.route_name}",
+            f"- route_backend: {prompt_data.route.route_backend}",
+            f"- route_executor_family: {prompt_data.route.route_executor_family}",
+            f"- route_execution_site: {prompt_data.route.route_execution_site}",
+            f"- route_remote_capable: {'yes' if prompt_data.route.route_remote_capable else 'no'}",
+            f"- route_transport_kind: {prompt_data.route.route_transport_kind}",
+            f"- route_model_hint: {prompt_data.route.route_model_hint}",
+            f"- route_dialect: {prompt_data.route.route_dialect}",
+            f"- route_capabilities: {prompt_data.route.route_capabilities}",
             "",
         ]
-        semantics = state.task_semantics or {}
-        if semantics:
+        if prompt_data.semantics is not None:
             lines.extend(
                 [
                     "## Task Semantics",
-                    f"- source_kind: {semantics.get('source_kind', 'unknown')}",
-                    f"- source_ref: {semantics.get('source_ref', '') or 'none'}",
+                    f"- source_kind: {prompt_data.semantics.source_kind}",
+                    f"- source_ref: {prompt_data.semantics.source_ref}",
                 ]
             )
-            for label, key in [
-                ("constraints", "constraints"),
-                ("acceptance_criteria", "acceptance_criteria"),
-                ("priority_hints", "priority_hints"),
-                ("next_action_proposals", "next_action_proposals"),
+            for label, values in [
+                ("constraints", prompt_data.semantics.constraints),
+                ("acceptance_criteria", prompt_data.semantics.acceptance_criteria),
+                ("priority_hints", prompt_data.semantics.priority_hints),
+                ("next_action_proposals", prompt_data.semantics.next_action_proposals),
             ]:
-                values = semantics.get(key, [])
                 if values:
                     lines.append(f"- {label}: {'; '.join(values)}")
             lines.append("")
 
-        knowledge_objects = state.knowledge_objects or []
-        if knowledge_objects:
-            stage_counts = summarize_knowledge_stages(knowledge_objects)
-            evidence_counts = summarize_knowledge_evidence(knowledge_objects)
-            reuse_counts = summarize_knowledge_reuse(knowledge_objects)
-            canonicalization_counts = summarize_canonicalization(knowledge_objects)
+        if prompt_data.knowledge is not None:
             lines.extend(
                 [
                     "## Knowledge",
-                    f"- count: {len(knowledge_objects)}",
-                    f"- raw: {stage_counts.get('raw', 0)}",
-                    f"- candidate: {stage_counts.get('candidate', 0)}",
-                    f"- verified: {stage_counts.get('verified', 0)}",
-                    f"- canonical: {stage_counts.get('canonical', 0)}",
-                    f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
-                    f"- source_only: {evidence_counts.get('source_only', 0)}",
-                    f"- unbacked: {evidence_counts.get('unbacked', 0)}",
-                    f"- retrieval_candidate: {reuse_counts.get('retrieval_candidate', 0)}",
-                    f"- canonicalization_review_ready: {canonicalization_counts.get('review_ready', 0)}",
-                    f"- canonicalization_promotion_ready: {canonicalization_counts.get('promotion_ready', 0)}",
-                    f"- canonicalization_blocked: {canonicalization_counts.get('blocked_stage', 0) + canonicalization_counts.get('blocked_evidence', 0)}",
+                    f"- count: {prompt_data.knowledge.count}",
+                    f"- raw: {prompt_data.knowledge.raw}",
+                    f"- candidate: {prompt_data.knowledge.candidate}",
+                    f"- verified: {prompt_data.knowledge.verified}",
+                    f"- canonical: {prompt_data.knowledge.canonical}",
+                    f"- artifact_backed: {prompt_data.knowledge.artifact_backed}",
+                    f"- source_only: {prompt_data.knowledge.source_only}",
+                    f"- unbacked: {prompt_data.knowledge.unbacked}",
+                    f"- retrieval_candidate: {prompt_data.knowledge.retrieval_candidate}",
+                    f"- canonicalization_review_ready: {prompt_data.knowledge.canonicalization_review_ready}",
+                    f"- canonicalization_promotion_ready: {prompt_data.knowledge.canonicalization_promotion_ready}",
+                    f"- canonicalization_blocked: {prompt_data.knowledge.canonicalization_blocked}",
                 ]
             )
-            top_items = [item.get("text", "") for item in knowledge_objects[:3]]
-            if top_items:
-                lines.append(f"- top_items: {'; '.join(item for item in top_items if item)}")
+            if prompt_data.knowledge.top_items:
+                lines.append(f"- top_items: {'; '.join(prompt_data.knowledge.top_items)}")
             lines.append("")
 
-        reused_knowledge = summarize_reused_knowledge(retrieval_items)
-        if reused_knowledge["count"] > 0:
+        if prompt_data.reused_knowledge is not None:
             lines.extend(
                 [
                     "## Reused Verified Knowledge",
-                    f"- count: {reused_knowledge['count']}",
-                    f"- references: {', '.join(reused_knowledge['references'])}",
+                    f"- count: {prompt_data.reused_knowledge.count}",
+                    f"- references: {', '.join(prompt_data.reused_knowledge.references)}",
                     "",
                 ]
             )
 
-        previous_memory_artifacts = [
-            state.artifact_paths.get("task_memory", ""),
-            state.artifact_paths.get("source_grounding", ""),
-            state.artifact_paths.get("summary", ""),
-            state.artifact_paths.get("resume_note", ""),
-        ]
-        previous_memory_artifacts = [path for path in previous_memory_artifacts if path]
-        if previous_memory_artifacts:
+        if prompt_data.previous_memory_artifacts:
             lines.extend(
                 [
                     "## Prior Persisted Context",
-                    *[f"- {path}" for path in previous_memory_artifacts],
+                    *[f"- {path}" for path in prompt_data.previous_memory_artifacts],
                     "",
                 ]
             )
 
-        prior_retrieval_snapshot = load_prior_retrieval_snapshot(state)
-        if prior_retrieval_snapshot is not None:
+        if prompt_data.prior_retrieval is not None:
             lines.extend(
                 [
                     "## Prior Retrieval Memory",
-                    f"- previous_retrieval_count: {prior_retrieval_snapshot['count']}",
-                    f"- previous_top_references: {prior_retrieval_snapshot['top_references']}",
-                    f"- previous_reused_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_count']}",
-                    f"- previous_reused_current_task_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_current_task_count']}",
-                    f"- previous_reused_cross_task_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_cross_task_count']}",
-                    f"- previous_reused_knowledge_references: {prior_retrieval_snapshot['reused_knowledge_references']}",
-                    f"- previous_grounding_artifact: {prior_retrieval_snapshot['grounding_artifact']}",
-                    f"- previous_retrieval_record: {prior_retrieval_snapshot['retrieval_record_path']}",
+                    f"- previous_retrieval_count: {prompt_data.prior_retrieval.count}",
+                    f"- previous_top_references: {prompt_data.prior_retrieval.top_references}",
+                    f"- previous_reused_knowledge_count: {prompt_data.prior_retrieval.reused_knowledge_count}",
+                    f"- previous_reused_current_task_knowledge_count: {prompt_data.prior_retrieval.reused_knowledge_current_task_count}",
+                    f"- previous_reused_cross_task_knowledge_count: {prompt_data.prior_retrieval.reused_knowledge_cross_task_count}",
+                    f"- previous_reused_knowledge_references: {prompt_data.prior_retrieval.reused_knowledge_references}",
+                    f"- previous_grounding_artifact: {prompt_data.prior_retrieval.grounding_artifact}",
+                    f"- previous_retrieval_record: {prompt_data.prior_retrieval.retrieval_record_path}",
                     "",
                 ]
             )
 
         lines.append("## Retrieved Context")
-        if retrieval_items:
-            for item in retrieval_items:
-                lines.append(
-                    f"- [{item.source_type}] {item.reference()} title={item.display_title()}: {item.preview}"
-                )
+        if prompt_data.retrieval_entries:
+            lines.extend(f"- {entry}" for entry in prompt_data.retrieval_entries)
         else:
             lines.append("- No retrieval matches were found.")
 
@@ -266,19 +227,6 @@ BUILTIN_DIALECTS: dict[str, DialectAdapter] = {
     "claude_xml": ClaudeXMLDialect(),
     "codex_fim": CodexFIMDialect(),
 }
-
-
-def normalize_executor_name(raw_name: str | None) -> str:
-    normalized = (raw_name or "").strip().lower()
-    return EXECUTOR_ALIASES.get(normalized, DEFAULT_EXECUTOR)
-
-
-def resolve_executor_name(state: TaskState) -> str:
-    configured = normalize_executor_name(state.executor_name)
-    legacy_mode = normalize_executor_name(os.environ.get("AIWF_EXECUTOR_MODE"))
-    if configured != DEFAULT_EXECUTOR:
-        return configured
-    return legacy_mode
 
 
 def resolve_dialect_name(dialect_hint: str | None = None, model_hint: str | None = None) -> str:
@@ -529,107 +477,91 @@ def run_local_executor(
 
 
 def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+    prompt_data = collect_prompt_data(state, retrieval_items)
     lines = [
         "You are the executor for a swallow workflow task.",
-        f"Task ID: {state.task_id}",
-        f"Task Title: {state.title}",
-        f"Goal: {state.goal}",
-        f"Executor: {resolve_executor_name(state)}",
-        f"Route Mode: {state.route_mode or 'auto'}",
-        f"Route: {state.route_name or 'pending'}",
-        f"Route Backend: {state.route_backend or 'pending'}",
-        f"Route Executor Family: {state.route_executor_family or 'pending'}",
-        f"Route Execution Site: {state.route_execution_site or 'pending'}",
-        f"Route Remote Capable: {'yes' if state.route_remote_capable else 'no'}",
-        f"Route Transport Kind: {state.route_transport_kind or 'pending'}",
-        f"Route Model Hint: {state.route_model_hint or 'pending'}",
-        f"Route Capabilities: {format_route_capabilities(state.route_capabilities)}",
+        f"Task ID: {prompt_data.task.task_id}",
+        f"Task Title: {prompt_data.task.title}",
+        f"Goal: {prompt_data.task.goal}",
+        f"Executor: {prompt_data.task.executor}",
+        f"Route Mode: {prompt_data.route.route_mode}",
+        f"Route: {prompt_data.route.route_name}",
+        f"Route Backend: {prompt_data.route.route_backend}",
+        f"Route Executor Family: {prompt_data.route.route_executor_family}",
+        f"Route Execution Site: {prompt_data.route.route_execution_site}",
+        f"Route Remote Capable: {'yes' if prompt_data.route.route_remote_capable else 'no'}",
+        f"Route Transport Kind: {prompt_data.route.route_transport_kind}",
+        f"Route Model Hint: {prompt_data.route.route_model_hint}",
+        f"Route Capabilities: {prompt_data.route.route_capabilities}",
         "",
     ]
-    semantics = state.task_semantics or {}
-    if semantics:
+    if prompt_data.semantics is not None:
         lines.extend(
             [
                 "Task semantics:",
-                f"- source_kind: {semantics.get('source_kind', 'unknown')}",
-                f"- source_ref: {semantics.get('source_ref', '') or 'none'}",
+                f"- source_kind: {prompt_data.semantics.source_kind}",
+                f"- source_ref: {prompt_data.semantics.source_ref}",
             ]
         )
-        for label, key in [
-            ("constraints", "constraints"),
-            ("acceptance_criteria", "acceptance_criteria"),
-            ("priority_hints", "priority_hints"),
-            ("next_action_proposals", "next_action_proposals"),
+        for label, values in [
+            ("constraints", prompt_data.semantics.constraints),
+            ("acceptance_criteria", prompt_data.semantics.acceptance_criteria),
+            ("priority_hints", prompt_data.semantics.priority_hints),
+            ("next_action_proposals", prompt_data.semantics.next_action_proposals),
         ]:
-            values = semantics.get(key, [])
             if values:
                 lines.append(f"- {label}: {'; '.join(values)}")
         lines.append("")
-    knowledge_objects = state.knowledge_objects or []
-    if knowledge_objects:
-        stage_counts = summarize_knowledge_stages(knowledge_objects)
-        evidence_counts = summarize_knowledge_evidence(knowledge_objects)
-        reuse_counts = summarize_knowledge_reuse(knowledge_objects)
-        canonicalization_counts = summarize_canonicalization(knowledge_objects)
+    if prompt_data.knowledge is not None:
         lines.extend(
             [
                 "Knowledge objects:",
-                f"- count: {len(knowledge_objects)}",
-                f"- raw: {stage_counts.get('raw', 0)}",
-                f"- candidate: {stage_counts.get('candidate', 0)}",
-                f"- verified: {stage_counts.get('verified', 0)}",
-                f"- canonical: {stage_counts.get('canonical', 0)}",
-                f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
-                f"- source_only: {evidence_counts.get('source_only', 0)}",
-                f"- unbacked: {evidence_counts.get('unbacked', 0)}",
-                f"- retrieval_candidate: {reuse_counts.get('retrieval_candidate', 0)}",
-                f"- canonicalization_review_ready: {canonicalization_counts.get('review_ready', 0)}",
-                f"- canonicalization_promotion_ready: {canonicalization_counts.get('promotion_ready', 0)}",
-                f"- canonicalization_blocked: {canonicalization_counts.get('blocked_stage', 0) + canonicalization_counts.get('blocked_evidence', 0)}",
+                f"- count: {prompt_data.knowledge.count}",
+                f"- raw: {prompt_data.knowledge.raw}",
+                f"- candidate: {prompt_data.knowledge.candidate}",
+                f"- verified: {prompt_data.knowledge.verified}",
+                f"- canonical: {prompt_data.knowledge.canonical}",
+                f"- artifact_backed: {prompt_data.knowledge.artifact_backed}",
+                f"- source_only: {prompt_data.knowledge.source_only}",
+                f"- unbacked: {prompt_data.knowledge.unbacked}",
+                f"- retrieval_candidate: {prompt_data.knowledge.retrieval_candidate}",
+                f"- canonicalization_review_ready: {prompt_data.knowledge.canonicalization_review_ready}",
+                f"- canonicalization_promotion_ready: {prompt_data.knowledge.canonicalization_promotion_ready}",
+                f"- canonicalization_blocked: {prompt_data.knowledge.canonicalization_blocked}",
             ]
         )
-        top_items = [item.get("text", "") for item in knowledge_objects[:3]]
-        if top_items:
-            lines.append(f"- top_items: {'; '.join(item for item in top_items if item)}")
+        if prompt_data.knowledge.top_items:
+            lines.append(f"- top_items: {'; '.join(prompt_data.knowledge.top_items)}")
         lines.append("")
-    reused_knowledge = summarize_reused_knowledge(retrieval_items)
-    if reused_knowledge["count"] > 0:
+    if prompt_data.reused_knowledge is not None:
         lines.extend(
             [
                 "Reused verified knowledge in current retrieval:",
-                f"- count: {reused_knowledge['count']}",
-                f"- references: {', '.join(reused_knowledge['references'])}",
+                f"- count: {prompt_data.reused_knowledge.count}",
+                f"- references: {', '.join(prompt_data.reused_knowledge.references)}",
                 "",
             ]
         )
-    previous_memory_artifacts = [
-        state.artifact_paths.get("task_memory", ""),
-        state.artifact_paths.get("source_grounding", ""),
-        state.artifact_paths.get("summary", ""),
-        state.artifact_paths.get("resume_note", ""),
-    ]
-    previous_memory_artifacts = [path for path in previous_memory_artifacts if path]
-    if previous_memory_artifacts:
+    if prompt_data.previous_memory_artifacts:
         lines.extend(
             [
                 "Prior persisted context:",
-                *[f"- {path}" for path in previous_memory_artifacts],
+                *[f"- {path}" for path in prompt_data.previous_memory_artifacts],
                 "",
             ]
         )
-    prior_retrieval_snapshot = load_prior_retrieval_snapshot(state)
-    if prior_retrieval_snapshot is not None:
+    if prompt_data.prior_retrieval is not None:
         lines.extend(
             [
                 "Prior retrieval memory:",
-                f"- previous_retrieval_count: {prior_retrieval_snapshot['count']}",
-                f"- previous_top_references: {prior_retrieval_snapshot['top_references']}",
-                f"- previous_reused_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_count']}",
-                f"- previous_reused_current_task_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_current_task_count']}",
-                f"- previous_reused_cross_task_knowledge_count: {prior_retrieval_snapshot['reused_knowledge_cross_task_count']}",
-                f"- previous_reused_knowledge_references: {prior_retrieval_snapshot['reused_knowledge_references']}",
-                f"- previous_grounding_artifact: {prior_retrieval_snapshot['grounding_artifact']}",
-                f"- previous_retrieval_record: {prior_retrieval_snapshot['retrieval_record_path']}",
+                f"- previous_retrieval_count: {prompt_data.prior_retrieval.count}",
+                f"- previous_top_references: {prompt_data.prior_retrieval.top_references}",
+                f"- previous_reused_knowledge_count: {prompt_data.prior_retrieval.reused_knowledge_count}",
+                f"- previous_reused_current_task_knowledge_count: {prompt_data.prior_retrieval.reused_knowledge_current_task_count}",
+                f"- previous_reused_cross_task_knowledge_count: {prompt_data.prior_retrieval.reused_knowledge_cross_task_count}",
+                f"- previous_reused_knowledge_references: {prompt_data.prior_retrieval.reused_knowledge_references}",
+                f"- previous_grounding_artifact: {prompt_data.prior_retrieval.grounding_artifact}",
+                f"- previous_retrieval_record: {prompt_data.prior_retrieval.retrieval_record_path}",
                 "",
             ]
         )
@@ -639,11 +571,8 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
         "Retrieved context:",
         ]
     )
-    if retrieval_items:
-        for item in retrieval_items:
-            lines.append(
-                f"- [{item.source_type}] {item.reference()} title={item.display_title()}: {item.preview}"
-            )
+    if prompt_data.retrieval_entries:
+        lines.extend(f"- {entry}" for entry in prompt_data.retrieval_entries)
     else:
         lines.append("- No retrieval matches were found.")
 
@@ -661,50 +590,11 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
 
 
 def build_formatted_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
-    raw_prompt = build_executor_prompt(state, retrieval_items)
     dialect_name = resolve_dialect_name(getattr(state, "route_dialect", ""), state.route_model_hint)
     state.route_dialect = dialect_name
+    raw_prompt = build_executor_prompt(state, retrieval_items)
     adapter = resolve_dialect(dialect_name, state.route_model_hint)
     return adapter.format_prompt(raw_prompt, state, retrieval_items)
-
-
-def load_prior_retrieval_snapshot(state: TaskState) -> dict[str, str] | None:
-    task_memory_path = state.artifact_paths.get("task_memory", "")
-    if not task_memory_path:
-        return None
-    try:
-        payload = json.loads(Path(task_memory_path).read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-
-    retrieval = payload.get("retrieval", {})
-    top_references = retrieval.get("top_references", [])
-    if not retrieval and not top_references:
-        return None
-    return {
-        "count": str(retrieval.get("count", 0)),
-        "top_references": ", ".join(top_references) if top_references else "none",
-        "reused_knowledge_count": str(retrieval.get("reused_knowledge_count", 0)),
-        "reused_knowledge_current_task_count": str(retrieval.get("reused_knowledge_current_task_count", 0)),
-        "reused_knowledge_cross_task_count": str(retrieval.get("reused_knowledge_cross_task_count", 0)),
-        "reused_knowledge_references": ", ".join(retrieval.get("reused_knowledge_references", [])) or "none",
-        "grounding_artifact": str(retrieval.get("grounding_artifact", "")),
-        "retrieval_record_path": str(retrieval.get("retrieval_record_path", "")),
-    }
-
-
-def format_route_capabilities(capabilities: dict[str, object]) -> str:
-    if not capabilities:
-        return "none"
-    ordered_keys = [
-        "execution_kind",
-        "supports_tool_loop",
-        "filesystem_access",
-        "network_access",
-        "deterministic",
-        "resumable",
-    ]
-    return ", ".join(f"{key}={capabilities.get(key)}" for key in ordered_keys if key in capabilities)
 
 
 def run_codex_executor(
