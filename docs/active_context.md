@@ -79,6 +79,8 @@ Phase 35 已完成实现、review follow-up、merge 与收口，并已合入 `ma
 - `docs/plans/phase35/review_comments.md` (claude, 2026-04-17) — Phase 35 review: Merge ready, 0 BLOCK, 2 CONCERN, 1 NOTE，follow-up 已吸收
 - `current_state.md` (codex, 2026-04-17) — Phase 35 merged recovery entrypoint，默认回到 fresh kickoff
 - `pr.md` (codex, 2026-04-17, ignored) — Phase 35 PR 文案归档，可作为已合并实现摘要参考
+- `docs/design_preview.md` (gemini, 2026-04-17) — 结合全量蓝图比对，产出新一轮全局演进预览，提供 Phase 36 候选方向。
+- `docs/roadmap.md` (gemini, 2026-04-17) — Roadmap 全量刷新，定义了 Phase 36 到 Phase 40 的新一轮演进路线。
 
 ---
 

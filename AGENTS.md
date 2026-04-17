@@ -18,14 +18,9 @@
 
 ## 当前项目状态
 
-本仓库当前已经完成：
+**当前 tag: `v0.1.0`** — 统一调度系统底座（Runtime v0 + 知识双层 + 子任务编排 + 策略路由 + 遥测可观测）
 
-- Phase 0 到 Phase 31 基线
-- post-Phase-2 retrieval baseline
-- post-Phase-5 executor / external-input slice
-- post-Phase-5 retrieval / memory-next slice
-
-这些历史阶段视为**已完成的稳定 checkpoint**，不再作为默认继续方向。
+本仓库已形成稳定运行基线，249 tests passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -33,45 +28,30 @@
 - 通过新的 phase slice 明确边界
 - 保持已有本地任务循环、artifact 语义、恢复路径与 inspect/review 入口的稳定性
 
+当前 phase 进度、活跃方向等实时信息不在本文件维护，请查阅：
+- `docs/active_context.md` — 当前轮次状态
+- `docs/roadmap.md` — 跨 phase 演进路线
+
 ---
 
-## 当前 active 方向
+## 当前系统能力（与 tag 对齐）
 
-当前最近完成的 phase 为：
+以下描述与最新 tag 对齐，仅在打新 tag 时更新。Phase 级增量变更请查阅 `docs/active_context.md`。
 
-- **Latest Completed Track**：`Core Loop` (Primary) + `Execution Topology` (Secondary)
-- **Latest Completed Phase**：`Phase 31`
-- **Latest Completed Slice**：`Runtime v0 — Planner + Executor Interface + Review Gate`
-
-Phase 31 已完成的核心内容包括：
-
-- 引入 `TaskCard` 与规则驱动 `Planner v0`
-- 为现有执行路径建立 `ExecutorProtocol` 统一接口
-- 在 `run_task()` 中接入非阻断 `ReviewGate`
-- 新增 `task.planned` / `task.review_gate` 运行期可观测性
-- 完成 Phase 31 实现、评审、merge 与 closeout 收口
-
-当前默认不应继续无边界扩张到：
-
-- 真实 remote worker execution
-- cross-machine transport implementation
-- distributed job queue / hosted orchestration platform
-- automatic remote dispatch
-- remote handoff driven policy mutation or execution gating
-- operator-selectable remote override policy without fresh kickoff
-- dynamic taxonomy registration / discovery without fresh kickoff
-- ad hoc taxonomy-aware route selection without fresh kickoff
-- workbench UI expansion beyond the scoped CLI surface without fresh kickoff
-- staged knowledge automatic promotion without fresh kickoff
-- staged knowledge retrieval integration without fresh kickoff
-- cross-task staged candidate merge / dedupe without fresh kickoff
-- dynamic runtime policy engines without fresh kickoff
-- manifest-level capability pruning without fresh kickoff
-- semantic merge / conflict resolution without fresh kickoff
-- automatic canonical promotion or conflict arbitration without fresh kickoff
-- vector grounding or semantic retrieval without fresh kickoff
-- prompt-level direct injection of canonical knowledge without fresh kickoff
-- agentic multi-hop RAG without fresh kickoff
+- 本地优先任务循环：显式 state / events / artifacts / checkpoint / resume / retry / rerun
+- 显式 route / topology / dispatch / execution-site / handoff / policy 记录
+- taxonomy 元数据、taxonomy-aware routing guard、operator-facing taxonomy visibility
+- staged knowledge capture、review queue、promote / reject、capability-aware 写入边界
+- Evidence Store + Wiki Store 知识双层、canonical promotion authority、规则驱动 LibrarianExecutor
+- canonical registry、reuse visibility、dedupe / supersede audit、regression inspection
+- grounding evidence artifact、locked grounding refs、resume-stable grounding state
+- 有界 1:N TaskCard planning、DAG subtask orchestration、parent-task artifact/event aggregation
+- ReviewGate 单次 retry feedback loop
+- Capability-aware Strategy Router + RouteRegistry + 四级候选匹配 + binary fallback
+- Claude XML / Codex FIM dialect adapters + 共享 dialect_data prompt 数据层
+- 结构化 executor event telemetry (task_family / logical_model / physical_route / latency_ms / degraded / error_code)
+- 只读 Meta-Optimizer：event log 扫描 + route health / failure fingerprint / degradation trend 提案
+- operator-facing inspect / review / control / intake / grounding surfaces
 
 ---
 
@@ -111,7 +91,7 @@ Phase 31 已完成的核心内容包括：
 | 角色 | 职责 | 控制文件 |
 |------|------|----------|
 | **Gemini** | 长上下文阅读、上下文摘要、一致性检查 | `.gemini/settings.md` → `.agents/gemini/` |
-| **Claude** | 方案拆解、风险评估、PR 评审、分支建议 | `CLAUDE.md` → `.agents/claude/` |
+| **Claude** | 方案拆解、风险评估、PR 评审、分支建议、tag 评估 | `CLAUDE.md` → `.agents/claude/` |
 | **Codex** | 代码实现、测试、状态同步、slice 级 commit 建议、PR 文案整理 | `.codex/session_bootstrap.md` → `.agents/codex/` |
 | **Human** | 设计审批、git 提交执行、PR 创建、合并决策 | — |
 
@@ -195,31 +175,9 @@ Phase 31 已完成的核心内容包括：
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase31/closeout.md`
 
-仅在需要时再读取：
-
-- `docs/plans/phase31/design_decision.md`
-- `docs/plans/phase31/risk_assessment.md`
-- `docs/plans/phase31/review_comments.md`
-- `docs/plans/phase30/design_decision.md`
-- `docs/plans/phase30/risk_assessment.md`
-- `docs/plans/phase30/review_comments.md`
-- `docs/plans/phase28/context_brief.md`
-- `docs/plans/phase28/design_decision.md`
-- `docs/plans/phase28/risk_assessment.md`
-- `docs/plans/phase28/review_comments.md`
-- `docs/plans/phase27/context_brief.md`
-- `docs/plans/phase27/design_decision.md`
-- `docs/plans/phase27/risk_assessment.md`
-- `docs/plans/phase27/review_comments.md`
-- `docs/plans/phase26/closeout.md`
-- `current_state.md`
-- `docs/plans/<older-phase>/closeout.md`
-- `docs/archive/*`
-- 旧的 `post-phase-*` 归档材料
-
-不要默认回读所有历史 phase。
+`docs/active_context.md` 会指向当前活跃 phase 的具体文档（kickoff / closeout 等）。
+不要默认回读所有历史 phase；历史 phase 通过 `docs/plans/<phase>/closeout.md` 按需追溯。
 
 ---
 
@@ -240,8 +198,17 @@ Phase 31 已完成的核心内容包括：
 
 - `current_state.md`
 - `docs/plans/<phase>/closeout.md`
-- 必要时更新 `AGENTS.md`
-- 必要时更新 `README.md` / `README.zh-CN.md`
+- 必要时更新 `AGENTS.md`（仅限长期规则变更，不含 phase 进度）
+
+### Tag 级更新
+仅在打新 tag 时更新：
+
+- `README.md` / `README.zh-CN.md` — "当前实现概况"章节与 tag 对齐
+- `AGENTS.md` — "当前系统能力"章节与 tag 对齐
+
+说明：
+- README 和 AGENTS.md 不跟踪 phase 级进度，避免更新不及时引发上下文冲突
+- phase 级实时信息由 `docs/active_context.md` 和 `docs/roadmap.md` 承载
 
 ### 可选更新
 - `docs/plans/<phase>/commit_summary.md`
@@ -334,6 +301,26 @@ Phase 31 已完成的核心内容包括：
 - 如 Claude review 后仍有实现修改，应先继续在同一 PR 上提交，再进入 merge 决策
 - phase 完成后建议打 tag
 
+### Tag 规则
+
+- 使用语义化版本号：`v<major>.<minor>.<patch>`
+- **v0.x.0**：表示预发布阶段的里程碑 tag，标记一个或多个 phase 完成后的稳定 checkpoint
+- tag 可以与 phase 不同步：不要求每个 phase 都打 tag，也不要求一个 tag 只对应一个 phase
+- tag 只在 `main` 分支上打，且只在测试全部通过时打
+- 不补打历史 tag；历史 phase 通过 git log 和 closeout 文档追溯
+
+**Tag 决策流程**：
+
+1. **Claude 评估**：每次 phase merge 到 main 后，Claude 判断当前 main 是否构成一个有意义的能力里程碑，并给出 tag 建议（打 / 不打 / 等下一个 phase 再打）
+2. **Human 决策**：Human 根据 Claude 建议决定是否打 tag
+3. **Human 执行**：`git tag -a v0.x.0 -m "<tag message>"`
+4. **Codex 同步**：打 tag 后，Codex 更新 README 和 AGENTS.md 中的 tag 引用与系统能力描述
+
+Claude 评估 tag 时应考虑：
+- 自上一个 tag 以来是否有用户可感知的能力增量
+- 当前 main 是否处于稳定状态（无进行中的重构或已知破坏性问题）
+- 是否存在即将消化的 concern 可能改变公共 API（如是，建议等 concern 消化后再打）
+
 ---
 
 ## Phase 与 Git 的对齐规则
@@ -345,23 +332,15 @@ Phase 31 已完成的核心内容包括：
 - slice 负责本轮语义目标
 - branch 负责承载该轮开发
 - commit 负责记录 slice 内的小步变更
+- tag 负责标记跨 phase 的稳定里程碑
 
-对于已完成的 `Phase 18 / Execution Topology / Remote Handoff Contract Baseline`，当前收口结果包括：
-
-1. `kickoff.md` 已完成
-2. `breakdown.md` 已完成
-3. feature branch 已切出并承载实现
-4. remote handoff contract record / report baseline 已完成
-5. `execution-site` / `dispatch` / `handoff` / `control` / `inspect` / `review` 的 remote handoff surface 已完成
-6. `closeout.md` 已完成
-
-下一轮工作应重新选择 active track / phase / slice，而不是默认继续扩张 Phase 18。
+下一轮工作应重新选择 active track / phase / slice，而不是默认继续扩张已完成的 phase。
 
 ---
 
 ## 下一轮工作的默认边界判断
 
-如果某项改动不直接服务于已完成的 Phase 12 closeout 之后的新 kickoff，应先判断：
+如果某项改动不直接服务于当前 active phase 的 kickoff，应先判断：
 
 - 它是否属于下一轮新 slice 的自然子任务
 - 它是否应推迟到下一 phase

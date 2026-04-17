@@ -96,22 +96,11 @@ It is about:
 
 ## Current Implementation Snapshot
 
-The repository now has stable checkpoints through **Phase 32**.
+**Current tag: `v0.1.0`**
 
-The latest merged checkpoint is:
+> This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
 
-- **Track focus**: `Retrieval / Memory`
-- **Latest completed phase**: `Phase 32`
-- **Latest completed slice**: `Knowledge Dual-Layer + Librarian Write Guard`
-
-The current branch state is **Phase 33 PR-ready / merge-gate**:
-
-- `active_track: Execution Topology (Primary) + Core Loop (Secondary)`
-- `active_phase: Phase 33`
-- `active_slice: Closeout + Merge Gate`
-- `active_branch: feat/phase33-subtask-orchestrator`
-
-In practice, the current system already includes:
+In practice, the current system includes:
 
 - a local-first task loop with explicit state, events, artifacts, checkpoints, resume, retry, and rerun semantics
 - explicit route, topology, dispatch, execution-site, handoff, and policy records
@@ -123,11 +112,14 @@ In practice, the current system already includes:
 - canonical-sourced task grounding evidence artifacts, locked grounding refs, and resume-stable grounding state
 - bounded 1:N `TaskCard` planning, DAG-based subtask orchestration, and parent-task artifact / event aggregation
 - a ReviewGate-driven single-retry feedback loop for multi-card execution
+- a capability-aware Strategy Router with `RouteRegistry`, four-tier candidate matching (exact → family+site → capability → summary fallback), and route-level binary fallback
+- Claude XML and Codex FIM dialect adapters with a shared `dialect_data` prompt collection layer
+- structured executor event telemetry (`task_family`, `logical_model`, `physical_route`, `latency_ms`, `degraded`, `error_code`)
+- a read-only Meta-Optimizer that scans task event logs and emits route health, failure fingerprint, and degradation trend proposals
 - operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
 - retrieval over repository files and Markdown / Obsidian notes, with reusable knowledge kept explicit and policy-gated
 
-The focus is no longer to prove a minimal runnable demo.  
-The current `main` checkpoint should be treated as the stable baseline after Phase 32 closeout, while the active Phase 33 branch should be treated as merge-gate work rather than a prompt to keep expanding the phase before merge.
+The current `main` should be treated as the stable baseline corresponding to the latest tag.
 
 ---
 
@@ -315,6 +307,13 @@ Grounding inspection:
 swl task grounding <task-id>
 ```
 
+Meta-optimizer (read-only event log analysis):
+
+```bash
+swl meta-optimize
+swl meta-optimize --last-n 50
+```
+
 Canonical registry records are explicit persisted outputs for promoted canonical knowledge. They are not automatic global memory and do not automatically enable broad retrieval reuse.
 
 Canonical reuse remains policy-gated. `canonical-reuse` shows which active canonical records are currently reuse-visible, while superseded canonical records stay excluded by default.
@@ -330,7 +329,7 @@ This remains a contract baseline, not real remote execution support. It does not
 Run the test suite:
 
 ```bash id="w0d5ha"
-python3 -m unittest discover -s tests
+.venv/bin/python -m pytest
 ```
 
 ---

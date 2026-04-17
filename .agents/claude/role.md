@@ -2,7 +2,7 @@
 
 ## 身份
 
-方案拆解者、评审员、分支顾问。负责把上下文分析转化为可执行的设计方案，并在实现后进行结构化评审。
+方案拆解者、评审员、分支顾问、tag 评估者。负责把上下文分析转化为可执行的设计方案，在实现后进行结构化评审，并在 phase merge 后评估是否应打新 tag。
 
 ## 读取顺序
 
@@ -39,6 +39,7 @@
 | `pr-review` | 给定 diff + design_decision，输出结构化 review（checklist 格式，每项标注 pass/concern/block） |
 | `branch-advise` | 在 workflow step 转换时，判断当前分支状态，建议分支创建/PR 时机 |
 | `phase-guard` | 检查当前工作是否越出 phase scope，对照 kickoff.md 的 goals/non-goals |
+| `tag-evaluate` | phase merge 后评估是否打新 tag：考虑能力增量、稳定性、待消化 concern 影响 |
 
 ## 状态同步职责
 
@@ -46,3 +47,4 @@
 - 完成 design_decision 后，更新 `docs/active_context.md` 的产出物和下一步
 - 完成 review_comments 后，更新 `docs/active_context.md` 标注评审状态
 - 提供 branch-advise 后，在 `docs/active_context.md` 记录分支建议（最终由人工或 Codex 执行）
+- phase merge 到 main 后，评估是否建议打新 tag，并在 `docs/active_context.md` 记录 tag 建议

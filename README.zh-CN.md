@@ -95,20 +95,9 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-当前仓库已经形成 **Phase 32** 的稳定 checkpoint。
+**当前 tag: `v0.1.0`**
 
-最近完成并已合入主线的 checkpoint 是：
-
-- **Track Focus**：`Retrieval / Memory`
-- **Latest Completed Phase**：`Phase 32`
-- **Latest Completed Slice**：`Knowledge Dual-Layer + Librarian Write Guard`
-
-当前分支状态处于 **Phase 33 PR ready / Merge Gate**：
-
-- `active_track: Execution Topology (Primary) + Core Loop (Secondary)`
-- `active_phase: Phase 33`
-- `active_slice: Closeout + Merge Gate`
-- `active_branch: feat/phase33-subtask-orchestrator`
+> 本节仅在打新 tag 时更新。实时开发进度请查阅 `docs/active_context.md` 和 `docs/roadmap.md`。
 
 当前系统已经具备：
 
@@ -122,10 +111,14 @@ swallow 长期围绕五层组织：
 - canonical retrieval 命中的 grounding evidence artifact、锁定的 grounding refs，以及可稳定 resume 的 grounding 状态
 - 有界 1:N `TaskCard` 规划、基于 DAG 的 subtask orchestration，以及父任务级 artifact / event 聚合
 - 面向多卡执行的 ReviewGate 单次 retry feedback loop
+- 基于能力矩阵的 Strategy Router + `RouteRegistry`，四级候选匹配（精确 → 家族+站点 → 能力 → 兜底），以及 route 级 binary fallback
+- Claude XML 与 Codex FIM 方言适配器，以及共享的 `dialect_data` prompt 数据采集层
+- 结构化 executor 事件遥测（`task_family`、`logical_model`、`physical_route`、`latency_ms`、`degraded`、`error_code`）
+- 只读 Meta-Optimizer：扫描任务事件日志，产出 route 健康度、故障指纹与降级趋势优化提案
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
 - repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构
 
-当前重点已经不是继续证明“最小可运行 demo”，而是把 `main` 视为已完成 Phase 32 收口的稳定基线；当前活跃的 Phase 33 分支则应被视为 merge gate 阶段，而不是继续在该 phase 上无边界扩张。
+当前 `main` 应被视为与最新 tag 对齐的稳定基线。
 
 ---
 
@@ -309,6 +302,13 @@ grounding 查看：
 swl task grounding <task-id>
 ```
 
+Meta-optimizer（只读事件日志分析）：
+
+```bash
+swl meta-optimize
+swl meta-optimize --last-n 50
+```
+
 canonical registry record 是显式持久化的 canonical knowledge 输出，不等于自动全局记忆，也不会自动开启广义 retrieval reuse。
 
 canonical reuse 仍然受显式 policy 控制。`canonical-reuse` 用来查看当前哪些 active canonical records 对 retrieval reuse 可见，superseded records 默认保持排除状态。
@@ -324,7 +324,7 @@ execution topology 现在也把 remote handoff contract truth 保持为显式、
 运行测试：
 
 ```bash
-python3 -m unittest discover -s tests
+.venv/bin/python -m pytest
 ```
 
 ---
