@@ -2,7 +2,7 @@
 author: claude
 phase: 38
 slice: cost-telemetry
-status: draft
+status: final
 depends_on: [docs/roadmap.md, docs/plans/phase37/closeout.md, docs/design/PROVIDER_ROUTER_AND_NEGOTIATION.md]
 ---
 

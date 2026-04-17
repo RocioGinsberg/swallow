@@ -41,9 +41,9 @@
 
 说明：
 
-- Phase 37 已完成实现、review、review follow-up 与 merge，并已在 `main` 上形成新的稳定 checkpoint
+- Phase 37 仍是当前已 merge 的最新稳定 checkpoint
 - `docs/plans/phase37/closeout.md` 与 `docs/plans/phase37/review_comments.md` 已反映当前 merged / closeout 完成状态
-- 当前默认不再继续扩张已完成的 Phase 37，而应重新从 roadmap 选择下一轮方向
+- Phase 38 已在 `feat/phase38-cost-telemetry` 上完成实现与 slice 拆 commit，但尚未进入 review / merge，因此还不是新的 stable checkpoint
 
 ---
 
@@ -51,14 +51,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
+- active_phase: `Phase 38`
+- active_slice: `review_pending`
 
 说明：
 
-- Phase 37 已完成并合入 `main`
-- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
+- Phase 38 已完成实现，当前在 `feat/phase38-cost-telemetry`
+- 下一步不是重新 kickoff，而是先完成 review、review follow-up（如有）与 merge 决策
 
 ---
 
@@ -71,10 +71,12 @@
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase37/closeout.md`
+6. `docs/plans/phase38/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase38/kickoff.md`
+- `docs/plans/phase38/review_comments.md`
 - `docs/plans/phase37/review_comments.md`
 - `docs/plans/phase37/kickoff.md`
 - `pr.md`
@@ -128,8 +130,9 @@
 ## 当前已知问题
 
 - `_apply_librarian_side_effects()` 当前仍是顺序持久化 + 索引重建，若中途失败可能导致 state 与 index 不一致；该 concern 已记录在 `docs/concerns_backlog.md`。
-- 遥测 schema 当前仍不包含 `token_cost`，因此 `meta-optimize` 只能基于成功率 / fallback / latency / error_code 产出建议。
+- 遥测 schema 当前的 `token_cost` 仍是本地估算，不代表真实 provider billing。
 - `meta-optimize` 当前为只读分析入口，不会自动采纳提案，也不会直接修改 route policy 或 task state。
+- `StaticCostEstimator` 的定价表是硬编码常量，后续需要独立 phase 才能切到 provider usage 驱动。
 - 真实 codex exec 在当前环境中仍可能因 outbound network / WebSocket 受限而失败。
 - Phase 22 的 taxonomy-aware routing baseline 目前仍是 taxonomy metadata + defensive dispatch guard baseline，不应误解为当前系统已经建立完整 RBAC、动态 taxonomy 注册、capability negotiation 或全量权限治理。
 - Phase 23 仅补齐 operator-facing taxonomy visibility，不应误解为系统已经建立 taxonomy-aware route selection、权限审批流增强或更复杂的 UI 层。
@@ -144,7 +147,8 @@
 - Phase 32 仅建立 Evidence/Wiki 双层存储、canonical promotion authority 防线与规则驱动 LibrarianExecutor baseline，不应误解为系统已经具备外部会话摄入、向量检索、Librarian 语义提纯、staged 自动晋升或 canonical 冲突仲裁。
 - Phase 33 仅建立有界 1:N Planner、SubtaskOrchestrator、ReviewGate 单次 retry 闭环与父任务级 artifact/event 聚合 baseline，不应误解为系统已经具备 Debate Topology、Literature Specialist、动态 executor negotiation、stateful 多卡写回或并发 knowledge_store 写保护。
 - Phase 34 仅建立 capability-aware Strategy Router、Claude XML / Codex FIM concrete dialect 与 route-level binary fallback baseline，不应误解为系统已经具备 provider connector 部署、链式降级矩阵、运行时健康探测、成本感知路由或动态 negotiation。
-- Phase 35 仅建立 executor telemetry、只读 Meta-Optimizer 提案与共享 dialect prompt data layer，不应误解为系统已经具备 token-cost accounting、自动提案采纳、runtime optimizer feedback loop 或 provider-side performance control plane。
+- Phase 35 仅建立 executor telemetry、只读 Meta-Optimizer 提案与共享 dialect prompt data layer，不应误解为系统已经具备自动提案采纳、runtime optimizer feedback loop 或 provider-side performance control plane。
+- Phase 38 仅建立本地估算的 cost telemetry baseline、Meta-Optimizer 成本维度与可替换 `CostEstimator` 接口，不应误解为系统已经具备 provider connector 部署、真实 usage/billing 对账、在线定价同步或自动成本感知路由。
 
 ## 当前收口规则
 
