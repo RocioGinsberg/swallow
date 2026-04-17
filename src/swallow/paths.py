@@ -22,6 +22,10 @@ def knowledge_root(base_dir: Path) -> Path:
     return app_root(base_dir) / "knowledge"
 
 
+def meta_optimizer_root(base_dir: Path) -> Path:
+    return app_root(base_dir) / "meta_optimizer"
+
+
 def knowledge_evidence_root(base_dir: Path) -> Path:
     return knowledge_root(base_dir) / "evidence"
 
@@ -156,6 +160,10 @@ def execution_budget_policy_path(base_dir: Path, task_id: str) -> Path:
 
 def checkpoint_snapshot_path(base_dir: Path, task_id: str) -> Path:
     return task_root(base_dir, task_id) / "checkpoint_snapshot.json"
+
+
+def optimization_proposals_path(base_dir: Path) -> Path:
+    return meta_optimizer_root(base_dir) / "optimization_proposals.md"
 
 
 def canonical_registry_path(base_dir: Path) -> Path:

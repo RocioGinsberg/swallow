@@ -9,7 +9,13 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import ExecutorResult, ValidationResult
+from swallow.models import (
+    EVENT_EXECUTOR_COMPLETED,
+    EVENT_EXECUTOR_FAILED,
+    EVENT_TASK_EXECUTION_FALLBACK,
+    ExecutorResult,
+    ValidationResult,
+)
 from swallow.orchestrator import create_task, run_task
 
 
@@ -85,15 +91,22 @@ class BinaryFallbackTest(unittest.TestCase):
                             final_state = run_task(tmp_path, created.task_id)
 
             events = _load_json_lines(task_dir / "events.jsonl")
-            fallback_event = next(event for event in events if event["event_type"] == "task.execution_fallback")
-            executor_completed = next(event for event in events if event["event_type"] == "executor.completed")
+            fallback_event = next(event for event in events if event["event_type"] == EVENT_TASK_EXECUTION_FALLBACK)
+            executor_completed = next(event for event in events if event["event_type"] == EVENT_EXECUTOR_COMPLETED)
             self.assertEqual(final_state.status, "completed")
             self.assertEqual(final_state.executor_name, "local")
             self.assertEqual(final_state.route_name, "local-summary")
+            self.assertTrue(final_state.route_is_fallback)
             self.assertEqual(fallback_event["payload"]["previous_route_name"], "local-codex")
             self.assertEqual(fallback_event["payload"]["fallback_route_name"], "local-summary")
             self.assertEqual(fallback_event["payload"]["fallback_status"], "completed")
             self.assertEqual(executor_completed["payload"]["route_name"], "local-summary")
+            self.assertEqual(executor_completed["payload"]["logical_model"], "local")
+            self.assertEqual(executor_completed["payload"]["physical_route"], "local-summary")
+            self.assertTrue(executor_completed["payload"]["degraded"])
+            self.assertEqual(executor_completed["payload"]["error_code"], "")
+            self.assertGreaterEqual(fallback_event["payload"]["latency_ms"], 0)
+            self.assertIn("previous_latency_ms", fallback_event["payload"])
             self.assertTrue((artifacts_dir / "fallback_primary_executor_output.md").exists())
             self.assertTrue((artifacts_dir / "fallback_executor_output.md").exists())
             self.assertEqual(
@@ -155,13 +168,20 @@ class BinaryFallbackTest(unittest.TestCase):
                             final_state = run_task(tmp_path, created.task_id)
 
             events = _load_json_lines(task_dir / "events.jsonl")
-            fallback_events = [event for event in events if event["event_type"] == "task.execution_fallback"]
-            executor_failures = [event for event in events if event["event_type"] == "executor.failed"]
+            fallback_events = [event for event in events if event["event_type"] == EVENT_TASK_EXECUTION_FALLBACK]
+            executor_failures = [event for event in events if event["event_type"] == EVENT_EXECUTOR_FAILED]
             self.assertEqual(final_state.status, "failed")
             self.assertEqual(final_state.route_name, "local-summary")
+            self.assertTrue(final_state.route_is_fallback)
             self.assertEqual(len(fallback_events), 1)
             self.assertEqual(len(executor_failures), 2)
             self.assertEqual(fallback_events[0]["payload"]["fallback_status"], "failed")
+            self.assertEqual(executor_failures[0]["payload"]["logical_model"], "codex")
+            self.assertEqual(executor_failures[0]["payload"]["error_code"], "launch_error")
+            self.assertFalse(executor_failures[0]["payload"]["degraded"])
+            self.assertEqual(executor_failures[1]["payload"]["logical_model"], "local")
+            self.assertEqual(executor_failures[1]["payload"]["error_code"], "local_failure")
+            self.assertTrue(executor_failures[1]["payload"]["degraded"])
             self.assertTrue((artifacts_dir / "fallback_primary_executor_output.md").exists())
             self.assertTrue((artifacts_dir / "fallback_executor_output.md").exists())
             self.assertEqual(

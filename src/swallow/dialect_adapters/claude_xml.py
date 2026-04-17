@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from xml.sax.saxutils import escape
 
+from ..dialect_data import collect_prompt_data
 from ..models import DialectSpec, RetrievalItem, TaskState
 
 
@@ -23,13 +24,10 @@ class ClaudeXMLDialect:
     )
 
     def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
-        semantics = state.task_semantics or {}
-        constraints = [str(item).strip() for item in semantics.get("constraints", []) if str(item).strip()]
-        acceptance = [str(item).strip() for item in semantics.get("acceptance_criteria", []) if str(item).strip()]
-        retrieval_lines = [
-            f"[{item.source_type}] {item.reference()} title={item.display_title()}: {item.preview}"
-            for item in retrieval_items
-        ]
+        prompt_data = collect_prompt_data(state, retrieval_items)
+        constraints = prompt_data.semantics.constraints if prompt_data.semantics is not None else []
+        acceptance = prompt_data.semantics.acceptance_criteria if prompt_data.semantics is not None else []
+        retrieval_lines = prompt_data.retrieval_entries
         instructions = [
             "Return what you would do next.",
             "Call out the main risks or gaps.",
@@ -38,15 +36,15 @@ class ClaudeXMLDialect:
         lines = [
             "<swallow_task>",
             "  <task>",
-            f"    <id>{escape(state.task_id)}</id>",
-            f"    <title>{escape(state.title)}</title>",
-            f"    <goal>{escape(state.goal)}</goal>",
+            f"    <id>{escape(prompt_data.task.task_id)}</id>",
+            f"    <title>{escape(prompt_data.task.title)}</title>",
+            f"    <goal>{escape(prompt_data.task.goal)}</goal>",
             "  </task>",
             "  <context>",
-            f"    <route_name>{escape(state.route_name)}</route_name>",
-            f"    <route_backend>{escape(state.route_backend)}</route_backend>",
-            f"    <model_hint>{escape(state.route_model_hint)}</model_hint>",
-            f"    <dialect>{escape(state.route_dialect or self.spec.name)}</dialect>",
+            f"    <route_name>{escape(prompt_data.route.route_name)}</route_name>",
+            f"    <route_backend>{escape(prompt_data.route.route_backend)}</route_backend>",
+            f"    <model_hint>{escape(prompt_data.route.route_model_hint)}</model_hint>",
+            f"    <dialect>{escape(prompt_data.route.route_dialect or self.spec.name)}</dialect>",
             "  </context>",
         ]
         lines.extend(_items_block("constraints", constraints))

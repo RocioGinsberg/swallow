@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..dialect_data import collect_prompt_data
 from ..models import DialectSpec, RetrievalItem, TaskState
 
 
@@ -11,23 +12,21 @@ class CodexFIMDialect:
     )
 
     def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+        prompt_data = collect_prompt_data(state, retrieval_items)
         execution_kind = str((state.route_capabilities or {}).get("execution_kind", "")).strip().lower()
         if execution_kind != "code_execution":
             return raw_prompt
 
-        retrieval_lines = [
-            f"- [{item.source_type}] {item.reference()} title={item.display_title()}: {item.preview}"
-            for item in retrieval_items
-        ] or ["- No retrieval matches were found."]
+        retrieval_lines = [f"- {entry}" for entry in prompt_data.retrieval_entries] or ["- No retrieval matches were found."]
 
         prefix_lines = [
             "# Swallow Codex FIM Task",
             "",
-            f"Task ID: {state.task_id}",
-            f"Title: {state.title}",
-            f"Goal: {state.goal}",
-            f"Route: {state.route_name}",
-            f"Model Hint: {state.route_model_hint}",
+            f"Task ID: {prompt_data.task.task_id}",
+            f"Title: {prompt_data.task.title}",
+            f"Goal: {prompt_data.task.goal}",
+            f"Route: {prompt_data.route.route_name}",
+            f"Model Hint: {prompt_data.route.route_model_hint}",
             "",
             "Retrieved Context:",
             *retrieval_lines,

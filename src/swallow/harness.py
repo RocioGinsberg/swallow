@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 import json
 from pathlib import Path
+from time import perf_counter
 
 from .checkpoint_snapshot import build_checkpoint_snapshot_report, evaluate_checkpoint_snapshot
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
@@ -20,6 +21,9 @@ from .knowledge_objects import (
 from .knowledge_policy import build_knowledge_policy_report, evaluate_knowledge_policy
 from .models import (
     CompatibilityResult,
+    EVENT_EXECUTOR_COMPLETED,
+    EVENT_EXECUTOR_FAILED,
+    EVENT_RETRIEVAL_COMPLETED,
     ExecutionFitResult,
     Event,
     ExecutionBudgetPolicyResult,
@@ -31,6 +35,7 @@ from .models import (
     RetryPolicyResult,
     StopPolicyResult,
     TaskState,
+    build_telemetry_fields,
     ValidationResult,
 )
 from .retrieval import retrieve_context, summarize_reused_knowledge
@@ -68,7 +73,7 @@ def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -
         base_dir,
         Event(
             task_id=state.task_id,
-            event_type="retrieval.completed",
+            event_type=EVENT_RETRIEVAL_COMPLETED,
             message="Retrieved local repository and note context.",
             payload={
                 "count": len(retrieval_items),
@@ -91,7 +96,12 @@ def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -
 
 
 def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+    started_at = perf_counter()
     executor_result = run_executor(state, retrieval_items)
+    executor_result = replace(
+        executor_result,
+        latency_ms=max(int((perf_counter() - started_at) * 1000), 0),
+    )
     prompt_body = executor_result.prompt
     prompt_with_dialect = f"dialect: {executor_result.dialect or state.route_dialect or 'plain_text'}\n\n{prompt_body}"
     write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt_with_dialect)
@@ -102,7 +112,7 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
         base_dir,
         Event(
             task_id=state.task_id,
-            event_type=f"executor.{executor_result.status}",
+            event_type=EVENT_EXECUTOR_COMPLETED if executor_result.status == "completed" else EVENT_EXECUTOR_FAILED,
             message=executor_result.message,
             payload={
                 "status": executor_result.status,
@@ -145,7 +155,13 @@ def run_execution(base_dir: Path, state: TaskState, retrieval_items: list[Retrie
                     "executor_stdout.txt",
                     "executor_stderr.txt",
                 ],
-            },
+            }
+            | build_telemetry_fields(
+                state,
+                latency_ms=executor_result.latency_ms,
+                degraded=state.route_is_fallback,
+                error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
+            ).to_dict(),
         ),
     )
     return executor_result

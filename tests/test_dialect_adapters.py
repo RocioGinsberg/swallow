@@ -1,16 +1,125 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
 from pathlib import Path
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from swallow.dialect_data import collect_prompt_data
 from swallow.executor import build_formatted_executor_prompt, resolve_dialect_name
+from swallow.knowledge_objects import build_knowledge_objects
 from swallow.models import RetrievalItem, TaskState
 
 
 class DialectAdaptersTest(unittest.TestCase):
+    def test_collect_prompt_data_aggregates_shared_prompt_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_memory = tmp_path / "task_memory.json"
+            task_memory.write_text(
+                json.dumps(
+                    {
+                        "retrieval": {
+                            "count": 2,
+                            "top_references": ["docs/plan.md#L1-L4"],
+                            "reused_knowledge_count": 1,
+                            "reused_knowledge_current_task_count": 1,
+                            "reused_knowledge_cross_task_count": 0,
+                            "reused_knowledge_references": [".swl/tasks/task-1/knowledge_objects.json#knowledge-0001"],
+                            "grounding_artifact": ".swl/tasks/task-1/artifacts/source_grounding.md",
+                            "retrieval_record_path": ".swl/tasks/task-1/retrieval.json",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            knowledge_objects = [
+                item.to_dict()
+                for item in build_knowledge_objects(
+                    items=["Persist shared prompt facts"],
+                    stage="verified",
+                    source_ref="docs://phase35",
+                    artifact_refs=["artifacts/knowledge.md"],
+                    retrieval_eligible=True,
+                    canonicalization_intent="review",
+                )
+            ]
+            state = TaskState(
+                task_id="structured-data-001",
+                title="Prompt data aggregation",
+                goal="Collect prompt sections once and reuse them across dialects",
+                workspace_root=str(tmp_path),
+                executor_name="local",
+                route_name="local-summary",
+                route_backend="local_cli",
+                route_executor_family="cli",
+                route_execution_site="local",
+                route_model_hint="local",
+                route_dialect="structured_markdown",
+                route_capabilities={"execution_kind": "artifact_generation", "supports_tool_loop": False},
+                task_semantics={
+                    "source_kind": "external_planning_handoff",
+                    "source_ref": "chat://phase35",
+                    "constraints": ["Keep formatting stable"],
+                    "acceptance_criteria": ["Expose one shared prompt data layer"],
+                    "priority_hints": ["Prefer extraction over new abstractions"],
+                    "next_action_proposals": ["Update executor and adapters to reuse collected sections"],
+                },
+                knowledge_objects=knowledge_objects,
+                artifact_paths={
+                    "task_memory": str(task_memory),
+                    "summary": "artifacts/summary.md",
+                },
+            )
+            retrieval_items = [
+                RetrievalItem(
+                    path=".swl/tasks/task-1/knowledge_objects.json",
+                    source_type="knowledge",
+                    score=9,
+                    preview="Persist shared prompt facts",
+                    citation=".swl/tasks/task-1/knowledge_objects.json#knowledge-0001",
+                    title="Knowledge knowledge-0001",
+                    metadata={
+                        "knowledge_object_id": "knowledge-0001",
+                        "evidence_status": "artifact_backed",
+                        "storage_scope": "task_knowledge",
+                        "knowledge_task_relation": "current_task",
+                    },
+                ),
+                RetrievalItem(
+                    path="docs/plan.md",
+                    source_type="notes",
+                    score=4,
+                    preview="Extract a reusable prompt data layer.",
+                    citation="docs/plan.md#L1-L4",
+                    title="Plan",
+                ),
+            ]
+
+            prompt_data = collect_prompt_data(state, retrieval_items)
+
+        self.assertEqual(prompt_data.task.executor, "local")
+        self.assertEqual(prompt_data.route.route_name, "local-summary")
+        self.assertEqual(prompt_data.route.route_capabilities, "execution_kind=artifact_generation, supports_tool_loop=False")
+        self.assertEqual(prompt_data.semantics.source_ref, "chat://phase35")
+        self.assertEqual(prompt_data.semantics.constraints, ["Keep formatting stable"])
+        self.assertEqual(prompt_data.knowledge.count, 1)
+        self.assertEqual(prompt_data.knowledge.top_items, ["Persist shared prompt facts"])
+        self.assertEqual(prompt_data.reused_knowledge.count, 1)
+        self.assertEqual(
+            prompt_data.previous_memory_artifacts,
+            [str(task_memory), "artifacts/summary.md"],
+        )
+        self.assertEqual(prompt_data.prior_retrieval.count, "2")
+        self.assertEqual(prompt_data.prior_retrieval.top_references, "docs/plan.md#L1-L4")
+        self.assertIn(
+            "[knowledge] .swl/tasks/task-1/knowledge_objects.json#knowledge-0001",
+            prompt_data.retrieval_entries[0],
+        )
+
     def test_resolve_dialect_name_matches_claude_and_codex_model_hints(self) -> None:
         self.assertEqual(resolve_dialect_name("", "claude-3-7-sonnet"), "claude_xml")
         self.assertEqual(resolve_dialect_name("", "codex"), "codex_fim")
@@ -50,6 +159,102 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertIn("<retrieval>", prompt)
         self.assertIn("&lt;xml&gt;", prompt)
         self.assertIn("docs/plan.md#L1-L3", prompt)
+
+    def test_build_formatted_executor_prompt_uses_shared_data_for_structured_markdown(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_memory = tmp_path / "task_memory.json"
+            task_memory.write_text(
+                json.dumps(
+                    {
+                        "retrieval": {
+                            "count": 3,
+                            "top_references": ["docs/plan.md#L1-L3", "notes.md#L2-L5"],
+                            "reused_knowledge_count": 1,
+                            "reused_knowledge_current_task_count": 1,
+                            "reused_knowledge_cross_task_count": 0,
+                            "reused_knowledge_references": [".swl/tasks/task-1/knowledge_objects.json#knowledge-0001"],
+                            "grounding_artifact": ".swl/tasks/task-1/artifacts/source_grounding.md",
+                            "retrieval_record_path": ".swl/tasks/task-1/retrieval.json",
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            knowledge_objects = [
+                item.to_dict()
+                for item in build_knowledge_objects(
+                    items=["Shared data layer is now centralized"],
+                    stage="verified",
+                    source_ref="docs://phase35",
+                    artifact_refs=["artifacts/knowledge.md"],
+                    retrieval_eligible=True,
+                    canonicalization_intent="review",
+                )
+            ]
+            state = TaskState(
+                task_id="structured-markdown-001",
+                title="Structured markdown formatting",
+                goal="Render markdown from the shared prompt data layer",
+                workspace_root=str(tmp_path),
+                executor_name="local",
+                route_name="local-summary",
+                route_backend="local_cli",
+                route_executor_family="cli",
+                route_execution_site="local",
+                route_model_hint="local",
+                route_dialect="structured_markdown",
+                route_capabilities={"execution_kind": "artifact_generation", "supports_tool_loop": False},
+                task_semantics={
+                    "source_kind": "external_planning_handoff",
+                    "source_ref": "chat://phase35",
+                    "constraints": ["Keep formatting stable"],
+                    "acceptance_criteria": ["Include prior retrieval memory"],
+                },
+                knowledge_objects=knowledge_objects,
+                artifact_paths={
+                    "task_memory": str(task_memory),
+                    "summary": "artifacts/summary.md",
+                },
+            )
+            retrieval_items = [
+                RetrievalItem(
+                    path=".swl/tasks/task-1/knowledge_objects.json",
+                    source_type="knowledge",
+                    score=9,
+                    preview="Shared data layer is now centralized",
+                    citation=".swl/tasks/task-1/knowledge_objects.json#knowledge-0001",
+                    title="Knowledge knowledge-0001",
+                    metadata={
+                        "knowledge_object_id": "knowledge-0001",
+                        "evidence_status": "artifact_backed",
+                        "storage_scope": "task_knowledge",
+                        "knowledge_task_relation": "current_task",
+                    },
+                ),
+                RetrievalItem(
+                    path="docs/plan.md",
+                    source_type="notes",
+                    score=4,
+                    preview="Use one collector for prompt sections.",
+                    citation="docs/plan.md#L1-L3",
+                    title="Plan",
+                ),
+            ]
+
+            prompt = build_formatted_executor_prompt(state, retrieval_items)
+
+        self.assertIn("## Task Semantics", prompt)
+        self.assertIn("- constraints: Keep formatting stable", prompt)
+        self.assertIn("## Knowledge", prompt)
+        self.assertIn("- top_items: Shared data layer is now centralized", prompt)
+        self.assertIn("## Reused Verified Knowledge", prompt)
+        self.assertIn("## Prior Persisted Context", prompt)
+        self.assertIn("## Prior Retrieval Memory", prompt)
+        self.assertIn("- previous_retrieval_count: 3", prompt)
+        self.assertIn(".swl/tasks/task-1/knowledge_objects.json#knowledge-0001", prompt)
+        self.assertIn("docs/plan.md#L1-L3", prompt)
+        self.assertIn("## Instructions", prompt)
 
     def test_codex_fim_falls_back_to_raw_prompt_for_non_code_routes(self) -> None:
         state = TaskState(

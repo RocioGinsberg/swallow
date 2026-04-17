@@ -324,6 +324,7 @@ class TaskState:
     route_model_hint: str = "codex"
     route_dialect: str = "plain_text"
     route_reason: str = "Default local Codex route."
+    route_is_fallback: bool = False
     route_capabilities: dict[str, Any] = field(default_factory=dict)
     topology_route_name: str = "local-codex"
     topology_executor_family: str = "cli"
@@ -369,6 +370,25 @@ class Event:
     message: str
     created_at: str = field(default_factory=utc_now)
     payload: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+EVENT_RETRIEVAL_COMPLETED = "retrieval.completed"
+EVENT_EXECUTOR_COMPLETED = "executor.completed"
+EVENT_EXECUTOR_FAILED = "executor.failed"
+EVENT_TASK_EXECUTION_FALLBACK = "task.execution_fallback"
+
+
+@dataclass(slots=True)
+class TelemetryFields:
+    task_family: str
+    logical_model: str
+    physical_route: str
+    latency_ms: int
+    degraded: bool
+    error_code: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -443,11 +463,45 @@ class ExecutorResult:
     prompt: str = ""
     dialect: str = "plain_text"
     failure_kind: str = ""
+    latency_ms: int = 0
     stdout: str = ""
     stderr: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+def infer_task_family(state: TaskState) -> str:
+    semantics = state.task_semantics if isinstance(state.task_semantics, dict) else {}
+    source_kind = str(semantics.get("source_kind", "")).strip().lower()
+    if "planning" in source_kind:
+        return "planning"
+    if "review" in source_kind:
+        return "review"
+    if any(token in source_kind for token in ("extraction", "extract", "knowledge_capture", "capture")):
+        return "extraction"
+    if "retrieval" in source_kind:
+        return "retrieval"
+    return "execution"
+
+
+def build_telemetry_fields(
+    state: TaskState,
+    *,
+    latency_ms: int,
+    degraded: bool,
+    error_code: str = "",
+) -> TelemetryFields:
+    logical_model = str(state.route_model_hint or state.executor_name or "unknown").strip() or "unknown"
+    physical_route = str(state.route_name or "pending").strip() or "pending"
+    return TelemetryFields(
+        task_family=infer_task_family(state),
+        logical_model=logical_model,
+        physical_route=physical_route,
+        latency_ms=max(int(latency_ms or 0), 0),
+        degraded=bool(degraded),
+        error_code=str(error_code).strip(),
+    )
 
 
 @dataclass(slots=True)
