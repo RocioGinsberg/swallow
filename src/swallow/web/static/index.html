@@ -379,6 +379,13 @@
         letter-spacing: 0.06em;
       }
 
+      .viewer-mode {
+        margin-bottom: 10px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
       .viewer-grid {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -499,6 +506,7 @@
               <li class="empty">Artifacts will appear here.</li>
             </ul>
             <div class="artifact-viewer">
+              <div class="viewer-mode" id="artifact-compare-mode">Compare mode: select left and right artifacts.</div>
               <div class="viewer-toolbar">
                 <div class="viewer-column">
                   <label class="viewer-label" for="artifact-left-select">Left Artifact</label>
@@ -560,6 +568,7 @@
       const artifactRightSummary = document.getElementById("artifact-right-summary");
       const artifactLeftContent = document.getElementById("artifact-left-content");
       const artifactRightContent = document.getElementById("artifact-right-content");
+      const artifactCompareMode = document.getElementById("artifact-compare-mode");
       const lastRefresh = document.getElementById("last-refresh");
 
       function escapeHtml(value) {
@@ -734,6 +743,21 @@
         contentNode.textContent = artifact.content || "(empty)";
       }
 
+      async function loadArtifactDiff() {
+        if (!state.selectedTaskId || !state.selectedArtifacts.left || !state.selectedArtifacts.right) {
+          artifactCompareMode.textContent = "Compare mode: select left and right artifacts.";
+          await Promise.all([loadArtifactViewer("left"), loadArtifactViewer("right")]);
+          return;
+        }
+
+        const payload = await fetchJson(
+          `/api/tasks/${encodeURIComponent(state.selectedTaskId)}/artifact-diff?left=${encodeURIComponent(state.selectedArtifacts.left)}&right=${encodeURIComponent(state.selectedArtifacts.right)}`
+        );
+        artifactCompareMode.textContent = "Compare mode: side-by-side artifact review.";
+        renderArtifactViewer("left", payload.left);
+        renderArtifactViewer("right", payload.right);
+      }
+
       async function loadArtifactViewer(side) {
         const artifactName = state.selectedArtifacts[side];
         if (!state.selectedTaskId || !artifactName) {
@@ -746,7 +770,7 @@
       }
 
       async function loadArtifactViewers() {
-        await Promise.all([loadArtifactViewer("left"), loadArtifactViewer("right")]);
+        await loadArtifactDiff();
       }
 
       async function loadTaskDetail() {

@@ -182,6 +182,19 @@ def build_task_artifact_payload(base_dir: Path, task_id: str, artifact_name: str
     raise FileNotFoundError(f"Unknown artifact: {artifact_name}")
 
 
+def build_task_artifact_diff_payload(base_dir: Path, task_id: str, left_name: str, right_name: str) -> dict[str, object]:
+    if not left_name or not right_name:
+        raise ValueError("Both left and right artifact names are required")
+
+    left = build_task_artifact_payload(base_dir, task_id, left_name)
+    right = build_task_artifact_payload(base_dir, task_id, right_name)
+    return {
+        "task_id": task_id,
+        "left": left,
+        "right": right,
+    }
+
+
 def build_task_knowledge_payload(base_dir: Path, task_id: str) -> dict[str, object]:
     payload = load_knowledge_objects(base_dir, task_id)
     return {"task_id": task_id, "count": len(payload), "knowledge_objects": payload}
@@ -334,6 +347,15 @@ def create_fastapi_app(base_dir: Path):
     def task_artifact(task_id: str, artifact_name: str) -> dict[str, object]:
         try:
             return build_task_artifact_payload(base_dir, task_id, artifact_name)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/tasks/{task_id}/artifact-diff")
+    def task_artifact_diff(task_id: str, left: str = "", right: str = "") -> dict[str, object]:
+        try:
+            return build_task_artifact_diff_payload(base_dir, task_id, left, right)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except FileNotFoundError as exc:
