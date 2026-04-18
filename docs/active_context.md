@@ -5,17 +5,17 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - latest_completed_phase: `Phase 40`
 - latest_completed_slice: `Debate Loop + Subtask Unification`
-- active_track: `Execution Topology` (Primary) + `Capabilities` (Secondary)
-- active_phase: `Phase 41a`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `none_selected`
-- status: `phase41a_fresh_kickoff_required`
+- active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
+- active_phase: `Phase 41`
+- active_slice: `review_closeout_pending`
+- active_branch: `feat/phase41-librarian-consolidation`
+- status: `phase41_review_complete_merge_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 40 已完成实现、review 与收口，当前已进入下一轮候选 `Phase 41a` `Dynamic Negotiation & Specialists` 的 fresh kickoff 等待态。Phase 40 的 review 结论为 `0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready`，两个 concern 已登记到 `docs/concerns_backlog.md`，根目录 `pr.md` 与 `closeout.md` 已同步为 merge ready / PR sync ready。整体风险 15/27（中）。
+Phase 41 的两个实现 slice 与 Claude review 都已完成，当前进入 **merge ready / PR sync ready**。S1 `Librarian Atomic Persistence` 已将 Librarian 持久化链路改为批量原子提交；S2 `Debate Loop Core Extraction` 已提取共享 `_debate_loop_core()` / `_build_debate_last_feedback()`，统一单任务与子任务路径的 round 管理、feedback 生成与 breaker 判定，同时保留原有事件、artifact 和熔断语义不变。Claude review 结论为 `0 BLOCK / 0 CONCERN / 1 NOTE / Merge ready`。`docs/plans/phase41/closeout.md`、`docs/plans/phase41/review_comments.md` 和根目录 `pr.md` 已同步收口状态，下一步是人工更新 PR 描述、push 分支并决定 merge。
 
 ---
 
@@ -148,10 +148,11 @@ Phase 40 已完成实现、review 与收口，当前已进入下一轮候选 `Ph
 
 ## 下一步
 
-- **[Human]** 检查并使用根目录 `pr.md` 更新 PR 描述
-- **[Human]** 提交 review follow-up / closeout 文档同步
-- **[Human]** push 当前分支并进入 merge 决策
+- **[Codex]** 同步 closeout + pr.md 到 merge ready 状态
+- **[Human]** 提交 review + closeout，push + merge
 
 ## 当前阻塞项
 
-- 无。当前处于 **merge ready / PR sync ready**。
+- 等待 Codex: closeout 同步
+
+- 等待 Human: 审批 Phase 41 kickoff + risk_assessment + v0.3.0 tag 决策
