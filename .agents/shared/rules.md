@@ -167,6 +167,50 @@ frontmatter 之后、正文之前，必须有 ≤3 行的 TL;DR 摘要。
 
 ---
 
+## 十、Eval 测试规则
+
+自 Phase 45 起，项目引入 Eval-Driven Development，用体验质量评估补充单元/集成测试无法覆盖的维度。
+
+### Eval 与 pytest 的分工
+
+| 维度 | pytest（已有） | eval（新增） |
+|------|--------------|-------------|
+| 覆盖什么 | 函数正确性、状态流转、回归防护 | 降噪质量、提案有效性、端到端体验、真实数据场景 |
+| 数据来源 | mock / 内存构造 | golden dataset / 真实导出文件 / scenario 构造 |
+| 运行时机 | 每次 pytest 自动执行 | `pytest -m eval` 手动触发，不在默认 CI 中 |
+| 失败含义 | 代码有 bug | 体验质量低于基线，需调优 |
+
+### 目录与标记约定
+
+- eval 测试统一放在 `tests/eval/` 目录下
+- 使用 `@pytest.mark.eval` 标记，默认 pytest 不收集（需在 `pytest.ini` 或 `pyproject.toml` 中配置 `-m "not eval"` 为默认）
+- 每个 eval 测试自带 fixture 数据（golden dataset / scenario），不依赖外部服务或 API key
+- 如需真实 API 调用的 smoke test，额外标记 `@pytest.mark.smoke`，与 eval 分开
+
+### 各 agent 的 eval 职责
+
+- **Claude**：kickoff 中为适用的 slice 定义 eval 验收条件（如 precision ≥ 0.8 / recall ≥ 0.7），标注哪些 slice 需要 eval 覆盖
+- **Codex**：实现 `tests/eval/` 下的 eval 测试，准备 golden dataset fixture
+- **Gemini**：context_brief 中识别哪些模块的体验质量需要 eval 覆盖
+
+### 何时需要 eval
+
+| 场景 | 需要 eval |
+|------|----------|
+| 涉及降噪/提取/过滤等"质量有梯度"的逻辑 | 是 |
+| 产出面向 operator 阅读的报告/提案 | 是 |
+| 端到端任务链路（真实模型调用） | 是（smoke test） |
+| 纯内核逻辑（state / store / event） | 否，pytest 已足够 |
+| prompt 格式化 / dialect adapter | 否，pytest 已足够 |
+
+### 不做的事
+
+- 不引入 eval 平台或第三方 eval 框架
+- 不对已有稳定模块补 eval（除非该模块是新 phase 的前置依赖且缺少质量基线）
+- 不将 eval 失败作为 merge blocker（eval 是质量信号，不是门禁）
+
+---
+
 ## 本文件的职责边界
 
 本文件是：所有 agent 的共同操作规则。
