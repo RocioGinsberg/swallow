@@ -49,6 +49,58 @@ class IngestionParsersTest(unittest.TestCase):
         self.assertEqual(turns[0].timestamp, "10")
         self.assertEqual(turns[1].metadata["conversation_title"], "Routing discussion")
 
+    def test_parse_chatgpt_export_marks_non_primary_branch_as_abandoned(self) -> None:
+        payload = {
+            "title": "Branching discussion",
+            "mapping": {
+                "root": {"id": "root", "message": None},
+                "u1": {
+                    "id": "u1",
+                    "parent": "root",
+                    "message": {
+                        "author": {"role": "user"},
+                        "content": {"content_type": "text", "parts": ["Need a routing plan."]},
+                        "create_time": 1,
+                    },
+                },
+                "a1": {
+                    "id": "a1",
+                    "parent": "u1",
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "content": {"content_type": "text", "parts": ["Plan A keeps broad fallback behavior."]},
+                        "create_time": 2,
+                    },
+                },
+                "a2": {
+                    "id": "a2",
+                    "parent": "u1",
+                    "message": {
+                        "author": {"role": "assistant"},
+                        "content": {"content_type": "text", "parts": ["Plan B keeps explicit route guards."]},
+                        "create_time": 4,
+                    },
+                },
+                "u2": {
+                    "id": "u2",
+                    "parent": "a2",
+                    "message": {
+                        "author": {"role": "user"},
+                        "content": {"content_type": "text", "parts": ["Continue with plan B."]},
+                        "create_time": 5,
+                    },
+                },
+            },
+        }
+
+        turns = parse_chatgpt_export(payload)
+
+        abandoned = next(turn for turn in turns if turn.turn_id == "a1")
+        primary = next(turn for turn in turns if turn.turn_id == "a2")
+        self.assertEqual(abandoned.metadata["branch"], "abandoned")
+        self.assertNotIn("branch", primary.metadata)
+        self.assertEqual(primary.metadata["parent_turn_id"], "u1")
+
     def test_parse_claude_export_extracts_text_blocks(self) -> None:
         payload = {
             "name": "Taxonomy sync",

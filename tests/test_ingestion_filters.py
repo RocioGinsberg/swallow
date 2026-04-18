@@ -101,6 +101,51 @@ class IngestionFiltersTest(unittest.TestCase):
         self.assertEqual(len(fragments), 1)
         self.assertIn("document", fragments[0].signals)
 
+    def test_merge_conversation_turns_does_not_cross_branch_boundaries(self) -> None:
+        merged = merge_conversation_turns(
+            [
+                ConversationTurn(role="assistant", content="Primary path turn.", turn_id="a1"),
+                ConversationTurn(
+                    role="assistant",
+                    content="Abandoned branch turn.",
+                    turn_id="a2",
+                    metadata={"branch": "abandoned"},
+                ),
+            ]
+        )
+
+        self.assertEqual(len(merged), 2)
+
+    def test_filter_conversation_turns_drops_abandoned_branch_without_rejection_signal(self) -> None:
+        fragments = filter_conversation_turns(
+            [
+                ConversationTurn(
+                    role="assistant",
+                    content="Alternative draft with extra implementation detail only.",
+                    turn_id="a1",
+                    metadata={"branch": "abandoned"},
+                )
+            ]
+        )
+
+        self.assertEqual(fragments, [])
+
+    def test_filter_conversation_turns_keeps_abandoned_branch_when_it_records_rejection(self) -> None:
+        fragments = filter_conversation_turns(
+            [
+                ConversationTurn(
+                    role="assistant",
+                    content="Reject plan A and switch to plan B.",
+                    turn_id="a1",
+                    metadata={"branch": "abandoned"},
+                )
+            ]
+        )
+
+        self.assertEqual(len(fragments), 1)
+        self.assertIn("abandoned_branch", fragments[0].signals)
+        self.assertIn("rejected_alternative", fragments[0].signals)
+
 
 if __name__ == "__main__":
     unittest.main()
