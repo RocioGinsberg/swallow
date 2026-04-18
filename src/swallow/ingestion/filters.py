@@ -83,7 +83,7 @@ def merge_conversation_turns(turns: list[ConversationTurn]) -> list[Conversation
 
     merged: list[ConversationTurn] = []
     for turn in turns:
-        if not merged or merged[-1].role != turn.role:
+        if not merged or merged[-1].role != turn.role or turn.role == "document":
             merged.append(
                 ConversationTurn(
                     role=turn.role,
