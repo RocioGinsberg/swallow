@@ -271,7 +271,7 @@ def _is_claude_export(payload: Any) -> bool:
 def _is_open_webui_export(payload: Any) -> bool:
     if isinstance(payload, dict) and isinstance(payload.get("messages"), list):
         return True
-    if isinstance(payload, list):
+    if isinstance(payload, list) and payload:
         return all(isinstance(item, dict) and "role" in item for item in payload)
     return False
 

@@ -107,6 +107,10 @@ class IngestionParsersTest(unittest.TestCase):
         self.assertEqual(detect_ingestion_format({"messages": []}), "open_webui_json")
         self.assertEqual(detect_ingestion_format([{"mapping": {}}]), "chatgpt_json")
 
+    def test_detect_ingestion_format_rejects_empty_json_array(self) -> None:
+        with self.assertRaisesRegex(IngestionParseError, "Unsupported ingestion payload"):
+            detect_ingestion_format([])
+
     def test_parse_ingestion_bytes_auto_detects_json_and_markdown(self) -> None:
         markdown_turns = parse_ingestion_bytes(b"# Summary\nUse staged review.", source_name="handoff.md")
         json_turns = parse_ingestion_bytes(
