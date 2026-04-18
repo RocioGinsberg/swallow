@@ -6081,6 +6081,43 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("launch_ok=yes", output)
         self.assertIn("note_only_recommended=no", output)
 
+    def test_doctor_without_subcommand_runs_codex_and_stack_checks(self) -> None:
+        stdout = StringIO()
+        with patch("swallow.cli.diagnose_codex", return_value=(0, object())) as mocked_codex:
+            with patch("swallow.cli.format_codex_doctor_result", return_value="codex-ok"):
+                with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
+                    with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
+                        with redirect_stdout(stdout):
+                            exit_code = main(["doctor"])
+        self.assertEqual(exit_code, 0)
+        mocked_codex.assert_called_once_with()
+        mocked_stack.assert_called_once_with()
+        self.assertEqual(stdout.getvalue(), "codex-ok\n\nstack-ok\n")
+
+    def test_doctor_skip_stack_only_runs_codex_check(self) -> None:
+        stdout = StringIO()
+        with patch("swallow.cli.diagnose_codex", return_value=(0, object())) as mocked_codex:
+            with patch("swallow.cli.format_codex_doctor_result", return_value="codex-ok"):
+                with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
+                    with redirect_stdout(stdout):
+                        exit_code = main(["doctor", "--skip-stack"])
+        self.assertEqual(exit_code, 0)
+        mocked_codex.assert_called_once_with()
+        mocked_stack.assert_not_called()
+        self.assertEqual(stdout.getvalue(), "codex-ok\n")
+
+    def test_doctor_stack_subcommand_runs_stack_check_only(self) -> None:
+        stdout = StringIO()
+        with patch("swallow.cli.diagnose_codex") as mocked_codex:
+            with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
+                with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
+                    with redirect_stdout(stdout):
+                        exit_code = main(["doctor", "stack"])
+        self.assertEqual(exit_code, 0)
+        mocked_codex.assert_not_called()
+        mocked_stack.assert_called_once_with()
+        self.assertEqual(stdout.getvalue(), "stack-ok\n")
+
     def test_task_run_artifact_paths_include_executor_streams(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

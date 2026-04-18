@@ -7,15 +7,15 @@
 - latest_completed_slice: `Librarian Atomic Persistence + Debate Loop Core Extraction`
 - active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 42`
-- active_slice: `Local Stack + Cost Telemetry`
+- active_slice: `S1 Local Stack Doctor`
 - active_branch: `main`
-- status: `phase42_kickoff_draft_awaiting_human_gate`
+- status: `phase42_s1_ready_for_commit_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 42 kickoff 已产出（draft），方向为本地栈健康检查与成本遥测修正。3 个 slice：S1 swl doctor 容器栈检查、S2 fallback 成本修正（消化 Phase 38 C1）、S3 debate retry 隔离（消化 Phase 40 C2）。整体风险 9/27（低）。等待人工审批后切出 feature branch 开始实现。
+Phase 42 已开始执行，S1 `swl doctor` 本地栈检查已完成实现并进入 commit gate。当前 `doctor` 支持本地 Docker / Postgres+pgvector / new-api HTTP / WireGuard / egress proxy 联检，同时保留 `doctor codex` 与 `doctor stack` 的独立入口。下一步是 S2 修复 Meta-Optimizer 在 fallback 路径遗漏成本统计的问题（消化 Phase 38 C1），随后进入 S3 debate retry 事件隔离（消化 Phase 40 C2）。
 
 ---
 
