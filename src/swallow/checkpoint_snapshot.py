@@ -72,6 +72,19 @@ def evaluate_checkpoint_snapshot(
                 message="Retry remains available and should follow the accepted task run path.",
             )
         )
+    elif state.status == "waiting_human":
+        status = "warning"
+        checkpoint_state = "waiting_human"
+        recovery_semantics = "human_gate_debate_exhausted"
+        recommended_path = "run"
+        message = "Debate loop exhausted its review rounds and now requires explicit human-guided rerun."
+        findings.append(
+            CheckpointSnapshotFinding(
+                code="checkpoint.waiting_human",
+                level="warning",
+                message="Debate circuit breaker tripped, so the next step is an explicit operator rerun after review feedback inspection.",
+            )
+        )
     elif review_ready:
         status = "passed"
         checkpoint_state = "review_ready"

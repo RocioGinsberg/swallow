@@ -142,6 +142,36 @@ def build_review_feedback(
     )
 
 
+def render_review_feedback_markdown(feedback: ReviewFeedback) -> str:
+    lines = [
+        f"## Review Feedback (Round {feedback.round_number})",
+        "",
+        f"- max_rounds: {feedback.max_rounds}",
+        "",
+        "### Failed Checks",
+    ]
+    if feedback.failed_checks:
+        for check in feedback.failed_checks:
+            lines.append(
+                f"- {str(check.get('name', 'unknown')).strip() or 'unknown'}: "
+                f"{str(check.get('detail', '')).strip() or 'no detail'}"
+            )
+    else:
+        lines.append("- none")
+    lines.extend(["", "### Suggestions"])
+    if feedback.suggestions:
+        for suggestion in feedback.suggestions:
+            lines.append(f"- {suggestion}")
+    else:
+        lines.append("- none")
+    lines.extend(["", "### Original Output Snippet"])
+    if feedback.original_output_snippet:
+        lines.extend(["```text", feedback.original_output_snippet, "```"])
+    else:
+        lines.append("(empty)")
+    return "\n".join(lines)
+
+
 def review_executor_output(executor_result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
     checks: list[dict[str, Any]] = [
         {

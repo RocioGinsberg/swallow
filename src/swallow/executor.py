@@ -220,6 +220,9 @@ class StructuredMarkdownDialect:
                 "Do not assume hidden context outside the provided task and retrieved sources.",
             ]
         )
+        review_feedback_markdown = str(getattr(state, "review_feedback_markdown", "") or "").strip()
+        if review_feedback_markdown:
+            lines.extend(["", review_feedback_markdown])
         return "\n".join(lines)
 
 
@@ -266,6 +269,7 @@ def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) 
         result = run_local_executor(state, retrieval_items, prompt)
     else:
         result = run_codex_executor(state, retrieval_items, prompt)
+    result = replace(result, review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip())
     result.dialect = state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint)
     return _attach_estimated_usage(result)
 
@@ -336,7 +340,10 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
                 stderr=f"{completed.stderr}\n{exc}".strip(),
                 )
             )
-    return ExecutorResult(**payload)
+    return replace(
+        ExecutorResult(**payload),
+        review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip(),
+    )
 
 
 def _attach_estimated_usage(result: ExecutorResult) -> ExecutorResult:
@@ -600,6 +607,9 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
             "Do not assume hidden context outside the provided task and retrieved sources.",
         ]
     )
+    review_feedback_markdown = str(getattr(state, "review_feedback_markdown", "") or "").strip()
+    if review_feedback_markdown:
+        lines.extend(["", review_feedback_markdown])
     return "\n".join(lines)
 
 

@@ -100,7 +100,13 @@ from .paths import (
 from .retrieval import build_retrieval_request
 from .router import fallback_route_for, normalize_route_mode, select_route
 from .planner import plan
-from .review_gate import ReviewGateResult, review_executor_output
+from .review_gate import (
+    ReviewFeedback,
+    ReviewGateResult,
+    build_review_feedback,
+    render_review_feedback_markdown,
+    review_executor_output,
+)
 from .staged_knowledge import StagedCandidate, submit_staged_candidate
 from .subtask_orchestrator import SubtaskOrchestrator, SubtaskOrchestratorResult, SubtaskRunRecord
 from .store import (
@@ -140,6 +146,8 @@ EXECUTOR_ARTIFACT_NAMES = (
     "executor_stdout.txt",
     "executor_stderr.txt",
 )
+
+DEBATE_MAX_ROUNDS = 3
 
 
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
@@ -377,6 +385,53 @@ def _write_parent_executor_artifacts(
     write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
 
 
+def _clear_review_feedback_state(state: TaskState) -> None:
+    state.review_feedback_markdown = ""
+    state.review_feedback_ref = ""
+
+
+def _persist_review_feedback(
+    base_dir: Path,
+    task_id: str,
+    feedback: ReviewFeedback,
+) -> str:
+    artifact_name = f"review_feedback_round_{feedback.round_number}.json"
+    write_artifact(
+        base_dir,
+        task_id,
+        artifact_name,
+        json.dumps(feedback.to_dict(), indent=2) + "\n",
+    )
+    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
+
+
+def _persist_debate_exhausted_artifact(
+    base_dir: Path,
+    task_id: str,
+    *,
+    feedback_refs: list[str],
+    last_feedback: ReviewFeedback,
+    review_gate_result: ReviewGateResult,
+) -> str:
+    artifact_name = "debate_exhausted.json"
+    write_artifact(
+        base_dir,
+        task_id,
+        artifact_name,
+        json.dumps(
+            {
+                "max_rounds": DEBATE_MAX_ROUNDS,
+                "feedback_refs": feedback_refs,
+                "last_feedback": last_feedback.to_dict(),
+                "review_gate_result": review_gate_result.to_dict(),
+            },
+            indent=2,
+        )
+        + "\n",
+    )
+    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
+
+
 def _append_parent_executor_event(
     base_dir: Path,
     state: TaskState,
@@ -543,6 +598,139 @@ def _run_binary_fallback(
         ),
     )
     return fallback_result, fallback_card, True
+
+
+def _run_single_task_with_debate(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+) -> tuple[ExecutorResult, ReviewGateResult, bool]:
+    feedback_refs: list[str] = []
+    current_card = card
+    retry_round = 0
+    _clear_review_feedback_state(state)
+
+    while True:
+        _append_canonical_write_guard_warning(base_dir, state, current_card)
+        executor_result = _execute_task_card(base_dir, state, current_card, retrieval_items)
+        executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
+        state = _apply_librarian_side_effects(base_dir, state, executor_result)
+        if executor_result.status == "failed":
+            executor_result, current_card, _ = _run_binary_fallback(
+                base_dir,
+                state,
+                current_card,
+                retrieval_items,
+                executor_result,
+            )
+            executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
+
+        review_gate_result = review_executor_output(executor_result, current_card)
+        if review_gate_result.status == "passed":
+            _clear_review_feedback_state(state)
+            return executor_result, review_gate_result, False
+        if executor_result.status != "completed":
+            _clear_review_feedback_state(state)
+            return executor_result, review_gate_result, False
+
+        if retry_round >= DEBATE_MAX_ROUNDS:
+            last_feedback = build_review_feedback(
+                review_gate_result,
+                executor_result,
+                round_number=retry_round,
+                max_rounds=DEBATE_MAX_ROUNDS,
+            ) or ReviewFeedback(
+                round_number=retry_round,
+                failed_checks=[dict(check) for check in review_gate_result.checks if not bool(check.get("passed", False))],
+                suggestions=[],
+                original_output_snippet=(executor_result.output or "").strip(),
+                max_rounds=DEBATE_MAX_ROUNDS,
+            )
+            debate_exhausted_ref = _persist_debate_exhausted_artifact(
+                base_dir,
+                state.task_id,
+                feedback_refs=feedback_refs,
+                last_feedback=last_feedback,
+                review_gate_result=review_gate_result,
+            )
+            append_event(
+                base_dir,
+                Event(
+                    task_id=state.task_id,
+                    event_type="task.debate_circuit_breaker",
+                    message="Debate loop exhausted the maximum review rounds and is waiting for human intervention.",
+                    payload={
+                        "max_rounds": DEBATE_MAX_ROUNDS,
+                        "feedback_refs": feedback_refs,
+                        "debate_exhausted_ref": debate_exhausted_ref,
+                        "executor_name": executor_result.executor_name,
+                        "review_status": review_gate_result.status,
+                    },
+                ),
+            )
+            return (
+                replace(
+                    executor_result,
+                    status="failed",
+                    message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
+                    failure_kind="debate_circuit_breaker",
+                    review_feedback=state.review_feedback_ref,
+                ),
+                review_gate_result,
+                True,
+            )
+
+        feedback = build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=retry_round + 1,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        )
+        if feedback is None:
+            _clear_review_feedback_state(state)
+            return executor_result, review_gate_result, False
+
+        feedback_ref = _persist_review_feedback(base_dir, state.task_id, feedback)
+        feedback_refs.append(feedback_ref)
+        state.review_feedback_ref = feedback_ref
+        state.review_feedback_markdown = render_review_feedback_markdown(feedback)
+        append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type="task.debate_round",
+                message=f"Review feedback generated for debate round {feedback.round_number}.",
+                payload={
+                    "round_number": feedback.round_number,
+                    "max_rounds": feedback.max_rounds,
+                    "retry_scheduled": True,
+                    "feedback_ref": feedback_ref,
+                    "failed_checks": feedback.failed_checks,
+                    "suggestions": feedback.suggestions,
+                    "executor_name": executor_result.executor_name,
+                    "executor_status": executor_result.status,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        )
+        retry_round += 1
+
+    return (
+        ExecutorResult(
+            executor_name=state.executor_name,
+            status="failed",
+            message="Debate loop terminated unexpectedly.",
+            failure_kind="debate_circuit_breaker",
+            review_feedback=state.review_feedback_ref,
+        ),
+        ReviewGateResult(
+            status="failed",
+            message="Debate loop terminated unexpectedly.",
+            checks=[],
+        ),
+        True,
+    )
 
 
 def _append_subtask_events(
@@ -1684,6 +1872,7 @@ def run_task(
     skip_to_phase: str = "retrieval",
 ) -> TaskState:
     state = load_state(base_dir, task_id)
+    _clear_review_feedback_state(state)
     previous_status = state.status
     previous_phase = state.phase
     requested_skip_to_phase = skip_to_phase.strip() or "retrieval"
@@ -1888,19 +2077,14 @@ def run_task(
                 cards,
                 retrieval_items,
             )
+            debate_exhausted = False
         else:
-            _append_canonical_write_guard_warning(base_dir, state, card)
-            executor_result = _execute_task_card(base_dir, state, card, retrieval_items)
-            state = _apply_librarian_side_effects(base_dir, state, executor_result)
-            if executor_result.status == "failed":
-                executor_result, card, _ = _run_binary_fallback(
-                    base_dir,
-                    state,
-                    card,
-                    retrieval_items,
-                    executor_result,
-                )
-            review_gate_result = review_executor_output(executor_result, card)
+            executor_result, review_gate_result, debate_exhausted = _run_single_task_with_debate(
+                base_dir,
+                state,
+                card,
+                retrieval_items,
+            )
         execution_skipped = False
     else:
         state.execution_lifecycle = "reused"
@@ -1910,6 +2094,7 @@ def run_task(
         _set_phase(base_dir, state, "executing")
         review_gate_result = review_executor_output(executor_result, card)
         execution_skipped = True
+        debate_exhausted = False
     state.executor_name = executor_result.executor_name
     state.executor_status = executor_result.status
     save_state(base_dir, state)
@@ -2005,6 +2190,11 @@ def run_task(
     state.execution_phase = "analysis_done"
     state.last_phase_checkpoint_at = utc_now()
     save_state(base_dir, state)
+    artifact_state = replace(state)
+    if debate_exhausted:
+        artifact_state.status = "waiting_human"
+        artifact_state.phase = "waiting_human"
+        artifact_state.execution_lifecycle = "waiting_human"
     (
         compatibility_result,
         execution_fit_result,
@@ -2014,81 +2204,113 @@ def run_task(
         stop_policy_result,
         execution_budget_policy_result,
     ) = write_task_artifacts(
-        base_dir, replace(state), retrieval_items, executor_result, grounding_evidence_override=grounding_evidence
+        base_dir,
+        artifact_state,
+        retrieval_items,
+        executor_result,
+        grounding_evidence_override=grounding_evidence,
     )
 
-    state.status = (
-        "completed"
-        if executor_result.status == "completed"
-        and compatibility_result.status != "failed"
-        and execution_fit_result.status != "failed"
-        and knowledge_policy_result.status != "failed"
-        and validation_result.status != "failed"
-        else "failed"
-    )
-    state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
+    if debate_exhausted:
+        state.status = "waiting_human"
+        state.phase = "waiting_human"
+        state.execution_lifecycle = "waiting_human"
+    else:
+        state.status = (
+            "completed"
+            if executor_result.status == "completed"
+            and compatibility_result.status != "failed"
+            and execution_fit_result.status != "failed"
+            and knowledge_policy_result.status != "failed"
+            and validation_result.status != "failed"
+            else "failed"
+        )
+        state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
     staged_candidates = _route_knowledge_to_staged(base_dir, state)
     save_state(base_dir, state)
     _record_phase_checkpoint(base_dir, state, "analysis_done", source="live_analysis")
-    append_event(
-        base_dir,
-        Event(
-            task_id=task_id,
-            event_type="task.completed" if state.status == "completed" else "task.failed",
-            message="Task run completed." if state.status == "completed" else "Task run failed.",
-            payload={
-                "status": state.status,
-                "phase": state.phase,
-                "retrieval_count": state.retrieval_count,
-                "executor_name": state.executor_name,
-                "route_mode": state.route_mode,
-                "route_name": state.route_name,
-                "route_backend": state.route_backend,
-                "route_executor_family": state.route_executor_family,
-                "route_execution_site": state.route_execution_site,
-                "route_remote_capable": state.route_remote_capable,
-                "route_transport_kind": state.route_transport_kind,
-                "route_dialect": state.route_dialect,
-                "route_reason": state.route_reason,
-                "route_capabilities": state.route_capabilities,
-                "attempt_id": state.current_attempt_id,
-                "attempt_number": state.current_attempt_number,
-                "attempt_owner_kind": state.current_attempt_owner_kind,
-                "attempt_owner_ref": state.current_attempt_owner_ref,
-                "attempt_ownership_status": state.current_attempt_ownership_status,
-                "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
-                "attempt_transfer_reason": state.current_attempt_transfer_reason,
-                "topology_route_name": state.topology_route_name,
-                "topology_executor_family": state.topology_executor_family,
-                "topology_execution_site": state.topology_execution_site,
-                "topology_transport_kind": state.topology_transport_kind,
-                "topology_remote_capable_intent": state.topology_remote_capable_intent,
-                "topology_dispatch_status": state.topology_dispatch_status,
-                "execution_site_contract_kind": state.execution_site_contract_kind,
-                "execution_site_boundary": state.execution_site_boundary,
-                "execution_site_contract_status": state.execution_site_contract_status,
-                "execution_site_handoff_required": state.execution_site_handoff_required,
-                "execution_site_contract_reason": state.execution_site_contract_reason,
-                "dispatch_requested_at": state.dispatch_requested_at,
-                "dispatch_started_at": state.dispatch_started_at,
-                "execution_lifecycle": state.execution_lifecycle,
-                "executor_status": state.executor_status,
-                "compatibility_status": compatibility_result.status,
-                "execution_fit_status": execution_fit_result.status,
-                "retry_policy_status": retry_policy_result.status,
-                "execution_budget_policy_status": execution_budget_policy_result.status,
-                "stop_policy_status": stop_policy_result.status,
-                "knowledge_policy_status": knowledge_policy_result.status,
-                "validation_status": validation_result.status,
-                "staged_candidate_count": len(staged_candidates),
-                "grounding_refs": state.grounding_refs,
-                "grounding_locked": state.grounding_locked,
-                "execution_phase": state.execution_phase,
-                "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
-                "artifact_paths": state.artifact_paths,
-            },
-        ),
-    )
+    if debate_exhausted:
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type="task.waiting_human",
+                message="Task is waiting for human intervention after debate loop exhaustion.",
+                payload={
+                    "status": state.status,
+                    "phase": state.phase,
+                    "retrieval_count": state.retrieval_count,
+                    "executor_name": state.executor_name,
+                    "review_feedback_ref": state.review_feedback_ref,
+                    "staged_candidate_count": len(staged_candidates),
+                    "grounding_refs": state.grounding_refs,
+                    "grounding_locked": state.grounding_locked,
+                    "execution_phase": state.execution_phase,
+                    "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
+                    "artifact_paths": state.artifact_paths,
+                },
+            ),
+        )
+    else:
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type="task.completed" if state.status == "completed" else "task.failed",
+                message="Task run completed." if state.status == "completed" else "Task run failed.",
+                payload={
+                    "status": state.status,
+                    "phase": state.phase,
+                    "retrieval_count": state.retrieval_count,
+                    "executor_name": state.executor_name,
+                    "route_mode": state.route_mode,
+                    "route_name": state.route_name,
+                    "route_backend": state.route_backend,
+                    "route_executor_family": state.route_executor_family,
+                    "route_execution_site": state.route_execution_site,
+                    "route_remote_capable": state.route_remote_capable,
+                    "route_transport_kind": state.route_transport_kind,
+                    "route_dialect": state.route_dialect,
+                    "route_reason": state.route_reason,
+                    "route_capabilities": state.route_capabilities,
+                    "attempt_id": state.current_attempt_id,
+                    "attempt_number": state.current_attempt_number,
+                    "attempt_owner_kind": state.current_attempt_owner_kind,
+                    "attempt_owner_ref": state.current_attempt_owner_ref,
+                    "attempt_ownership_status": state.current_attempt_ownership_status,
+                    "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+                    "attempt_transfer_reason": state.current_attempt_transfer_reason,
+                    "topology_route_name": state.topology_route_name,
+                    "topology_executor_family": state.topology_executor_family,
+                    "topology_execution_site": state.topology_execution_site,
+                    "topology_transport_kind": state.topology_transport_kind,
+                    "topology_remote_capable_intent": state.topology_remote_capable_intent,
+                    "topology_dispatch_status": state.topology_dispatch_status,
+                    "execution_site_contract_kind": state.execution_site_contract_kind,
+                    "execution_site_boundary": state.execution_site_boundary,
+                    "execution_site_contract_status": state.execution_site_contract_status,
+                    "execution_site_handoff_required": state.execution_site_handoff_required,
+                    "execution_site_contract_reason": state.execution_site_contract_reason,
+                    "dispatch_requested_at": state.dispatch_requested_at,
+                    "dispatch_started_at": state.dispatch_started_at,
+                    "execution_lifecycle": state.execution_lifecycle,
+                    "executor_status": state.executor_status,
+                    "compatibility_status": compatibility_result.status,
+                    "execution_fit_status": execution_fit_result.status,
+                    "retry_policy_status": retry_policy_result.status,
+                    "execution_budget_policy_status": execution_budget_policy_result.status,
+                    "stop_policy_status": stop_policy_result.status,
+                    "knowledge_policy_status": knowledge_policy_result.status,
+                    "validation_status": validation_result.status,
+                    "staged_candidate_count": len(staged_candidates),
+                    "grounding_refs": state.grounding_refs,
+                    "grounding_locked": state.grounding_locked,
+                    "execution_phase": state.execution_phase,
+                    "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
+                    "artifact_paths": state.artifact_paths,
+                },
+            ),
+        )
     return state
 
 

@@ -160,6 +160,25 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertIn("&lt;xml&gt;", prompt)
         self.assertIn("docs/plan.md#L1-L3", prompt)
 
+    def test_build_formatted_executor_prompt_includes_review_feedback_in_claude_xml_raw_prompt(self) -> None:
+        state = TaskState(
+            task_id="claude-xml-feedback-001",
+            title="Claude XML feedback",
+            goal="Render review feedback inside the raw prompt payload",
+            workspace_root="/tmp",
+            route_name="claude-local",
+            route_backend="api_stub",
+            route_model_hint="claude-3-5-sonnet",
+            route_dialect="claude_xml",
+            review_feedback_markdown="## Review Feedback (Round 1)\n\n- Return valid JSON.",
+        )
+
+        prompt = build_formatted_executor_prompt(state, [])
+
+        self.assertIn("<raw_prompt>", prompt)
+        self.assertIn("Review Feedback (Round 1)", prompt)
+        self.assertIn("Return valid JSON.", prompt)
+
     def test_build_formatted_executor_prompt_uses_shared_data_for_structured_markdown(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -256,6 +275,28 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertIn("docs/plan.md#L1-L3", prompt)
         self.assertIn("## Instructions", prompt)
 
+    def test_structured_markdown_prompt_appends_review_feedback_section(self) -> None:
+        state = TaskState(
+            task_id="structured-feedback-001",
+            title="Structured feedback",
+            goal="Carry review feedback into the next retry prompt",
+            workspace_root="/tmp",
+            executor_name="local",
+            route_name="local-summary",
+            route_backend="local_cli",
+            route_executor_family="cli",
+            route_execution_site="local",
+            route_model_hint="local",
+            route_dialect="structured_markdown",
+            route_capabilities={"execution_kind": "artifact_generation", "supports_tool_loop": False},
+            review_feedback_markdown="## Review Feedback (Round 2)\n\n- Return a non-empty output payload.",
+        )
+
+        prompt = build_formatted_executor_prompt(state, [])
+
+        self.assertIn("## Review Feedback (Round 2)", prompt)
+        self.assertIn("Return a non-empty output payload.", prompt)
+
     def test_codex_fim_falls_back_to_raw_prompt_for_non_code_routes(self) -> None:
         state = TaskState(
             task_id="codex-fim-plain-001",
@@ -292,6 +333,25 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertIn("Task ID: task-[fim_prefix]-001", prompt)
         self.assertIn("Title: Escape [fim_prefix] in title", prompt)
         self.assertIn("Goal: Keep [fim_suffix] markers inside task metadata", prompt)
+
+    def test_codex_fim_prompt_keeps_review_feedback_inside_raw_prompt_section(self) -> None:
+        state = TaskState(
+            task_id="codex-feedback-001",
+            title="Codex feedback",
+            goal="Retry with concrete review feedback",
+            workspace_root="/tmp",
+            route_name="local-codex",
+            route_model_hint="codex",
+            route_dialect="codex_fim",
+            route_capabilities={"execution_kind": "code_execution"},
+            review_feedback_markdown="## Review Feedback (Round 1)\n\n- Fix the failing schema fields.",
+        )
+
+        prompt = build_formatted_executor_prompt(state, [])
+
+        self.assertIn("<fim_prefix>", prompt)
+        self.assertIn("Review Feedback (Round 1)", prompt)
+        self.assertIn("Fix the failing schema fields.", prompt)
 
 
 if __name__ == "__main__":

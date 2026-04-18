@@ -161,6 +161,7 @@ def run_execution(
                 "execution_lifecycle": state.execution_lifecycle,
                 "dialect": executor_result.dialect or state.route_dialect,
                 "failure_kind": executor_result.failure_kind,
+                "review_feedback": executor_result.review_feedback,
                 "output_written": [
                     "executor_prompt.md",
                     "executor_output.md",
@@ -441,19 +442,24 @@ def write_task_artifacts(
         ),
     )
 
-    final_status = (
-        "completed"
-        if executor_result.status == "completed"
-        and compatibility_result.status != "failed"
-        and execution_fit_result.status != "failed"
-        and knowledge_policy_result.status != "failed"
-        and validation_result.status != "failed"
-        else "failed"
-    )
+    if state.status == "waiting_human":
+        final_status = "waiting_human"
+        final_execution_lifecycle = "waiting_human"
+    else:
+        final_status = (
+            "completed"
+            if executor_result.status == "completed"
+            and compatibility_result.status != "failed"
+            and execution_fit_result.status != "failed"
+            and knowledge_policy_result.status != "failed"
+            and validation_result.status != "failed"
+            else "failed"
+        )
+        final_execution_lifecycle = "completed" if final_status == "completed" else "failed"
     render_state = replace(
         state,
         status=final_status,
-        execution_lifecycle="completed" if final_status == "completed" else "failed",
+        execution_lifecycle=final_execution_lifecycle,
     )
     handoff_record = build_handoff_record(
         render_state,
