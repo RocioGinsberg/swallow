@@ -7,15 +7,15 @@
 - latest_completed_slice: `Local Stack Doctor + Cost Telemetry Fix`
 - active_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
 - active_phase: `Phase 44`
-- active_slice: `S3 Execution Timeline`
+- active_slice: `review_pending`
 - active_branch: `main`
-- status: `phase44_s3_ready_for_commit_gate`
+- status: `phase44_review_pending`
 
 ---
 
 ## 当前状态说明
 
-Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool Calling，无真实需求）。Phase 44 的三个实现 slice 现已全部落地并进入最后一个 commit gate。S1 已补齐 `Subtask Tree`；S2 已补齐 `artifact-diff` compare 模式；S3 现已新增 `execution-timeline` 只读 API 与控制中心时间线面板，能够展示执行事件的 round / latency / token_cost / debate_retry 标记，并用最小内联 SVG 绘制双折线。整体仍保持 Phase 44 的只读约束，零写入 `.swl/`。下一步进入 review / closeout / `pr.md` 整理。
+Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool Calling，无真实需求）。Phase 44 的实现现已全部完成，当前进入 review pending 阶段。S1 已补齐 `Subtask Tree`；S2 已补齐 `artifact-diff` compare 模式；S3 已补齐 `execution-timeline` 只读 API 与时间线面板。整体仍保持 Phase 44 的只读约束，零写入 `.swl/`，且未引入任何前端构建工具链。下一步等待 Claude 产出 `docs/plans/phase44/review_comments.md`，随后做最终 closeout / merge ready 收口。
 
 ---
 
