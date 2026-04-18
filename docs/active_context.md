@@ -7,15 +7,15 @@
 - latest_completed_slice: `Debate Loop + Subtask Unification`
 - active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
 - active_phase: `Phase 41`
-- active_slice: `Librarian Consolidation`
-- active_branch: `main`
-- status: `phase41_kickoff_draft_awaiting_human_gate`
+- active_slice: `S1 Librarian Atomic Persistence`
+- active_branch: `feat/phase41-librarian-consolidation`
+- status: `phase41_s1_ready_for_commit_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 41 kickoff 已产出（draft），方向为 Librarian 收口与结构化清理 — 消化 Phase 36 C1（save_state → index 一致性）和 Phase 40 C1（debate 代码重复）。2 个 slice，整体风险 10/18（低-中）。Roadmap 已重新编排为连续编号 Phase 41-46，Phase 41 优先稳固内核。等待人工审批 kickoff 后切出 feature branch 开始实现。
+Phase 41 已进入实现阶段。S1 `Librarian Atomic Persistence` 已完成：`_apply_librarian_side_effects()` 现在先构造 knowledge/state/index 的批量写入计划，再通过原子 replace + rollback helper 提交，避免中途失败时留下 state / knowledge / index 不一致状态。全量回归已通过：`303 passed`。下一步进入 S1 commit gate，随后继续 S2 `Debate Loop Core Extraction`。
 
 ---
 

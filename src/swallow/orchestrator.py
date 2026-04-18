@@ -47,6 +47,7 @@ from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
 from .knowledge_store import persist_wiki_entry_from_record
+from .knowledge_store import normalize_task_knowledge_view, split_task_knowledge_view
 from .librarian_executor import (
     LIBRARIAN_CHANGE_LOG_KIND,
     build_knowledge_objects_report as build_librarian_knowledge_objects_report,
@@ -81,11 +82,13 @@ from .paths import (
     execution_fit_path,
     execution_budget_policy_path,
     handoff_path,
+    knowledge_evidence_entry_path,
     knowledge_decisions_path,
     knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
     knowledge_policy_path,
+    knowledge_wiki_entry_path,
     memory_path,
     retry_policy_path,
     stop_policy_path,
@@ -94,6 +97,7 @@ from .paths import (
     retrieval_path,
     remote_handoff_contract_path,
     route_path,
+    state_path,
     topology_path,
     validation_path,
 )
@@ -114,6 +118,7 @@ from .store import (
     append_canonical_record,
     append_canonical_reuse_evaluation,
     append_knowledge_decision,
+    apply_atomic_text_updates,
     load_knowledge_objects,
     load_state,
     save_capability_assembly,
@@ -248,6 +253,74 @@ def _load_json_lines(path: Path) -> list[dict[str, object]]:
     return records
 
 
+def _load_json(path: Path) -> dict[str, object]:
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return dict(payload) if isinstance(payload, dict) else {}
+
+
+def _build_knowledge_store_write_plan(
+    base_dir: Path,
+    task_id: str,
+    knowledge_objects: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], dict[Path, str], list[Path]]:
+    normalized_view = normalize_task_knowledge_view(knowledge_objects)
+    evidence_entries, wiki_entries = split_task_knowledge_view(normalized_view)
+    updates: dict[Path, str] = {
+        knowledge_objects_path(base_dir, task_id): json.dumps(normalized_view, indent=2) + "\n",
+    }
+    deletes: list[Path] = []
+
+    for entries, path_factory in (
+        (evidence_entries, lambda entry_id: knowledge_evidence_entry_path(base_dir, task_id, entry_id)),
+        (wiki_entries, lambda entry_id: knowledge_wiki_entry_path(base_dir, task_id, entry_id)),
+    ):
+        desired_names: set[str] = set()
+        for entry in entries:
+            entry_id = str(entry.get("object_id") or entry.get("source_object_id") or entry.get("canonical_id") or "").strip()
+            if not entry_id:
+                entry_id = "knowledge-entry"
+            desired_names.add(f"{entry_id}.json")
+            updates[path_factory(entry_id)] = json.dumps(entry, indent=2) + "\n"
+        store_root = path_factory("placeholder").parent
+        if store_root.exists():
+            for path in store_root.glob("*.json"):
+                if path.name not in desired_names:
+                    deletes.append(path)
+
+    return normalized_view, updates, deletes
+
+
+def _persist_librarian_atomic_updates(
+    base_dir: Path,
+    state: TaskState,
+) -> tuple[dict[str, object], dict[str, object]]:
+    normalized_view, knowledge_updates, knowledge_deletes = _build_knowledge_store_write_plan(
+        base_dir,
+        state.task_id,
+        state.knowledge_objects,
+    )
+    state.knowledge_objects = [dict(item) for item in normalized_view]
+    state.updated_at = utc_now()
+
+    knowledge_partition = build_knowledge_partition(state.knowledge_objects)
+    knowledge_index = build_knowledge_index(state.knowledge_objects)
+    all_canonical_records = _load_json_lines(canonical_registry_path(base_dir))
+    canonical_index = build_canonical_registry_index(all_canonical_records)
+    canonical_reuse_summary = build_canonical_reuse_summary(all_canonical_records)
+
+    updates = dict(knowledge_updates)
+    updates[state_path(base_dir, state.task_id)] = json.dumps(state.to_dict(), indent=2) + "\n"
+    updates[knowledge_partition_path(base_dir, state.task_id)] = json.dumps(knowledge_partition, indent=2) + "\n"
+    updates[knowledge_index_path(base_dir, state.task_id)] = json.dumps(knowledge_index, indent=2) + "\n"
+    updates[canonical_registry_index_path(base_dir)] = json.dumps(canonical_index, indent=2) + "\n"
+    updates[canonical_reuse_policy_path(base_dir)] = json.dumps(canonical_reuse_summary, indent=2) + "\n"
+    apply_atomic_text_updates(updates, deletes=knowledge_deletes)
+
+    return knowledge_partition, knowledge_index
+
+
 def _apply_librarian_side_effects(
     base_dir: Path,
     state: TaskState,
@@ -281,20 +354,15 @@ def _apply_librarian_side_effects(
         persist_wiki_entry_from_record(base_dir, canonical_record)
 
     state.knowledge_objects = [dict(item) for item in updated_knowledge_objects if isinstance(item, dict)]
-    save_state(base_dir, state)
-    save_knowledge_objects(base_dir, state.task_id, state.knowledge_objects)
-
-    knowledge_partition = build_knowledge_partition(state.knowledge_objects)
-    knowledge_index = build_knowledge_index(state.knowledge_objects)
-    save_knowledge_partition(base_dir, state.task_id, knowledge_partition)
-    save_knowledge_index(base_dir, state.task_id, knowledge_index)
+    knowledge_partition, knowledge_index = _persist_librarian_atomic_updates(
+        base_dir,
+        state,
+    )
 
     all_decisions = _load_json_lines(knowledge_decisions_path(base_dir, state.task_id))
     all_canonical_records = _load_json_lines(canonical_registry_path(base_dir))
-    canonical_index = build_canonical_registry_index(all_canonical_records)
-    canonical_reuse_summary = build_canonical_reuse_summary(all_canonical_records)
-    save_canonical_registry_index(base_dir, canonical_index)
-    save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
+    canonical_index = _load_json(canonical_registry_index_path(base_dir))
+    canonical_reuse_summary = _load_json(canonical_reuse_policy_path(base_dir))
 
     output = executor_result.output or json.dumps(change_log_payload, indent=2)
     write_artifact(base_dir, state.task_id, "librarian_change_log.json", output)

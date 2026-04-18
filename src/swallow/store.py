@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Iterable
 
@@ -51,6 +52,75 @@ from .paths import (
     validation_path,
     knowledge_wiki_root,
 )
+
+
+def _atomic_tmp_path(path: Path, *, kind: str = "tmp") -> Path:
+    return path.with_name(f".{path.name}.{kind}")
+
+
+def apply_atomic_text_updates(
+    updates: dict[Path, str],
+    *,
+    deletes: Iterable[Path] = (),
+) -> None:
+    planned_updates = {path: content for path, content in updates.items()}
+    planned_deletes = list(dict.fromkeys(Path(path) for path in deletes if Path(path) not in planned_updates))
+    if not planned_updates and not planned_deletes:
+        return
+
+    original_contents: dict[Path, str | None] = {}
+    staged_paths: dict[Path, Path] = {}
+    replaced_paths: list[Path] = []
+    deleted_paths: list[Path] = []
+
+    touched_paths = list(planned_updates) + planned_deletes
+    for path in touched_paths:
+        original_contents[path] = path.read_text(encoding="utf-8") if path.exists() else None
+        for suffix in ("tmp", "restore"):
+            tmp_path = _atomic_tmp_path(path, kind=suffix)
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+    try:
+        for path, content in planned_updates.items():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = _atomic_tmp_path(path)
+            tmp_path.write_text(content, encoding="utf-8")
+            staged_paths[path] = tmp_path
+
+        for path, tmp_path in staged_paths.items():
+            os.replace(tmp_path, path)
+            replaced_paths.append(path)
+
+        for path in planned_deletes:
+            if path.exists():
+                path.unlink()
+                deleted_paths.append(path)
+    except Exception:
+        for path in reversed(deleted_paths):
+            original = original_contents.get(path)
+            if original is None:
+                continue
+            restore_path = _atomic_tmp_path(path, kind="restore")
+            restore_path.parent.mkdir(parents=True, exist_ok=True)
+            restore_path.write_text(original, encoding="utf-8")
+            os.replace(restore_path, path)
+        for path in reversed(replaced_paths):
+            original = original_contents.get(path)
+            if original is None:
+                if path.exists():
+                    path.unlink()
+                continue
+            restore_path = _atomic_tmp_path(path, kind="restore")
+            restore_path.parent.mkdir(parents=True, exist_ok=True)
+            restore_path.write_text(original, encoding="utf-8")
+            os.replace(restore_path, path)
+        raise
+    finally:
+        restore_paths = [_atomic_tmp_path(path, kind="restore") for path in touched_paths]
+        for path in list(staged_paths.values()) + restore_paths:
+            if path.exists():
+                path.unlink()
 
 
 def ensure_task_layout(base_dir: Path, task_id: str) -> None:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,10 +10,23 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from swallow.canonical_registry import build_canonical_registry_index
+from swallow.canonical_reuse import build_canonical_reuse_summary
+from swallow.knowledge_index import build_knowledge_index
+from swallow.knowledge_partition import build_knowledge_partition
 from swallow.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianExecutor
 from swallow.models import TaskCard, TaskState, ValidationResult
-from swallow.orchestrator import create_task, run_task
-from swallow.store import load_state, save_knowledge_objects, save_state
+from swallow.orchestrator import _apply_librarian_side_effects, create_task, run_task
+from swallow.paths import canonical_registry_index_path, canonical_reuse_policy_path, knowledge_index_path, knowledge_partition_path
+from swallow.store import (
+    load_state,
+    save_canonical_registry_index,
+    save_canonical_reuse_policy,
+    save_knowledge_index,
+    save_knowledge_objects,
+    save_knowledge_partition,
+    save_state,
+)
 
 
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
@@ -176,6 +190,93 @@ class LibrarianExecutorIntegrationTest(unittest.TestCase):
                     for check in review_gate_event["payload"]["checks"]
                 )
             )
+
+    def test_run_task_rolls_back_librarian_atomic_files_when_replace_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Promote verified evidence",
+                goal="Promote canonical-ready evidence with the librarian executor",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            state = load_state(tmp_path, created.task_id)
+            state.knowledge_objects = [
+                {
+                    "object_id": "knowledge-rollback",
+                    "text": "Promote   this   fact",
+                    "stage": "verified",
+                    "source_kind": "external_knowledge_capture",
+                    "source_ref": "chat://rollback",
+                    "task_linked": True,
+                    "captured_at": "2026-04-16T00:00:00+00:00",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": f".swl/tasks/{created.task_id}/artifacts/evidence.md",
+                    "retrieval_eligible": False,
+                    "knowledge_reuse_scope": "task_only",
+                    "canonicalization_intent": "promote",
+                }
+            ]
+            save_state(tmp_path, state)
+            save_knowledge_objects(tmp_path, state.task_id, state.knowledge_objects)
+            save_knowledge_partition(tmp_path, state.task_id, build_knowledge_partition(state.knowledge_objects))
+            save_knowledge_index(tmp_path, state.task_id, build_knowledge_index(state.knowledge_objects))
+            save_canonical_registry_index(tmp_path, build_canonical_registry_index([]))
+            save_canonical_reuse_policy(tmp_path, build_canonical_reuse_summary([]))
+            (tmp_path / ".swl" / "tasks" / created.task_id / "artifacts" / "evidence.md").write_text(
+                "artifact-backed evidence\n",
+                encoding="utf-8",
+            )
+
+            before_state = (tmp_path / ".swl" / "tasks" / created.task_id / "state.json").read_text(encoding="utf-8")
+            before_knowledge = (tmp_path / ".swl" / "tasks" / created.task_id / "knowledge_objects.json").read_text(
+                encoding="utf-8"
+            )
+            before_partition = knowledge_partition_path(tmp_path, created.task_id).read_text(encoding="utf-8")
+            before_index = knowledge_index_path(tmp_path, created.task_id).read_text(encoding="utf-8")
+            before_registry_index = canonical_registry_index_path(tmp_path).read_text(encoding="utf-8")
+            before_reuse = canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8")
+
+            card = TaskCard(
+                card_id="card-librarian-rollback",
+                goal="Promote canonical-ready evidence with the librarian executor",
+                executor_type="librarian",
+                route_hint="librarian-local",
+                input_context={"promotion_ready_object_ids": ["knowledge-rollback"]},
+                output_schema={"type": "object", "const": {"kind": LIBRARIAN_CHANGE_LOG_KIND}},
+            )
+            executor_result = LibrarianExecutor().execute(tmp_path, state, card, [])
+
+            real_replace = os.replace
+            failed_once = False
+
+            def flaky_replace(src: str | os.PathLike[str], dst: str | os.PathLike[str]) -> None:
+                nonlocal failed_once
+                target = Path(dst)
+                if target.name == "knowledge_index.json" and not failed_once:
+                    failed_once = True
+                    raise OSError("simulated replace failure")
+                real_replace(src, dst)
+
+            with patch("swallow.store.os.replace", side_effect=flaky_replace):
+                with self.assertRaises(OSError):
+                    _apply_librarian_side_effects(tmp_path, state, executor_result)
+
+            self.assertEqual(
+                (tmp_path / ".swl" / "tasks" / created.task_id / "state.json").read_text(encoding="utf-8"),
+                before_state,
+            )
+            self.assertEqual(
+                (tmp_path / ".swl" / "tasks" / created.task_id / "knowledge_objects.json").read_text(encoding="utf-8"),
+                before_knowledge,
+            )
+            self.assertEqual(knowledge_partition_path(tmp_path, created.task_id).read_text(encoding="utf-8"), before_partition)
+            self.assertEqual(knowledge_index_path(tmp_path, created.task_id).read_text(encoding="utf-8"), before_index)
+            self.assertEqual(canonical_registry_index_path(tmp_path).read_text(encoding="utf-8"), before_registry_index)
+            self.assertEqual(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"), before_reuse)
+            self.assertFalse(list(tmp_path.rglob("*.tmp")))
+            self.assertFalse(list(tmp_path.rglob("*.restore")))
 
 
 if __name__ == "__main__":
