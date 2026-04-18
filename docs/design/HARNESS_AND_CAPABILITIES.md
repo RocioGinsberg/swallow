@@ -5,11 +5,52 @@ Harness 并非简单的方法或函数列表，它是专门为 Agent 打造的**
 如果说大模型是 Agent 的大脑，那么 Harness 就是其躯干与物理环境。它为 Agent 提供了对现实世界的感知途径与操作杠杆，同时设定了严格的物理法则（权限与边界）。Harness 确保 Agent 的每一次推理都能转化为受控的、上下文感知的有效行动。
 
 ## 2. 安全执行沙盒 (防污染隔离)
-受 Claude Code 等先进开发环境的启发，系统的首要准则是：**绝对不能让自主运行的 Agent 破坏宿主环境。** Harness 实现了一套严密的防污染隔离机制：
+受 Claude Code 等先进开发环境的启发，系统的首要准则是：**绝对不能让自主运行的 Agent 破坏宿主环境。** Harness 实现了以下防污染隔离机制：
 
-*   **终端指令拦截与审查 (Command Interception):** Agent 生成的任何 Shell 命令都不会被直接抛给宿主系统。Harness 充当指令代理，拦截并进行静态扫描，基于黑白名单屏蔽如 `rm -rf /` 或系统级提权等高危破坏性指令。
 *   **虚拟化与容器映射 (Isolation via Virtualenv & Containers):** 所有具备副作用的执行动作都被限制在隔离沙盒中。例如，Python 代码执行会被隐式重定向至项目专用的 Virtualenv，而需要系统级依赖的构建或测试命令，则被映射并分配至临时 Docker 容器内执行，从而确保主机底层环境零污染。
 *   **状态快照与回滚:** 沙盒层提供了文件系统和执行状态的快照机制。若 Agent 的复杂操作链条进入死循环或产出灾难性修改，Harness 能够快速将上下文恢复至执行前的安全基线。
+*   **审查防线兜底:** ReviewGate + Debate Topology（Phase 40）提供事后结构化审查：executor 产出经多轮 review 校验，不合格则生成 feedback 重试或熔断到 `waiting_human`，确保异常产出不会静默通过。
+
+> **注**：终端指令拦截（Command Interception，如 `rm -rf` 黑名单拦截）属于远期增强方向，当前阶段依赖 executor 自身的权限约束和上述事后审查机制。
+
+## 2.1 通用 Executor 设计原则
+
+Executor 是系统的**标准化执行手臂**，不是最高决策脑。它接收调度层下发的标准化任务，在受控工作区内调用模型和工具完成执行，并返回结构化结果、状态更新和可验证产物。
+
+### 三层解耦原则
+
+一个任务至少涉及三层角色，必须严格解耦：
+
+1. **Task Owner（任务风格）**：谁主导任务的推理节奏与拆解策略。例如 Claude 风格（规划/拆解/研究）、Codex 风格（实现/修复/验证）、Gemini 风格（长上下文吸收/文档压缩）。
+2. **Executor Runtime（执行环境）**：谁来实际跑任务。例如 Claude Code、Codex CLI、Gemini CLI、Cline、自定义 runtime。
+3. **Model Route（底层模型）**：底层实际调用哪个模型/渠道。例如高价强模型做主推理、便宜模型做 repo scan、长上下文模型做文档压缩。
+
+这三层的解耦使系统支持成本优化、能力分层、跨 agent 接力和长期架构演化。例如：owner=Claude 风格 + runtime=Cline + route=主会话走高价 Claude、子任务走便宜 OpenAI-compatible 模型。
+
+### 两类 Executor
+
+| 类型 | 特点 | 代表 |
+|------|------|------|
+| **Native-Owner Executor** | 绑定厂商原生生态，对自家模型理解深，可直接接入平台特权功能 | Claude Code、Codex CLI、Gemini CLI |
+| **Open-Runtime Executor** | Provider 中立，可接任意 OpenAI-compatible 后端，更适合统一调度和替换 | Cline、自定义 runtime |
+
+系统应同时支持两类实现：前者利用厂商原生生态能力，后者提供更高的开放性、可替换性与网关兼容性。
+
+### Executor 的七项核心职责
+
+1. **Workspace execution** — 在指定工作区内运行（仓库/文档目录/临时任务目录）
+2. **Tool invocation** — 调用统一工具接口（shell/git/build/test/MCP tools）
+3. **File operations** — 新建/修改/删除/重构/生成 handoff 文档
+4. **Context handling** — 管理局部上下文（读取文件/压缩历史/保留 task state）
+5. **Verification** — 执行可验证动作（测试/lint/类型检查/构建/规则校验）
+6. **Reporting** — 输出结构化结果（完成了什么/修改了哪些文件/风险/建议下一步）
+7. **Handoff** — 把结果交给调度层/下一个 executor/专项 agent/人类审阅
+
+### Executor 不该做什么
+
+- 不该成为顶层总调度器（全局资源分配、成本策略、多任务优先级归调度层）
+- 不该承担专业领域判断（科研理论、论文构造、OCR 标准归专项 agent）
+- 不该把内部思考封装成黑箱（必须输出可交接的中间产物）
 
 ## 3. 能力分层架构 (The Capabilities Hierarchy)
 Harness 内部的能力供应遵循严格的分层设计，从底层基础操作到高层行为准则，分为 Tools、Skills 和 Profiles 三层：

@@ -122,7 +122,7 @@
 *   它利用状态记录中的长文档哈希索引，自动对接 Gemini 的 Context Caching 功能。
 *   它对代码层面的结构修改需求，组装为 Codex 的 FIM (Fill-In-the-Middle) 格式。
 
-### 4.3 状态驱动的优雅降级 (State-Driven Graceful Degradation)
-当系统由于策略、成本或离线环境退级到较弱的本地/开源模型时，这些模型可能不具备复杂的原生 Tool Calling 能力。此时，路由层与能力协商器会触发工具的**优雅降级 (Graceful Degradation)**，将通用结构的调用意图转化为 ReAct Prompt：
-1.  **事件审计**：这种降级操作会被事件流（Event Log）精准捕获，例如标记该次动作为 `tool_execution_degraded`，用于系统后续的模型行为审计。
-2.  **安全兜底**：即便发生降级且模型利用正则解析给出了存在幻觉的工具参数，由于 **State Store** 具有严格的单一事实防线和 Schema 校验，非法的状态突变会被直接拦截。系统会将任务退回安全状态或直接挂起至 `waiting_human` 状态，确保容错与绝对安全。
+### 4.3 状态驱动的安全兜底 (State-Driven Safety Net)
+当系统由于策略、成本或离线环境退级到较弱的本地/开源模型时，State Store 的单一事实防线和 Schema 校验提供系统级安全兜底：
+1.  **事件审计**：降级操作会被事件流（Event Log）精准捕获，例如标记该次动作为 `tool_execution_degraded`，用于系统后续的模型行为审计。
+2.  **安全兜底**：如果弱模型由于幻觉生成了非法的工具参数，State Store 的 Schema 校验会直接拦截非法状态突变，将任务退回安全状态或挂起至 `waiting_human` 状态。Phase 40 引入的 Debate Topology（多轮对抗审查 + 熔断机制）进一步强化了这条防线。
