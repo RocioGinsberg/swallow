@@ -34,16 +34,16 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 38`
-- latest_completed_slice: `Cost Telemetry Baseline`
+- latest_completed_phase: `Phase 39`
+- latest_completed_slice: `Ingestion Pipeline + CLI`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-18`
 
 说明：
 
-- Phase 38 已完成实现、review、收口与 merge，并已在 `main` 上形成新的稳定 checkpoint
-- `docs/plans/phase38/closeout.md` 与 `docs/plans/phase38/review_comments.md` 已反映当前 merged / closeout 完成状态
-- 当前默认不再继续扩张已完成的 Phase 38，而应重新从 roadmap 选择下一轮方向
+- Phase 39 已完成实现、review、收口与 merge，并已在 `main` 上形成新的稳定 checkpoint
+- `docs/plans/phase39/closeout.md` 与 `docs/plans/phase39/review_comments.md` 已反映当前 merged / closeout 完成状态
+- 当前默认不再继续扩张已完成的 Phase 39，而应重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -57,7 +57,7 @@
 
 说明：
 
-- Phase 38 已完成并合入 `main`
+- Phase 39 已完成并合入 `main`
 - 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
 
 ---
@@ -71,14 +71,14 @@
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase38/closeout.md`
+6. `docs/plans/phase39/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase39/review_comments.md`
+- `docs/plans/phase39/kickoff.md`
 - `docs/plans/phase38/review_comments.md`
 - `docs/plans/phase38/kickoff.md`
-- `docs/plans/phase37/review_comments.md`
-- `docs/plans/phase37/kickoff.md`
 - `pr.md`
 - `docs/plans/phase36/closeout.md`
 - `docs/plans/phase36/review_comments.md`
@@ -150,6 +150,7 @@
 - Phase 34 仅建立 capability-aware Strategy Router、Claude XML / Codex FIM concrete dialect 与 route-level binary fallback baseline，不应误解为系统已经具备 provider connector 部署、链式降级矩阵、运行时健康探测、成本感知路由或动态 negotiation。
 - Phase 35 仅建立 executor telemetry、只读 Meta-Optimizer 提案与共享 dialect prompt data layer，不应误解为系统已经具备自动提案采纳、runtime optimizer feedback loop 或 provider-side performance control plane。
 - Phase 38 仅建立本地估算的 cost telemetry baseline、Meta-Optimizer 成本维度与可替换 `CostEstimator` 接口，不应误解为系统已经具备 provider connector 部署、真实 usage/billing 对账、在线定价同步或自动成本感知路由。
+- Phase 39 仅建立本地文件导入的 Ingestion Specialist baseline，不应误解为系统已经具备实时外部会话同步、自动晋升、LLM 提纯、PDF/HTML 解析、HandoffContract 自动生成或 Web 摄入入口。
 
 ## 当前收口规则
 
