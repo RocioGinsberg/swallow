@@ -56,6 +56,21 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
+def _coerce_int(value: object, default: int = 0) -> int:
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        return int(value)
+    if isinstance(value, str):
+        try:
+            return int(value.strip())
+        except ValueError:
+            return default
+    return default
+
+
 def _checksum_tree(path: Path) -> str:
     if not path.exists():
         return "missing"
@@ -172,6 +187,102 @@ def build_task_knowledge_payload(base_dir: Path, task_id: str) -> dict[str, obje
     return {"task_id": task_id, "count": len(payload), "knowledge_objects": payload}
 
 
+def build_task_subtask_tree_payload(base_dir: Path, task_id: str) -> dict[str, object]:
+    state = load_state(base_dir, task_id)
+    events = _load_json_lines(events_path(base_dir, task_id))
+    planned_event = next((event for event in events if str(event.get("event_type", "")).strip() == "task.planned"), None)
+
+    children_by_key: dict[str, dict[str, object]] = {}
+    if planned_event is not None:
+        payload = planned_event.get("payload", {})
+        if not isinstance(payload, dict):
+            payload = {}
+        card_ids = list(payload.get("card_ids", []))
+        subtask_indices = list(payload.get("subtask_indices", []))
+        if len(card_ids) > 1:
+            for position, raw_card_id in enumerate(card_ids):
+                card_id = str(raw_card_id).strip()
+                if not card_id:
+                    continue
+                subtask_index = _coerce_int(
+                    subtask_indices[position] if position < len(subtask_indices) else position + 1,
+                    position + 1,
+                )
+                children_by_key[card_id] = {
+                    "card_id": card_id,
+                    "subtask_index": subtask_index,
+                    "goal": "",
+                    "status": "pending",
+                    "attempts": 0,
+                    "executor_name": "",
+                    "latency_ms": 0,
+                    "debate_rounds": 0,
+                }
+
+    for event in events:
+        event_type = str(event.get("event_type", "")).strip()
+        if not event_type.startswith("subtask."):
+            continue
+
+        payload = event.get("payload", {})
+        if not isinstance(payload, dict):
+            payload = {}
+        event_parts = event_type.split(".")
+        subtask_index = _coerce_int(payload.get("subtask_index"), _coerce_int(event_parts[1] if len(event_parts) > 1 else 0, 0))
+        card_id = str(payload.get("card_id", "")).strip()
+        child_key = card_id or f"subtask-{subtask_index}"
+        child = children_by_key.setdefault(
+            child_key,
+            {
+                "card_id": card_id,
+                "subtask_index": subtask_index,
+                "goal": "",
+                "status": "pending",
+                "attempts": 0,
+                "executor_name": "",
+                "latency_ms": 0,
+                "debate_rounds": 0,
+            },
+        )
+
+        if card_id:
+            child["card_id"] = card_id
+        if subtask_index:
+            child["subtask_index"] = subtask_index
+        goal = str(payload.get("goal", "")).strip()
+        if goal:
+            child["goal"] = goal
+        executor_name = str(payload.get("executor_name", "")).strip()
+        if executor_name:
+            child["executor_name"] = executor_name
+        child["latency_ms"] = max(_coerce_int(payload.get("latency_ms"), 0), _coerce_int(child.get("latency_ms"), 0))
+        child["attempts"] = max(_coerce_int(payload.get("attempt_number"), 0), _coerce_int(child.get("attempts"), 0))
+
+        if event_type.endswith(".execution"):
+            child["status"] = str(payload.get("status") or payload.get("executor_status") or child.get("status") or "pending").strip() or "pending"
+        elif event_type.endswith(".debate_round"):
+            child["debate_rounds"] = max(
+                _coerce_int(payload.get("round_number"), 1),
+                _coerce_int(child.get("debate_rounds"), 0),
+            )
+        elif event_type.endswith(".debate_circuit_breaker"):
+            child["status"] = "waiting_human"
+        elif event_type.endswith(".review_gate"):
+            review_status = str(payload.get("status", "")).strip()
+            if review_status == "failed" and str(child.get("status", "")) == "pending":
+                child["status"] = "failed"
+
+    children = sorted(
+        children_by_key.values(),
+        key=lambda item: (_coerce_int(item.get("subtask_index"), 0), str(item.get("card_id", ""))),
+    )
+    return {
+        "task_id": task_id,
+        "status": state.status,
+        "children": children,
+    }
+
+
 def create_fastapi_app(base_dir: Path):
     try:
         from fastapi import FastAPI, HTTPException
@@ -232,6 +343,13 @@ def create_fastapi_app(base_dir: Path):
     def task_knowledge(task_id: str) -> dict[str, object]:
         try:
             return build_task_knowledge_payload(base_dir, task_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/tasks/{task_id}/subtask-tree")
+    def task_subtask_tree(task_id: str) -> dict[str, object]:
+        try:
+            return build_task_subtask_tree_payload(base_dir, task_id)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 

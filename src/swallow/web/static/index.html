@@ -172,7 +172,8 @@
       .task-meta,
       .meta-grid,
       .event-list,
-      .artifact-list {
+      .artifact-list,
+      .subtask-tree {
         font-family: var(--mono);
         font-size: 13px;
       }
@@ -212,7 +213,7 @@
 
       .detail {
         display: grid;
-        grid-template-rows: auto auto minmax(180px, 1fr) minmax(160px, 0.9fr);
+        grid-template-rows: auto auto minmax(120px, 0.7fr) minmax(180px, 1fr) minmax(160px, 0.9fr);
         min-height: 72vh;
       }
 
@@ -244,7 +245,8 @@
       }
 
       .event-list,
-      .artifact-list {
+      .artifact-list,
+      .subtask-tree {
         list-style: none;
         margin: 0;
         padding: 0;
@@ -310,6 +312,35 @@
       .artifact-button.is-active {
         background: var(--panel-strong);
         border-color: rgba(15, 118, 110, 0.35);
+      }
+
+      .subtask-item {
+        border: 1px solid rgba(216, 205, 184, 0.85);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.46);
+        padding: 12px;
+      }
+
+      .subtask-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+
+      .subtask-title {
+        margin: 0;
+        font-size: 15px;
+      }
+
+      .subtask-meta {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
       }
 
       .artifact-name {
@@ -441,6 +472,16 @@
 
           <div class="detail-block">
             <div class="panel-header" style="padding:0 0 12px; border:0; background:none;">
+              <h3 class="panel-title">Subtask Tree</h3>
+              <span class="stamp" id="subtask-count">0</span>
+            </div>
+            <ul class="subtask-tree" id="subtask-tree-list">
+              <li class="empty">Subtasks will appear here.</li>
+            </ul>
+          </div>
+
+          <div class="detail-block">
+            <div class="panel-header" style="padding:0 0 12px; border:0; background:none;">
               <h3 class="panel-title">Events</h3>
               <span class="stamp" id="event-count">0</span>
             </div>
@@ -507,6 +548,8 @@
       const detailTitle = document.getElementById("detail-title");
       const detailSummary = document.getElementById("detail-summary");
       const detailMeta = document.getElementById("detail-meta");
+      const subtaskCount = document.getElementById("subtask-count");
+      const subtaskTreeList = document.getElementById("subtask-tree-list");
       const eventCount = document.getElementById("event-count");
       const eventList = document.getElementById("event-list");
       const artifactCount = document.getElementById("artifact-count");
@@ -606,6 +649,32 @@
         `).join("");
       }
 
+      function renderSubtaskTree(children) {
+        subtaskCount.textContent = `${children.length}`;
+        if (!children.length) {
+          subtaskTreeList.innerHTML = '<li class="empty">No subtasks recorded for this task.</li>';
+          return;
+        }
+
+        subtaskTreeList.innerHTML = children.map((child) => `
+          <li class="subtask-item">
+            <div class="subtask-row">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span class="dot ${statusClass(child.status)}"></span>
+                <p class="subtask-title">[${escapeHtml(child.subtask_index)}] ${escapeHtml(child.goal || child.card_id || "Subtask")}</p>
+              </div>
+              <span class="task-meta">${escapeHtml(child.status || "pending")}</span>
+            </div>
+            <div class="subtask-meta">
+              <span>card=${escapeHtml(child.card_id || "-")}</span>
+              <span>attempts=${escapeHtml(child.attempts || 0)}</span>
+              <span>debate_rounds=${escapeHtml(child.debate_rounds || 0)}</span>
+              <span>executor=${escapeHtml(child.executor_name || "-")}</span>
+            </div>
+          </li>
+        `).join("");
+      }
+
       function renderArtifacts(artifacts) {
         state.artifacts = artifacts;
         artifactCount.textContent = `${artifacts.length}`;
@@ -685,13 +754,15 @@
           detailTitle.textContent = "Task Detail";
           detailSummary.textContent = "Select a task to inspect its status, events, and artifacts.";
           detailMeta.innerHTML = '<p class="empty">No task selected.</p>';
+          renderSubtaskTree([]);
           renderEvents([]);
           renderArtifacts([]);
           return;
         }
 
-        const [task, eventsPayload, artifactsPayload] = await Promise.all([
+        const [task, subtaskTreePayload, eventsPayload, artifactsPayload] = await Promise.all([
           fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}`),
+          fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/subtask-tree`),
           fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/events`),
           fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/artifacts`)
         ]);
@@ -699,6 +770,7 @@
         detailTitle.textContent = task.title || state.selectedTaskId;
         detailSummary.textContent = task.goal || "No goal recorded.";
         renderMeta(task);
+        renderSubtaskTree(subtaskTreePayload.children || []);
         renderEvents(eventsPayload.events || []);
         renderArtifacts(artifactsPayload.artifacts || []);
         await loadArtifactViewers();

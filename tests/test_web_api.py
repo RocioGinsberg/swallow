@@ -9,13 +9,15 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.orchestrator import create_task, run_task
+from swallow.models import Event
 from swallow.paths import app_root
-from swallow.store import load_state, save_state
+from swallow.store import append_event, load_state, save_state
 from swallow.web.api import (
     build_task_artifact_payload,
     build_task_artifacts_payload,
     build_task_events_payload,
     build_task_knowledge_payload,
+    build_task_subtask_tree_payload,
     build_task_payload,
     build_tasks_payload,
     create_fastapi_app,
@@ -44,7 +46,9 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertIn("id=\"artifact-list\"", payload)
         self.assertIn("/api/tasks?focus=", payload)
         self.assertIn("/api/tasks/${encodeURIComponent(state.selectedTaskId)}/events", payload)
+        self.assertIn("/api/tasks/${encodeURIComponent(state.selectedTaskId)}/subtask-tree", payload)
         self.assertIn("Refresh", payload)
+        self.assertIn("id=\"subtask-tree-list\"", payload)
         self.assertIn("artifact-left-select", payload)
         self.assertIn("artifact-right-select", payload)
         self.assertIn("artifact-left-content", payload)
@@ -65,6 +69,7 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertIn("/", route_paths)
         self.assertIn("/api/tasks", route_paths)
         self.assertIn("/api/health", route_paths)
+        self.assertIn("/api/tasks/{task_id}/subtask-tree", route_paths)
 
     def test_web_api_payloads_are_read_only_and_return_expected_task_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -88,6 +93,7 @@ class WebApiPayloadsTest(unittest.TestCase):
             artifacts_payload = build_task_artifacts_payload(tmp_path, created.task_id)
             artifact_payload = build_task_artifact_payload(tmp_path, created.task_id, "summary.md")
             knowledge_payload = build_task_knowledge_payload(tmp_path, created.task_id)
+            subtask_tree_payload = build_task_subtask_tree_payload(tmp_path, created.task_id)
             app_checksum_after = _tree_checksum(app_root(tmp_path))
 
         self.assertEqual(app_checksum_before, app_checksum_after)
@@ -102,6 +108,8 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertEqual(artifact_payload["name"], "summary.md")
         self.assertIn("Local summary executor completed.", artifact_payload["content"])
         self.assertEqual(knowledge_payload["task_id"], created.task_id)
+        self.assertEqual(subtask_tree_payload["task_id"], created.task_id)
+        self.assertEqual(subtask_tree_payload["children"], [])
 
     def test_build_tasks_payload_honors_focus_filter(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -184,6 +192,106 @@ class WebApiPayloadsTest(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 build_task_artifact_payload(tmp_path, created.task_id, "../state.json")
+
+    def test_build_task_subtask_tree_payload_aggregates_subtask_attempts_and_debate_rounds(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Subtask tree task",
+                goal="Render subtask execution hierarchy",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+
+            append_event(
+                tmp_path,
+                Event(
+                    task_id=created.task_id,
+                    event_type="task.planned",
+                    message="Task planned into runtime task cards.",
+                    payload={
+                        "card_count": 2,
+                        "card_id": "card-a",
+                        "card_ids": ["card-a", "card-b"],
+                        "subtask_indices": [1, 2],
+                    },
+                ),
+            )
+            append_event(
+                tmp_path,
+                Event(
+                    task_id=created.task_id,
+                    event_type="subtask.1.execution",
+                    message="Subtask 1 execution completed.",
+                    payload={
+                        "attempt_number": 1,
+                        "card_id": "card-a",
+                        "goal": "Prepare changes",
+                        "subtask_index": 1,
+                        "executor_name": "local",
+                        "status": "completed",
+                    },
+                ),
+            )
+            append_event(
+                tmp_path,
+                Event(
+                    task_id=created.task_id,
+                    event_type="subtask.2.execution",
+                    message="Subtask 2 execution completed.",
+                    payload={
+                        "attempt_number": 1,
+                        "card_id": "card-b",
+                        "goal": "Verify results",
+                        "subtask_index": 2,
+                        "executor_name": "local",
+                        "status": "failed",
+                    },
+                ),
+            )
+            append_event(
+                tmp_path,
+                Event(
+                    task_id=created.task_id,
+                    event_type="subtask.2.debate_round",
+                    message="Review feedback generated for subtask 2 debate round 1.",
+                    payload={
+                        "card_id": "card-b",
+                        "goal": "Verify results",
+                        "subtask_index": 2,
+                        "round_number": 1,
+                    },
+                ),
+            )
+            append_event(
+                tmp_path,
+                Event(
+                    task_id=created.task_id,
+                    event_type="subtask.2.execution",
+                    message="Subtask 2 execution completed.",
+                    payload={
+                        "attempt_number": 2,
+                        "card_id": "card-b",
+                        "goal": "Verify results",
+                        "subtask_index": 2,
+                        "executor_name": "local",
+                        "status": "completed",
+                    },
+                ),
+            )
+
+            payload = build_task_subtask_tree_payload(tmp_path, created.task_id)
+
+        self.assertEqual(payload["task_id"], created.task_id)
+        self.assertEqual(len(payload["children"]), 2)
+        self.assertEqual(payload["children"][0]["goal"], "Prepare changes")
+        self.assertEqual(payload["children"][0]["status"], "completed")
+        self.assertEqual(payload["children"][0]["attempts"], 1)
+        self.assertEqual(payload["children"][1]["goal"], "Verify results")
+        self.assertEqual(payload["children"][1]["status"], "completed")
+        self.assertEqual(payload["children"][1]["attempts"], 2)
+        self.assertEqual(payload["children"][1]["debate_rounds"], 1)
 
 
 if __name__ == "__main__":

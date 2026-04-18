@@ -7,15 +7,15 @@
 - latest_completed_slice: `Local Stack Doctor + Cost Telemetry Fix`
 - active_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
 - active_phase: `Phase 44`
-- active_slice: `Control Center Enhancement`
+- active_slice: `S1 Subtask Tree`
 - active_branch: `main`
-- status: `phase44_kickoff_draft_awaiting_human_gate`
+- status: `phase44_s1_ready_for_commit_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool Calling，无真实需求）。Phase 44 kickoff 已产出（draft），方向为 Web Control Center 增强 — 子任务树展示 + Artifact 对比审阅区 + 成本/延迟时间线。3 个 slice，整体风险 13/27（中），Scope 膨胀为最高防线。等待人工审批后切出 feature branch 开始实现。
+Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool Calling，无真实需求）。Phase 44 已开始执行，S1 `Subtask Tree` 已完成实现并进入 commit gate：`/api/tasks/{id}/subtask-tree` 现可从 `task.planned` + `subtask.*` 事件聚合父子层级、attempts、executor、debate rounds，控制中心前端也已新增只读树状展示。整体仍保持 Phase 44 的只读约束，零写入 `.swl/`。下一步进入 S2 `Artifact Compare`。
 
 ---
 
