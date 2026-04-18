@@ -6,6 +6,7 @@ import threading
 
 from dataclasses import replace
 from pathlib import Path
+from typing import Callable
 from uuid import uuid4
 
 from .capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
@@ -668,18 +669,87 @@ def _run_binary_fallback(
     return fallback_result, fallback_card, True
 
 
+def _build_debate_last_feedback(
+    review_gate_result: ReviewGateResult,
+    executor_result: ExecutorResult,
+    *,
+    retry_round: int,
+) -> ReviewFeedback:
+    return build_review_feedback(
+        review_gate_result,
+        executor_result,
+        round_number=retry_round,
+        max_rounds=DEBATE_MAX_ROUNDS,
+    ) or ReviewFeedback(
+        round_number=retry_round,
+        failed_checks=[dict(check) for check in review_gate_result.checks if not bool(check.get("passed", False))],
+        suggestions=[],
+        original_output_snippet=(executor_result.output or "").strip(),
+        max_rounds=DEBATE_MAX_ROUNDS,
+    )
+
+
+def _debate_loop_core(
+    *,
+    run_attempt: Callable[[int], tuple[ExecutorResult, ReviewGateResult]],
+    clear_feedback_state: Callable[[], None],
+    store_feedback: Callable[[ReviewFeedback], str],
+    apply_feedback: Callable[[str, ReviewFeedback], None],
+    append_round_event: Callable[[str, ReviewFeedback, ExecutorResult, ReviewGateResult], None],
+    persist_exhausted: Callable[[list[str], ReviewFeedback, ReviewGateResult], str],
+    append_breaker_event: Callable[[list[str], str, ExecutorResult, ReviewGateResult], None],
+) -> tuple[ExecutorResult, ReviewGateResult, bool]:
+    feedback_refs: list[str] = []
+    retry_round = 0
+    clear_feedback_state()
+
+    while True:
+        executor_result, review_gate_result = run_attempt(retry_round)
+
+        if review_gate_result.status == "passed":
+            clear_feedback_state()
+            return executor_result, review_gate_result, False
+        if executor_result.status != "completed":
+            clear_feedback_state()
+            return executor_result, review_gate_result, False
+
+        if retry_round >= DEBATE_MAX_ROUNDS:
+            last_feedback = _build_debate_last_feedback(
+                review_gate_result,
+                executor_result,
+                retry_round=retry_round,
+            )
+            debate_exhausted_ref = persist_exhausted(feedback_refs, last_feedback, review_gate_result)
+            append_breaker_event(feedback_refs, debate_exhausted_ref, executor_result, review_gate_result)
+            return executor_result, review_gate_result, True
+
+        feedback = build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=retry_round + 1,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        )
+        if feedback is None:
+            clear_feedback_state()
+            return executor_result, review_gate_result, False
+
+        feedback_ref = store_feedback(feedback)
+        feedback_refs.append(feedback_ref)
+        apply_feedback(feedback_ref, feedback)
+        append_round_event(feedback_ref, feedback, executor_result, review_gate_result)
+        retry_round += 1
+
+
 def _run_single_task_with_debate(
     base_dir: Path,
     state: TaskState,
     card: TaskCard,
     retrieval_items: list[RetrievalItem],
 ) -> tuple[ExecutorResult, ReviewGateResult, bool]:
-    feedback_refs: list[str] = []
     current_card = card
-    retry_round = 0
-    _clear_review_feedback_state(state)
 
-    while True:
+    def run_attempt(_retry_round: int) -> tuple[ExecutorResult, ReviewGateResult]:
+        nonlocal current_card, state
         _append_canonical_write_guard_warning(base_dir, state, current_card)
         executor_result = _execute_task_card(base_dir, state, current_card, retrieval_items)
         executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
@@ -693,77 +763,18 @@ def _run_single_task_with_debate(
                 executor_result,
             )
             executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
-
         review_gate_result = review_executor_output(executor_result, current_card)
-        if review_gate_result.status == "passed":
-            _clear_review_feedback_state(state)
-            return executor_result, review_gate_result, False
-        if executor_result.status != "completed":
-            _clear_review_feedback_state(state)
-            return executor_result, review_gate_result, False
+        return executor_result, review_gate_result
 
-        if retry_round >= DEBATE_MAX_ROUNDS:
-            last_feedback = build_review_feedback(
-                review_gate_result,
-                executor_result,
-                round_number=retry_round,
-                max_rounds=DEBATE_MAX_ROUNDS,
-            ) or ReviewFeedback(
-                round_number=retry_round,
-                failed_checks=[dict(check) for check in review_gate_result.checks if not bool(check.get("passed", False))],
-                suggestions=[],
-                original_output_snippet=(executor_result.output or "").strip(),
-                max_rounds=DEBATE_MAX_ROUNDS,
-            )
-            debate_exhausted_ref = _persist_debate_exhausted_artifact(
-                base_dir,
-                state.task_id,
-                feedback_refs=feedback_refs,
-                last_feedback=last_feedback,
-                review_gate_result=review_gate_result,
-            )
-            append_event(
-                base_dir,
-                Event(
-                    task_id=state.task_id,
-                    event_type="task.debate_circuit_breaker",
-                    message="Debate loop exhausted the maximum review rounds and is waiting for human intervention.",
-                    payload={
-                        "max_rounds": DEBATE_MAX_ROUNDS,
-                        "feedback_refs": feedback_refs,
-                        "debate_exhausted_ref": debate_exhausted_ref,
-                        "executor_name": executor_result.executor_name,
-                        "review_status": review_gate_result.status,
-                    },
-                ),
-            )
-            return (
-                replace(
-                    executor_result,
-                    status="failed",
-                    message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
-                    failure_kind="debate_circuit_breaker",
-                    review_feedback=state.review_feedback_ref,
-                ),
-                review_gate_result,
-                True,
-            )
-
-        feedback = build_review_feedback(
-            review_gate_result,
-            executor_result,
-            round_number=retry_round + 1,
-            max_rounds=DEBATE_MAX_ROUNDS,
-        )
-        if feedback is None:
-            _clear_review_feedback_state(state)
-            return executor_result, review_gate_result, False
-
-        feedback_ref = _persist_review_feedback(base_dir, state.task_id, feedback)
-        feedback_refs.append(feedback_ref)
-        state.review_feedback_ref = feedback_ref
-        state.review_feedback_markdown = render_review_feedback_markdown(feedback)
-        append_event(
+    executor_result, review_gate_result, debate_exhausted = _debate_loop_core(
+        run_attempt=run_attempt,
+        clear_feedback_state=lambda: _clear_review_feedback_state(state),
+        store_feedback=lambda feedback: _persist_review_feedback(base_dir, state.task_id, feedback),
+        apply_feedback=lambda feedback_ref, feedback: (
+            setattr(state, "review_feedback_ref", feedback_ref),
+            setattr(state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
+        ),
+        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -781,24 +792,44 @@ def _run_single_task_with_debate(
                     "review_status": review_gate_result.status,
                 },
             ),
-        )
-        retry_round += 1
-
-    return (
-        ExecutorResult(
-            executor_name=state.executor_name,
-            status="failed",
-            message="Debate loop terminated unexpectedly.",
-            failure_kind="debate_circuit_breaker",
-            review_feedback=state.review_feedback_ref,
         ),
-        ReviewGateResult(
-            status="failed",
-            message="Debate loop terminated unexpectedly.",
-            checks=[],
+        persist_exhausted=lambda feedback_refs, last_feedback, review_gate_result: _persist_debate_exhausted_artifact(
+            base_dir,
+            state.task_id,
+            feedback_refs=feedback_refs,
+            last_feedback=last_feedback,
+            review_gate_result=review_gate_result,
         ),
-        True,
+        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type="task.debate_circuit_breaker",
+                message="Debate loop exhausted the maximum review rounds and is waiting for human intervention.",
+                payload={
+                    "max_rounds": DEBATE_MAX_ROUNDS,
+                    "feedback_refs": feedback_refs,
+                    "debate_exhausted_ref": debate_exhausted_ref,
+                    "executor_name": executor_result.executor_name,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        ),
     )
+
+    if debate_exhausted:
+        return (
+            replace(
+                executor_result,
+                status="failed",
+                message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
+                failure_kind="debate_circuit_breaker",
+                review_feedback=state.review_feedback_ref,
+            ),
+            review_gate_result,
+            True,
+        )
+    return executor_result, review_gate_result, False
 
 
 def _persist_subtask_review_feedback(
@@ -909,13 +940,20 @@ def _run_subtask_debate_retries(
     initial_record: SubtaskRunRecord,
 ) -> tuple[list[tuple[int, SubtaskRunRecord, dict[str, str]]], bool]:
     retry_attempts: list[tuple[int, SubtaskRunRecord, dict[str, str]]] = []
-    feedback_refs: list[str] = []
     current_record = initial_record
-    retry_round = 0
     isolated_state = TaskState.from_dict(state.to_dict())
-    _clear_review_feedback_state(isolated_state)
 
-    while True:
+    def run_attempt(retry_round: int) -> tuple[ExecutorResult, ReviewGateResult]:
+        nonlocal current_record
+        if retry_round > 0:
+            retry_record, extra_artifacts = _run_subtask_attempt(
+                isolated_state,
+                replace(card, depends_on=[]),
+                retrieval_items,
+            )
+            retry_attempts.append((retry_round + 1, retry_record, extra_artifacts))
+            current_record = retry_record
+
         executor_result = current_record.executor_result or ExecutorResult(
             executor_name="subtask-orchestrator",
             status="failed",
@@ -926,76 +964,22 @@ def _run_subtask_debate_retries(
             message="Missing subtask review gate result.",
             checks=[],
         )
+        return executor_result, review_gate_result
 
-        if review_gate_result.status == "passed":
-            _clear_review_feedback_state(isolated_state)
-            return retry_attempts, False
-        if executor_result.status != "completed":
-            _clear_review_feedback_state(isolated_state)
-            return retry_attempts, False
-
-        if retry_round >= DEBATE_MAX_ROUNDS:
-            last_feedback = build_review_feedback(
-                review_gate_result,
-                executor_result,
-                round_number=retry_round,
-                max_rounds=DEBATE_MAX_ROUNDS,
-            ) or ReviewFeedback(
-                round_number=retry_round,
-                failed_checks=[dict(check) for check in review_gate_result.checks if not bool(check.get("passed", False))],
-                suggestions=[],
-                original_output_snippet=(executor_result.output or "").strip(),
-                max_rounds=DEBATE_MAX_ROUNDS,
-            )
-            debate_exhausted_ref = _persist_subtask_debate_exhausted_artifact(
-                base_dir,
-                state.task_id,
-                card.subtask_index,
-                feedback_refs=feedback_refs,
-                last_feedback=last_feedback,
-                review_gate_result=review_gate_result,
-            )
-            append_event(
-                base_dir,
-                Event(
-                    task_id=state.task_id,
-                    event_type=f"subtask.{card.subtask_index}.debate_circuit_breaker",
-                    message=f"Subtask {card.subtask_index} exhausted debate rounds and now requires human intervention.",
-                    payload={
-                        "card_id": card.card_id,
-                        "goal": card.goal,
-                        "subtask_index": card.subtask_index,
-                        "max_rounds": DEBATE_MAX_ROUNDS,
-                        "attempt_count": 1 + len(retry_attempts),
-                        "feedback_refs": feedback_refs,
-                        "debate_exhausted_ref": debate_exhausted_ref,
-                        "executor_name": executor_result.executor_name,
-                        "review_status": review_gate_result.status,
-                    },
-                ),
-            )
-            return retry_attempts, True
-
-        feedback = build_review_feedback(
-            review_gate_result,
-            executor_result,
-            round_number=retry_round + 1,
-            max_rounds=DEBATE_MAX_ROUNDS,
-        )
-        if feedback is None:
-            _clear_review_feedback_state(isolated_state)
-            return retry_attempts, False
-
-        feedback_ref = _persist_subtask_review_feedback(
+    _executor_result, _review_gate_result, debate_exhausted = _debate_loop_core(
+        run_attempt=run_attempt,
+        clear_feedback_state=lambda: _clear_review_feedback_state(isolated_state),
+        store_feedback=lambda feedback: _persist_subtask_review_feedback(
             base_dir,
             state.task_id,
             card.subtask_index,
             feedback,
-        )
-        feedback_refs.append(feedback_ref)
-        isolated_state.review_feedback_ref = feedback_ref
-        isolated_state.review_feedback_markdown = render_review_feedback_markdown(feedback)
-        append_event(
+        ),
+        apply_feedback=lambda feedback_ref, feedback: (
+            setattr(isolated_state, "review_feedback_ref", feedback_ref),
+            setattr(isolated_state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
+        ),
+        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1017,15 +1001,37 @@ def _run_subtask_debate_retries(
                     "review_status": review_gate_result.status,
                 },
             ),
-        )
-        retry_round += 1
-        retry_record, extra_artifacts = _run_subtask_attempt(
-            isolated_state,
-            replace(card, depends_on=[]),
-            retrieval_items,
-        )
-        retry_attempts.append((retry_round + 1, retry_record, extra_artifacts))
-        current_record = retry_record
+        ),
+        persist_exhausted=lambda feedback_refs, last_feedback, review_gate_result: _persist_subtask_debate_exhausted_artifact(
+            base_dir,
+            state.task_id,
+            card.subtask_index,
+            feedback_refs=feedback_refs,
+            last_feedback=last_feedback,
+            review_gate_result=review_gate_result,
+        ),
+        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type=f"subtask.{card.subtask_index}.debate_circuit_breaker",
+                message=f"Subtask {card.subtask_index} exhausted debate rounds and now requires human intervention.",
+                payload={
+                    "card_id": card.card_id,
+                    "goal": card.goal,
+                    "subtask_index": card.subtask_index,
+                    "max_rounds": DEBATE_MAX_ROUNDS,
+                    "attempt_count": 1 + len(retry_attempts),
+                    "feedback_refs": feedback_refs,
+                    "debate_exhausted_ref": debate_exhausted_ref,
+                    "executor_name": executor_result.executor_name,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        ),
+    )
+
+    return retry_attempts, debate_exhausted
 
 
 def _append_subtask_events(

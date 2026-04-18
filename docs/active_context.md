@@ -7,15 +7,15 @@
 - latest_completed_slice: `Debate Loop + Subtask Unification`
 - active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
 - active_phase: `Phase 41`
-- active_slice: `S1 Librarian Atomic Persistence`
+- active_slice: `S2 Debate Loop Core Extraction`
 - active_branch: `feat/phase41-librarian-consolidation`
-- status: `phase41_s1_ready_for_commit_gate`
+- status: `phase41_s2_ready_for_commit_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 41 已进入实现阶段。S1 `Librarian Atomic Persistence` 已完成：`_apply_librarian_side_effects()` 现在先构造 knowledge/state/index 的批量写入计划，再通过原子 replace + rollback helper 提交，避免中途失败时留下 state / knowledge / index 不一致状态。全量回归已通过：`303 passed`。下一步进入 S1 commit gate，随后继续 S2 `Debate Loop Core Extraction`。
+Phase 41 的两个实现 slice 都已完成。S1 `Librarian Atomic Persistence` 已将 Librarian 持久化链路改为批量原子提交；S2 `Debate Loop Core Extraction` 已提取共享 `_debate_loop_core()` / `_build_debate_last_feedback()`，统一单任务与子任务路径的 round 管理、feedback 生成与 breaker 判定，同时保留原有事件、artifact 和熔断语义不变。全量回归已通过：`303 passed`。当前进入 S2 commit gate，下一步是 review / closeout 整理。
 
 ---
 
