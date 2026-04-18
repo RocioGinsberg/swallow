@@ -183,6 +183,9 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
                     RouteTelemetryStats(route_name=previous_route_name),
                 )
                 route_stats.fallback_trigger_count += 1
+                token_cost = _coerce_nonnegative_float(payload.get("token_cost", 0.0))
+                route_stats.total_cost += token_cost
+                route_stats.cost_samples.append(token_cost)
 
     route_stats = sorted(
         route_stats_by_name.values(),

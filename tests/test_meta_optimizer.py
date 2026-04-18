@@ -222,6 +222,65 @@ class MetaOptimizerTest(unittest.TestCase):
                 report,
             )
 
+    def test_run_meta_optimizer_counts_fallback_token_cost_on_previous_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_dir = base_dir / ".swl" / "tasks" / "fallback-cost"
+            _write_events(
+                task_dir,
+                [
+                    {
+                        "task_id": "fallback-cost",
+                        "event_type": EVENT_EXECUTOR_FAILED,
+                        "message": "Primary route failed.",
+                        "payload": {
+                            "physical_route": "local-codex",
+                            "logical_model": "codex",
+                            "task_family": "execution",
+                            "latency_ms": 12,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "failure_kind": "launch_error",
+                            "error_code": "launch_error",
+                        },
+                    },
+                    {
+                        "task_id": "fallback-cost",
+                        "event_type": EVENT_TASK_EXECUTION_FALLBACK,
+                        "message": "Fallback executed.",
+                        "payload": {
+                            "previous_route_name": "local-codex",
+                            "fallback_route_name": "local-summary",
+                            "latency_ms": 4,
+                            "degraded": True,
+                            "token_cost": 0.25,
+                        },
+                    },
+                    {
+                        "task_id": "fallback-cost",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Fallback completed.",
+                        "payload": {
+                            "physical_route": "local-summary",
+                            "logical_model": "local",
+                            "task_family": "execution",
+                            "latency_ms": 4,
+                            "token_cost": 0.0,
+                            "degraded": True,
+                            "error_code": "",
+                        },
+                    },
+                ],
+            )
+
+            snapshot = build_meta_optimizer_snapshot(base_dir, last_n=100)
+            previous_route = next(stats for stats in snapshot.route_stats if stats.route_name == "local-codex")
+
+            self.assertEqual(previous_route.fallback_trigger_count, 1)
+            self.assertAlmostEqual(previous_route.total_cost, 0.25)
+            self.assertEqual(previous_route.cost_samples, [0.0, 0.25])
+            self.assertAlmostEqual(previous_route.average_cost(), 0.25)
+
     def test_run_meta_optimizer_handles_empty_task_registry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
