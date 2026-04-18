@@ -213,7 +213,7 @@
 
       .detail {
         display: grid;
-        grid-template-rows: auto auto minmax(120px, 0.7fr) minmax(180px, 1fr) minmax(160px, 0.9fr);
+        grid-template-rows: auto auto minmax(120px, 0.7fr) minmax(180px, 1fr) minmax(220px, 0.95fr) minmax(160px, 0.9fr);
         min-height: 72vh;
       }
 
@@ -409,6 +409,43 @@
         min-height: 150px;
       }
 
+      .timeline-summary {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .timeline-chart {
+        min-height: 190px;
+        border: 1px solid rgba(216, 205, 184, 0.85);
+        border-radius: 16px;
+        background: rgba(255, 255, 255, 0.46);
+        padding: 10px;
+        margin-bottom: 12px;
+      }
+
+      .timeline-chart svg {
+        width: 100%;
+        height: 170px;
+        display: block;
+      }
+
+      .timeline-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 10px;
+      }
+
+      .timeline-item {
+        border: 1px solid rgba(216, 205, 184, 0.85);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.46);
+        padding: 12px;
+      }
+
       @media (max-width: 980px) {
         .workspace {
           grid-template-columns: 1fr;
@@ -499,6 +536,20 @@
 
           <div class="detail-block">
             <div class="panel-header" style="padding:0 0 12px; border:0; background:none;">
+              <h3 class="panel-title">Execution Timeline</h3>
+              <span class="stamp" id="timeline-count">0</span>
+            </div>
+            <p class="timeline-summary" id="timeline-summary">Execution timeline will appear here.</p>
+            <div class="timeline-chart" id="timeline-chart">
+              <p class="empty">No execution timeline available.</p>
+            </div>
+            <ul class="timeline-list" id="timeline-list">
+              <li class="empty">Timeline entries will appear here.</li>
+            </ul>
+          </div>
+
+          <div class="detail-block">
+            <div class="panel-header" style="padding:0 0 12px; border:0; background:none;">
               <h3 class="panel-title">Artifacts</h3>
               <span class="stamp" id="artifact-count">0</span>
             </div>
@@ -560,6 +611,10 @@
       const subtaskTreeList = document.getElementById("subtask-tree-list");
       const eventCount = document.getElementById("event-count");
       const eventList = document.getElementById("event-list");
+      const timelineCount = document.getElementById("timeline-count");
+      const timelineSummary = document.getElementById("timeline-summary");
+      const timelineChart = document.getElementById("timeline-chart");
+      const timelineList = document.getElementById("timeline-list");
       const artifactCount = document.getElementById("artifact-count");
       const artifactList = document.getElementById("artifact-list");
       const artifactLeftSelect = document.getElementById("artifact-left-select");
@@ -684,6 +739,72 @@
         `).join("");
       }
 
+      function buildTimelinePolyline(entries, key, maxValue, width, height, insetX, insetY) {
+        if (!entries.length || maxValue <= 0) {
+          return "";
+        }
+
+        return entries.map((entry, index) => {
+          const x = insetX + (entries.length === 1 ? (width - insetX * 2) / 2 : ((width - insetX * 2) * index) / (entries.length - 1));
+          const y = height - insetY - ((Number(entry[key]) || 0) / maxValue) * (height - insetY * 2);
+          return `${x},${y}`;
+        }).join(" ");
+      }
+
+      function renderTimeline(payload) {
+        const entries = payload.entries || [];
+        timelineCount.textContent = `${entries.length}`;
+        if (!entries.length) {
+          timelineSummary.textContent = "No execution events recorded for this task.";
+          timelineChart.innerHTML = '<p class="empty">No execution timeline available.</p>';
+          timelineList.innerHTML = '<li class="empty">Timeline entries will appear here.</li>';
+          return;
+        }
+
+        timelineSummary.textContent = `total_cost=$${Number(payload.total_cost || 0).toFixed(6)} · total_latency_ms=${payload.total_latency_ms || 0} · debate_rounds=${payload.debate_rounds || 0}`;
+
+        const width = 640;
+        const height = 170;
+        const insetX = 24;
+        const insetY = 18;
+        const maxCost = Math.max(...entries.map((entry) => Number(entry.token_cost) || 0), 0.000001);
+        const maxLatency = Math.max(...entries.map((entry) => Number(entry.latency_ms) || 0), 1);
+        const costPoints = buildTimelinePolyline(entries, "token_cost", maxCost, width, height, insetX, insetY);
+        const latencyPoints = buildTimelinePolyline(entries, "latency_ms", maxLatency, width, height, insetX, insetY);
+        const markers = entries.map((entry, index) => {
+          const x = insetX + (entries.length === 1 ? (width - insetX * 2) / 2 : ((width - insetX * 2) * index) / (entries.length - 1));
+          return `<text x="${x}" y="${height - 2}" font-size="10" text-anchor="middle" fill="#6b665d">r${escapeHtml(entry.round)}</text>`;
+        }).join("");
+
+        timelineChart.innerHTML = `
+          <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Execution timeline chart">
+            <line x1="${insetX}" y1="${height - insetY}" x2="${width - insetX}" y2="${height - insetY}" stroke="#d8cdb8" stroke-width="1"></line>
+            <line x1="${insetX}" y1="${insetY}" x2="${insetX}" y2="${height - insetY}" stroke="#d8cdb8" stroke-width="1"></line>
+            <polyline fill="none" stroke="#0f766e" stroke-width="3" points="${costPoints}"></polyline>
+            <polyline fill="none" stroke="#b7791f" stroke-width="3" points="${latencyPoints}"></polyline>
+            ${markers}
+          </svg>
+        `;
+
+        timelineList.innerHTML = entries.map((entry, index) => `
+          <li class="timeline-item">
+            <div class="subtask-row">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span class="dot ${entry.is_debate_retry ? "running" : "completed"}"></span>
+                <p class="subtask-title">[${index + 1}] ${escapeHtml(entry.event_type)}</p>
+              </div>
+              <span class="task-meta">round=${escapeHtml(entry.round)}</span>
+            </div>
+            <div class="subtask-meta">
+              <span>latency_ms=${escapeHtml(entry.latency_ms)}</span>
+              <span>token_cost=$${escapeHtml(Number(entry.token_cost || 0).toFixed(6))}</span>
+              <span>debate_retry=${entry.is_debate_retry ? "yes" : "no"}</span>
+              <span>${escapeHtml(entry.timestamp || "-")}</span>
+            </div>
+          </li>
+        `).join("");
+      }
+
       function renderArtifacts(artifacts) {
         state.artifacts = artifacts;
         artifactCount.textContent = `${artifacts.length}`;
@@ -780,14 +901,16 @@
           detailMeta.innerHTML = '<p class="empty">No task selected.</p>';
           renderSubtaskTree([]);
           renderEvents([]);
+          renderTimeline({ entries: [], total_cost: 0, total_latency_ms: 0, debate_rounds: 0 });
           renderArtifacts([]);
           return;
         }
 
-        const [task, subtaskTreePayload, eventsPayload, artifactsPayload] = await Promise.all([
+        const [task, subtaskTreePayload, eventsPayload, timelinePayload, artifactsPayload] = await Promise.all([
           fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}`),
           fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/subtask-tree`),
           fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/events`),
+          fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/execution-timeline`),
           fetchJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/artifacts`)
         ]);
 
@@ -796,6 +919,7 @@
         renderMeta(task);
         renderSubtaskTree(subtaskTreePayload.children || []);
         renderEvents(eventsPayload.events || []);
+        renderTimeline(timelinePayload || { entries: [], total_cost: 0, total_latency_ms: 0, debate_rounds: 0 });
         renderArtifacts(artifactsPayload.artifacts || []);
         await loadArtifactViewers();
       }

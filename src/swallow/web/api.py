@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from ..models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED
 from ..paths import artifacts_dir, events_path
 from ..store import iter_task_states, load_knowledge_objects, load_state
 
@@ -66,6 +67,19 @@ def _coerce_int(value: object, default: int = 0) -> int:
     if isinstance(value, str):
         try:
             return int(value.strip())
+        except ValueError:
+            return default
+    return default
+
+
+def _coerce_float(value: object, default: float = 0.0) -> float:
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, int | float):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.strip())
         except ValueError:
             return default
     return default
@@ -296,6 +310,50 @@ def build_task_subtask_tree_payload(base_dir: Path, task_id: str) -> dict[str, o
     }
 
 
+def build_task_execution_timeline_payload(base_dir: Path, task_id: str) -> dict[str, object]:
+    load_state(base_dir, task_id)
+    events = _load_json_lines(events_path(base_dir, task_id))
+    entries: list[dict[str, object]] = []
+    current_round = 0
+    max_round = 0
+
+    for event in events:
+        event_type = str(event.get("event_type", "")).strip()
+        payload = event.get("payload", {})
+        if not isinstance(payload, dict):
+            payload = {}
+
+        if event_type == "task.debate_round" or event_type.endswith(".debate_round"):
+            current_round = max(current_round, _coerce_int(payload.get("round_number"), current_round + 1))
+            max_round = max(max_round, current_round)
+            continue
+
+        if event_type not in {EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED}:
+            continue
+
+        is_debate_retry = bool(str(payload.get("review_feedback", "")).strip())
+        round_number = max(current_round, 1) if is_debate_retry else current_round
+        entries.append(
+            {
+                "event_type": event_type,
+                "round": round_number,
+                "latency_ms": max(_coerce_int(payload.get("latency_ms"), 0), 0),
+                "token_cost": max(_coerce_float(payload.get("token_cost"), 0.0), 0.0),
+                "is_debate_retry": is_debate_retry,
+                "timestamp": str(event.get("created_at", "")).strip(),
+            }
+        )
+        max_round = max(max_round, round_number)
+
+    return {
+        "task_id": task_id,
+        "entries": entries,
+        "total_cost": round(sum(float(entry["token_cost"]) for entry in entries), 6),
+        "total_latency_ms": sum(int(entry["latency_ms"]) for entry in entries),
+        "debate_rounds": max_round,
+    }
+
+
 def create_fastapi_app(base_dir: Path):
     try:
         from fastapi import FastAPI, HTTPException
@@ -372,6 +430,13 @@ def create_fastapi_app(base_dir: Path):
     def task_subtask_tree(task_id: str) -> dict[str, object]:
         try:
             return build_task_subtask_tree_payload(base_dir, task_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/api/tasks/{task_id}/execution-timeline")
+    def task_execution_timeline(task_id: str) -> dict[str, object]:
+        try:
+            return build_task_execution_timeline_payload(base_dir, task_id)
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
