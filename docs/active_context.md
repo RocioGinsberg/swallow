@@ -5,17 +5,17 @@
 - latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
 - latest_completed_phase: `Phase 38`
 - latest_completed_slice: `Cost Telemetry Baseline`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`
-- status: `phase38_merged_waiting_next_kickoff`
+- active_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
+- active_phase: `Phase 39`
+- active_slice: `S3 Ingestion Pipeline + CLI`
+- active_branch: `feat/phase39-ingestion-specialist`
+- status: `phase39_closeout_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 38 已完成实现、review 与 merge，当前真相分支已回到 `main`。本轮为执行遥测补齐了 `token_cost` 基线、Meta-Optimizer 成本维度与 `CostEstimator` protocol 预留；唯一 review concern C1（fallback 成本未计入 route stats）已记入 `docs/concerns_backlog.md`，留待后续触碰 meta_optimizer 成本逻辑时吸收。当前默认不再继续停留在 Phase 38 的 merge 语义，而应重新从 roadmap 选择下一轮 kickoff。
+Phase 39 kickoff 已产出（draft），方向为 Ingestion Specialist — 外部会话摄入。当前已完成 S1 `Ingestion Parser`、S2 `Ingestion Filter`、S3 `Ingestion Pipeline + CLI`，实现分支为 `feat/phase39-ingestion-specialist`。Phase 39 三个 slice 均已落地并通过全量 `pytest`。整体风险 11/27（低-中）。
 
 ---
 
@@ -85,6 +85,21 @@ Phase 38 已完成实现、review 与 merge，当前真相分支已回到 `main`
 - `pr.md` (codex, 2026-04-17, ignored) — Phase 35 PR 文案归档，可作为已合并实现摘要参考
 - `docs/design_preview.md` (gemini, 2026-04-17) — 结合全量蓝图比对，产出新一轮全局演进预览，提供 Phase 36 候选方向。
 - `docs/roadmap.md` (gemini, 2026-04-17) — Roadmap 全量刷新，定义了 Phase 36 到 Phase 40 的新一轮演进路线。
+- `docs/plans/phase39/kickoff.md` (claude, 2026-04-18) — Phase 39 kickoff: 3 slice (Parser + Filter + Pipeline/CLI)，风险 11/27 低-中
+- `docs/plans/phase39/risk_assessment.md` (claude, 2026-04-18) — Phase 39 风险评估：无高风险 slice，S3 跨模块集成为唯一关注点
+- `src/swallow/ingestion/__init__.py` (codex, 2026-04-18) — Phase 39 S1 ingestion 包导出入口
+- `src/swallow/ingestion/parsers.py` (codex, 2026-04-18) — Phase 39 S1 四种外部会话格式解析与统一 `ConversationTurn` 表示
+- `tests/test_ingestion_parsers.py` (codex, 2026-04-18) — Phase 39 S1 解析器专项测试
+- `src/swallow/ingestion/filters.py` (codex, 2026-04-18) — Phase 39 S2 降噪提纯：连续消息合并、闲聊过滤、signal 标注与归一化去重
+- `tests/test_ingestion_filters.py` (codex, 2026-04-18) — Phase 39 S2 过滤器专项测试
+- `src/swallow/ingestion/pipeline.py` (codex, 2026-04-18) — Phase 39 S3 端到端 ingestion pipeline：parse/filter/staged candidate register/report
+- `src/swallow/staged_knowledge.py` (codex, 2026-04-18) — Phase 39 S3 staged candidate schema 扩展：补充 `source_kind` / `source_ref`
+- `src/swallow/cli.py` (codex, 2026-04-18) — Phase 39 S3 新增顶层 `swl ingest` CLI 与 staged candidate inspect/list 展示增强
+- `tests/test_ingestion_pipeline.py` (codex, 2026-04-18) — Phase 39 S3 pipeline 专项测试
+- `tests/test_cli.py` (codex, 2026-04-18) — Phase 39 S3 CLI help / dry-run / persistence 回归
+- `pr.md` (codex, 2026-04-18, ignored) — Phase 39 PR 文案草稿，汇总 slice 完成状态、实现要点与测试覆盖
+- `docs/plans/phase39/review_comments.md` (claude, 2026-04-18) — Phase 39 review: 0 BLOCK / 1 CONCERN / 1 NOTE, Merge ready
+- `docs/plans/phase39/closeout.md` (codex, 2026-04-18) — Phase 39 closeout：3 个 slice 完成情况、review follow-up 吸收与 merge 建议
 
 ---
 
@@ -109,10 +124,10 @@ Phase 38 已完成实现、review 与 merge，当前真相分支已回到 `main`
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择下一轮方向
-- **[Claude]** 产出下一轮 kickoff / 风险评估
-- **[Codex]** 在新 phase 获批并切出 feature branch 后继续实现
+- **[Human]** 审查 review follow-up、`docs/plans/phase39/closeout.md` 与 `pr.md`，执行收口提交 / push / 开 PR
+- **[Claude]** 如 review 结论继续变化，更新 `docs/plans/phase39/review_comments.md`
+- **[Codex]** 如 review 后仍有改动，继续同步 `pr.md` 与 `docs/active_context.md`
 
 ## 当前阻塞项
 
-- 等待 Human: 选择下一轮 phase 方向
+- 等待 Human: Phase 39 收口提交 / PR gate

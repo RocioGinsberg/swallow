@@ -66,7 +66,7 @@ from swallow.paths import (
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
-from swallow.staged_knowledge import StagedCandidate, submit_staged_candidate
+from swallow.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
 from swallow.store import (
     append_canonical_record,
     load_state,
@@ -5002,6 +5002,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(raised.exception.code, 0)
         self.assertIn("task                Task workbench and lifecycle commands.", stdout.getvalue())
         self.assertIn("knowledge           Global staged knowledge review commands.", stdout.getvalue())
+        self.assertIn("ingest              Ingest an external session export into staged", stdout.getvalue())
         self.assertIn("meta-optimize       Scan recent task event logs and emit a read-only", stdout.getvalue())
 
     def test_task_help_includes_capability_commands(self) -> None:
@@ -5120,6 +5121,54 @@ class CliLifecycleTest(unittest.TestCase):
                     main(argv)
             self.assertEqual(raised.exception.code, 0)
             self.assertIn(expected, stdout.getvalue())
+
+    def test_ingest_help_describes_external_session_ingestion(self) -> None:
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            with self.assertRaises(SystemExit) as raised:
+                main(["ingest", "--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        output = stdout.getvalue()
+        self.assertIn("Parse an external session export, filter it into staged candidates", output)
+        self.assertIn("--dry-run", output)
+        self.assertIn("--format", output)
+
+    def test_cli_ingest_dry_run_prints_report_without_persisting_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "session.md"
+            source.write_text("# Constraints\nNo realtime sync.\n\n# Thanks\n谢谢", encoding="utf-8")
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "ingest", str(source), "--dry-run"]), 0)
+
+            staged_records = load_staged_candidates(tmp_path)
+
+        output = stdout.getvalue()
+        self.assertIn("# Ingestion Report", output)
+        self.assertIn("dry_run: yes", output)
+        self.assertIn("source_kind: external_session_ingestion", output)
+        self.assertEqual(staged_records, [])
+
+    def test_cli_ingest_persists_staged_candidates_with_external_session_source_kind(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "session.md"
+            source.write_text("# Decisions\nDecision: keep staged review manual.", encoding="utf-8")
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "ingest", str(source)]), 0)
+
+            staged_records = load_staged_candidates(tmp_path)
+
+        output = stdout.getvalue()
+        self.assertIn("dry_run: no", output)
+        self.assertEqual(len(staged_records), 1)
+        self.assertEqual(staged_records[0].source_kind, "external_session_ingestion")
+        self.assertEqual(staged_records[0].source_ref, str(source.resolve()))
 
     def test_task_grounding_prints_grounding_evidence_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

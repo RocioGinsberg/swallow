@@ -21,6 +21,7 @@ from .canonical_registry import (
     build_staged_canonical_key,
 )
 from .doctor import diagnose_codex, format_codex_doctor_result
+from .ingestion.pipeline import build_ingestion_report, run_ingestion_pipeline
 from .knowledge_store import persist_wiki_entry_from_record
 from .meta_optimizer import run_meta_optimizer
 from .knowledge_objects import summarize_canonicalization
@@ -542,6 +543,8 @@ def build_stage_candidate_list_report(candidates: list[StagedCandidate]) -> str:
             [
                 f"- {candidate.candidate_id}",
                 f"  source_task_id: {candidate.source_task_id}",
+                f"  source_kind: {candidate.source_kind or '-'}",
+                f"  source_ref: {candidate.source_ref or '-'}",
                 f"  source_object_id: {candidate.source_object_id or 'none'}",
                 f"  submitted_by: {candidate.submitted_by or 'unknown'}",
                 f"  taxonomy: {candidate.taxonomy_role or '-'} / {candidate.taxonomy_memory_authority or '-'}",
@@ -558,6 +561,8 @@ def build_stage_candidate_inspect_report(candidate: StagedCandidate) -> str:
             f"Staged Candidate: {candidate.candidate_id}",
             f"status: {candidate.status}",
             f"source_task_id: {candidate.source_task_id}",
+            f"source_kind: {candidate.source_kind or '-'}",
+            f"source_ref: {candidate.source_ref or '-'}",
             f"source_object_id: {candidate.source_object_id or '-'}",
             f"submitted_by: {candidate.submitted_by or '-'}",
             f"submitted_at: {candidate.submitted_at}",
@@ -643,7 +648,7 @@ def build_stage_canonical_record(
         "decision_note": candidate.decision_note,
         "decision_ref": f".swl/staged_knowledge/registry.jsonl#{candidate.candidate_id}",
         "artifact_ref": "",
-        "source_ref": "",
+        "source_ref": candidate.source_ref,
         "text": canonical_text,
         "evidence_status": "source_only",
         "canonical_stage": "canonical",
@@ -1097,6 +1102,23 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=100,
         help="Maximum number of recent task event logs to scan. Defaults to 100.",
+    )
+    ingest_parser = subparsers.add_parser(
+        "ingest",
+        help="Ingest an external session export into staged knowledge.",
+        description="Parse an external session export, filter it into staged candidates, and optionally persist them.",
+    )
+    ingest_parser.add_argument("source_path", help="Path to the source export file.")
+    ingest_parser.add_argument(
+        "--format",
+        choices=("chatgpt_json", "claude_json", "open_webui_json", "markdown"),
+        default=None,
+        help="Optional explicit input format override.",
+    )
+    ingest_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Parse and filter the source, but do not write staged candidates.",
     )
     serve_parser = subparsers.add_parser(
         "serve",
@@ -1865,6 +1887,16 @@ def main(argv: list[str] | None = None) -> int:
         _snapshot, artifact_path, report = run_meta_optimizer(base_dir, last_n=args.last_n)
         print(report, end="")
         print(f"artifact: {artifact_path}")
+        return 0
+
+    if args.command == "ingest":
+        result = run_ingestion_pipeline(
+            base_dir,
+            Path(args.source_path).resolve(),
+            format_hint=args.format,
+            dry_run=bool(args.dry_run),
+        )
+        print(build_ingestion_report(result))
         return 0
 
     if args.command == "serve":
