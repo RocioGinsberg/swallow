@@ -7,15 +7,15 @@
 - latest_completed_slice: `Librarian Atomic Persistence + Debate Loop Core Extraction`
 - active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 42`
-- active_slice: `S3 Debate Retry Telemetry Isolation`
+- active_slice: `review_pending`
 - active_branch: `main`
-- status: `phase42_s3_ready_for_commit_gate`
+- status: `phase42_review_pending`
 
 ---
 
 ## 当前状态说明
 
-Phase 42 的三个实现 slice 现已全部落地并进入最后一个 commit gate。S1 已补齐 `swl doctor` 本地栈联检；S2 已修复 fallback token cost 回计；S3 现已为 Meta-Optimizer 新增 `debate_retry_count`，将带 `review_feedback` 的 debate retry 执行事件从 route health / failure fingerprint 计数中隔离，但仍保留其真实成本与延迟统计，完成对 Phase 40 C2 的消化。下一步进入 review / closeout / `pr.md` 整理。
+Phase 42 的实现已全部完成，当前进入 review pending 阶段。S1 已补齐 `swl doctor` 本地栈联检；S2 已修复 fallback token cost 回计；S3 已隔离 debate retry telemetry，并新增 `debate_retry_count` 暴露到 route health。Phase 38 C1 与 Phase 40 C2 已同步移出 backlog open 区。下一步等待 Claude 产出 `docs/plans/phase42/review_comments.md`，随后做最终 closeout / merge ready 收口。
 
 ---
 
