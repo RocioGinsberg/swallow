@@ -53,14 +53,11 @@ status: living-document
     - **真实成本遥测**：`Meta-Optimizer` 接入本地 TensorZero API 抓取真实 Token 账单；在遥测中显式标记 Debate 轮次成本。
 *   **产出价值**：彻底消除路由优化的”数据盲区”，使系统具备基于真实开销的自动选路能力。
 
-### Phase 43: ReAct 降级方言 (Dynamic Capability Negotiation)
+### Phase 43: ReAct 降级方言 (Dynamic Capability Negotiation) — 暂缓
 *   **Primary Track**: Execution Topology
 *   **Secondary Track**: Capabilities
-*   **目标**：针对 Ollama/Qwen 等不支持原生 Tool Calling 的本地模型，实现鲁棒的 ReAct Prompt 降级方言。
-*   **核心任务**：
-    - 在目标模型无原生 Tool Calling 时，动态将 Tool Schema 渲染为 ReAct 纯文本引导语。
-    - 回包阶段通过强化正则从纯文本还原为标准工具调用意图。
-*   **产出价值**：系统在最廉价的降级环境下也能坚韧运作。
+*   **状态**：暂缓。2026 年主流开源模型（Qwen2.5+/Llama3.1+/DeepSeek V2+）及推理框架（Ollama 0.4+/vLLM）已原生支持 Tool Calling，ReAct 降级的适用场景收窄至极小模型或旧版量化权重等边缘情况。当前 Swallow 通过 new-api 代理云端/本地 API，暂无真实需求。如未来遇到具体模型 tool calling 不可用的场景，再按需实现。
+*   **原设计**：将 Tool Schema 渲染为 ReAct 纯文本引导语（`Action: / Action Input:`），回包阶段通过正则还原为标准工具调用意图。
 
 ### Phase 44: 可视化工作台增强 (Web Control Center Enhancement)
 *   **Primary Track**: Workbench / UX
@@ -101,12 +98,12 @@ status: living-document
 
 | 优先级 | Phase | 名称 | Primary Track | Secondary Track | 风险等级 |
 |--------|-------|------|---------------|-----------------|----------|
-| **1** | **41** | **Librarian 收口与结构化清理** | Core Loop | Retrieval / Memory | 低-中 |
-| 2 | 42 | 本地栈健康检查 + 真实成本遥测 | Execution Topology | Evaluation / Policy | 低 |
-| 3 | 43 | ReAct 降级方言 | Execution Topology | Capabilities | 中 |
-| 4 | 44 | 可视化工作台 Control Center 增强 | Workbench / UX | Core Loop | 中 |
-| 5 | 45 | 领域专家 Agent 与深度摄入 | Retrieval / Memory | Workbench / UX | 中 |
-| 6 | 46 | 多模型共识与策略护栏 | Evaluation / Policy | Core Loop | 中-高 |
+| ~~1~~ | ~~41~~ | ~~Librarian 收口与结构化清理~~ | ~~Core Loop~~ | ~~Retrieval / Memory~~ | ~~低-中~~ |
+| ~~2~~ | ~~42~~ | ~~本地栈健康检查 + 真实成本遥测~~ | ~~Execution Topology~~ | ~~Evaluation / Policy~~ | ~~低~~ |
+| — | 43 | ReAct 降级方言（暂缓） | Execution Topology | Capabilities | 中 |
+| **3** | **44** | **可视化工作台 Control Center 增强** | Workbench / UX | Core Loop | 中 |
+| 4 | 45 | 领域专家 Agent 与深度摄入 | Retrieval / Memory | Workbench / UX | 中 |
+| 5 | 46 | 多模型共识与策略护栏 | Evaluation / Policy | Core Loop | 中-高 |
 
 ### Gemini 原版 Phase 41 拆分说明
 
@@ -115,16 +112,15 @@ Gemini 原版 Phase 41 混合了三个差异较大的方向：(a) swl doctor 容
 ### 依赖关系
 
 ```
-Phase 41 (Librarian 收口 + Concern 清理)
+Phase 41 (Librarian 收口) ✅
   └──→ Phase 45 (深度摄入，依赖 Librarian 稳定)
 
-Phase 42 (Doctor + 成本遥测)
+Phase 42 (Doctor + 成本遥测) ✅
   └──→ Phase 46 (智能预算，依赖真实成本数据)
 
-Phase 43 (ReAct 降级) — 独立
-  └──→ Phase 46 (多模型共识，依赖弱模型可用)
+Phase 43 (ReAct 降级) — 暂缓，按需实现
 
-Phase 44 (Web Control Center 增强) — 独立，可与 41/42 并行
+Phase 44 (Web Control Center 增强) — 独立，当前优先
 ```
 
 ### Phase 41 — Librarian 收口与结构化清理（优先级 #1）
@@ -151,9 +147,11 @@ Phase 44 (Web Control Center 增强) — 独立，可与 41/42 并行
 
 **风险**: 低。swl doctor 扩展为新增代码；成本遥测升级局限在 meta_optimizer 模块内。
 
-### Phase 43 — ReAct 降级方言
+### Phase 43 — ReAct 降级方言（暂缓）
 
-**风险**: 中。正则解析脆弱性需要极高测试覆盖率。独立于 41/42，可按需排序。
+**暂缓理由**：2026 年主流开源模型及推理框架已原生支持 Tool Calling，当前无真实需求。如未来遇到具体模型不可用场景再按需实现。kickoff 草稿保留在 `docs/plans/phase43/kickoff.md` 供参考。
+
+**风险**: 中（如恢复实施）。正则解析脆弱性需极高测试覆盖。
 
 ### Phase 44 — 可视化工作台 Control Center 增强
 
@@ -171,7 +169,7 @@ Phase 44 (Web Control Center 增强) — 独立，可与 41/42 并行
 
 ### Phase 46 — 多模型共识与策略护栏
 
-**依赖前置**：Phase 42（真实成本数据，用于预算策略）+ Phase 43（ReAct 降级，用于弱模型参与共识）。
+**依赖前置**：Phase 42（真实成本数据，用于预算策略）。Phase 43（ReAct 降级）已暂缓，如需弱模型参与共识可届时恢复。
 
 **风险**: 中-高。成本爆炸风险，多 Reviewer 线性增加 Token 消耗，必须与智能预算策略同步上线。
 
