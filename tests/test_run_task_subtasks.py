@@ -99,10 +99,13 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             planned_event = next(event for event in events if event["event_type"] == "task.planned")
             review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
             executor_event = next(event for event in events if event["event_type"] == "executor.completed")
-            retry_event = next(event for event in events if event["event_type"] == "subtask.2.retry_requested")
+            debate_event = next(event for event in events if event["event_type"] == "subtask.2.debate_round")
             subtask2_review_events = [
                 event for event in events if event["event_type"] == "subtask.2.review_gate"
             ]
+            feedback_round_1 = json.loads(
+                (artifacts_dir / "subtask_2_review_feedback_round_1.json").read_text(encoding="utf-8")
+            )
             subtask2_attempt1_review = json.loads(
                 (artifacts_dir / "subtask_2_attempt1_review_gate.json").read_text(encoding="utf-8")
             )
@@ -118,10 +121,13 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             self.assertEqual(review_gate_event["payload"]["status"], "passed")
             self.assertEqual(review_gate_event["payload"]["failed_card_ids"], [])
             self.assertEqual(executor_event["payload"]["executor_name"], "subtask-orchestrator")
-            self.assertEqual(retry_event["payload"]["previous_status"], "failed")
+            self.assertEqual(debate_event["payload"]["round_number"], 1)
+            self.assertEqual(debate_event["payload"]["attempt_number"], 2)
+            self.assertTrue(debate_event["payload"]["retry_scheduled"])
             self.assertEqual(len(subtask2_review_events), 2)
             self.assertEqual(subtask2_review_events[0]["payload"]["status"], "failed")
             self.assertEqual(subtask2_review_events[1]["payload"]["status"], "passed")
+            self.assertEqual(feedback_round_1["round_number"], 1)
             self.assertEqual(subtask2_attempt1_review["status"], "failed")
             self.assertEqual(subtask2_attempt2_review["status"], "passed")
             self.assertTrue((artifacts_dir / "executor_output.md").exists())
@@ -191,27 +197,112 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             events = _load_json_lines(task_dir / "events.jsonl")
             review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
             executor_event = next(event for event in events if event["event_type"] == "executor.failed")
-            exhausted_event = next(
-                event for event in events if event["event_type"] == "subtask.2.review_gate_retry_exhausted"
+            breaker_event = next(
+                event for event in events if event["event_type"] == "subtask.2.debate_circuit_breaker"
             )
-            subtask2_attempt2_review = json.loads(
-                (artifacts_dir / "subtask_2_attempt2_review_gate.json").read_text(encoding="utf-8")
+            waiting_event = next(event for event in events if event["event_type"] == "task.waiting_human")
+            debate_events = [event for event in events if event["event_type"] == "subtask.2.debate_round"]
+            feedback_round_3 = json.loads(
+                (artifacts_dir / "subtask_2_review_feedback_round_3.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(final_state.status, "failed")
+            subtask2_attempt4_review = json.loads(
+                (artifacts_dir / "subtask_2_attempt4_review_gate.json").read_text(encoding="utf-8")
+            )
+            debate_exhausted = json.loads((artifacts_dir / "subtask_2_debate_exhausted.json").read_text(encoding="utf-8"))
+            self.assertEqual(final_state.status, "waiting_human")
+            self.assertEqual(final_state.phase, "waiting_human")
+            self.assertEqual(final_state.execution_lifecycle, "waiting_human")
             self.assertEqual(final_state.executor_name, "subtask-orchestrator")
             self.assertEqual(final_state.executor_status, "failed")
-            self.assertEqual(attempts, {1: 1, 2: 2})
+            self.assertEqual(attempts, {1: 1, 2: 4})
             self.assertEqual(review_gate_event["payload"]["status"], "failed")
             self.assertEqual(len(review_gate_event["payload"]["failed_card_ids"]), 1)
-            self.assertEqual(executor_event["payload"]["failure_kind"], "review_gate_retry_exhausted")
-            self.assertEqual(exhausted_event["payload"]["attempt_count"], 2)
-            self.assertEqual(subtask2_attempt2_review["status"], "failed")
-            self.assertEqual(events[-1]["event_type"], "task.failed")
+            self.assertEqual(executor_event["payload"]["failure_kind"], "debate_circuit_breaker")
+            self.assertEqual(len(debate_events), 3)
+            self.assertEqual([event["payload"]["round_number"] for event in debate_events], [1, 2, 3])
+            self.assertEqual(breaker_event["payload"]["attempt_count"], 4)
+            self.assertEqual(waiting_event["payload"]["status"], "waiting_human")
+            self.assertEqual(feedback_round_3["round_number"], 3)
+            self.assertEqual(len(debate_exhausted["feedback_refs"]), 3)
+            self.assertEqual(subtask2_attempt4_review["status"], "failed")
+            self.assertEqual(events[-1]["event_type"], "task.waiting_human")
             self.assertTrue((artifacts_dir / "executor_output.md").exists())
             self.assertIn(
                 "failed_count: 1",
                 (artifacts_dir / "executor_output.md").read_text(encoding="utf-8"),
             )
+            self.assertIn(
+                "debate_exhausted_count: 1",
+                (artifacts_dir / "executor_output.md").read_text(encoding="utf-8"),
+            )
+            self.assertFalse(any(event["event_type"] == "task.failed" for event in events))
+
+    def test_run_task_does_not_debate_retry_subtask_executor_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Multi-card executor failure",
+                goal="Fail directly when a subtask executor does not complete",
+                workspace_root=tmp_path,
+                executor_name="local",
+                next_action_proposals=[
+                    "Prepare changes",
+                    "Verify results",
+                ],
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / created.task_id
+            artifacts_dir = task_dir / "artifacts"
+            attempts: dict[int, int] = {}
+
+            def execute_card(
+                _base_dir: Path,
+                _state: object,
+                card: object,
+                _retrieval_items: list[object],
+            ) -> ExecutorResult:
+                subtask_index = int(card.subtask_index)
+                attempts[subtask_index] = attempts.get(subtask_index, 0) + 1
+                attempt_number = attempts[subtask_index]
+                if subtask_index == 2:
+                    return ExecutorResult(
+                        executor_name="local",
+                        status="failed",
+                        message=f"subtask {subtask_index} attempt {attempt_number}",
+                        output="executor failed before review",
+                        prompt=f"execute subtask {subtask_index}",
+                        dialect="plain_text",
+                        failure_kind="subtask_executor_failure",
+                    )
+                return ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message=f"subtask {subtask_index} attempt {attempt_number}",
+                    output=f"subtask {subtask_index} completed on attempt {attempt_number}",
+                    prompt=f"execute subtask {subtask_index}",
+                    dialect="plain_text",
+                )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator._execute_task_card", side_effect=execute_card):
+                    with patch(
+                        "swallow.orchestrator.write_task_artifacts",
+                        return_value=_passing_validation_tuple(),
+                    ):
+                        final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            events = _load_json_lines(task_dir / "events.jsonl")
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+            executor_event = next(event for event in events if event["event_type"] == "executor.failed")
+
+            self.assertEqual(final_state.status, "failed")
+            self.assertEqual(final_state.phase, "summarize")
+            self.assertEqual(attempts, {1: 1, 2: 1})
+            self.assertEqual(review_gate_event["payload"]["status"], "failed")
+            self.assertEqual(executor_event["payload"]["failure_kind"], "review_gate_retry_exhausted")
+            self.assertFalse(any(event["event_type"] == "subtask.2.debate_round" for event in events))
+            self.assertFalse(any(event["event_type"] == "subtask.2.debate_circuit_breaker" for event in events))
+            self.assertFalse((artifacts_dir / "subtask_2_attempt2_executor_output.md").exists())
 
 
 if __name__ == "__main__":
