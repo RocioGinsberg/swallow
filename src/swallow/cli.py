@@ -20,7 +20,12 @@ from .canonical_registry import (
     build_canonical_registry_report,
     build_staged_canonical_key,
 )
-from .doctor import diagnose_codex, format_codex_doctor_result
+from .doctor import (
+    diagnose_codex,
+    diagnose_local_stack,
+    format_codex_doctor_result,
+    format_local_stack_doctor_result,
+)
 from .ingestion.pipeline import build_ingestion_report, run_ingestion_pipeline
 from .knowledge_store import persist_wiki_entry_from_record
 from .meta_optimizer import run_meta_optimizer
@@ -1091,7 +1096,12 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge_parser = subparsers.add_parser("knowledge", help="Global staged knowledge review commands.")
     knowledge_subparsers = knowledge_parser.add_subparsers(dest="knowledge_command", required=True)
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostic commands.")
-    doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=True)
+    doctor_parser.add_argument(
+        "--skip-stack",
+        action="store_true",
+        help="Skip local Docker / WireGuard / proxy health checks.",
+    )
+    doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=False)
     meta_optimize_parser = subparsers.add_parser(
         "meta-optimize",
         help="Scan recent task event logs and emit a read-only optimization proposal report.",
@@ -1792,6 +1802,7 @@ def build_parser() -> argparse.ArgumentParser:
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
     doctor_subparsers.add_parser("codex", help="Run a minimal Codex executor preflight.")
+    doctor_subparsers.add_parser("stack", help="Run local Docker / WireGuard / proxy health checks.")
 
     return parser
 
@@ -2814,10 +2825,25 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(json.loads(retrieval_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
-    if args.command == "doctor" and args.doctor_command == "codex":
-        exit_code, result = diagnose_codex()
-        print(format_codex_doctor_result(result))
-        return exit_code
+    if args.command == "doctor":
+        if args.doctor_command == "codex":
+            exit_code, result = diagnose_codex()
+            print(format_codex_doctor_result(result))
+            return exit_code
+        if args.doctor_command == "stack":
+            exit_code, result = diagnose_local_stack()
+            print(format_local_stack_doctor_result(result))
+            return exit_code
+
+        codex_exit_code, codex_result = diagnose_codex()
+        print(format_codex_doctor_result(codex_result))
+        if args.skip_stack:
+            return codex_exit_code
+
+        stack_exit_code, stack_result = diagnose_local_stack()
+        print()
+        print(format_local_stack_doctor_result(stack_result))
+        return 0 if codex_exit_code == 0 and stack_exit_code == 0 else 1
 
     parser.error("Unsupported command.")
     return 2

@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
+from urllib import error, request
 
 
 @dataclass(slots=True)
@@ -14,6 +15,146 @@ class DoctorResult:
     note_only_recommended: bool
     codex_bin: str
     details: str = ""
+
+
+@dataclass(slots=True)
+class LocalStackCheck:
+    name: str
+    status: str
+    details: str = ""
+    optional: bool = False
+
+
+@dataclass(slots=True)
+class LocalStackDoctorResult:
+    checks: list[LocalStackCheck]
+
+
+def _run_command(args: list[str], *, timeout: int = 10) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        args,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=timeout,
+    )
+
+
+def _command_details(completed: subprocess.CompletedProcess[str]) -> str:
+    return (completed.stdout or completed.stderr or "").strip()
+
+
+def _check_command_success(name: str, args: list[str], *, timeout: int = 10) -> LocalStackCheck:
+    try:
+        completed = _run_command(args, timeout=timeout)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return LocalStackCheck(name=name, status="fail", details=str(exc))
+    return LocalStackCheck(
+        name=name,
+        status="pass" if completed.returncode == 0 else "fail",
+        details=_command_details(completed),
+    )
+
+
+def _check_container_running(name: str, container_name: str, *, optional: bool = False) -> LocalStackCheck:
+    try:
+        completed = _run_command(
+            ["docker", "ps", "--filter", f"name={container_name}", "--format", "{{.Names}}|{{.Status}}"],
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return LocalStackCheck(name=name, status="skip" if optional else "fail", details=str(exc), optional=optional)
+
+    entries = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+    if completed.returncode != 0:
+        return LocalStackCheck(
+            name=name,
+            status="skip" if optional else "fail",
+            details=_command_details(completed),
+            optional=optional,
+        )
+    if not entries:
+        return LocalStackCheck(
+            name=name,
+            status="skip" if optional else "fail",
+            details=f"Container '{container_name}' is not running.",
+            optional=optional,
+        )
+    return LocalStackCheck(name=name, status="pass", details=entries[0], optional=optional)
+
+
+def _check_http_endpoint(name: str, url: str, *, timeout: int = 5) -> LocalStackCheck:
+    try:
+        with request.urlopen(url, timeout=timeout) as response:
+            status = getattr(response, "status", 200)
+            return LocalStackCheck(
+                name=name,
+                status="pass" if 200 <= int(status) < 300 else "fail",
+                details=f"HTTP {status}",
+            )
+    except (error.URLError, TimeoutError, ValueError) as exc:
+        return LocalStackCheck(name=name, status="fail", details=str(exc))
+
+
+def _check_pgvector_extension() -> LocalStackCheck:
+    postgres_check = _check_container_running("postgres_container", "postgres")
+    if postgres_check.status != "pass":
+        return LocalStackCheck(
+            name="pgvector_extension",
+            status="skip",
+            details="Postgres container is not running.",
+            optional=True,
+        )
+
+    try:
+        completed = _run_command(
+            [
+                "docker",
+                "exec",
+                "postgres",
+                "psql",
+                "-U",
+                "postgres",
+                "-d",
+                "postgres",
+                "-tAc",
+                "SELECT extname FROM pg_extension WHERE extname = 'vector';",
+            ],
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return LocalStackCheck(name="pgvector_extension", status="fail", details=str(exc))
+
+    output = (completed.stdout or "").strip()
+    if completed.returncode == 0 and output == "vector":
+        return LocalStackCheck(name="pgvector_extension", status="pass", details="vector")
+    return LocalStackCheck(
+        name="pgvector_extension",
+        status="fail",
+        details=_command_details(completed) or "pgvector extension not enabled.",
+    )
+
+
+def diagnose_local_stack() -> tuple[int, LocalStackDoctorResult]:
+    checks = [
+        _check_command_success("docker_daemon", ["docker", "info"]),
+        _check_container_running("new_api_container", "new-api"),
+        _check_container_running("tensorzero_container", "tensorzero", optional=True),
+        _check_container_running("postgres_container", "postgres"),
+        _check_pgvector_extension(),
+        _check_http_endpoint("new_api_http", "http://localhost:3000/api/status"),
+        _check_command_success("wireguard_tunnel", ["ping", "-c", "1", "-W", "2", "10.8.0.1"], timeout=5),
+        _check_command_success(
+            "egress_proxy",
+            ["curl", "-x", "http://10.8.0.1:8888", "-s", "https://ifconfig.me"],
+            timeout=10,
+        ),
+    ]
+    exit_code = 0 if all(check.status in {"pass", "skip"} for check in checks if check.optional) and all(
+        check.status == "pass" for check in checks if not check.optional
+    ) else 1
+    return exit_code, LocalStackDoctorResult(checks=checks)
 
 
 def diagnose_codex() -> tuple[int, DoctorResult]:
@@ -70,4 +211,13 @@ def format_codex_doctor_result(result: DoctorResult) -> str:
     ]
     if result.details:
         lines.append(f"details={result.details}")
+    return "\n".join(lines)
+
+
+def format_local_stack_doctor_result(result: LocalStackDoctorResult) -> str:
+    lines: list[str] = []
+    for check in result.checks:
+        lines.append(f"{check.name}={check.status}")
+        if check.details:
+            lines.append(f"{check.name}_details={check.details}")
     return "\n".join(lines)

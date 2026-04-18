@@ -7,15 +7,15 @@
 - latest_completed_slice: `Librarian Atomic Persistence + Debate Loop Core Extraction`
 - active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 42`
-- active_slice: `fresh_kickoff_required`
+- active_slice: `review_complete_merge_ready`
 - active_branch: `main`
-- status: `phase42_fresh_kickoff_required`
+- status: `phase42_review_complete_merge_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 41 已完成实现、review、PR 与 merge，当前已回到 `main` 并进入下一轮 fresh kickoff 等待态。最新稳定 checkpoint 为 Phase 41：S1 `Librarian Atomic Persistence` 将 Librarian 持久化链路改为批量原子提交；S2 `Debate Loop Core Extraction` 提取共享 `_debate_loop_core()` / `_build_debate_last_feedback()`，统一单任务与子任务路径的 round 管理、feedback 生成与 breaker 判定。下一步默认转向 `Phase 42`：本地栈健康检查与真实成本遥测。
+Phase 42 的实现与 review 已全部完成，当前状态为 merge ready。S1 已补齐 `swl doctor` 本地栈联检；S2 已修复 fallback token cost 回计；S3 已隔离 debate retry telemetry，并新增 `debate_retry_count` 暴露到 route health。Phase 38 C1 与 Phase 40 C2 已同步移出 backlog open 区，当前 open concern 清零。下一步是 Human 用 `pr.md` 更新 PR 描述、push 分支并做 merge 决策。
 
 ---
 
