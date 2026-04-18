@@ -7,15 +7,15 @@
 - latest_completed_slice: `Librarian Atomic Persistence + Debate Loop Core Extraction`
 - active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 42`
-- active_slice: `review_pending`
+- active_slice: `review_complete_merge_ready`
 - active_branch: `main`
-- status: `phase42_review_pending`
+- status: `phase42_review_complete_merge_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 42 的实现已全部完成，当前进入 review pending 阶段。S1 已补齐 `swl doctor` 本地栈联检；S2 已修复 fallback token cost 回计；S3 已隔离 debate retry telemetry，并新增 `debate_retry_count` 暴露到 route health。Phase 38 C1 与 Phase 40 C2 已同步移出 backlog open 区。下一步等待 Claude 产出 `docs/plans/phase42/review_comments.md`，随后做最终 closeout / merge ready 收口。
+Phase 42 的实现与 review 已全部完成，当前状态为 merge ready。S1 已补齐 `swl doctor` 本地栈联检；S2 已修复 fallback token cost 回计；S3 已隔离 debate retry telemetry，并新增 `debate_retry_count` 暴露到 route health。Phase 38 C1 与 Phase 40 C2 已同步移出 backlog open 区，当前 open concern 清零。下一步是 Human 用 `pr.md` 更新 PR 描述、push 分支并做 merge 决策。
 
 ---
 
