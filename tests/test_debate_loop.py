@@ -1,0 +1,150 @@
+from __future__ import annotations
+
+import json
+import tempfile
+import unittest
+from pathlib import Path
+import sys
+from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from swallow.models import ExecutorResult, ValidationResult
+from swallow.orchestrator import create_task, run_task
+
+
+def _load_json_lines(path: Path) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+
+    records: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        payload = json.loads(stripped)
+        if isinstance(payload, dict):
+            records.append(payload)
+    return records
+
+
+def _passing_validation_tuple() -> tuple[ValidationResult, ...]:
+    return (
+        ValidationResult(status="passed", message="Compatibility passed."),
+        ValidationResult(status="passed", message="Execution fit passed."),
+        ValidationResult(status="passed", message="Knowledge policy passed."),
+        ValidationResult(status="passed", message="Validation passed."),
+        ValidationResult(status="passed", message="Retry policy passed."),
+        ValidationResult(status="warning", message="Stop policy warning."),
+        ValidationResult(status="passed", message="Execution budget policy passed."),
+    )
+
+
+class DebateLoopTest(unittest.TestCase):
+    def test_run_task_retries_single_task_with_review_feedback_and_completes(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Debate loop retry",
+                goal="Retry once after a failed review gate result",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / created.task_id
+            artifacts_dir = task_dir / "artifacts"
+            prompts: list[str] = []
+            call_count = 0
+
+            def run_local(_state: object, _retrieval_items: list[object], prompt: str) -> ExecutorResult:
+                nonlocal call_count
+                call_count += 1
+                prompts.append(prompt)
+                return ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message=f"attempt {call_count}",
+                    output="" if call_count == 1 else "resolved output",
+                    prompt=prompt,
+                    dialect="plain_text",
+                )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch("swallow.executor.run_local_executor", side_effect=run_local):
+                        final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            events = _load_json_lines(task_dir / "events.jsonl")
+            debate_event = next(event for event in events if event["event_type"] == "task.debate_round")
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+            executor_events = [event for event in events if event["event_type"] == "executor.completed"]
+            feedback_payload = json.loads((artifacts_dir / "review_feedback_round_1.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(call_count, 2)
+        self.assertEqual(final_state.review_feedback_ref, "")
+        self.assertNotIn("## Review Feedback", prompts[0])
+        self.assertIn("## Review Feedback (Round 1)", prompts[1])
+        self.assertIn("Return a non-empty output payload that directly addresses the task goal.", prompts[1])
+        self.assertEqual(feedback_payload["round_number"], 1)
+        self.assertEqual(debate_event["payload"]["round_number"], 1)
+        self.assertTrue(debate_event["payload"]["retry_scheduled"])
+        self.assertEqual(review_gate_event["payload"]["status"], "passed")
+        self.assertEqual(len(executor_events), 2)
+        self.assertEqual(executor_events[1]["payload"]["review_feedback"], feedback_payload and debate_event["payload"]["feedback_ref"])
+
+    def test_run_task_trips_debate_circuit_breaker_after_three_retries(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Debate loop exhausted",
+                goal="Escalate to human after repeated review failures",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / created.task_id
+            artifacts_dir = task_dir / "artifacts"
+            prompts: list[str] = []
+
+            def run_local(_state: object, _retrieval_items: list[object], prompt: str) -> ExecutorResult:
+                prompts.append(prompt)
+                return ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message="still empty",
+                    output="",
+                    prompt=prompt,
+                    dialect="plain_text",
+                )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch("swallow.executor.run_local_executor", side_effect=run_local):
+                        final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            events = _load_json_lines(task_dir / "events.jsonl")
+            debate_events = [event for event in events if event["event_type"] == "task.debate_round"]
+            breaker_event = next(event for event in events if event["event_type"] == "task.debate_circuit_breaker")
+            waiting_event = next(event for event in events if event["event_type"] == "task.waiting_human")
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+            feedback_round_3 = json.loads((artifacts_dir / "review_feedback_round_3.json").read_text(encoding="utf-8"))
+            debate_exhausted = json.loads((artifacts_dir / "debate_exhausted.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(final_state.status, "waiting_human")
+        self.assertEqual(final_state.phase, "waiting_human")
+        self.assertEqual(final_state.execution_lifecycle, "waiting_human")
+        self.assertEqual(len(prompts), 4)
+        self.assertIn("## Review Feedback (Round 3)", prompts[3])
+        self.assertEqual(len(debate_events), 3)
+        self.assertEqual([event["payload"]["round_number"] for event in debate_events], [1, 2, 3])
+        self.assertEqual(review_gate_event["payload"]["status"], "failed")
+        self.assertEqual(feedback_round_3["round_number"], 3)
+        self.assertEqual(len(debate_exhausted["feedback_refs"]), 3)
+        self.assertEqual(breaker_event["payload"]["max_rounds"], 3)
+        self.assertEqual(waiting_event["payload"]["status"], "waiting_human")
+        self.assertFalse(any(event["event_type"] in {"task.completed", "task.failed"} for event in events))
+
+
+if __name__ == "__main__":
+    unittest.main()

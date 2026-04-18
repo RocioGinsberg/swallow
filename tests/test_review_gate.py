@@ -8,7 +8,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import ExecutorResult, TaskCard
-from swallow.review_gate import ReviewGateResult, review_executor_output
+from swallow.review_gate import ReviewFeedback, ReviewGateResult, build_review_feedback, review_executor_output
 
 
 class ReviewGateTest(unittest.TestCase):
@@ -146,6 +146,89 @@ class ReviewGateTest(unittest.TestCase):
         self.assertEqual(result.checks[-1]["name"], "output_schema")
         self.assertFalse(result.checks[-1]["passed"])
         self.assertIn("missing required fields", result.checks[-1]["detail"])
+
+    def test_build_review_feedback_returns_none_when_review_passes(self) -> None:
+        gate_result = review_executor_output(
+            ExecutorResult(
+                executor_name="mock",
+                status="completed",
+                message="ok",
+                output="done",
+            ),
+            TaskCard(goal="Review output", parent_task_id="task-pass"),
+        )
+
+        feedback = build_review_feedback(
+            gate_result,
+            ExecutorResult(
+                executor_name="mock",
+                status="completed",
+                message="ok",
+                output="done",
+            ),
+            round_number=1,
+            max_rounds=3,
+        )
+
+        self.assertIsNone(feedback)
+
+    def test_build_review_feedback_collects_failed_checks_and_suggestions(self) -> None:
+        executor_result = ExecutorResult(
+            executor_name="mock",
+            status="failed",
+            message="not ok",
+            output="",
+        )
+        gate_result = review_executor_output(
+            executor_result,
+            TaskCard(goal="Review output", parent_task_id="task-fail"),
+        )
+
+        feedback = build_review_feedback(gate_result, executor_result, round_number=1, max_rounds=3)
+
+        self.assertIsInstance(feedback, ReviewFeedback)
+        assert feedback is not None
+        self.assertEqual(feedback.round_number, 1)
+        self.assertEqual(feedback.max_rounds, 3)
+        self.assertEqual([check["name"] for check in feedback.failed_checks], ["executor_status", "output_non_empty"])
+        self.assertIn(
+            "Ensure the executor finishes with status=completed before returning to the review gate.",
+            feedback.suggestions,
+        )
+        self.assertIn(
+            "Return a non-empty output payload that directly addresses the task goal.",
+            feedback.suggestions,
+        )
+        self.assertEqual(feedback.original_output_snippet, "")
+
+    def test_build_review_feedback_truncates_output_snippet_to_500_chars(self) -> None:
+        oversized_output = "x" * 700
+        executor_result = ExecutorResult(
+            executor_name="librarian",
+            status="completed",
+            message="not ok",
+            output=oversized_output,
+        )
+        gate_result = review_executor_output(
+            executor_result,
+            TaskCard(
+                goal="Validate schema mismatch",
+                parent_task_id="task-schema",
+                output_schema={"required": ["kind"], "const": {"kind": "expected"}},
+            ),
+        )
+
+        feedback = build_review_feedback(gate_result, executor_result, round_number=2, max_rounds=3)
+
+        self.assertIsNotNone(feedback)
+        assert feedback is not None
+        self.assertEqual(feedback.round_number, 2)
+        self.assertLessEqual(len(feedback.original_output_snippet), 500)
+        self.assertTrue(feedback.original_output_snippet.endswith("..."))
+        self.assertIn(
+            "Return a structured JSON object that satisfies the required schema fields and constant values.",
+            feedback.suggestions,
+        )
 
 
 if __name__ == "__main__":

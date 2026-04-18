@@ -353,6 +353,8 @@ class TaskState:
     last_phase_checkpoint_at: str = ""
     grounding_refs: list[str] = field(default_factory=list)
     grounding_locked: bool = False
+    review_feedback_markdown: str = ""
+    review_feedback_ref: str = ""
     artifact_paths: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -469,6 +471,7 @@ class ExecutorResult:
     estimated_output_tokens: int = 0
     stdout: str = ""
     stderr: str = ""
+    review_feedback: str = ""
     side_effects: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

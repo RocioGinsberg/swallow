@@ -100,7 +100,13 @@ from .paths import (
 from .retrieval import build_retrieval_request
 from .router import fallback_route_for, normalize_route_mode, select_route
 from .planner import plan
-from .review_gate import ReviewGateResult, review_executor_output
+from .review_gate import (
+    ReviewFeedback,
+    ReviewGateResult,
+    build_review_feedback,
+    render_review_feedback_markdown,
+    review_executor_output,
+)
 from .staged_knowledge import StagedCandidate, submit_staged_candidate
 from .subtask_orchestrator import SubtaskOrchestrator, SubtaskOrchestratorResult, SubtaskRunRecord
 from .store import (
@@ -140,6 +146,8 @@ EXECUTOR_ARTIFACT_NAMES = (
     "executor_stdout.txt",
     "executor_stderr.txt",
 )
+
+DEBATE_MAX_ROUNDS = 3
 
 
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
@@ -377,6 +385,53 @@ def _write_parent_executor_artifacts(
     write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
 
 
+def _clear_review_feedback_state(state: TaskState) -> None:
+    state.review_feedback_markdown = ""
+    state.review_feedback_ref = ""
+
+
+def _persist_review_feedback(
+    base_dir: Path,
+    task_id: str,
+    feedback: ReviewFeedback,
+) -> str:
+    artifact_name = f"review_feedback_round_{feedback.round_number}.json"
+    write_artifact(
+        base_dir,
+        task_id,
+        artifact_name,
+        json.dumps(feedback.to_dict(), indent=2) + "\n",
+    )
+    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
+
+
+def _persist_debate_exhausted_artifact(
+    base_dir: Path,
+    task_id: str,
+    *,
+    feedback_refs: list[str],
+    last_feedback: ReviewFeedback,
+    review_gate_result: ReviewGateResult,
+) -> str:
+    artifact_name = "debate_exhausted.json"
+    write_artifact(
+        base_dir,
+        task_id,
+        artifact_name,
+        json.dumps(
+            {
+                "max_rounds": DEBATE_MAX_ROUNDS,
+                "feedback_refs": feedback_refs,
+                "last_feedback": last_feedback.to_dict(),
+                "review_gate_result": review_gate_result.to_dict(),
+            },
+            indent=2,
+        )
+        + "\n",
+    )
+    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
+
+
 def _append_parent_executor_event(
     base_dir: Path,
     state: TaskState,
@@ -545,6 +600,366 @@ def _run_binary_fallback(
     return fallback_result, fallback_card, True
 
 
+def _run_single_task_with_debate(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+) -> tuple[ExecutorResult, ReviewGateResult, bool]:
+    feedback_refs: list[str] = []
+    current_card = card
+    retry_round = 0
+    _clear_review_feedback_state(state)
+
+    while True:
+        _append_canonical_write_guard_warning(base_dir, state, current_card)
+        executor_result = _execute_task_card(base_dir, state, current_card, retrieval_items)
+        executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
+        state = _apply_librarian_side_effects(base_dir, state, executor_result)
+        if executor_result.status == "failed":
+            executor_result, current_card, _ = _run_binary_fallback(
+                base_dir,
+                state,
+                current_card,
+                retrieval_items,
+                executor_result,
+            )
+            executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
+
+        review_gate_result = review_executor_output(executor_result, current_card)
+        if review_gate_result.status == "passed":
+            _clear_review_feedback_state(state)
+            return executor_result, review_gate_result, False
+        if executor_result.status != "completed":
+            _clear_review_feedback_state(state)
+            return executor_result, review_gate_result, False
+
+        if retry_round >= DEBATE_MAX_ROUNDS:
+            last_feedback = build_review_feedback(
+                review_gate_result,
+                executor_result,
+                round_number=retry_round,
+                max_rounds=DEBATE_MAX_ROUNDS,
+            ) or ReviewFeedback(
+                round_number=retry_round,
+                failed_checks=[dict(check) for check in review_gate_result.checks if not bool(check.get("passed", False))],
+                suggestions=[],
+                original_output_snippet=(executor_result.output or "").strip(),
+                max_rounds=DEBATE_MAX_ROUNDS,
+            )
+            debate_exhausted_ref = _persist_debate_exhausted_artifact(
+                base_dir,
+                state.task_id,
+                feedback_refs=feedback_refs,
+                last_feedback=last_feedback,
+                review_gate_result=review_gate_result,
+            )
+            append_event(
+                base_dir,
+                Event(
+                    task_id=state.task_id,
+                    event_type="task.debate_circuit_breaker",
+                    message="Debate loop exhausted the maximum review rounds and is waiting for human intervention.",
+                    payload={
+                        "max_rounds": DEBATE_MAX_ROUNDS,
+                        "feedback_refs": feedback_refs,
+                        "debate_exhausted_ref": debate_exhausted_ref,
+                        "executor_name": executor_result.executor_name,
+                        "review_status": review_gate_result.status,
+                    },
+                ),
+            )
+            return (
+                replace(
+                    executor_result,
+                    status="failed",
+                    message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
+                    failure_kind="debate_circuit_breaker",
+                    review_feedback=state.review_feedback_ref,
+                ),
+                review_gate_result,
+                True,
+            )
+
+        feedback = build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=retry_round + 1,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        )
+        if feedback is None:
+            _clear_review_feedback_state(state)
+            return executor_result, review_gate_result, False
+
+        feedback_ref = _persist_review_feedback(base_dir, state.task_id, feedback)
+        feedback_refs.append(feedback_ref)
+        state.review_feedback_ref = feedback_ref
+        state.review_feedback_markdown = render_review_feedback_markdown(feedback)
+        append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type="task.debate_round",
+                message=f"Review feedback generated for debate round {feedback.round_number}.",
+                payload={
+                    "round_number": feedback.round_number,
+                    "max_rounds": feedback.max_rounds,
+                    "retry_scheduled": True,
+                    "feedback_ref": feedback_ref,
+                    "failed_checks": feedback.failed_checks,
+                    "suggestions": feedback.suggestions,
+                    "executor_name": executor_result.executor_name,
+                    "executor_status": executor_result.status,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        )
+        retry_round += 1
+
+    return (
+        ExecutorResult(
+            executor_name=state.executor_name,
+            status="failed",
+            message="Debate loop terminated unexpectedly.",
+            failure_kind="debate_circuit_breaker",
+            review_feedback=state.review_feedback_ref,
+        ),
+        ReviewGateResult(
+            status="failed",
+            message="Debate loop terminated unexpectedly.",
+            checks=[],
+        ),
+        True,
+    )
+
+
+def _persist_subtask_review_feedback(
+    base_dir: Path,
+    task_id: str,
+    subtask_index: int,
+    feedback: ReviewFeedback,
+) -> str:
+    artifact_name = f"subtask_{subtask_index}_review_feedback_round_{feedback.round_number}.json"
+    write_artifact(
+        base_dir,
+        task_id,
+        artifact_name,
+        json.dumps(feedback.to_dict(), indent=2) + "\n",
+    )
+    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
+
+
+def _persist_subtask_debate_exhausted_artifact(
+    base_dir: Path,
+    task_id: str,
+    subtask_index: int,
+    *,
+    feedback_refs: list[str],
+    last_feedback: ReviewFeedback,
+    review_gate_result: ReviewGateResult,
+) -> str:
+    artifact_name = f"subtask_{subtask_index}_debate_exhausted.json"
+    write_artifact(
+        base_dir,
+        task_id,
+        artifact_name,
+        json.dumps(
+            {
+                "subtask_index": subtask_index,
+                "max_rounds": DEBATE_MAX_ROUNDS,
+                "feedback_refs": feedback_refs,
+                "last_feedback": last_feedback.to_dict(),
+                "review_gate_result": review_gate_result.to_dict(),
+            },
+            indent=2,
+        )
+        + "\n",
+    )
+    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
+
+
+def _run_subtask_attempt(
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+) -> tuple[SubtaskRunRecord, dict[str, str]]:
+    started_at = utc_now()
+    isolated_state = TaskState.from_dict(state.to_dict())
+    try:
+        with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
+            subtask_base_dir = Path(tmp)
+            executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, retrieval_items)
+            extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+        review_gate_result = review_executor_output(executor_result, card)
+    except Exception as exc:  # pragma: no cover - defensive path
+        executor_result = ExecutorResult(
+            executor_name="subtask-orchestrator",
+            status="failed",
+            message=f"Subtask execution raised {type(exc).__name__}.",
+            failure_kind="subtask_exception",
+            stderr=str(exc),
+        )
+        review_gate_result = ReviewGateResult(
+            status="failed",
+            message="Subtask execution failed before review gate completed.",
+            checks=[
+                {
+                    "name": "subtask_execution",
+                    "passed": False,
+                    "detail": f"subtask raised {type(exc).__name__}: {exc}",
+                }
+            ],
+        )
+        extra_artifacts = {}
+
+    status = (
+        "completed"
+        if executor_result.status == "completed" and review_gate_result.status == "passed"
+        else "failed"
+    )
+    return (
+        SubtaskRunRecord(
+            card_id=card.card_id,
+            subtask_index=card.subtask_index,
+            goal=card.goal,
+            depends_on=list(card.depends_on),
+            status=status,
+            started_at=started_at,
+            completed_at=utc_now(),
+            executor_result=executor_result,
+            review_gate_result=review_gate_result,
+        ),
+        extra_artifacts,
+    )
+
+
+def _run_subtask_debate_retries(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+    initial_record: SubtaskRunRecord,
+) -> tuple[list[tuple[int, SubtaskRunRecord, dict[str, str]]], bool]:
+    retry_attempts: list[tuple[int, SubtaskRunRecord, dict[str, str]]] = []
+    feedback_refs: list[str] = []
+    current_record = initial_record
+    retry_round = 0
+    isolated_state = TaskState.from_dict(state.to_dict())
+    _clear_review_feedback_state(isolated_state)
+
+    while True:
+        executor_result = current_record.executor_result or ExecutorResult(
+            executor_name="subtask-orchestrator",
+            status="failed",
+            message="Missing subtask executor result.",
+        )
+        review_gate_result = current_record.review_gate_result or ReviewGateResult(
+            status="failed",
+            message="Missing subtask review gate result.",
+            checks=[],
+        )
+
+        if review_gate_result.status == "passed":
+            _clear_review_feedback_state(isolated_state)
+            return retry_attempts, False
+        if executor_result.status != "completed":
+            _clear_review_feedback_state(isolated_state)
+            return retry_attempts, False
+
+        if retry_round >= DEBATE_MAX_ROUNDS:
+            last_feedback = build_review_feedback(
+                review_gate_result,
+                executor_result,
+                round_number=retry_round,
+                max_rounds=DEBATE_MAX_ROUNDS,
+            ) or ReviewFeedback(
+                round_number=retry_round,
+                failed_checks=[dict(check) for check in review_gate_result.checks if not bool(check.get("passed", False))],
+                suggestions=[],
+                original_output_snippet=(executor_result.output or "").strip(),
+                max_rounds=DEBATE_MAX_ROUNDS,
+            )
+            debate_exhausted_ref = _persist_subtask_debate_exhausted_artifact(
+                base_dir,
+                state.task_id,
+                card.subtask_index,
+                feedback_refs=feedback_refs,
+                last_feedback=last_feedback,
+                review_gate_result=review_gate_result,
+            )
+            append_event(
+                base_dir,
+                Event(
+                    task_id=state.task_id,
+                    event_type=f"subtask.{card.subtask_index}.debate_circuit_breaker",
+                    message=f"Subtask {card.subtask_index} exhausted debate rounds and now requires human intervention.",
+                    payload={
+                        "card_id": card.card_id,
+                        "goal": card.goal,
+                        "subtask_index": card.subtask_index,
+                        "max_rounds": DEBATE_MAX_ROUNDS,
+                        "attempt_count": 1 + len(retry_attempts),
+                        "feedback_refs": feedback_refs,
+                        "debate_exhausted_ref": debate_exhausted_ref,
+                        "executor_name": executor_result.executor_name,
+                        "review_status": review_gate_result.status,
+                    },
+                ),
+            )
+            return retry_attempts, True
+
+        feedback = build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=retry_round + 1,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        )
+        if feedback is None:
+            _clear_review_feedback_state(isolated_state)
+            return retry_attempts, False
+
+        feedback_ref = _persist_subtask_review_feedback(
+            base_dir,
+            state.task_id,
+            card.subtask_index,
+            feedback,
+        )
+        feedback_refs.append(feedback_ref)
+        isolated_state.review_feedback_ref = feedback_ref
+        isolated_state.review_feedback_markdown = render_review_feedback_markdown(feedback)
+        append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type=f"subtask.{card.subtask_index}.debate_round",
+                message=f"Review feedback generated for subtask {card.subtask_index} debate round {feedback.round_number}.",
+                payload={
+                    "card_id": card.card_id,
+                    "goal": card.goal,
+                    "subtask_index": card.subtask_index,
+                    "round_number": feedback.round_number,
+                    "max_rounds": feedback.max_rounds,
+                    "attempt_number": feedback.round_number + 1,
+                    "retry_scheduled": True,
+                    "feedback_ref": feedback_ref,
+                    "failed_checks": feedback.failed_checks,
+                    "suggestions": feedback.suggestions,
+                    "executor_name": executor_result.executor_name,
+                    "executor_status": executor_result.status,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        )
+        retry_round += 1
+        retry_record, extra_artifacts = _run_subtask_attempt(
+            isolated_state,
+            replace(card, depends_on=[]),
+            retrieval_items,
+        )
+        retry_attempts.append((retry_round + 1, retry_record, extra_artifacts))
+        current_record = retry_record
+
+
 def _append_subtask_events(
     base_dir: Path,
     task_id: str,
@@ -571,6 +986,7 @@ def _append_subtask_events(
                 "subtask_index": record.subtask_index,
                 "executor_name": executor_result.executor_name,
                 "executor_status": executor_result.status,
+                "review_feedback": executor_result.review_feedback,
                 "status": record.status,
             },
         ),
@@ -590,6 +1006,7 @@ def _append_subtask_events(
                     "checks": record.review_gate_result.checks,
                     "executor_name": executor_result.executor_name,
                     "executor_status": executor_result.status,
+                    "review_feedback": executor_result.review_feedback,
                 },
             ),
         )
@@ -627,7 +1044,10 @@ def _build_subtask_review_gate_result(
 def _build_subtask_executor_result(
     result: SubtaskOrchestratorResult,
     attempt_counts: dict[str, int],
+    *,
+    debate_exhausted_card_ids: list[str] | None = None,
 ) -> ExecutorResult:
+    debate_exhausted_card_ids = list(debate_exhausted_card_ids or [])
     prompt_lines = [
         "# Subtask Orchestrator Plan",
         "",
@@ -641,6 +1061,7 @@ def _build_subtask_executor_result(
         f"- card_count: {len(result.records)}",
         f"- completed_count: {result.completed_count}",
         f"- failed_count: {result.failed_count}",
+        f"- debate_exhausted_count: {len(debate_exhausted_card_ids)}",
         f"- max_parallelism: {result.max_parallelism}",
         "",
         "## Subtasks",
@@ -663,19 +1084,28 @@ def _build_subtask_executor_result(
                 f"  executor_name: {executor_result.executor_name if executor_result else 'unknown'}",
                 f"  executor_status: {executor_result.status if executor_result else 'failed'}",
                 f"  review_gate_status: {review_gate_result.status if review_gate_result else 'failed'}",
+                f"  debate_exhausted: {'yes' if record.card_id in debate_exhausted_card_ids else 'no'}",
             ]
         )
     status = "completed" if result.failed_count == 0 else "failed"
+    if debate_exhausted_card_ids:
+        message = "One or more subtasks exhausted debate rounds and require human intervention."
+        failure_kind = "debate_circuit_breaker"
+    else:
+        message = (
+            "All subtasks completed successfully."
+            if status == "completed"
+            else "One or more subtasks failed after review feedback retry."
+        )
+        failure_kind = "" if status == "completed" else "review_gate_retry_exhausted"
     return ExecutorResult(
         executor_name="subtask-orchestrator",
         status=status,
-        message="All subtasks completed successfully."
-        if status == "completed"
-        else "One or more subtasks failed after review feedback retry.",
+        message=message,
         prompt="\n".join(prompt_lines),
         output="\n".join(lines),
         dialect="plain_text",
-        failure_kind="" if status == "completed" else "review_gate_retry_exhausted",
+        failure_kind=failure_kind,
         latency_ms=sum(
             max((record.executor_result.latency_ms if record.executor_result is not None else 0), 0)
             for record in result.records
@@ -688,7 +1118,7 @@ def _run_subtask_orchestration(
     state: TaskState,
     cards: list[TaskCard],
     retrieval_items: list[RetrievalItem],
-) -> tuple[ExecutorResult, ReviewGateResult, SubtaskOrchestratorResult]:
+) -> tuple[ExecutorResult, ReviewGateResult, SubtaskOrchestratorResult, bool]:
     subtask_extra_artifacts: dict[str, dict[str, str]] = {}
     subtask_extra_artifacts_lock = threading.Lock()
 
@@ -710,86 +1140,68 @@ def _run_subtask_orchestration(
     result = orchestrator.run(base_dir, state, cards, retrieval_items)
     attempt_counts = {record.card_id: 1 for record in result.records}
     failed_records = [record for record in result.records if record.status != "completed"]
-    if failed_records:
-        cards_by_id = {card.card_id: card for card in cards}
-        records_by_id = {record.card_id: record for record in result.records}
-        for record in result.records:
-            _write_subtask_attempt_artifacts(
-                base_dir,
-                state.task_id,
-                record,
-                attempt_number=1,
-                extra_artifacts=subtask_extra_artifacts.get(record.card_id, {}),
-            )
-            _append_subtask_events(base_dir, state.task_id, record, attempt_number=1)
-        for failed_record in failed_records:
-            attempt_counts[failed_record.card_id] = 2
-            append_event(
-                base_dir,
-                Event(
-                    task_id=state.task_id,
-                    event_type=f"subtask.{failed_record.subtask_index}.retry_requested",
-                    message=f"Retry requested for subtask {failed_record.subtask_index} after review failure.",
-                    payload={
-                        "card_id": failed_record.card_id,
-                        "goal": failed_record.goal,
-                        "previous_status": failed_record.status,
-                    },
-                ),
-            )
-            retry_card = replace(cards_by_id[failed_record.card_id], depends_on=[])
-            retry_result = orchestrator.run(base_dir, state, [retry_card], retrieval_items)
-            retry_record = retry_result.records[0]
-            records_by_id[failed_record.card_id] = retry_record
-            _write_subtask_attempt_artifacts(
-                base_dir,
-                state.task_id,
-                retry_record,
-                attempt_number=2,
-                extra_artifacts=subtask_extra_artifacts.get(retry_record.card_id, {}),
-            )
-            _append_subtask_events(base_dir, state.task_id, retry_record, attempt_number=2)
-            if retry_record.status != "completed":
-                append_event(
+    cards_by_id = {card.card_id: card for card in cards}
+    records_by_id = {record.card_id: record for record in result.records}
+    debate_exhausted_card_ids: list[str] = []
+
+    for record in result.records:
+        _write_subtask_attempt_artifacts(
+            base_dir,
+            state.task_id,
+            record,
+            attempt_number=1,
+            extra_artifacts=subtask_extra_artifacts.get(record.card_id, {}),
+        )
+        _append_subtask_events(base_dir, state.task_id, record, attempt_number=1)
+
+    for failed_record in failed_records:
+        retry_attempts, debate_exhausted = _run_subtask_debate_retries(
+            base_dir,
+            state,
+            cards_by_id[failed_record.card_id],
+            retrieval_items,
+            failed_record,
+        )
+        if retry_attempts:
+            attempt_counts[failed_record.card_id] = 1 + len(retry_attempts)
+            records_by_id[failed_record.card_id] = retry_attempts[-1][1]
+            for attempt_number, retry_record, extra_artifacts in retry_attempts:
+                _write_subtask_attempt_artifacts(
                     base_dir,
-                    Event(
-                        task_id=state.task_id,
-                        event_type=f"subtask.{retry_record.subtask_index}.review_gate_retry_exhausted",
-                        message=f"Retry exhausted for subtask {retry_record.subtask_index}.",
-                        payload={
-                            "card_id": retry_record.card_id,
-                            "goal": retry_record.goal,
-                            "attempt_count": 2,
-                            "final_status": retry_record.status,
-                        },
-                    ),
+                    state.task_id,
+                    retry_record,
+                    attempt_number=attempt_number,
+                    extra_artifacts=extra_artifacts,
                 )
-        result.records = [records_by_id[card.card_id] for card in cards]
-        result.failed_card_ids = [record.card_id for record in result.records if record.status != "completed"]
-        result.failed_count = len(result.failed_card_ids)
-        result.completed_count = len(result.records) - result.failed_count
-        result.status = "completed" if result.failed_count == 0 else "failed"
+                _append_subtask_events(base_dir, state.task_id, retry_record, attempt_number=attempt_number)
+        if debate_exhausted:
+            debate_exhausted_card_ids.append(failed_record.card_id)
+
+    result.records = [records_by_id[card.card_id] for card in cards]
+    result.failed_card_ids = [record.card_id for record in result.records if record.status != "completed"]
+    result.failed_count = len(result.failed_card_ids)
+    result.completed_count = len(result.records) - result.failed_count
+    result.status = "completed" if result.failed_count == 0 else "failed"
+    if debate_exhausted_card_ids:
+        result.message = (
+            f"{len(debate_exhausted_card_ids)} subtasks exhausted debate rounds and require human intervention."
+        )
+    else:
         result.message = (
             "All subtasks completed successfully."
             if result.failed_count == 0
             else f"{result.failed_count} subtasks failed execution or review."
         )
-    else:
-        for record in result.records:
-            _write_subtask_attempt_artifacts(
-                base_dir,
-                state.task_id,
-                record,
-                attempt_number=1,
-                extra_artifacts=subtask_extra_artifacts.get(record.card_id, {}),
-            )
-            _append_subtask_events(base_dir, state.task_id, record, attempt_number=1)
 
     review_gate_result = _build_subtask_review_gate_result(result, attempt_counts)
-    executor_result = _build_subtask_executor_result(result, attempt_counts)
+    executor_result = _build_subtask_executor_result(
+        result,
+        attempt_counts,
+        debate_exhausted_card_ids=debate_exhausted_card_ids,
+    )
     _write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
-    return executor_result, review_gate_result, result
+    return executor_result, review_gate_result, result, bool(debate_exhausted_card_ids)
 
 
 def _load_locked_grounding_evidence(base_dir: Path, state: TaskState) -> dict[str, object] | None:
@@ -1684,6 +2096,7 @@ def run_task(
     skip_to_phase: str = "retrieval",
 ) -> TaskState:
     state = load_state(base_dir, task_id)
+    _clear_review_feedback_state(state)
     previous_status = state.status
     previous_phase = state.phase
     requested_skip_to_phase = skip_to_phase.strip() or "retrieval"
@@ -1882,25 +2295,19 @@ def run_task(
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
         if multi_card_plan:
-            executor_result, review_gate_result, subtask_result = _run_subtask_orchestration(
+            executor_result, review_gate_result, subtask_result, debate_exhausted = _run_subtask_orchestration(
                 base_dir,
                 state,
                 cards,
                 retrieval_items,
             )
         else:
-            _append_canonical_write_guard_warning(base_dir, state, card)
-            executor_result = _execute_task_card(base_dir, state, card, retrieval_items)
-            state = _apply_librarian_side_effects(base_dir, state, executor_result)
-            if executor_result.status == "failed":
-                executor_result, card, _ = _run_binary_fallback(
-                    base_dir,
-                    state,
-                    card,
-                    retrieval_items,
-                    executor_result,
-                )
-            review_gate_result = review_executor_output(executor_result, card)
+            executor_result, review_gate_result, debate_exhausted = _run_single_task_with_debate(
+                base_dir,
+                state,
+                card,
+                retrieval_items,
+            )
         execution_skipped = False
     else:
         state.execution_lifecycle = "reused"
@@ -1910,6 +2317,7 @@ def run_task(
         _set_phase(base_dir, state, "executing")
         review_gate_result = review_executor_output(executor_result, card)
         execution_skipped = True
+        debate_exhausted = False
     state.executor_name = executor_result.executor_name
     state.executor_status = executor_result.status
     save_state(base_dir, state)
@@ -2005,6 +2413,11 @@ def run_task(
     state.execution_phase = "analysis_done"
     state.last_phase_checkpoint_at = utc_now()
     save_state(base_dir, state)
+    artifact_state = replace(state)
+    if debate_exhausted:
+        artifact_state.status = "waiting_human"
+        artifact_state.phase = "waiting_human"
+        artifact_state.execution_lifecycle = "waiting_human"
     (
         compatibility_result,
         execution_fit_result,
@@ -2014,81 +2427,113 @@ def run_task(
         stop_policy_result,
         execution_budget_policy_result,
     ) = write_task_artifacts(
-        base_dir, replace(state), retrieval_items, executor_result, grounding_evidence_override=grounding_evidence
+        base_dir,
+        artifact_state,
+        retrieval_items,
+        executor_result,
+        grounding_evidence_override=grounding_evidence,
     )
 
-    state.status = (
-        "completed"
-        if executor_result.status == "completed"
-        and compatibility_result.status != "failed"
-        and execution_fit_result.status != "failed"
-        and knowledge_policy_result.status != "failed"
-        and validation_result.status != "failed"
-        else "failed"
-    )
-    state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
+    if debate_exhausted:
+        state.status = "waiting_human"
+        state.phase = "waiting_human"
+        state.execution_lifecycle = "waiting_human"
+    else:
+        state.status = (
+            "completed"
+            if executor_result.status == "completed"
+            and compatibility_result.status != "failed"
+            and execution_fit_result.status != "failed"
+            and knowledge_policy_result.status != "failed"
+            and validation_result.status != "failed"
+            else "failed"
+        )
+        state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
     staged_candidates = _route_knowledge_to_staged(base_dir, state)
     save_state(base_dir, state)
     _record_phase_checkpoint(base_dir, state, "analysis_done", source="live_analysis")
-    append_event(
-        base_dir,
-        Event(
-            task_id=task_id,
-            event_type="task.completed" if state.status == "completed" else "task.failed",
-            message="Task run completed." if state.status == "completed" else "Task run failed.",
-            payload={
-                "status": state.status,
-                "phase": state.phase,
-                "retrieval_count": state.retrieval_count,
-                "executor_name": state.executor_name,
-                "route_mode": state.route_mode,
-                "route_name": state.route_name,
-                "route_backend": state.route_backend,
-                "route_executor_family": state.route_executor_family,
-                "route_execution_site": state.route_execution_site,
-                "route_remote_capable": state.route_remote_capable,
-                "route_transport_kind": state.route_transport_kind,
-                "route_dialect": state.route_dialect,
-                "route_reason": state.route_reason,
-                "route_capabilities": state.route_capabilities,
-                "attempt_id": state.current_attempt_id,
-                "attempt_number": state.current_attempt_number,
-                "attempt_owner_kind": state.current_attempt_owner_kind,
-                "attempt_owner_ref": state.current_attempt_owner_ref,
-                "attempt_ownership_status": state.current_attempt_ownership_status,
-                "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
-                "attempt_transfer_reason": state.current_attempt_transfer_reason,
-                "topology_route_name": state.topology_route_name,
-                "topology_executor_family": state.topology_executor_family,
-                "topology_execution_site": state.topology_execution_site,
-                "topology_transport_kind": state.topology_transport_kind,
-                "topology_remote_capable_intent": state.topology_remote_capable_intent,
-                "topology_dispatch_status": state.topology_dispatch_status,
-                "execution_site_contract_kind": state.execution_site_contract_kind,
-                "execution_site_boundary": state.execution_site_boundary,
-                "execution_site_contract_status": state.execution_site_contract_status,
-                "execution_site_handoff_required": state.execution_site_handoff_required,
-                "execution_site_contract_reason": state.execution_site_contract_reason,
-                "dispatch_requested_at": state.dispatch_requested_at,
-                "dispatch_started_at": state.dispatch_started_at,
-                "execution_lifecycle": state.execution_lifecycle,
-                "executor_status": state.executor_status,
-                "compatibility_status": compatibility_result.status,
-                "execution_fit_status": execution_fit_result.status,
-                "retry_policy_status": retry_policy_result.status,
-                "execution_budget_policy_status": execution_budget_policy_result.status,
-                "stop_policy_status": stop_policy_result.status,
-                "knowledge_policy_status": knowledge_policy_result.status,
-                "validation_status": validation_result.status,
-                "staged_candidate_count": len(staged_candidates),
-                "grounding_refs": state.grounding_refs,
-                "grounding_locked": state.grounding_locked,
-                "execution_phase": state.execution_phase,
-                "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
-                "artifact_paths": state.artifact_paths,
-            },
-        ),
-    )
+    if debate_exhausted:
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type="task.waiting_human",
+                message="Task is waiting for human intervention after debate loop exhaustion.",
+                payload={
+                    "status": state.status,
+                    "phase": state.phase,
+                    "retrieval_count": state.retrieval_count,
+                    "executor_name": state.executor_name,
+                    "review_feedback_ref": state.review_feedback_ref,
+                    "staged_candidate_count": len(staged_candidates),
+                    "grounding_refs": state.grounding_refs,
+                    "grounding_locked": state.grounding_locked,
+                    "execution_phase": state.execution_phase,
+                    "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
+                    "artifact_paths": state.artifact_paths,
+                },
+            ),
+        )
+    else:
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type="task.completed" if state.status == "completed" else "task.failed",
+                message="Task run completed." if state.status == "completed" else "Task run failed.",
+                payload={
+                    "status": state.status,
+                    "phase": state.phase,
+                    "retrieval_count": state.retrieval_count,
+                    "executor_name": state.executor_name,
+                    "route_mode": state.route_mode,
+                    "route_name": state.route_name,
+                    "route_backend": state.route_backend,
+                    "route_executor_family": state.route_executor_family,
+                    "route_execution_site": state.route_execution_site,
+                    "route_remote_capable": state.route_remote_capable,
+                    "route_transport_kind": state.route_transport_kind,
+                    "route_dialect": state.route_dialect,
+                    "route_reason": state.route_reason,
+                    "route_capabilities": state.route_capabilities,
+                    "attempt_id": state.current_attempt_id,
+                    "attempt_number": state.current_attempt_number,
+                    "attempt_owner_kind": state.current_attempt_owner_kind,
+                    "attempt_owner_ref": state.current_attempt_owner_ref,
+                    "attempt_ownership_status": state.current_attempt_ownership_status,
+                    "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+                    "attempt_transfer_reason": state.current_attempt_transfer_reason,
+                    "topology_route_name": state.topology_route_name,
+                    "topology_executor_family": state.topology_executor_family,
+                    "topology_execution_site": state.topology_execution_site,
+                    "topology_transport_kind": state.topology_transport_kind,
+                    "topology_remote_capable_intent": state.topology_remote_capable_intent,
+                    "topology_dispatch_status": state.topology_dispatch_status,
+                    "execution_site_contract_kind": state.execution_site_contract_kind,
+                    "execution_site_boundary": state.execution_site_boundary,
+                    "execution_site_contract_status": state.execution_site_contract_status,
+                    "execution_site_handoff_required": state.execution_site_handoff_required,
+                    "execution_site_contract_reason": state.execution_site_contract_reason,
+                    "dispatch_requested_at": state.dispatch_requested_at,
+                    "dispatch_started_at": state.dispatch_started_at,
+                    "execution_lifecycle": state.execution_lifecycle,
+                    "executor_status": state.executor_status,
+                    "compatibility_status": compatibility_result.status,
+                    "execution_fit_status": execution_fit_result.status,
+                    "retry_policy_status": retry_policy_result.status,
+                    "execution_budget_policy_status": execution_budget_policy_result.status,
+                    "stop_policy_status": stop_policy_result.status,
+                    "knowledge_policy_status": knowledge_policy_result.status,
+                    "validation_status": validation_result.status,
+                    "staged_candidate_count": len(staged_candidates),
+                    "grounding_refs": state.grounding_refs,
+                    "grounding_locked": state.grounding_locked,
+                    "execution_phase": state.execution_phase,
+                    "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
+                    "artifact_paths": state.artifact_paths,
+                },
+            ),
+        )
     return state
 
 

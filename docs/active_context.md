@@ -5,17 +5,17 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - latest_completed_phase: `Phase 39`
 - latest_completed_slice: `Ingestion Pipeline + CLI`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `main`
-- status: `post_phase39_merged_ready_for_next_kickoff`
+- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
+- active_phase: `Phase 40`
+- active_slice: `review_complete`
+- active_branch: `feat/phase40-debate-topology`
+- status: `phase40_review_complete_merge_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 39 已完成实现、review follow-up、closeout 与 merge，并已回到 `main` 形成新的稳定 checkpoint。当前默认不继续扩张已完成的 Ingestion Specialist，而是从 roadmap 重新选择下一轮 active track / phase / slice 后进入 fresh kickoff。
+Phase 40 kickoff 已产出（draft），方向为 Debate Topology — 对抗审查拓扑增强。当前已完成 S1 `ReviewFeedback` 数据模型、S2 `Debate Loop` 单任务路径集成，以及 S3 `子任务路径统一`；实现分支为 `feat/phase40-debate-topology`。Claude review 已完成，结论为 `0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready`；两个 concern 已登记到 `docs/concerns_backlog.md`，根目录 `pr.md` 与 `closeout.md` 已同步到 merge ready / PR sync ready 状态。整体风险 15/27（中）。
 
 ---
 
@@ -100,6 +100,23 @@ Phase 39 已完成实现、review follow-up、closeout 与 merge，并已回到 
 - `pr.md` (codex, 2026-04-18, ignored) — Phase 39 PR 文案草稿，汇总 slice 完成状态、实现要点与测试覆盖
 - `docs/plans/phase39/review_comments.md` (claude, 2026-04-18) — Phase 39 review: 0 BLOCK / 1 CONCERN / 1 NOTE, Merge ready
 - `docs/plans/phase39/closeout.md` (codex, 2026-04-18) — Phase 39 closeout：3 个 slice 完成情况、review follow-up 吸收与 merge 建议
+- `docs/plans/phase40/kickoff.md` (claude, 2026-04-18) — Phase 40 kickoff: 3 slice (ReviewFeedback + Debate Loop + 子任务统一)，风险 15/27 中
+- `docs/plans/phase40/risk_assessment.md` (claude, 2026-04-18) — Phase 40 风险评估：死循环风险通过 max_rounds=3 物理消除，S2/S3 核心路径修改需重点关注
+- `src/swallow/review_gate.py` (codex, 2026-04-18) — Phase 40 S1 新增 `ReviewFeedback` dataclass 与 `build_review_feedback()` 纯函数
+- `tests/test_review_gate.py` (codex, 2026-04-18) — Phase 40 S1 ReviewFeedback 生成、suggestion 映射与 snippet 截断专项测试
+- `src/swallow/models.py` (codex, 2026-04-18) — Phase 40 S2 `TaskState` / `ExecutorResult` 新增 review feedback prompt/ref 字段
+- `src/swallow/executor.py` (codex, 2026-04-18) — Phase 40 S2 在 raw prompt / structured markdown 中注入 review feedback，并将 feedback ref 传回执行结果
+- `src/swallow/harness.py` (codex, 2026-04-18) — Phase 40 S2 executor 事件补充 `review_feedback`，并保留 `waiting_human` artifact 渲染状态
+- `src/swallow/orchestrator.py` (codex, 2026-04-18) — Phase 40 S2 单任务 debate loop：feedback artifact、max_rounds=3、circuit breaker、waiting_human 收口
+- `src/swallow/checkpoint_snapshot.py` (codex, 2026-04-18) — Phase 40 S2 `waiting_human` checkpoint snapshot 语义
+- `tests/test_dialect_adapters.py` (codex, 2026-04-18) — Phase 40 S2 Claude XML / Structured Markdown / Codex FIM feedback 注入回归
+- `tests/test_debate_loop.py` (codex, 2026-04-18) — Phase 40 S2 单任务 debate loop 成功重试与熔断集成测试
+- `tests/test_grounding.py` (codex, 2026-04-18) — Phase 40 S2 `waiting_human` checkpoint snapshot regression
+- `src/swallow/orchestrator.py` (codex, 2026-04-18) — Phase 40 S3 子任务路径 debate loop 统一：每卡最多 3 轮 review feedback、`subtask.{index}.debate_round` / `subtask.{index}.debate_circuit_breaker` 事件、父任务 `waiting_human` 收口
+- `tests/test_run_task_subtasks.py` (codex, 2026-04-18) — Phase 40 S3 子任务 targeted debate retry、熔断等待人工、executor failure 非 debate 回归
+- `docs/plans/phase40/closeout.md` (codex, 2026-04-18) — Phase 40 implementation closeout：3 个 slice 完成情况、稳定边界、merge ready / PR sync ready 收口说明
+- `pr.md` (codex, 2026-04-18, ignored) — Phase 40 PR 文案草稿，已同步 review 结论与 backlog disposition
+- `docs/plans/phase40/review_comments.md` (claude, 2026-04-18) — Phase 40 review: 0 BLOCK / 2 CONCERN / 1 NOTE, Merge ready
 
 ---
 
@@ -121,13 +138,19 @@ Phase 39 已完成实现、review follow-up、closeout 与 merge，并已回到 
 - **[Codex]** 已吸收 review follow-up：修正 C1 degraded fallback 判定与 C2 事件类型常量复用，并通过全量 `pytest`（249 passed）。
 - **[Human]** 已完成 merge，当前入口已切回 `main`。
 - **[Claude]** 已完成 Phase 36 kickoff：2 slice（S1 LibrarianExecutor 收口 + S2 API concern 批量消化），风险 7/18 低。
+- **[Codex]** 已完成 Phase 40 S1 `ReviewFeedback` 数据模型与生成逻辑，并通过专项 `pytest`（8 passed）。
+- **[Codex]** 已完成 Phase 40 S2 `Debate Loop` 单任务路径集成：review feedback 注入 prompt、max_rounds=3 熔断、`review_feedback_round_{n}.json` artifact、`task.debate_circuit_breaker` / `task.waiting_human` 事件、`waiting_human` checkpoint snapshot 语义；并通过全量 `pytest`（301 passed）。
+- **[Codex]** 已完成 Phase 40 S3 `子任务路径统一`：失败子任务由硬编码单次 retry 升级为每卡独立 debate loop，支持 `subtask.{index}.debate_round` / `subtask.{index}.debate_circuit_breaker` 事件、子任务 feedback artifact、父任务 `waiting_human` 收口，并保持基础 executor failure 不进入 debate；已通过全量 `pytest`（302 passed）。
+- **[Codex]** 已整理 Phase 40 implementation closeout 与新的根目录 `pr.md`，当前分支进入 **review pending / PR sync ready**。
+- **[Claude]** 已完成 Phase 40 review：`0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready`。
+- **[Codex]** 已将 C1 / C2 concern 记录到 `docs/concerns_backlog.md`，并同步 `closeout.md` / `pr.md` 到 **merge ready / PR sync ready** 状态。
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` / `docs/system_tracks.md` 选择下一轮 active track / phase
-- **[Claude]** 为下一轮产出 kickoff / risk_assessment
-- **[Codex]** 在新 phase gate 通过并切出 feature branch 后开始实现
+- **[Human]** 检查并使用根目录 `pr.md` 更新 PR 描述
+- **[Human]** 提交 review follow-up / closeout 文档同步
+- **[Human]** push 当前分支并进入 merge 决策
 
 ## 当前阻塞项
 
-- 无。当前已进入下一轮 fresh kickoff 准备态。
+- 无。当前处于 **merge ready / PR sync ready**。
