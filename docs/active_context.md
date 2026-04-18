@@ -7,15 +7,15 @@
 - latest_completed_slice: `Local Stack Doctor + Cost Telemetry Fix`
 - active_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
 - active_phase: `Phase 44`
-- active_slice: `review_pending`
+- active_slice: `review_complete_merge_ready`
 - active_branch: `main`
-- status: `phase44_review_pending`
+- status: `phase44_review_complete_merge_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool Calling，无真实需求）。Phase 44 的实现现已全部完成，当前进入 review pending 阶段。S1 已补齐 `Subtask Tree`；S2 已补齐 `artifact-diff` compare 模式；S3 已补齐 `execution-timeline` 只读 API 与时间线面板。整体仍保持 Phase 44 的只读约束，零写入 `.swl/`，且未引入任何前端构建工具链。下一步等待 Claude 产出 `docs/plans/phase44/review_comments.md`，随后做最终 closeout / merge ready 收口。
+Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool Calling，无真实需求）。Phase 44 的实现与 review 已全部完成，当前状态为 merge ready。S1 已补齐 `Subtask Tree`；S2 已补齐 `artifact-diff` compare 模式；S3 已补齐 `execution-timeline` 只读 API 与时间线面板。整体仍保持 Phase 44 的只读约束，零写入 `.swl/`，且未引入任何前端构建工具链。下一步是 Human 用 `pr.md` 更新 PR 描述、push 分支并做 merge 决策。
 
 ---
 
