@@ -7,15 +7,15 @@
 - latest_completed_slice: `Web Control Center Enhancement`
 - active_track: `Retrieval / Memory` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 45`
-- active_slice: `review_pending`
+- active_slice: `review_complete_merge_ready`
 - active_branch: `main`
-- status: `phase45_review_pending`
+- status: `phase45_review_complete_merge_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向为 Eval 基线建立 + Ingestion 深化。3 个 slice：S1 eval 基础设施 + 降噪/提案质量基线、S2 ChatGPT 对话树上下文还原、S3 `swl ingest --summary` 结构化摘要。整体风险 11/27（低-中）。这是项目首次引入 Eval-Driven Development（规则已固化到 `.agents/shared/rules.md` §十）。S1 / S2 / S3 已全部完成，closeout 与 `pr.md` 已整理，当前进入 review pending。
+Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向为 Eval 基线建立 + Ingestion 深化。3 个 slice：S1 eval 基础设施 + 降噪/提案质量基线、S2 ChatGPT 对话树上下文还原、S3 `swl ingest --summary` 结构化摘要。整体风险 11/27（低-中）。这是项目首次引入 Eval-Driven Development（规则已固化到 `.agents/shared/rules.md` §十）。S1 / S2 / S3 已全部完成，Claude review 也已完成，当前状态为 merge ready。
 
 ---
 
@@ -56,7 +56,9 @@ Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向
 - **[Codex]** 已完成 S3 `swl ingest --summary`。
 - **[Human]** 已完成 S3 提交。
 - **[Codex]** 已整理 `closeout.md` 与本地 `pr.md`。
+- **[Claude]** 已完成 Phase 45 review：`0 BLOCK / 1 CONCERN / 1 NOTE / Merge ready`。
+- **[Codex]** 已同步 closeout / backlog / `pr.md` 到 review 完成状态。
 
 当前阻塞项：
 
-- 等待 Claude 产出 `docs/plans/phase45/review_comments.md`。
+- 等待 Human 更新 PR 描述、push 分支并做 merge 决策。
