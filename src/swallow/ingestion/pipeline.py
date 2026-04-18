@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from ..models import LIBRARIAN_SYSTEM_ROLE
 from ..staged_knowledge import StagedCandidate, submit_staged_candidate
@@ -90,6 +91,47 @@ def build_staged_candidates(
     return candidates
 
 
+def build_ingestion_summary(result: IngestionPipelineResult) -> str:
+    decisions = _collect_summary_items(result.fragments, _is_decision_fragment)
+    constraints = _collect_summary_items(result.fragments, _is_constraint_fragment)
+    rejected = _collect_summary_items(result.fragments, _is_rejected_fragment)
+    abandoned_branch_count = sum(1 for fragment in result.fragments if fragment.metadata.get("branch", "") == "abandoned")
+    dropped_chatter = max(len(result.turns) - len(result.fragments), 0)
+
+    lines = [
+        "# Ingestion Summary",
+        "",
+        f"## Decisions ({len(decisions)})",
+    ]
+    lines.extend(_render_summary_section(decisions))
+    lines.extend(
+        [
+            "",
+            f"## Constraints ({len(constraints)})",
+        ]
+    )
+    lines.extend(_render_summary_section(constraints))
+    lines.extend(
+        [
+            "",
+            f"## Rejected Alternatives ({len(rejected)})",
+        ]
+    )
+    lines.extend(_render_summary_section(rejected))
+    lines.extend(
+        [
+            "",
+            "## Statistics",
+            f"- total_turns: {len(result.turns)}",
+            f"- kept_fragments: {len(result.fragments)}",
+            f"- dropped_chatter: {dropped_chatter}",
+            f"- abandoned_branches: {abandoned_branch_count}",
+            "- precision_estimate: N/A (requires eval golden dataset)",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def build_ingestion_report(result: IngestionPipelineResult) -> str:
     lines = [
         "# Ingestion Report",
@@ -123,6 +165,50 @@ def build_ingestion_report(result: IngestionPipelineResult) -> str:
             ]
         )
     return "\n".join(lines)
+
+
+def _collect_summary_items(
+    fragments: list[ExtractedFragment],
+    predicate: Callable[[ExtractedFragment], bool],
+) -> list[str]:
+    items: list[str] = []
+    seen: set[str] = set()
+    for fragment in fragments:
+        if not predicate(fragment):
+            continue
+        normalized = " ".join(fragment.text.split())
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        items.append(normalized)
+    return items
+
+
+def _render_summary_section(items: list[str]) -> list[str]:
+    if not items:
+        return ["- none"]
+    return [f"- {item}" for item in items]
+
+
+def _is_decision_fragment(fragment: ExtractedFragment) -> bool:
+    if "keyword" not in fragment.signals:
+        return False
+    lowered = fragment.text.lower()
+    return any(token in lowered for token in ("决定", "decision", "outcome"))
+
+
+def _is_constraint_fragment(fragment: ExtractedFragment) -> bool:
+    if "keyword" not in fragment.signals:
+        return False
+    lowered = fragment.text.lower()
+    return any(token in lowered for token in ("约束", "constraint", "non-goal", "non-goals", "不做"))
+
+
+def _is_rejected_fragment(fragment: ExtractedFragment) -> bool:
+    if "rejected_alternative" in fragment.signals or fragment.metadata.get("branch", "") == "abandoned":
+        return True
+    lowered = fragment.text.lower()
+    return any(token in lowered for token in ("reject", "rejected", "abandon", "abandoned", "switch to", "改用", "放弃"))
 
 
 def _build_source_task_id(source_path: Path) -> str:

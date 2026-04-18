@@ -26,7 +26,7 @@ from .doctor import (
     format_codex_doctor_result,
     format_local_stack_doctor_result,
 )
-from .ingestion.pipeline import build_ingestion_report, run_ingestion_pipeline
+from .ingestion.pipeline import build_ingestion_report, build_ingestion_summary, run_ingestion_pipeline
 from .knowledge_store import persist_wiki_entry_from_record
 from .meta_optimizer import run_meta_optimizer
 from .knowledge_objects import summarize_canonicalization
@@ -1130,6 +1130,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Parse and filter the source, but do not write staged candidates.",
     )
+    ingest_parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Append a structured ingestion summary after the standard report.",
+    )
     serve_parser = subparsers.add_parser(
         "serve",
         help="Run the read-only control center API server.",
@@ -1907,7 +1912,10 @@ def main(argv: list[str] | None = None) -> int:
             format_hint=args.format,
             dry_run=bool(args.dry_run),
         )
-        print(build_ingestion_report(result))
+        output = build_ingestion_report(result)
+        if bool(args.summary):
+            output = f"{output}\n\n{build_ingestion_summary(result)}"
+        print(output)
         return 0
 
     if args.command == "serve":

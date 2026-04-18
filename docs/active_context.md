@@ -7,15 +7,15 @@
 - latest_completed_slice: `Web Control Center Enhancement`
 - active_track: `Retrieval / Memory` (Primary) + `Evaluation / Policy` (Secondary)
 - active_phase: `Phase 45`
-- active_slice: `S2 ready_for_commit_gate`
+- active_slice: `S3 ready_for_commit_gate`
 - active_branch: `main`
-- status: `phase45_s2_ready_for_commit_gate`
+- status: `phase45_s3_ready_for_commit_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向为 Eval 基线建立 + Ingestion 深化。3 个 slice：S1 eval 基础设施 + 降噪/提案质量基线、S2 ChatGPT 对话树上下文还原、S3 `swl ingest --summary` 结构化摘要。整体风险 11/27（低-中）。这是项目首次引入 Eval-Driven Development（规则已固化到 `.agents/shared/rules.md` §十）。S1 与 S2 已完成，当前进入 S2 commit gate。
+Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向为 Eval 基线建立 + Ingestion 深化。3 个 slice：S1 eval 基础设施 + 降噪/提案质量基线、S2 ChatGPT 对话树上下文还原、S3 `swl ingest --summary` 结构化摘要。整体风险 11/27（低-中）。这是项目首次引入 Eval-Driven Development（规则已固化到 `.agents/shared/rules.md` §十）。S1 / S2 / S3 均已完成，当前进入最终 commit gate。
 
 ---
 
@@ -52,9 +52,10 @@ Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向
 - **[Codex]** 已完成 S1：补齐 `tests/eval/`、pytest eval marker 与质量基线测试。
 - **[Human]** 已完成 S1 提交，并对 eval fixture 位置做了微调。
 - **[Codex]** 已完成 S2 `ChatGPT conversation tree restoration`。
-- **[Human]** 审查并提交 S2 commit gate。
-- **[Codex]** 在 S2 提交后进入 S3 `swl ingest --summary`。
+- **[Human]** 已完成 S2 提交。
+- **[Codex]** 已完成 S3 `swl ingest --summary`。
+- **[Human]** 审查并提交 S3 commit gate。
 
 当前阻塞项：
 
-- 等待 Human 执行 S2 commit gate。
+- 等待 Human 执行 S3 commit gate。
