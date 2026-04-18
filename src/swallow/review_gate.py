@@ -18,6 +18,18 @@ class ReviewGateResult:
         return asdict(self)
 
 
+@dataclass(slots=True)
+class ReviewFeedback:
+    round_number: int
+    failed_checks: list[dict[str, Any]] = field(default_factory=list)
+    suggestions: list[str] = field(default_factory=list)
+    original_output_snippet: str = ""
+    max_rounds: int = 3
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def _validate_output_schema(executor_result: ExecutorResult, output_schema: dict[str, Any]) -> dict[str, Any]:
     required_fields = output_schema.get("required")
     const_fields = output_schema.get("const")
@@ -78,6 +90,56 @@ def _validate_output_schema(executor_result: ExecutorResult, output_schema: dict
         "passed": True,
         "detail": "validated structured output schema (" + ", ".join(validated_fields) + ")",
     }
+
+
+def _truncate_output_snippet(text: str, limit: int = 500) -> str:
+    normalized = text.strip()
+    if len(normalized) <= limit:
+        return normalized
+    truncated = max(limit - 3, 0)
+    return normalized[:truncated].rstrip() + "..."
+
+
+def _suggestion_for_failed_check(check: dict[str, Any]) -> str:
+    name = str(check.get("name", "")).strip()
+    detail = str(check.get("detail", "")).strip()
+    if name == "executor_status":
+        return "Ensure the executor finishes with status=completed before returning to the review gate."
+    if name == "output_non_empty":
+        return "Return a non-empty output payload that directly addresses the task goal."
+    if name == "output_schema":
+        return "Return a structured JSON object that satisfies the required schema fields and constant values."
+    if detail:
+        return f"Address review check '{name or 'unknown'}': {detail}"
+    return f"Address review check '{name or 'unknown'}' before retrying."
+
+
+def build_review_feedback(
+    review_gate_result: ReviewGateResult,
+    executor_result: ExecutorResult,
+    *,
+    round_number: int,
+    max_rounds: int,
+) -> ReviewFeedback | None:
+    failed_checks = [dict(check) for check in review_gate_result.checks if not bool(check.get("passed", False))]
+    if review_gate_result.status == "passed" or not failed_checks:
+        return None
+
+    suggestions: list[str] = []
+    seen_suggestions: set[str] = set()
+    for check in failed_checks:
+        suggestion = _suggestion_for_failed_check(check)
+        if suggestion not in seen_suggestions:
+            suggestions.append(suggestion)
+            seen_suggestions.add(suggestion)
+
+    return ReviewFeedback(
+        round_number=max(int(round_number), 1),
+        failed_checks=failed_checks,
+        suggestions=suggestions,
+        original_output_snippet=_truncate_output_snippet(executor_result.output or ""),
+        max_rounds=max(int(max_rounds), 1),
+    )
 
 
 def review_executor_output(executor_result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
