@@ -20,3 +20,9 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+markers = [
+    "eval: quality evaluation tests (deselected by default)",
+]
+addopts = "-m 'not eval'"
