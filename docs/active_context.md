@@ -2,20 +2,22 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
-- latest_completed_phase: `Phase 42`
-- latest_completed_slice: `Local Stack Doctor + Cost Telemetry Fix`
-- active_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
-- active_phase: `Phase 44`
-- active_slice: `review_complete_merge_ready`
+- latest_completed_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
+- latest_completed_phase: `Phase 44`
+- latest_completed_slice: `Web Control Center Enhancement`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
 - active_branch: `main`
-- status: `phase44_review_complete_merge_ready`
+- status: `post_phase44_stable_checkpoint`
 
 ---
 
 ## 当前状态说明
 
-Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool Calling，无真实需求）。Phase 44 的实现与 review 已全部完成，当前状态为 merge ready。S1 已补齐 `Subtask Tree`；S2 已补齐 `artifact-diff` compare 模式；S3 已补齐 `execution-timeline` 只读 API 与时间线面板。整体仍保持 Phase 44 的只读约束，零写入 `.swl/`，且未引入任何前端构建工具链。下一步是 Human 用 `pr.md` 更新 PR 描述、push 分支并做 merge 决策。
+Phase 44 已完成实现、review、PR、merge，并形成新的稳定 checkpoint。本轮增量包括只读 Web Control Center 的 `Subtask Tree`、`artifact-diff` compare 模式与 `execution-timeline` 可视化；同时此前已完成的 Librarian 原子持久化、debate loop 核心抽取与遥测修正都已进入稳定主线。
+
+当前仓库状态适合从 roadmap 重新选择下一轮方向，而不是继续扩张已完成的 Phase 44。由于下一 phase 的 kickoff 尚未在仓库内正式落盘，状态指针先停在 `none_selected / fresh_kickoff_required`。
 
 ---
 
@@ -28,97 +30,14 @@ Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool C
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase41/closeout.md`
+6. `docs/plans/phase44/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase41/review_comments.md`
-- `docs/plans/phase40/review_comments.md`
-- `docs/plans/phase39/review_comments.md`
-- `docs/plans/phase39/kickoff.md`
-- `docs/plans/phase38/review_comments.md`
-- `docs/plans/phase38/kickoff.md`
-- `docs/plans/phase36/closeout.md`
-- `docs/plans/phase36/review_comments.md`
-- `docs/plans/phase35/closeout.md`
+- `docs/plans/phase44/review_comments.md`
 - `docs/concerns_backlog.md`
 - `pr.md`
-
----
-
-## 当前产出物
-
-- `docs/plans/phase34/kickoff.md` (claude, 2026-04-17) — Phase 34 kickoff，3 slice 方案与边界定义，status 已收口为 `final`
-- `docs/plans/phase34/context_brief.md` (gemini, 2026-04-17) — Phase 34 范围与关键上下文摘要，status 已收口为 `final`
-- `docs/plans/phase34/review_comments.md` (claude, 2026-04-17) — Phase 34 review snapshot，0 BLOCK / 3 CONCERN / 1 NOTE，status 已收口为 `final`
-- `docs/plans/phase34/closeout.md` (codex, 2026-04-17) — Phase 34 closeout: 范围收口、review follow-up、稳定边界与 merge 建议
-- `src/swallow/router.py` (codex, 2026-04-17) — S1: RouteRegistry + Strategy Router 能力匹配选路与 fallback route 解析
-- `src/swallow/executor.py` (codex, 2026-04-17) — S2: dialect registry 接入 Claude XML / Codex FIM
-- `src/swallow/orchestrator.py` (codex, 2026-04-17) — S3: binary fallback 执行路径、事件与 fallback 工件保留
-- `src/swallow/dialect_adapters/__init__.py` (codex, 2026-04-17) — Phase 34 dialect adapters 包入口
-- `src/swallow/dialect_adapters/claude_xml.py` (codex, 2026-04-17) — Claude XML adapter
-- `src/swallow/dialect_adapters/codex_fim.py` (codex, 2026-04-17) — Codex FIM adapter
-- `tests/test_router.py` (codex, 2026-04-17) — S1 路由注册表与优先级测试
-- `tests/test_dialect_adapters.py` (codex, 2026-04-17) — S2 dialect adapter 测试
-- `tests/test_binary_fallback.py` (codex, 2026-04-17) — S3 binary fallback 集成测试
-- `tests/test_cli.py` (codex, 2026-04-17) — Phase 34 回归断言更新（dialect / fallback / lifecycle）
-- `docs/concerns_backlog.md` (codex, 2026-04-17) — Phase 34 review follow-up 状态同步：C1 记入 Open，C2 移入 Resolved
-- `docs/plans/phase35/context_brief.md` (gemini, 2026-04-17) — Phase 35 context brief，status 已收口为 `final`
-- `docs/plans/phase35/kickoff.md` (claude, 2026-04-17) — Phase 35 kickoff: 3 slice (Event Telemetry + Meta-Optimizer + Dialect Data Layer)，风险 11/27，status 已收口为 `final`
-- `docs/plans/phase35/closeout.md` (codex, 2026-04-17) — Phase 35 closeout: slice 完成情况、review follow-up、稳定边界与 merge 建议
-- `src/swallow/models.py` (codex, 2026-04-17) — S1: 新增 `TelemetryFields`、`ExecutorResult.latency_ms` 与 telemetry helper
-- `src/swallow/harness.py` (codex, 2026-04-17) — S1: executor event 注入标准 telemetry，并记录执行 latency
-- `src/swallow/orchestrator.py` (codex, 2026-04-17) — S1: parent executor event 与 `task.execution_fallback` 补齐 telemetry / latency
-- `tests/test_binary_fallback.py` (codex, 2026-04-17) — S1 fallback telemetry 回归
-- `tests/test_cli.py` (codex, 2026-04-17) — S1 lifecycle / failure payload telemetry 回归
-- `src/swallow/meta_optimizer.py` (codex, 2026-04-17) — S2: 只读事件扫描、route health 聚合、failure fingerprint / degradation trend 提案生成
-- `src/swallow/paths.py` (codex, 2026-04-17) — S2: 新增 global meta-optimizer artifact path helper
-- `src/swallow/cli.py` (codex, 2026-04-17) — S2: 新增 `meta-optimize` 顶层 CLI 命令与 `--last-n` 参数
-- `tests/test_meta_optimizer.py` (codex, 2026-04-17) — S2: meta optimizer 聚合、no data、只读边界与 CLI 入口测试
-- `tests/test_cli.py` (codex, 2026-04-17) — S2: top-level help 暴露 `meta-optimize`
-- `src/swallow/dialect_data.py` (codex, 2026-04-17) — S3: 共享 prompt 数据采集层，集中 task / route / semantics / knowledge / retrieval prompt sections
-- `src/swallow/executor.py` (codex, 2026-04-17) — S3: raw prompt 与 structured markdown 改为消费共享 dialect data
-- `src/swallow/dialect_adapters/claude_xml.py` (codex, 2026-04-17) — S3: Claude XML 改为复用共享 prompt data
-- `src/swallow/dialect_adapters/codex_fim.py` (codex, 2026-04-17) — S3: Codex FIM 改为复用共享 prompt data
-- `tests/test_dialect_adapters.py` (codex, 2026-04-17) — S3: 覆盖共享 prompt data 聚合与 structured markdown 消费路径
-- `docs/concerns_backlog.md` (codex, 2026-04-17) — S3: Phase 29 structured_markdown prompt data duplication concern 已标记为 Resolved
-- `docs/plans/phase35/review_comments.md` (claude, 2026-04-17) — Phase 35 review: Merge ready, 0 BLOCK, 2 CONCERN, 1 NOTE，follow-up 已吸收
-- `current_state.md` (codex, 2026-04-17) — Phase 35 merged recovery entrypoint，默认回到 fresh kickoff
-- `pr.md` (codex, 2026-04-17, ignored) — Phase 35 PR 文案归档，可作为已合并实现摘要参考
-- `docs/design_preview.md` (gemini, 2026-04-17) — 结合全量蓝图比对，产出新一轮全局演进预览，提供 Phase 36 候选方向。
-- `docs/roadmap.md` (gemini, 2026-04-17) — Roadmap 全量刷新，定义了 Phase 36 到 Phase 40 的新一轮演进路线。
-- `docs/plans/phase39/kickoff.md` (claude, 2026-04-18) — Phase 39 kickoff: 3 slice (Parser + Filter + Pipeline/CLI)，风险 11/27 低-中
-- `docs/plans/phase39/risk_assessment.md` (claude, 2026-04-18) — Phase 39 风险评估：无高风险 slice，S3 跨模块集成为唯一关注点
-- `src/swallow/ingestion/__init__.py` (codex, 2026-04-18) — Phase 39 S1 ingestion 包导出入口
-- `src/swallow/ingestion/parsers.py` (codex, 2026-04-18) — Phase 39 S1 四种外部会话格式解析与统一 `ConversationTurn` 表示
-- `tests/test_ingestion_parsers.py` (codex, 2026-04-18) — Phase 39 S1 解析器专项测试
-- `src/swallow/ingestion/filters.py` (codex, 2026-04-18) — Phase 39 S2 降噪提纯：连续消息合并、闲聊过滤、signal 标注与归一化去重
-- `tests/test_ingestion_filters.py` (codex, 2026-04-18) — Phase 39 S2 过滤器专项测试
-- `src/swallow/ingestion/pipeline.py` (codex, 2026-04-18) — Phase 39 S3 端到端 ingestion pipeline：parse/filter/staged candidate register/report
-- `src/swallow/staged_knowledge.py` (codex, 2026-04-18) — Phase 39 S3 staged candidate schema 扩展：补充 `source_kind` / `source_ref`
-- `src/swallow/cli.py` (codex, 2026-04-18) — Phase 39 S3 新增顶层 `swl ingest` CLI 与 staged candidate inspect/list 展示增强
-- `tests/test_ingestion_pipeline.py` (codex, 2026-04-18) — Phase 39 S3 pipeline 专项测试
-- `tests/test_cli.py` (codex, 2026-04-18) — Phase 39 S3 CLI help / dry-run / persistence 回归
-- `pr.md` (codex, 2026-04-18, ignored) — Phase 39 PR 文案草稿，汇总 slice 完成状态、实现要点与测试覆盖
-- `docs/plans/phase39/review_comments.md` (claude, 2026-04-18) — Phase 39 review: 0 BLOCK / 1 CONCERN / 1 NOTE, Merge ready
-- `docs/plans/phase39/closeout.md` (codex, 2026-04-18) — Phase 39 closeout：3 个 slice 完成情况、review follow-up 吸收与 merge 建议
-- `docs/plans/phase40/kickoff.md` (claude, 2026-04-18) — Phase 40 kickoff: 3 slice (ReviewFeedback + Debate Loop + 子任务统一)，风险 15/27 中
-- `docs/plans/phase40/risk_assessment.md` (claude, 2026-04-18) — Phase 40 风险评估：死循环风险通过 max_rounds=3 物理消除，S2/S3 核心路径修改需重点关注
-- `src/swallow/review_gate.py` (codex, 2026-04-18) — Phase 40 S1 新增 `ReviewFeedback` dataclass 与 `build_review_feedback()` 纯函数
-- `tests/test_review_gate.py` (codex, 2026-04-18) — Phase 40 S1 ReviewFeedback 生成、suggestion 映射与 snippet 截断专项测试
-- `src/swallow/models.py` (codex, 2026-04-18) — Phase 40 S2 `TaskState` / `ExecutorResult` 新增 review feedback prompt/ref 字段
-- `src/swallow/executor.py` (codex, 2026-04-18) — Phase 40 S2 在 raw prompt / structured markdown 中注入 review feedback，并将 feedback ref 传回执行结果
-- `src/swallow/harness.py` (codex, 2026-04-18) — Phase 40 S2 executor 事件补充 `review_feedback`，并保留 `waiting_human` artifact 渲染状态
-- `src/swallow/orchestrator.py` (codex, 2026-04-18) — Phase 40 S2 单任务 debate loop：feedback artifact、max_rounds=3、circuit breaker、waiting_human 收口
-- `src/swallow/checkpoint_snapshot.py` (codex, 2026-04-18) — Phase 40 S2 `waiting_human` checkpoint snapshot 语义
-- `tests/test_dialect_adapters.py` (codex, 2026-04-18) — Phase 40 S2 Claude XML / Structured Markdown / Codex FIM feedback 注入回归
-- `tests/test_debate_loop.py` (codex, 2026-04-18) — Phase 40 S2 单任务 debate loop 成功重试与熔断集成测试
-- `tests/test_grounding.py` (codex, 2026-04-18) — Phase 40 S2 `waiting_human` checkpoint snapshot regression
-- `src/swallow/orchestrator.py` (codex, 2026-04-18) — Phase 40 S3 子任务路径 debate loop 统一：每卡最多 3 轮 review feedback、`subtask.{index}.debate_round` / `subtask.{index}.debate_circuit_breaker` 事件、父任务 `waiting_human` 收口
-- `tests/test_run_task_subtasks.py` (codex, 2026-04-18) — Phase 40 S3 子任务 targeted debate retry、熔断等待人工、executor failure 非 debate 回归
-- `docs/plans/phase40/closeout.md` (codex, 2026-04-18) — Phase 40 implementation closeout：3 个 slice 完成情况、稳定边界、merge ready / PR sync ready 收口说明
-- `pr.md` (codex, 2026-04-18, ignored) — Phase 40 PR 文案草稿，已同步 review 结论与 backlog disposition
-- `docs/plans/phase40/review_comments.md` (claude, 2026-04-18) — Phase 40 review: 0 BLOCK / 2 CONCERN / 1 NOTE, Merge ready
+- 历史 phase closeout / review_comments
 
 ---
 
@@ -126,34 +45,15 @@ Phase 43（ReAct 降级）已暂缓（2026 年主流模型已原生支持 Tool C
 
 已完成：
 
-- **[Human]** 已将 Phase 35 合入 `main`。
-- **[Claude]** 已完成 Phase 35 kickoff，定义 S1 `Event Telemetry`、S2 `Meta-Optimizer`、S3 `Dialect Data Layer`。
-- **[Gemini]** 已完成 Phase 35 context brief，并已收口为 `final`。
-- **[Codex]** 已完成 S1 `Event Telemetry Schema Extension`：为 executor 事件注入 `task_family / logical_model / physical_route / latency_ms / degraded / error_code`，为 fallback 事件补齐 latency，并通过全量 `pytest`（244 passed）。
-- **[Human]** 已提交 S1 `feat(telemetry): add executor event telemetry fields`。
-- **[Codex]** 已完成 S2 `Meta-Optimizer`：扫描任务事件日志、聚合 route 健康 / failure fingerprint / degradation trend，新增 `meta-optimize` CLI 入口，并通过全量 `pytest`（247 passed）。
-- **[Human]** 已提交 S2 `feat(meta-optimizer): add read-only event log proposal scan`。
-- **[Codex]** 已完成 S3 `Dialect Data Layer`：新增 `dialect_data.py` 共享 prompt 数据层，`build_executor_prompt()`、`StructuredMarkdownDialect`、`ClaudeXMLDialect`、`CodexFIMDialect` 统一复用该层，并通过全量 `pytest`（249 passed）。
-- **[Human]** 已提交 S3 `refactor(dialect): extract shared prompt data layer`。
-- **[Codex]** 已完成 Phase 35 closeout 与本地 `pr.md` 更新，当前进入 review / PR 同步准备阶段。
-- **[Claude]** 已完成 Phase 35 review：0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready。
-- **[Codex]** 已吸收 review follow-up：修正 C1 degraded fallback 判定与 C2 事件类型常量复用，并通过全量 `pytest`（249 passed）。
-- **[Human]** 已完成 merge，当前入口已切回 `main`。
-- **[Claude]** 已完成 Phase 36 kickoff：2 slice（S1 LibrarianExecutor 收口 + S2 API concern 批量消化），风险 7/18 低。
-- **[Codex]** 已完成 Phase 40 S1 `ReviewFeedback` 数据模型与生成逻辑，并通过专项 `pytest`（8 passed）。
-- **[Codex]** 已完成 Phase 40 S2 `Debate Loop` 单任务路径集成：review feedback 注入 prompt、max_rounds=3 熔断、`review_feedback_round_{n}.json` artifact、`task.debate_circuit_breaker` / `task.waiting_human` 事件、`waiting_human` checkpoint snapshot 语义；并通过全量 `pytest`（301 passed）。
-- **[Codex]** 已完成 Phase 40 S3 `子任务路径统一`：失败子任务由硬编码单次 retry 升级为每卡独立 debate loop，支持 `subtask.{index}.debate_round` / `subtask.{index}.debate_circuit_breaker` 事件、子任务 feedback artifact、父任务 `waiting_human` 收口，并保持基础 executor failure 不进入 debate；已通过全量 `pytest`（302 passed）。
-- **[Codex]** 已整理 Phase 40 implementation closeout 与新的根目录 `pr.md`，当前分支进入 **review pending / PR sync ready**。
-- **[Claude]** 已完成 Phase 40 review：`0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready`。
-- **[Codex]** 已将 C1 / C2 concern 记录到 `docs/concerns_backlog.md`，并同步 `closeout.md` / `pr.md` 到 **merge ready / PR sync ready** 状态。
+- **[Human]** 已完成 Phase 44 的提交、PR 与 merge。
+- **[Codex]** 已同步 Phase 44 closeout / review 状态，并将仓库入口切回 `main` 稳定基线。
+- **[Human]** 已更新设计文档，当前可按 roadmap 选择下一轮 phase。
 
-## 下一步
+下一步：
 
-- **[Codex]** 同步 closeout + pr.md 到 merge ready 状态
-- **[Human]** 提交 review + closeout，push + merge
+- **[Human / Claude / Gemini]** 确认下一轮 active phase 与 kickoff 边界。
+- **[Codex]** 在 kickoff 就绪后按新 phase 进入 slice 实现。
 
-## 当前阻塞项
+当前阻塞项：
 
-- 等待 Codex: closeout 同步
-
-- 等待 Human: 审批 Phase 41 kickoff + risk_assessment + v0.3.0 tag 决策
+- 等待下一轮 phase 正式选定并落盘 kickoff 文档。

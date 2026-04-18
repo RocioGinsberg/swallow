@@ -2,7 +2,7 @@
 
 ## 文档目的
 
-本文件用于在终端会话中断、重新打开仓库或切换设备后，**快速恢复到当前稳定工作位置**。
+本文件用于在终端会话中断、重新打开仓库或切换设备后，快速恢复到当前稳定工作位置。
 
 它回答的问题是：
 
@@ -10,40 +10,27 @@
 - 当前默认应从哪里继续
 - 恢复前需要先看哪些文件
 - 最小验证命令是什么
-- 当前已知问题是什么
-
-本文件不是：
-
-- 完整开发编年史
-- 当前高频状态板
-- 当前 phase 的详细 breakdown
-- 历史 phase 索引页
+- 当前已知边界是什么
 
 当前高频状态请看：
 
 - `docs/active_context.md`
-
-当前 phase 收口材料请看：
-
-- `docs/plans/<phase>/closeout.md`
-- `docs/plans/<phase>/review_comments.md`
-- `pr.md`
 
 ---
 
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 41`
-- latest_completed_slice: `Librarian Atomic Persistence + Debate Loop Core Extraction`
+- latest_completed_phase: `Phase 44`
+- latest_completed_slice: `Web Control Center Enhancement`
 - checkpoint_type: `phase_closeout`
-- last_checked: `2026-04-18`
+- last_checked: `2026-04-19`
 
 说明：
 
-- Phase 41 已完成实现、review、PR 与 merge，并已形成新的稳定 checkpoint
-- `docs/plans/phase41/closeout.md` 与 `docs/plans/phase41/review_comments.md` 已反映当前 merge ready / PR sync ready 收口状态
-- 当前默认不再继续扩张已完成的 Phase 41，而应从 roadmap 启动下一轮方向
+- Phase 44 已完成实现、review、PR 与 merge，并已形成新的稳定 checkpoint。
+- `docs/plans/phase44/closeout.md` 与 `docs/plans/phase44/review_comments.md` 已反映当前收口结论。
+- 当前默认不再继续扩张已完成的 Phase 44，而应从 roadmap 重新选择下一轮方向。
 
 ---
 
@@ -51,14 +38,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `Execution Topology` + `Evaluation / Policy`
-- active_phase: `Phase 42`
+- active_track: `none_selected`
+- active_phase: `none_selected`
 - active_slice: `fresh_kickoff_required`
 
 说明：
 
-- Phase 41 已完成并进入稳定基线
-- 下一轮优先从 `docs/system_tracks.md` 和 `docs/roadmap.md` 启动 Phase 42 的新 kickoff / breakdown
+- 当前主线已经回到 `main` 的稳定基线。
+- 下一轮工作应先依据 `docs/roadmap.md` 与新设计文档确认 active phase，再生成 kickoff / risk / slice 边界。
 
 ---
 
@@ -71,50 +58,14 @@
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase41/closeout.md`
+6. `docs/plans/phase44/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase41/review_comments.md`
-- `docs/plans/phase40/review_comments.md`
-- `docs/plans/phase39/review_comments.md`
-- `docs/plans/phase39/kickoff.md`
-- `docs/plans/phase38/review_comments.md`
-- `docs/plans/phase38/kickoff.md`
-- `pr.md`
-- `docs/plans/phase36/closeout.md`
-- `docs/plans/phase36/review_comments.md`
+- `docs/plans/phase44/review_comments.md`
 - `docs/concerns_backlog.md`
-- `docs/plans/phase35/closeout.md`
-- `docs/plans/phase35/kickoff.md`
-- `docs/plans/phase35/context_brief.md`
-- `docs/roadmap.md`
-- `docs/system_tracks.md`
-- `docs/plans/phase34/closeout.md`
-- `docs/plans/phase34/review_comments.md`
-- `docs/plans/phase34/kickoff.md`
-- `docs/plans/phase34/context_brief.md`
-- `docs/plans/phase33/closeout.md`
-- `docs/plans/phase33/review_comments.md`
-- `docs/plans/phase32/closeout.md`
-- `docs/plans/phase32/review_comments.md`
-- `docs/plans/phase31/design_decision.md`
-- `docs/plans/phase31/risk_assessment.md`
-- `docs/plans/phase31/review_comments.md`
-- `docs/plans/phase30/design_decision.md`
-- `docs/plans/phase30/risk_assessment.md`
-- `docs/plans/phase30/review_comments.md`
-- `docs/plans/phase28/context_brief.md`
-- `docs/plans/phase28/design_decision.md`
-- `docs/plans/phase28/risk_assessment.md`
-- `docs/plans/phase28/review_comments.md`
-- `docs/plans/phase27/context_brief.md`
-- `docs/plans/phase27/design_decision.md`
-- `docs/plans/phase27/risk_assessment.md`
-- `docs/plans/phase27/review_comments.md`
-- `docs/plans/phase26/closeout.md`
-- `docs/archive/*`
-- 历史 phase closeout
+- `pr.md`
+- 历史 phase closeout / review_comments
 
 ---
 
@@ -129,48 +80,15 @@
 
 ---
 
-## 当前已知问题
+## 当前已知边界
 
-- 遥测 schema 当前的 `token_cost` 仍是本地估算，不代表真实 provider billing。
-- `EVENT_TASK_EXECUTION_FALLBACK` 的 `token_cost` 当前尚未计入 Meta-Optimizer route stats；该 concern 已记录在 `docs/concerns_backlog.md`。
-- `meta-optimize` 当前为只读分析入口，不会自动采纳提案，也不会直接修改 route policy 或 task state。
-- `StaticCostEstimator` 的定价表是硬编码常量，后续需要独立 phase 才能切到 provider usage 驱动。
-- 真实 codex exec 在当前环境中仍可能因 outbound network / WebSocket 受限而失败。
-- debate retry telemetry 仍会混入 Meta-Optimizer route health 聚合；该 concern 已记录在 `docs/concerns_backlog.md`。
-- Phase 22 的 taxonomy-aware routing baseline 目前仍是 taxonomy metadata + defensive dispatch guard baseline，不应误解为当前系统已经建立完整 RBAC、动态 taxonomy 注册、capability negotiation 或全量权限治理。
-- Phase 23 仅补齐 operator-facing taxonomy visibility，不应误解为系统已经建立 taxonomy-aware route selection、权限审批流增强或更复杂的 UI 层。
-- Phase 24 仅建立 staged knowledge pipeline baseline，不应误解为系统已经具备 staged 自动晋升、staged retrieval integration、跨任务候选合并或复杂 review workflow。
-- Phase 25 仅建立 runtime capability enforcement baseline，不应误解为系统已经具备动态策略引擎、manifest 级 capability pruning 或完整策略治理平台。
-- Phase 26 仅建立 canonical registry 的 metadata-key dedupe、supersede 提示与 audit baseline，不应误解为系统已经具备语义合并、自动冲突解决或全自动 canonical promotion。
-- Phase 27 仅建立 grounding artifact、grounding 锁定与 operator-facing grounding surface，不应误解为系统已经具备向量 grounding、prompt 直注入 canonical knowledge 或复杂 Agentic RAG。
-- Phase 28 仅建立 staged knowledge promotion 的 CLI 聚合浏览、人工精炼晋升与 supersede 显式确认 baseline，不应误解为系统已经具备自动晋升、批量晋升、语义 dedupe 或复杂 canonical merge workflow。
-- Phase 29 仅建立 provider dialect adapter、structured markdown prompt 变体与 dialect 可观测性 baseline，不应误解为系统已经具备 provider API 直连、runtime dialect negotiation、Claude XML dialect 或更复杂的 provider negotiation pipeline。
-- Phase 30 仅建立 phase-level checkpoint、selective retry 与 operator-facing checkpoint visibility baseline，不应误解为系统已经具备 step-level pause/resume、独立 phase 子命令、跨任务 checkpoint 或更复杂的 recovery policy engine。
-- Phase 31 仅建立 Runtime v0 的 TaskCard + Planner、ExecutorProtocol 与非阻断 ReviewGate baseline，不应误解为系统已经具备 1:N planner 拆解、动态 executor negotiation、ReviewGate 阻断 completion、multi-card 并发编排或 fallback matrix。
-- Phase 32 仅建立 Evidence/Wiki 双层存储、canonical promotion authority 防线与规则驱动 LibrarianExecutor baseline，不应误解为系统已经具备外部会话摄入、向量检索、Librarian 语义提纯、staged 自动晋升或 canonical 冲突仲裁。
-- Phase 33 仅建立有界 1:N Planner、SubtaskOrchestrator、ReviewGate 单次 retry 闭环与父任务级 artifact/event 聚合 baseline，不应误解为系统已经具备 Debate Topology、Literature Specialist、动态 executor negotiation、stateful 多卡写回或并发 knowledge_store 写保护。
-- Phase 34 仅建立 capability-aware Strategy Router、Claude XML / Codex FIM concrete dialect 与 route-level binary fallback baseline，不应误解为系统已经具备 provider connector 部署、链式降级矩阵、运行时健康探测、成本感知路由或动态 negotiation。
-- Phase 35 仅建立 executor telemetry、只读 Meta-Optimizer 提案与共享 dialect prompt data layer，不应误解为系统已经具备自动提案采纳、runtime optimizer feedback loop 或 provider-side performance control plane。
-- Phase 38 仅建立本地估算的 cost telemetry baseline、Meta-Optimizer 成本维度与可替换 `CostEstimator` 接口，不应误解为系统已经具备 provider connector 部署、真实 usage/billing 对账、在线定价同步或自动成本感知路由。
-- Phase 39 仅建立本地文件导入的 Ingestion Specialist baseline，不应误解为系统已经具备实时外部会话同步、自动晋升、LLM 提纯、PDF/HTML 解析、HandoffContract 自动生成或 Web 摄入入口。
-- Phase 40 建立多轮 Debate Topology 与 `waiting_human` 熔断 baseline，不应误解为系统已经具备多 Reviewer 共识拓扑、Reviewer Agent、动态轮次策略或跨任务对抗审查。
-- Phase 41 仅补齐 Librarian 持久化原子提交与 debate loop 共享控制流，不应误解为系统已经具备 WAL、跨进程事务恢复、Librarian 冲突仲裁或 Meta-Optimizer debate telemetry 去噪。
+- Web Control Center 仍保持严格只读；不会写入 `.swl/`，也未引入前端构建工具链。
+- Artifact compare 当前是纯文本双栏 compare，不包含结构化 diff 高亮或批注工作流。
+- `meta-optimize` 仍是只读分析入口，不会自动采纳策略提案，也不会直接修改 route policy 或 task state。
+- 真实执行环境下的外部网络、代理与 provider 连通性仍受本地环境约束，`swl doctor` 只负责诊断，不负责修复。
+- 系统当前已具备多轮 debate retry 与 `waiting_human` 熔断，但尚未进入多 Reviewer 共识拓扑。
 
-## 当前收口规则
-
-- 在 phase 或 major slice 收口时，本文件才需要更新。
-- 平时开发过程中，不应把高频状态写入本文件。
-
-本文件更新时，通常检查以下内容是否变化：
-
-- 最新稳定 checkpoint
-- 最近完成的 phase
-- 当前默认继续方向
-- 恢复时优先读取文件
-- 最小验证命令
-- 已知问题
-
-如果这些内容没有变化，不需要更新本文件。
+---
 
 ## 恢复命令
 
@@ -178,9 +96,7 @@
 
 ```bash
 cd /home/rocio/projects/swallow
-sed -n '1,140p' current_state.md
+sed -n '1,160p' current_state.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
-
----

@@ -95,7 +95,7 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-**当前 tag: `v0.3.0`**
+**当前 tag: `v0.3.1`**
 
 > 本节仅在打新 tag 时更新。实时开发进度请查阅 `docs/active_context.md` 和 `docs/roadmap.md`。
 
@@ -118,7 +118,8 @@ swallow 长期围绕五层组织：
 - 只读 Meta-Optimizer：扫描任务事件日志，产出 route 健康度、故障指纹与降级趋势优化提案
 - Librarian 持久化原子提交：`state / knowledge / index` 批量 `os.replace` + rollback
 - 共享 debate loop 核心：统一单任务与子任务 retry 控制流，不改变既有事件与 artifact 语义
-- 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图，零写入 `.swl/`，无前端构建工具链
+- Meta-Optimizer 遥测修正：fallback token_cost 回计、debate retry 与正常执行事件隔离统计
+- 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图、Subtask Tree、artifact compare 与 execution timeline，零写入 `.swl/`，无前端构建工具链
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
 - repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构
 
