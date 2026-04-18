@@ -18,6 +18,7 @@ class RouteTelemetryStats:
     route_name: str
     success_count: int = 0
     failure_count: int = 0
+    debate_retry_count: int = 0
     fallback_trigger_count: int = 0
     degraded_count: int = 0
     total_latency_ms: int = 0
@@ -35,11 +36,14 @@ class RouteTelemetryStats:
     def fallback_rate(self) -> float:
         return self.fallback_trigger_count / self.event_count if self.event_count else 0.0
 
+    def cost_event_count(self) -> int:
+        return self.event_count + self.debate_retry_count
+
     def average_latency_ms(self) -> int:
-        return int(round(self.total_latency_ms / self.event_count)) if self.event_count else 0
+        return int(round(self.total_latency_ms / self.cost_event_count())) if self.cost_event_count() else 0
 
     def average_cost(self) -> float:
-        return round(self.total_cost / self.event_count, 6) if self.event_count else 0.0
+        return round(self.total_cost / self.cost_event_count(), 6) if self.cost_event_count() else 0.0
 
 
 @dataclass(slots=True)
@@ -152,12 +156,15 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
                 route_stats = route_stats_by_name.setdefault(route_name, RouteTelemetryStats(route_name=route_name))
                 task_family = str(payload.get("task_family", "")).strip()
                 token_cost = _coerce_nonnegative_float(payload.get("token_cost", 0.0))
-                route_stats.event_count += 1
                 route_stats.total_latency_ms += _coerce_nonnegative_int(payload.get("latency_ms", 0))
                 route_stats.total_cost += token_cost
                 route_stats.cost_samples.append(token_cost)
                 if task_family:
                     route_stats.task_families.add(task_family)
+                if str(payload.get("review_feedback", "")).strip():
+                    route_stats.debate_retry_count += 1
+                    continue
+                route_stats.event_count += 1
                 if bool(payload.get("degraded", False)):
                     route_stats.degraded_count += 1
                 if event_type == EVENT_EXECUTOR_COMPLETED:
@@ -313,6 +320,7 @@ def build_meta_optimizer_report(snapshot: MetaOptimizerSnapshot) -> str:
             f"- {stats.route_name}: success_rate={stats.success_rate():.0%} "
             f"failure_rate={stats.failure_rate():.0%} "
             f"fallback_rate={stats.fallback_rate():.0%} "
+            f"debate_retry={stats.debate_retry_count} "
             f"avg_latency_ms={stats.average_latency_ms()} "
             f"avg_cost=${stats.average_cost():.6f} "
             f"degraded={stats.degraded_count}/{stats.event_count}"

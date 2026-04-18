@@ -281,6 +281,65 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertEqual(previous_route.cost_samples, [0.0, 0.25])
             self.assertAlmostEqual(previous_route.average_cost(), 0.25)
 
+    def test_run_meta_optimizer_isolates_debate_retry_from_route_health(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_dir = base_dir / ".swl" / "tasks" / "debate-retry"
+            _write_events(
+                task_dir,
+                [
+                    {
+                        "task_id": "debate-retry",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Primary execution completed.",
+                        "payload": {
+                            "physical_route": "api-claude-review",
+                            "logical_model": "claude",
+                            "task_family": "review",
+                            "latency_ms": 20,
+                            "token_cost": 0.10,
+                            "degraded": False,
+                            "error_code": "",
+                            "review_feedback": "",
+                        },
+                    },
+                    {
+                        "task_id": "debate-retry",
+                        "event_type": EVENT_EXECUTOR_FAILED,
+                        "message": "Debate retry failed review again.",
+                        "payload": {
+                            "physical_route": "api-claude-review",
+                            "logical_model": "claude",
+                            "task_family": "review",
+                            "latency_ms": 40,
+                            "token_cost": 0.30,
+                            "degraded": True,
+                            "failure_kind": "output_schema",
+                            "error_code": "output_schema",
+                            "review_feedback": "artifacts/review_feedback_round_1.json",
+                        },
+                    },
+                ],
+            )
+
+            snapshot, _artifact_path, report = run_meta_optimizer(base_dir, last_n=100)
+            route = next(stats for stats in snapshot.route_stats if stats.route_name == "api-claude-review")
+
+            self.assertEqual(route.event_count, 1)
+            self.assertEqual(route.success_count, 1)
+            self.assertEqual(route.failure_count, 0)
+            self.assertEqual(route.debate_retry_count, 1)
+            self.assertEqual(route.degraded_count, 0)
+            self.assertAlmostEqual(route.total_cost, 0.40)
+            self.assertEqual(route.total_latency_ms, 60)
+            self.assertAlmostEqual(route.average_cost(), 0.20)
+            self.assertEqual(route.average_latency_ms(), 30)
+            self.assertEqual(snapshot.failure_fingerprints, [])
+            self.assertIn(
+                "api-claude-review: success_rate=100% failure_rate=0% fallback_rate=0% debate_retry=1",
+                report,
+            )
+
     def test_run_meta_optimizer_handles_empty_task_registry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
