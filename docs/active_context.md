@@ -5,17 +5,17 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - latest_completed_phase: `Phase 39`
 - latest_completed_slice: `Ingestion Pipeline + CLI`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
+- active_phase: `Phase 40`
+- active_slice: `Debate Topology`
 - active_branch: `main`
-- status: `post_phase39_merged_ready_for_next_kickoff`
+- status: `phase40_kickoff_draft_awaiting_human_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 39 已完成实现、review follow-up、closeout 与 merge，并已回到 `main` 形成新的稳定 checkpoint。当前默认不继续扩张已完成的 Ingestion Specialist，而是从 roadmap 重新选择下一轮 active track / phase / slice 后进入 fresh kickoff。
+Phase 40 kickoff 已产出（draft），方向为 Debate Topology — 对抗审查拓扑增强。3 个 slice：S1 ReviewFeedback 数据模型、S2 单任务 Debate Loop、S3 子任务路径统一。整体风险 15/27（中）。等待人工审批 kickoff 与 risk_assessment 后，切出 feature branch 开始实现。
 
 ---
 
@@ -100,6 +100,8 @@ Phase 39 已完成实现、review follow-up、closeout 与 merge，并已回到 
 - `pr.md` (codex, 2026-04-18, ignored) — Phase 39 PR 文案草稿，汇总 slice 完成状态、实现要点与测试覆盖
 - `docs/plans/phase39/review_comments.md` (claude, 2026-04-18) — Phase 39 review: 0 BLOCK / 1 CONCERN / 1 NOTE, Merge ready
 - `docs/plans/phase39/closeout.md` (codex, 2026-04-18) — Phase 39 closeout：3 个 slice 完成情况、review follow-up 吸收与 merge 建议
+- `docs/plans/phase40/kickoff.md` (claude, 2026-04-18) — Phase 40 kickoff: 3 slice (ReviewFeedback + Debate Loop + 子任务统一)，风险 15/27 中
+- `docs/plans/phase40/risk_assessment.md` (claude, 2026-04-18) — Phase 40 风险评估：死循环风险通过 max_rounds=3 物理消除，S2/S3 核心路径修改需重点关注
 
 ---
 
@@ -124,10 +126,11 @@ Phase 39 已完成实现、review follow-up、closeout 与 merge，并已回到 
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` / `docs/system_tracks.md` 选择下一轮 active track / phase
-- **[Claude]** 为下一轮产出 kickoff / risk_assessment
-- **[Codex]** 在新 phase gate 通过并切出 feature branch 后开始实现
+- **[Human]** 审批 `docs/plans/phase40/kickoff.md` 与 `docs/plans/phase40/risk_assessment.md`
+- **[Gemini]** 可选：产出 Phase 40 context_brief（如需补充 ReviewGate 现状上下文）
+- **[Human]** 审批通过后，从 `main` 切出 `feat/phase40-debate-topology`
+- **[Codex]** 在 feature branch 上按 S1 → S2 → S3 顺序实现
 
 ## 当前阻塞项
 
-- 无。当前已进入下一轮 fresh kickoff 准备态。
+- 等待 Human: 审批 Phase 40 kickoff + risk_assessment
