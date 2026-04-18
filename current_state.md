@@ -34,16 +34,16 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 39`
-- latest_completed_slice: `Ingestion Pipeline + CLI`
+- latest_completed_phase: `Phase 40`
+- latest_completed_slice: `Debate Loop + Subtask Unification`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-18`
 
 说明：
 
-- Phase 39 已完成实现、review、收口与 merge，并已在 `main` 上形成新的稳定 checkpoint
-- `docs/plans/phase39/closeout.md` 与 `docs/plans/phase39/review_comments.md` 已反映当前 merged / closeout 完成状态
-- 当前默认不再继续扩张已完成的 Phase 39，而应重新从 roadmap 选择下一轮方向
+- Phase 40 已完成实现、review 与收口，并已形成新的稳定 checkpoint
+- `docs/plans/phase40/closeout.md` 与 `docs/plans/phase40/review_comments.md` 已反映当前 merge ready / PR sync ready 状态
+- 当前默认不再继续扩张已完成的 Phase 40，而应重新从 roadmap 选择下一轮方向
 
 ---
 
@@ -51,14 +51,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `none_selected`
-- active_phase: `none_selected`
+- active_track: `Execution Topology` + `Capabilities`
+- active_phase: `Phase 41a`
 - active_slice: `fresh_kickoff_required`
 
 说明：
 
-- Phase 39 已完成并合入 `main`
-- 下一轮应重新从 `docs/system_tracks.md` 和 `docs/roadmap.md` 选择方向，再启动新的 kickoff / breakdown
+- Phase 40 已完成并进入 merge ready 收口
+- 下一轮优先从 `docs/system_tracks.md` 和 `docs/roadmap.md` 启动 Phase 41a 的新 kickoff / breakdown
 
 ---
 
@@ -71,10 +71,11 @@
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase39/closeout.md`
+6. `docs/plans/phase40/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase40/review_comments.md`
 - `docs/plans/phase39/review_comments.md`
 - `docs/plans/phase39/kickoff.md`
 - `docs/plans/phase38/review_comments.md`

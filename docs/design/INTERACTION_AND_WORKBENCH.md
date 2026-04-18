@@ -113,26 +113,31 @@ Open WebUI 对话 → 导出为对话记录
 
 ### 4.5 部署拓扑
 
+> 完整运维配置见 `docs/deploy.md`。
+
 ```
-本地机器
+课题组工作站
   ├── swl CLI                       → 任务编排（主入口）
   ├── Swallow Runtime               → Strategy Router + Dialect + Fallback
-  └── Control Center (:8080)        → 任务监控/审阅（自建，远期）
-        数据源：.swl/ 目录（本地文件直读）
+  ├── Control Center (:8080)        → 任务监控/审阅（自建，远期）
+  │     数据源：.swl/ 目录（本地文件直读）
+  │
+  └── Docker Compose Stack:
+        new-api    (:3000)          → 渠道管理 + 格式互转 + 额度控制
+        TensorZero (:3001)          → 推理遥测（可选叠加）
+        Open WebUI (:3002)          → 探索性对话面板
+          数据源：new-api（LLM API 调用）
 
-VPS 主机
-  ├── new-api (:3000)               → 渠道管理 + 格式互转 + 额度控制
-  ├── TensorZero (:3001)            → 推理遥测（可选叠加）
-  └── Open WebUI (:3002)            → 探索性对话面板
-        数据源：new-api（LLM API 调用）
+VPS（纯出口代理）
+  └── WireGuard + Tinyproxy         → API 请求从干净 IP 出去
 
-Cloudflare（外部治理壳）
-  └── 反代 VPS 服务域名（api.*/chat.*）
-      可选：Tunnel 暴露本地 Control Center
+Tailscale（跨设备访问）
+  └── 远程设备 → 100.x.x.10:3002   → Open WebUI
 ```
 
-两条核心路径：
-- **编排路径**：本地 CLI → Runtime → HTTPS → VPS new-api → LLM Providers
-- **对话路径**：浏览器 → VPS Open WebUI → VPS new-api → LLM Providers
+三条核心路径：
+- **编排路径**：本地 CLI → Runtime → localhost:3000 (new-api) → HTTPS_PROXY → VPS → LLM Providers
+- **对话路径**：本地浏览器 → localhost:3002 (Open WebUI) → localhost:3000 (new-api) → 同上
+- **跨设备路径**：远程设备 → Tailscale → 100.x.x.10:3002 (Open WebUI) → localhost:3000 (new-api) → 同上
 
 编排逻辑（Strategy Router、Planner、ReviewGate）只存在于本地编排路径中。Open WebUI 和 Control Center 都不参与编排。

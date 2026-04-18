@@ -172,37 +172,54 @@ Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fa
 
 在 TensorZero 中，将上述聚合器声明为 OpenAI-compatible provider 即可接入，无需特殊适配。
 
-### 5.4 外部治理壳：Cloudflare
+### 5.4 部署拓扑与网络出口
 
-Cloudflare 不参与网关内部逻辑，定位为**VPS 侧服务的外部流量入口治理壳**：
+> 完整运维配置（Docker Compose、WireGuard、Tinyproxy 等）见 `docs/deploy.md`。本节只描述架构拓扑与设计原则。
 
-*   **域名反代**：通过 Cloudflare 为 VPS 上的 new-api / Open WebUI 统一入口域名，隐藏后端 IP
-*   **边缘缓存**：对幂等的 RAG 检索类请求做 CDN 级缓存
-*   **DDoS / Rate Limit**：保护 VPS 服务免受外部滥用
-*   **可选 Tunnel**：通过 Cloudflare Tunnel 暴露本地 Control Center 供远程访问
+**核心原则：Docker Stack 在本地，VPS 只做出口代理。**
 
-**关键区分**：Cloudflare 只套在 VPS 前面，不套在本地 Swallow Runtime 前面。本地 Runtime 是 Cloudflare 的客户端（通过 HTTPS 访问 `api.yourdomain.com`），不是被它保护的服务端。
+所有计算密集型服务（new-api、TensorZero、Open WebUI、Postgres）运行在课题组工作站上，Swallow Runtime 通过 `localhost:3000` 零延迟直连 new-api。VPS 瘦身为纯出口代理（WireGuard + Tinyproxy），仅承担让 API 请求从干净 IP 出去的职责。跨设备访问走 Tailscale 内网，不需要公网暴露任何 HTTP 服务。
 
 **部署拓扑概览**：
 
 ```
-本地机器（编排侧）
+课题组工作站（编排侧 + 服务侧）
   swl CLI → Swallow Runtime
     ├── Strategy Router (RouteRegistry)  — 纯本地，零延迟
     ├── Dialect Adapters                 — 纯本地
-    └── HTTP 请求 → api.yourdomain.com
+    └── HTTP → localhost:3000 (new-api)
 
-Cloudflare（治理壳）
-  api.yourdomain.com → VPS
-  chat.yourdomain.com → VPS
+  Docker Compose Stack:
+    new-api    :3000  渠道管理 + 格式互转
+      └── HTTPS_PROXY → VPS WireGuard 隧道
+    TensorZero :3001  推理遥测（可选）
+    Open WebUI :3002  探索性对话面板
+    Postgres   :5432  (pgvector)
 
-VPS 主机（服务侧）
-  new-api (:3000)      → 渠道管理 + 格式互转
-  TensorZero (:3001)   → 推理遥测（可选）
-  Open WebUI (:3002)   → 探索性对话面板
+VPS（纯出口代理，1C 512M）
+  WireGuard Server :51820 (UDP)
+  Tinyproxy        10.8.0.1:8888（仅绑 WG 内网）
+
+Tailscale（跨设备访问）
+  手机/iPad/笔记本 → 100.x.x.10:3002 (Open WebUI)
 ```
 
-> 完整部署拓扑详见 `INTERACTION_AND_WORKBENCH.md` §4.5。
+**三条数据通路**：
+- **编排路径**（零延迟）：swl CLI → localhost:3000 (new-api) → HTTPS_PROXY → VPS Tinyproxy → LLM Providers
+- **对话路径**（零延迟）：本地浏览器 → localhost:3002 (Open WebUI) → localhost:3000 (new-api) → 同上
+- **跨设备路径**（Tailscale）：远程设备 → 100.x.x.10:3002 (Open WebUI) → 同上
+
+**Cloudflare**：在当前拓扑中不再作为必要组件。VPS 上没有 HTTP 服务需要保护，跨设备访问走 Tailscale 内网。仅在以下场景保留为可选：
+- 从 Tailnet 外远程访问 Control Center 时，可通过 Cloudflare Tunnel 暴露
+- 未来如需公网暴露服务或多租户接入时重新评估
+
+**安全设计**：
+- new-api / TensorZero 端口绑定 `127.0.0.1`，仅本机可达
+- Open WebUI 绑定 `0.0.0.0:3002`，Tailscale 内网可达
+- Tinyproxy 绑定 WG 内网接口（`Listen 10.8.0.1`），公网不可达
+- VPS 防火墙仅开 SSH + WireGuard UDP
+
+> 完整部署拓扑详见 `docs/deploy.md`。
 > 治理壳哲学详见 `GATEWAY_PHILOSOPHY.md` §3。
 
 ### 5.5 技术栈演化预期

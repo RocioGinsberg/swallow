@@ -46,7 +46,7 @@
 
 当项目引入反向代理、API 网关产品或外部控制面时，此概念将变得相关。
 
-**候选实现**：Cloudflare（Workers/Tunnel）适合承担此角色——域名反代、边缘缓存、DDoS 防护、Rate Limit。但它只做流量入口的"门卫"，不参与路由决策或模型选择。引入时机为项目需要公网暴露或多租户接入时。
+**候选实现**：Cloudflare（Workers/Tunnel）适合承担此角色——域名反代、边缘缓存、DDoS 防护、Rate Limit。但它只做流量入口的"门卫"，不参与路由决策或模型选择。在当前部署拓扑中（Docker Stack 在本地、VPS 仅做出口代理、跨设备走 Tailscale），Cloudflare 暂不需要。引入时机为项目需要从 Tailnet 外公网暴露服务或多租户接入时。详见 `PROVIDER_ROUTER_AND_NEGOTIATION.md` §5.4 和 `docs/deploy.md`。
 
 ---
 
