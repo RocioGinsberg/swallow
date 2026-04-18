@@ -5,19 +5,17 @@
 - latest_completed_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
 - latest_completed_phase: `Phase 44`
 - latest_completed_slice: `Web Control Center Enhancement`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Retrieval / Memory` (Primary) + `Evaluation / Policy` (Secondary)
+- active_phase: `Phase 45`
+- active_slice: `Eval Baseline + Deep Ingestion`
 - active_branch: `main`
-- status: `post_phase44_stable_checkpoint`
+- status: `phase45_kickoff_draft_awaiting_human_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 44 已完成实现、review、PR、merge，并形成新的稳定 checkpoint。本轮增量包括只读 Web Control Center 的 `Subtask Tree`、`artifact-diff` compare 模式与 `execution-timeline` 可视化；同时此前已完成的 Librarian 原子持久化、debate loop 核心抽取与遥测修正都已进入稳定主线。
-
-当前仓库状态适合从 roadmap 重新选择下一轮方向，而不是继续扩张已完成的 Phase 44。由于下一 phase 的 kickoff 尚未在仓库内正式落盘，状态指针先停在 `none_selected / fresh_kickoff_required`。
+Phase 45 kickoff 已产出（draft），方向为 Eval 基线建立 + Ingestion 深化。3 个 slice：S1 eval 基础设施 + 降噪/提案质量基线、S2 ChatGPT 对话树上下文还原、S3 `swl ingest --summary` 结构化摘要。整体风险 11/27（低-中）。这是项目首次引入 Eval-Driven Development（规则已固化到 `.agents/shared/rules.md` §十）。等待人工审批后切出 feature branch 开始实现。
 
 ---
 
