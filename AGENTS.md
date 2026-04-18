@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v0.3.1`** — Web Control Center 增强 + 内核原子化 + 遥测修正 + 设计文档对齐
+**当前 tag: `v0.3.2`** — Eval-Driven Development 基线 + 对话树还原 + 结构化摄入摘要
 
-本仓库已形成稳定运行基线，314 tests passed。
+本仓库已形成稳定运行基线，320 tests passed + 2 eval passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -59,6 +59,9 @@
 - 共享 debate loop 核心：单任务与子任务路径复用统一 `_debate_loop_core()`
 - acknowledge_task route_mode 参数化 + canonical_write_guard 运行时审计 + CodexFIMDialect FIM 标记转义
 - 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图 + Subtask Tree + artifact compare + execution timeline，零写入 `.swl/`，无前端构建工具链
+- Eval-Driven Development 基础设施：`tests/eval/` + `@pytest.mark.eval` 标记隔离 + Ingestion 降噪质量基线（precision/recall）+ Meta-Optimizer 提案质量基线（scenario-based）
+- ChatGPT 对话树还原：parent-child 树构建、主路径/侧枝识别、abandoned branch 语义保留
+- `swl ingest --summary`：Decisions / Constraints / Rejected Alternatives / Statistics 结构化摘要
 
 ---
 

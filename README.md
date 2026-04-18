@@ -96,7 +96,7 @@ It is about:
 
 ## Current Implementation Snapshot
 
-**Current tag: `v0.3.1`**
+**Current tag: `v0.3.2`**
 
 > This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
 
@@ -121,6 +121,9 @@ In practice, the current system includes:
 - a shared debate loop core that unifies single-task and subtask retry control flow without changing event/artifact semantics
 - fallback token-cost accounting and debate-retry telemetry isolation in the Meta-Optimizer route stats layer
 - a read-only Web Control Center (`swl serve`): FastAPI JSON API + single-page HTML dashboard + dual-pane artifact review, subtask tree view, artifact compare endpoint, execution timeline charts, zero writes to `.swl/`, no frontend build toolchain
+- Eval-Driven Development infrastructure: `tests/eval/` with `@pytest.mark.eval` isolation, ingestion quality baseline (precision/recall on golden datasets), and Meta-Optimizer proposal quality baseline (scenario-based coverage)
+- ChatGPT conversation tree restoration: parent-child tree construction, primary path vs. abandoned branch detection, semantic preservation of rejected alternatives
+- `swl ingest --summary`: structured ingestion summaries with Decisions / Constraints / Rejected Alternatives / Statistics sections
 - operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
 - retrieval over repository files and Markdown / Obsidian notes, with reusable knowledge kept explicit and policy-gated
 

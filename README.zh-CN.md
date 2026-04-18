@@ -95,7 +95,7 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-**当前 tag: `v0.3.1`**
+**当前 tag: `v0.3.2`**
 
 > 本节仅在打新 tag 时更新。实时开发进度请查阅 `docs/active_context.md` 和 `docs/roadmap.md`。
 
@@ -120,6 +120,9 @@ swallow 长期围绕五层组织：
 - 共享 debate loop 核心：统一单任务与子任务 retry 控制流，不改变既有事件与 artifact 语义
 - Meta-Optimizer 遥测修正：fallback token_cost 回计、debate retry 与正常执行事件隔离统计
 - 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图、Subtask Tree、artifact compare 与 execution timeline，零写入 `.swl/`，无前端构建工具链
+- Eval-Driven Development 基础设施：`tests/eval/` + `@pytest.mark.eval` 标记隔离 + Ingestion 降噪质量基线（precision/recall golden dataset）+ Meta-Optimizer 提案质量基线（scenario-based 覆盖率）
+- ChatGPT 对话树还原：parent-child 树构建、主路径/侧枝识别、abandoned branch 语义保留（被否方案记录）
+- `swl ingest --summary`：Decisions / Constraints / Rejected Alternatives / Statistics 结构化摄入摘要
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
 - repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构
 

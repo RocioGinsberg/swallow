@@ -2,14 +2,14 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
-- latest_completed_phase: `Phase 44`
-- latest_completed_slice: `Web Control Center Enhancement`
-- active_track: `Retrieval / Memory` (Primary) + `Evaluation / Policy` (Secondary)
-- active_phase: `Phase 45`
-- active_slice: `review_complete_merge_ready`
+- latest_completed_track: `Retrieval / Memory` (Primary) + `Evaluation / Policy` (Secondary)
+- latest_completed_phase: `Phase 45`
+- latest_completed_slice: `Eval Baseline + Deep Ingestion`
+- active_track: `none_selected`
+- active_phase: `none_selected`
+- active_slice: `fresh_kickoff_required`
 - active_branch: `main`
-- status: `phase45_review_complete_merge_ready`
+- status: `post_phase45_stable_tag_v0.3.2_pending`
 
 ---
 
