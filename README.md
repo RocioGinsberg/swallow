@@ -96,7 +96,7 @@ It is about:
 
 ## Current Implementation Snapshot
 
-**Current tag: `v0.2.0`**
+**Current tag: `v0.3.0`**
 
 > This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
 
@@ -111,11 +111,14 @@ In practice, the current system includes:
 - canonical knowledge registry, reuse visibility, dedupe / supersede audit, and regression inspection paths
 - canonical-sourced task grounding evidence artifacts, locked grounding refs, and resume-stable grounding state
 - bounded 1:N `TaskCard` planning, DAG-based subtask orchestration, and parent-task artifact / event aggregation
-- a ReviewGate-driven single-retry feedback loop for multi-card execution
+- a local external-session ingestion pipeline with format parsers, filtering, staged candidate registration, and `swl ingest`
+- a multi-round Debate Topology with structured `ReviewFeedback`, single-task and per-subtask retry loops, and `waiting_human` circuit breaking
 - a capability-aware Strategy Router with `RouteRegistry`, four-tier candidate matching (exact → family+site → capability → summary fallback), and route-level binary fallback
 - Claude XML and Codex FIM dialect adapters with a shared `dialect_data` prompt collection layer and FIM marker escaping
 - structured executor event telemetry (`task_family`, `logical_model`, `physical_route`, `latency_ms`, `degraded`, `error_code`)
 - a read-only Meta-Optimizer that scans task event logs and emits route health, failure fingerprint, and degradation trend proposals
+- atomic Librarian persistence for `state / knowledge / index` files with rollback-safe batch replace semantics
+- a shared debate loop core that unifies single-task and subtask retry control flow without changing event/artifact semantics
 - a read-only Web Control Center (`swl serve`): FastAPI JSON API + single-page HTML dashboard + dual-pane artifact review, zero writes to `.swl/`, no frontend build toolchain
 - operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
 - retrieval over repository files and Markdown / Obsidian notes, with reusable knowledge kept explicit and policy-gated

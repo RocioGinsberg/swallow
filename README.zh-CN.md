@@ -95,7 +95,7 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-**当前 tag: `v0.2.0`**
+**当前 tag: `v0.3.0`**
 
 > 本节仅在打新 tag 时更新。实时开发进度请查阅 `docs/active_context.md` 和 `docs/roadmap.md`。
 
@@ -110,11 +110,14 @@ swallow 长期围绕五层组织：
 - canonical knowledge registry、reuse visibility、dedupe / supersede audit 与 regression inspection 路径
 - canonical retrieval 命中的 grounding evidence artifact、锁定的 grounding refs，以及可稳定 resume 的 grounding 状态
 - 有界 1:N `TaskCard` 规划、基于 DAG 的 subtask orchestration，以及父任务级 artifact / event 聚合
-- 面向多卡执行的 ReviewGate 单次 retry feedback loop
+- 本地外部会话摄入链路：格式解析、规则式过滤、staged candidate 注册与 `swl ingest`
+- 多轮 Debate Topology：结构化 `ReviewFeedback`、单任务 / 子任务 feedback-driven retry 与 `waiting_human` 熔断
 - 基于能力矩阵的 Strategy Router + `RouteRegistry`，四级候选匹配（精确 → 家族+站点 → 能力 → 兜底），以及 route 级 binary fallback
 - Claude XML 与 Codex FIM 方言适配器，以及共享的 `dialect_data` prompt 数据采集层（含 FIM 标记转义）
 - 结构化 executor 事件遥测（`task_family`、`logical_model`、`physical_route`、`latency_ms`、`degraded`、`error_code`）
 - 只读 Meta-Optimizer：扫描任务事件日志，产出 route 健康度、故障指纹与降级趋势优化提案
+- Librarian 持久化原子提交：`state / knowledge / index` 批量 `os.replace` + rollback
+- 共享 debate loop 核心：统一单任务与子任务 retry 控制流，不改变既有事件与 artifact 语义
 - 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图，零写入 `.swl/`，无前端构建工具链
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
 - repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构

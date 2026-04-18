@@ -34,16 +34,16 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 40`
-- latest_completed_slice: `Debate Loop + Subtask Unification`
+- latest_completed_phase: `Phase 41`
+- latest_completed_slice: `Librarian Atomic Persistence + Debate Loop Core Extraction`
 - checkpoint_type: `phase_closeout`
 - last_checked: `2026-04-18`
 
 说明：
 
-- Phase 40 已完成实现、review 与收口，并已形成新的稳定 checkpoint
-- `docs/plans/phase40/closeout.md` 与 `docs/plans/phase40/review_comments.md` 已反映当前 merge ready / PR sync ready 状态
-- 当前默认不再继续扩张已完成的 Phase 40，而应重新从 roadmap 选择下一轮方向
+- Phase 41 已完成实现、review、PR 与 merge，并已形成新的稳定 checkpoint
+- `docs/plans/phase41/closeout.md` 与 `docs/plans/phase41/review_comments.md` 已反映当前 merge ready / PR sync ready 收口状态
+- 当前默认不再继续扩张已完成的 Phase 41，而应从 roadmap 启动下一轮方向
 
 ---
 
@@ -51,14 +51,14 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `Execution Topology` + `Capabilities`
-- active_phase: `Phase 41a`
+- active_track: `Execution Topology` + `Evaluation / Policy`
+- active_phase: `Phase 42`
 - active_slice: `fresh_kickoff_required`
 
 说明：
 
-- Phase 40 已完成并进入 merge ready 收口
-- 下一轮优先从 `docs/system_tracks.md` 和 `docs/roadmap.md` 启动 Phase 41a 的新 kickoff / breakdown
+- Phase 41 已完成并进入稳定基线
+- 下一轮优先从 `docs/system_tracks.md` 和 `docs/roadmap.md` 启动 Phase 42 的新 kickoff / breakdown
 
 ---
 
@@ -71,10 +71,11 @@
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase40/closeout.md`
+6. `docs/plans/phase41/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase41/review_comments.md`
 - `docs/plans/phase40/review_comments.md`
 - `docs/plans/phase39/review_comments.md`
 - `docs/plans/phase39/kickoff.md`
@@ -130,12 +131,12 @@
 
 ## 当前已知问题
 
-- `_apply_librarian_side_effects()` 当前仍是顺序持久化 + 索引重建，若中途失败可能导致 state 与 index 不一致；该 concern 已记录在 `docs/concerns_backlog.md`。
 - 遥测 schema 当前的 `token_cost` 仍是本地估算，不代表真实 provider billing。
 - `EVENT_TASK_EXECUTION_FALLBACK` 的 `token_cost` 当前尚未计入 Meta-Optimizer route stats；该 concern 已记录在 `docs/concerns_backlog.md`。
 - `meta-optimize` 当前为只读分析入口，不会自动采纳提案，也不会直接修改 route policy 或 task state。
 - `StaticCostEstimator` 的定价表是硬编码常量，后续需要独立 phase 才能切到 provider usage 驱动。
 - 真实 codex exec 在当前环境中仍可能因 outbound network / WebSocket 受限而失败。
+- debate retry telemetry 仍会混入 Meta-Optimizer route health 聚合；该 concern 已记录在 `docs/concerns_backlog.md`。
 - Phase 22 的 taxonomy-aware routing baseline 目前仍是 taxonomy metadata + defensive dispatch guard baseline，不应误解为当前系统已经建立完整 RBAC、动态 taxonomy 注册、capability negotiation 或全量权限治理。
 - Phase 23 仅补齐 operator-facing taxonomy visibility，不应误解为系统已经建立 taxonomy-aware route selection、权限审批流增强或更复杂的 UI 层。
 - Phase 24 仅建立 staged knowledge pipeline baseline，不应误解为系统已经具备 staged 自动晋升、staged retrieval integration、跨任务候选合并或复杂 review workflow。
@@ -152,6 +153,8 @@
 - Phase 35 仅建立 executor telemetry、只读 Meta-Optimizer 提案与共享 dialect prompt data layer，不应误解为系统已经具备自动提案采纳、runtime optimizer feedback loop 或 provider-side performance control plane。
 - Phase 38 仅建立本地估算的 cost telemetry baseline、Meta-Optimizer 成本维度与可替换 `CostEstimator` 接口，不应误解为系统已经具备 provider connector 部署、真实 usage/billing 对账、在线定价同步或自动成本感知路由。
 - Phase 39 仅建立本地文件导入的 Ingestion Specialist baseline，不应误解为系统已经具备实时外部会话同步、自动晋升、LLM 提纯、PDF/HTML 解析、HandoffContract 自动生成或 Web 摄入入口。
+- Phase 40 建立多轮 Debate Topology 与 `waiting_human` 熔断 baseline，不应误解为系统已经具备多 Reviewer 共识拓扑、Reviewer Agent、动态轮次策略或跨任务对抗审查。
+- Phase 41 仅补齐 Librarian 持久化原子提交与 debate loop 共享控制流，不应误解为系统已经具备 WAL、跨进程事务恢复、Librarian 冲突仲裁或 Meta-Optimizer debate telemetry 去噪。
 
 ## 当前收口规则
 

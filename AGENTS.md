@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v0.2.0`** — 统一调度系统底座 + Concern 清理 + 只读 Web 控制中心
+**当前 tag: `v0.3.0`** — 成本遥测基线 + 外部知识摄入 + 对抗审查拓扑 + 内核收口
 
-本仓库已形成稳定运行基线，262 tests passed。
+本仓库已形成稳定运行基线，303 tests passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -46,13 +46,16 @@
 - canonical registry、reuse visibility、dedupe / supersede audit、regression inspection
 - grounding evidence artifact、locked grounding refs、resume-stable grounding state
 - 有界 1:N TaskCard planning、DAG subtask orchestration、parent-task artifact/event aggregation
-- ReviewGate 单次 retry feedback loop
+- 外部会话摄入：ChatGPT / Claude / Open WebUI / Markdown 解析、规则式过滤、`swl ingest` CLI
+- 多轮 Debate Topology：结构化 `ReviewFeedback`、单任务 / 子任务 feedback-driven retry、`waiting_human` 熔断
 - Capability-aware Strategy Router + RouteRegistry + 四级候选匹配 + binary fallback
 - Claude XML / Codex FIM dialect adapters + 共享 dialect_data prompt 数据层
 - 结构化 executor event telemetry (task_family / logical_model / physical_route / latency_ms / degraded / error_code)
 - 只读 Meta-Optimizer：event log 扫描 + route health / failure fingerprint / degradation trend 提案
 - operator-facing inspect / review / control / intake / grounding surfaces
 - LibrarianExecutor side-effect 收口：executor 只返回结构化 payload，orchestrator 接管全部持久化
+- Librarian 持久化原子提交：state / knowledge / index 批量 `os.replace` + rollback
+- 共享 debate loop 核心：单任务与子任务路径复用统一 `_debate_loop_core()`
 - acknowledge_task route_mode 参数化 + canonical_write_guard 运行时审计 + CodexFIMDialect FIM 标记转义
 - 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图，零写入 `.swl/`，无前端构建工具链
 

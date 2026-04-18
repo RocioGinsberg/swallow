@@ -2,20 +2,20 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
-- latest_completed_phase: `Phase 40`
-- latest_completed_slice: `Debate Loop + Subtask Unification`
-- active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
-- active_phase: `Phase 41`
-- active_slice: `review_closeout_pending`
-- active_branch: `feat/phase41-librarian-consolidation`
-- status: `phase41_review_complete_merge_ready`
+- latest_completed_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
+- latest_completed_phase: `Phase 41`
+- latest_completed_slice: `Librarian Atomic Persistence + Debate Loop Core Extraction`
+- active_track: `Execution Topology` (Primary) + `Evaluation / Policy` (Secondary)
+- active_phase: `Phase 42`
+- active_slice: `fresh_kickoff_required`
+- active_branch: `main`
+- status: `phase42_fresh_kickoff_required`
 
 ---
 
 ## 当前状态说明
 
-Phase 41 的两个实现 slice 与 Claude review 都已完成，当前进入 **merge ready / PR sync ready**。S1 `Librarian Atomic Persistence` 已将 Librarian 持久化链路改为批量原子提交；S2 `Debate Loop Core Extraction` 已提取共享 `_debate_loop_core()` / `_build_debate_last_feedback()`，统一单任务与子任务路径的 round 管理、feedback 生成与 breaker 判定，同时保留原有事件、artifact 和熔断语义不变。Claude review 结论为 `0 BLOCK / 0 CONCERN / 1 NOTE / Merge ready`。`docs/plans/phase41/closeout.md`、`docs/plans/phase41/review_comments.md` 和根目录 `pr.md` 已同步收口状态，下一步是人工更新 PR 描述、push 分支并决定 merge。
+Phase 41 已完成实现、review、PR 与 merge，当前已回到 `main` 并进入下一轮 fresh kickoff 等待态。最新稳定 checkpoint 为 Phase 41：S1 `Librarian Atomic Persistence` 将 Librarian 持久化链路改为批量原子提交；S2 `Debate Loop Core Extraction` 提取共享 `_debate_loop_core()` / `_build_debate_last_feedback()`，统一单任务与子任务路径的 round 管理、feedback 生成与 breaker 判定。下一步默认转向 `Phase 42`：本地栈健康检查与真实成本遥测。
 
 ---
 
@@ -28,10 +28,11 @@ Phase 41 的两个实现 slice 与 Claude review 都已完成，当前进入 **m
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase40/closeout.md`
+6. `docs/plans/phase41/closeout.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase41/review_comments.md`
 - `docs/plans/phase40/review_comments.md`
 - `docs/plans/phase39/review_comments.md`
 - `docs/plans/phase39/kickoff.md`
