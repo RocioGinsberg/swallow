@@ -5,17 +5,17 @@
 - latest_completed_track: `Evaluation / Policy` (Primary) + `Execution Topology` (Secondary)
 - latest_completed_phase: `Phase 38`
 - latest_completed_slice: `Cost Telemetry Baseline`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
+- active_phase: `Phase 39`
+- active_slice: `Ingestion Specialist`
 - active_branch: `main`
-- status: `phase38_merged_waiting_next_kickoff`
+- status: `phase39_kickoff_draft_awaiting_human_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 38 已完成实现、review 与 merge，当前真相分支已回到 `main`。本轮为执行遥测补齐了 `token_cost` 基线、Meta-Optimizer 成本维度与 `CostEstimator` protocol 预留；唯一 review concern C1（fallback 成本未计入 route stats）已记入 `docs/concerns_backlog.md`，留待后续触碰 meta_optimizer 成本逻辑时吸收。当前默认不再继续停留在 Phase 38 的 merge 语义，而应重新从 roadmap 选择下一轮 kickoff。
+Phase 39 kickoff 已产出（draft），方向为 Ingestion Specialist — 外部会话摄入。3 个 slice：S1 格式解析、S2 降噪提纯、S3 端到端 Pipeline + CLI。整体风险 11/27（低-中）。等待人工审批 kickoff 与 risk_assessment 后，切出 feature branch 开始实现。
 
 ---
 
@@ -85,6 +85,8 @@ Phase 38 已完成实现、review 与 merge，当前真相分支已回到 `main`
 - `pr.md` (codex, 2026-04-17, ignored) — Phase 35 PR 文案归档，可作为已合并实现摘要参考
 - `docs/design_preview.md` (gemini, 2026-04-17) — 结合全量蓝图比对，产出新一轮全局演进预览，提供 Phase 36 候选方向。
 - `docs/roadmap.md` (gemini, 2026-04-17) — Roadmap 全量刷新，定义了 Phase 36 到 Phase 40 的新一轮演进路线。
+- `docs/plans/phase39/kickoff.md` (claude, 2026-04-18) — Phase 39 kickoff: 3 slice (Parser + Filter + Pipeline/CLI)，风险 11/27 低-中
+- `docs/plans/phase39/risk_assessment.md` (claude, 2026-04-18) — Phase 39 风险评估：无高风险 slice，S3 跨模块集成为唯一关注点
 
 ---
 
@@ -109,10 +111,11 @@ Phase 38 已完成实现、review 与 merge，当前真相分支已回到 `main`
 
 ## 下一步
 
-- **[Human]** 从 `docs/roadmap.md` 与 `docs/system_tracks.md` 选择下一轮方向
-- **[Claude]** 产出下一轮 kickoff / 风险评估
-- **[Codex]** 在新 phase 获批并切出 feature branch 后继续实现
+- **[Human]** 审批 `docs/plans/phase39/kickoff.md` 与 `docs/plans/phase39/risk_assessment.md`
+- **[Gemini]** 可选：产出 Phase 39 context_brief（如需补充上下文）
+- **[Human]** 审批通过后，从 `main` 切出 `feat/phase39-ingestion-specialist`
+- **[Codex]** 在 feature branch 上按 S1 → S2 → S3 顺序实现
 
 ## 当前阻塞项
 
-- 等待 Human: 选择下一轮 phase 方向
+- 等待 Human: 审批 Phase 39 kickoff + risk_assessment
