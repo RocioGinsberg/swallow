@@ -5,17 +5,17 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Workbench / UX` (Secondary)
 - latest_completed_phase: `Phase 40`
 - latest_completed_slice: `Debate Loop + Subtask Unification`
-- active_track: `Execution Topology` (Primary) + `Capabilities` (Secondary)
-- active_phase: `Phase 41a`
-- active_slice: `fresh_kickoff_required`
-- active_branch: `none_selected`
-- status: `phase41a_fresh_kickoff_required`
+- active_track: `Core Loop` (Primary) + `Retrieval / Memory` (Secondary)
+- active_phase: `Phase 41`
+- active_slice: `Librarian Consolidation`
+- active_branch: `main`
+- status: `phase41_kickoff_draft_awaiting_human_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 40 已完成实现、review 与收口，当前已进入下一轮候选 `Phase 41a` `Dynamic Negotiation & Specialists` 的 fresh kickoff 等待态。Phase 40 的 review 结论为 `0 BLOCK / 2 CONCERN / 1 NOTE / Merge ready`，两个 concern 已登记到 `docs/concerns_backlog.md`，根目录 `pr.md` 与 `closeout.md` 已同步为 merge ready / PR sync ready。整体风险 15/27（中）。
+Phase 41 kickoff 已产出（draft），方向为 Librarian 收口与结构化清理 — 消化 Phase 36 C1（save_state → index 一致性）和 Phase 40 C1（debate 代码重复）。2 个 slice，整体风险 10/18（低-中）。Roadmap 已重新编排为连续编号 Phase 41-46，Phase 41 优先稳固内核。等待人工审批 kickoff 后切出 feature branch 开始实现。
 
 ---
 
@@ -148,10 +148,11 @@ Phase 40 已完成实现、review 与收口，当前已进入下一轮候选 `Ph
 
 ## 下一步
 
-- **[Human]** 检查并使用根目录 `pr.md` 更新 PR 描述
-- **[Human]** 提交 review follow-up / closeout 文档同步
-- **[Human]** push 当前分支并进入 merge 决策
+- **[Human]** 审批 `docs/plans/phase41/kickoff.md` 与 `docs/plans/phase41/risk_assessment.md`
+- **[Human]** 如同意 tag 建议，执行 `git tag -a v0.3.0 -m "v0.3.0 — 外部知识摄入 + 对抗审查拓扑 + 成本遥测基线"`
+- **[Human]** 审批通过后，从 `main` 切出 `feat/phase41-librarian-consolidation`
+- **[Codex]** 在 feature branch 上按 S1 → S2 顺序实现
 
 ## 当前阻塞项
 
-- 无。当前处于 **merge ready / PR sync ready**。
+- 等待 Human: 审批 Phase 41 kickoff + risk_assessment + v0.3.0 tag 决策

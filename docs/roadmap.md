@@ -7,240 +7,176 @@ status: living-document
 
 ## 一、当前实现与蓝图设计的核心差距 (Gap Analysis)
 
-根据最新修订的 `ARCHITECTURE.md` 与 `docs/design/*.md`，并盘点最新合入的 Phase 35 成果，Swallow 系统已经稳固确立了“本地优先的统一调度系统”底座（包含 Runtime v0、双层知识架构基线、基础网关降级与只读可观测性）。
+根据最新修订的 `ARCHITECTURE.md` 与 `docs/deploy.md`，Swallow 系统已进入 **V0.2.0** 阶段，确立了本地优先的任务编排与对抗审查基线（Phase 40 已完成）。然而，随着部署拓扑向“本地工作站全栈化”调整，系统仍存在以下关键差距：
 
-然而，当前代码实现与最终架构蓝图之间仍存在以下重大差距：
+### 1. 本地栈集成与真实成本感知 (Local Stack & Real Cost)
+*   **蓝图要求**：系统应深度整合本地 Docker 运行的 `new-api` 与 `TensorZero`，利用真实的物理遥测数据进行路由优化，而非依赖静态估算。
+*   **当前现状**：`swl doctor` 尚未覆盖本地容器栈健康检查；`Meta-Optimizer` 的 `token_cost` 仍基于硬编码单价估算。
+*   **核心差距**：系统无法在本地多模型竞争环境下，根据真实的账单反馈自动选择最高性价比的路径。
 
-### 1. 物理连接层与成本感知缺失 (Provider Connector & Cost Awareness)
-*   **蓝图要求**：网关层应具备真正的物理通道管理能力（Provider Connector），实现成本、延迟的真实隔离，并且 Event Telemetry 必须包含 `token_cost` 才能进行有效的路由优化（见 `GATEWAY_PHILOSOPHY.md` 与 `PROVIDER_ROUTER_AND_NEGOTIATION.md`）。
-*   **当前现状**：目前系统主要依赖内部的 Python Dialect Adapters 进行薄封装直连，缺乏如 `new-api` 或 `TensorZero` 这样独立的通道管理与格式互转层；遥测缺失最关键的 Token 成本账单。
-*   **核心差距**：Meta-Optimizer 因缺乏成本数据而“盲人摸象”，系统无法实施基于成本的智能路由降级。
+### 2. 知识晋升的事务性与副作用控制 (Librarian Side-Effects)
+*   **蓝图要求**：Librarian 执行路径应严格遵循“无副作用执行”，所有状态变更由 Orchestrator 统一事务化持久化，确保索引与数据不脱节（见 `docs/concerns_backlog.md`）。
+*   **当前现状**：`LibrarianExecutor` 内部仍存在零散的 `save_state` 操作；知识索引更新缺乏 Checkpoint 保护。
+*   **核心差距**：在并发或中断场景下，系统面临知识库索引崩溃或状态不一致的风险。
 
-### 2. 外部知识孤岛与摄入能力空白 (External Session Ingestion)
-*   **蓝图要求**：系统必须能无缝继承用户在外部（如 ChatGPT/Claude Web）的早期探索会话，由 `Ingestion Specialist` 进行提纯降噪并转化为标准 `HandoffContractSchema`，经 Librarian 审查入库。
-*   **当前现状**：Phase 32 虽建立了 Librarian 的防线基线，但对外部非结构化对话的导入链路仍然为空。
-*   **核心差距**：人类在外部大模型 UI 中探讨沉淀的宝贵上下文无法自然流入 Swallow，导致系统出现“认知断层”。
+### 3. 高并发下的立体操作体验 (Workbench UX)
+*   **蓝图要求**：随着并行子任务（Phase 33）与对抗循环（Phase 40）的引入，系统需要可视化手段展示复杂的任务树与 Artifact 对比审阅区。
+*   **当前现状**：用户仍受限于线性 CLI 终端，在审阅多个并行子任务的生成物时面临严重的认知过载。
+*   **核心差距**：缺乏一个基于本地 `.swl/` 数据源的只读 Web 控制台，导致人类在 Loop 中的监督效率低下。
 
-### 3. 立体操作环境与控制中心缺位 (Workbench Control Center)
-*   **蓝图要求**：从线性的 CLI 终端向“立体操作环境”演进，提供可视化呈现任务树（Task Tree）、并发状态监控及双栏的 Artifact Review Area。
-*   **当前现状**：Phase 33 的并行 Subtask 跑通后，用户仍然只能在 CLI 终端里逐行滚动查阅和审查状态，效率极低。
-*   **核心差距**：缺乏一个基于本地 `.swl/` 目录的 Web/Desktop 只读控制台，导致人类在审批并行任务工件时面临“认知过载”。
-
-### 4. 复杂审查拓扑与动态能力协商不足 (Debate Topology & Dynamic Negotiation)
-*   **蓝图要求**：支持 `Debate / Review Topology`（自动双向对抗审查），以及支持运行时的动态能力协商（将抽象 Tool Schema 动态渲染为降级 ReAct 范式），并拥有更丰富的领域解析器（如 `Literature Specialist`）。
-*   **当前现状**：当前的 Review Gate 仅具备基础单向打回机制；方言层仅硬编码支持了 Claude XML 与 Codex FIM 静态场景。
-*   **核心差距**：系统应对复杂对抗任务的能力仍未解放，底层降级未能做到全自动协商。
+### 4. 从单体审查向多机/多 Agent 共识演进 (Consensus Topology)
+*   **蓝图要求**：支持多 Reviewer 对话拓扑，通过多模型共识（Majority Pass）确保输出质量。
+*   **当前现状**：目前的 `ReviewGate` 仅支持单 Reviewer 模式；方言层对不支持 Tool Calling 的模型缺乏鲁棒的 ReAct 降级支持。
+*   **核心差距**：系统对核心设计文档或代码的质量担保仍依赖单一模型的判断，缺乏冗余校验。
 
 ---
 
-## 二、架构演进 Roadmap (5 Phases)
+## 二、架构演进 Roadmap (Phases 41-46)
 
-为弥补上述差距，推进系统走向高阶治理与立体协同，推荐按以下 5 个 Phase 稳步演进：
+为弥补上述差距，推荐按以下 6 个 Phase 稳步演进：
 
-### Phase 36: Provider Connector 整合与成本遥测 (Infrastructure & Cost)
+### Phase 41: Librarian 收口与结构化清理 (Librarian Consolidation)
+*   **Primary Track**: Core Loop
+*   **Secondary Track**: Retrieval / Memory
+*   **目标**：消化积压技术债（C36/C40），确保内核路径的原子性。
+*   **核心任务**：
+    - **Librarian Side-Effect 收口**：重构 `LibrarianExecutor` 使其仅返回结构化 Payload，由 `Orchestrator` 接管全部持久化逻辑。
+    - **辩论逻辑去重**：提取共享的 `_debate_loop_core()`，消除单任务与子任务路径约 170 行的逻辑冗余。
+*   **产出价值**：内核稳定性达到准生产级，为后续的大规模知识摄入扫清架构障碍。
+
+### Phase 42: 本地栈健康检查与真实成本遥测 (Local Stack & Cost Mastery)
 *   **Primary Track**: Execution Topology
 *   **Secondary Track**: Evaluation / Policy
-*   **目标**：正式解耦物理路由管理，补齐 Telemetry 关键拼图。
+*   **目标**：深度适配课题组本地全栈拓扑，将估算成本升级为真实遥测。
 *   **核心任务**：
-    *   引入 Provider Connector 层（推荐集成/部署 `new-api` 作为底层代理）。
-    *   扩充 `TelemetryFields` 与 Event Log，全面引入 `token_cost` 核算。
-    *   升级 `Meta-Optimizer`：使其能够基于真实成本和延迟交叉分析，提出 Cost-Aware 的路由优化提案。
-*   **产出价值**：彻底打通网关层盲区，系统具备真实的成本感知与审计治理能力。
+    - **增强 `swl doctor`**：实现对本地 Docker 容器（new-api/TensorZero/Postgres）、pgvector 扩展及 WireGuard 出口隧道的自动化健康检查。
+    - **真实成本遥测**：`Meta-Optimizer` 接入本地 TensorZero API 抓取真实 Token 账单；在遥测中显式标记 Debate 轮次成本。
+*   **产出价值**：彻底消除路由优化的”数据盲区”，使系统具备基于真实开销的自动选路能力。
 
-### Phase 37: 外部会话摄入与知识边界跨越 (Ingestion Specialist)
-*   **Primary Track**: Retrieval / Memory
-*   **Secondary Track**: Workbench / UX
-*   **目标**：打通人类外部探索与 Swallow 内部规范记忆的桥梁。
-*   **核心任务**：
-    *   实现 **Ingestion Specialist Agent**：支持解析导入的 ChatGPT/Claude Web 聊天记录（JSON/MD 格式）。
-    *   开发降噪提纯工作流：将聊天中的闲聊剥离，提取有效结论、架构约束与被否方案，转化为标准的 `HandoffContractSchema`。
-    *   对齐防线：提纯后的记录自动进入 Staged-Knowledge 暂存区，无缝对接 Librarian 的审查晋升防线。
-*   **产出价值**：消灭知识孤岛，极大降低人工整理早期需求和脑暴记录的成本。
-
-### Phase 38: 可视化工作台基线 (Control Center Baseline)
-*   **Primary Track**: Workbench / UX
-*   **Secondary Track**: Core Loop
-*   **目标**：落地“立体操作环境”，解救 CLI 时代的认知过载。
-*   **核心任务**：
-    *   构建只读的本地 Web 控制中心（Control Center），直接挂载并消费 `.swl/` 目录的状态数据。
-    *   实现 Task Tree 的图形化追踪，展示父子任务的并行进度。
-    *   实现 Artifact Review Area：双栏显示 Draft 与对比 Diff，提供清晰的 Approve / Reject 视图。
-*   **产出价值**：为多智能体的高并发运行提供“仪表盘”，确保人类在 Loop 中能轻松、高效地行使监督权。
-
-### Phase 39: 对抗与审查拓扑增强 (Debate Topology & Quality)
-*   **Primary Track**: Core Loop
-*   **Secondary Track**: Execution Topology
-*   **目标**：完成 Review Feedback Loop，让系统学会真正的“左右互搏”。
-*   **核心任务**：
-    *   升级 Review Gate，实现真正的 **Debate Topology**：Reviewer 不仅拦截，还能生成结构化的 `Review_Feedback` Artifact 持续打回，直到与 Executor 达成共识或触发防线熔断。
-    *   开发特定的 Validator：如 **Consistency Review Agent**，专门用于校验设计文档与最终代码实现的一致性。
-*   **产出价值**：系统产出质量的下限得到架构级担保，摆脱对“一次生成即正确”的脆弱假设。
-
-### Phase 40: 动态能力协商与领域专长扩展 (Dynamic Negotiation & Specialists)
+### Phase 43: ReAct 降级方言 (Dynamic Capability Negotiation)
 *   **Primary Track**: Execution Topology
 *   **Secondary Track**: Capabilities
-*   **目标**：使方言适配器具备动态自适应能力，并扩充高级领域解析器。
+*   **目标**：针对 Ollama/Qwen 等不支持原生 Tool Calling 的本地模型，实现鲁棒的 ReAct Prompt 降级方言。
 *   **核心任务**：
-    *   实现高级 **Capability Negotiator**：不仅做静态格式转换，还能在目标模型无原生 Tool Calling 能力时，动态、实时地将其渲染为鲁棒的 ReAct Prompt 降级文本流。
-    *   实现 **Literature Specialist**：引入领域 RAG 包，专用于复杂长文档/多源文件的交叉对比和结构化表格提取。
-*   **产出价值**：系统的适配能力达到泛化顶点，即便在最极端、模型最廉价的降级环境下也能坚韧运作。
+    - 在目标模型无原生 Tool Calling 时，动态将 Tool Schema 渲染为 ReAct 纯文本引导语。
+    - 回包阶段通过强化正则从纯文本还原为标准工具调用意图。
+*   **产出价值**：系统在最廉价的降级环境下也能坚韧运作。
+
+### Phase 44: 可视化工作台增强 (Web Control Center Enhancement)
+*   **Primary Track**: Workbench / UX
+*   **Secondary Track**: Core Loop
+*   **目标**：落地”立体操作环境”，解救 CLI 时代的认知过载。
+*   **核心任务**：
+    - **任务树仪表盘**：图形化展示任务层级（Task Tree）、并行子任务进度及实时成本/延迟曲线。
+    - **Artifact 对比审阅区**：提供双栏视图（Draft vs History/Ref），支持高效的 Approve / Reject 操作。
+*   **产出价值**：极大提升人机协同效率，使 Swallow 成为一个可观测、可管控的真实工作环境。
+
+### Phase 45: 领域专家 Agent 与深度摄入 (Specialist Agents & Deep Ingestion)
+*   **Primary Track**: Retrieval / Memory
+*   **Secondary Track**: Workbench / UX
+*   **目标**：深化 Ingestion 链路，建立领域知识的专家化处理能力。
+*   **核心任务**：
+    - **深度摄入 Specialist**：支持还原 Open WebUI 等外部工具的完整对话树上下文，而非仅提取碎片消息。
+    - **文献专家 (Literature Specialist)**：引入针对多源长文档的交叉对比 RAG 模块，生成高可靠性的结构化综述。
+    - **自动化晋升流**：打通 Ingested 知识 → Staged Candidate → Librarian 自动触发审查的闭环链路。
+*   **产出价值**：系统记忆不再局限于内部执行产出，能够无缝吸纳人类在外部探索积累的宝贵经验。
+
+### Phase 46: 多模型共识与策略护栏 (Consensus & Policy Guardrails)
+*   **Primary Track**: Evaluation / Policy
+*   **Secondary Track**: Core Loop
+*   **目标**：引入冗余审查机制，通过策略自动管控系统风险。
+*   **核心任务**：
+    - **N-Reviewer 共识拓扑**：支持 TaskCard 配置多个审查模型，实现”多数票通过”或”首席模型否决”等共识算法。
+    - **智能预算策略**：`Meta-Optimizer` 基于历史统计自动生成 `ExecutionBudgetPolicy` 建议，实现成本超标的自动熔断。
+    - **跨模型质量抽检**：由高阶模型对海量低阶模型生成的中间产物进行随机一致性审计。
+*   **产出价值**：系统具备自我纠偏与财务自律能力，适应更高强度的全自动运行场景。
 
 ---
 
-## 三、推荐 Phase 队列：优先级排序与风险批注 (Claude 维护)
+## 三、推荐 Phase 队列与风险批注 (Claude 维护)
 
-> 本节由 Claude 维护，基于差距分析和依赖关系进行优先级排序与风险评估。
-> 最近更新：2026-04-17 (Phase 35 完成后全量刷新，Claude 审计 + 优先级调整)
+> 最近更新：2026-04-18 (Phase 40 完结 + 部署拓扑调整后全量审计)
 
 ### 队列总览
 
 | 优先级 | Phase | 名称 | Primary Track | Secondary Track | 风险等级 |
 |--------|-------|------|---------------|-----------------|----------|
-| **1** | **36** | **Concern Cleanup + LibrarianExecutor 收口** | Core Loop | Retrieval / Memory | 低 |
-| 2 | 37 | 可视化工作台 Control Center 基线 | Workbench / UX | Core Loop | 高 |
-| 3 | 38 | Provider Connector 整合与成本遥测 | Execution Topology | Evaluation / Policy | 中高 |
-| 4 | 39 | Ingestion Specialist 外部会话摄入 | Retrieval / Memory | Workbench / UX | 中 |
-| 5 | 40 | Debate Topology 与对抗审查 | Core Loop | Execution Topology | 中 |
-| 6 | 41a | 动态能力协商 (ReAct Degradation) | Execution Topology | Capabilities | 中高 |
-| 7 | 41b | Literature Specialist 领域 RAG | Retrieval / Memory | Capabilities | 中 |
+| **1** | **41** | **Librarian 收口与结构化清理** | Core Loop | Retrieval / Memory | 低-中 |
+| 2 | 42 | 本地栈健康检查 + 真实成本遥测 | Execution Topology | Evaluation / Policy | 低 |
+| 3 | 43 | ReAct 降级方言 | Execution Topology | Capabilities | 中 |
+| 4 | 44 | 可视化工作台 Control Center 增强 | Workbench / UX | Core Loop | 中 |
+| 5 | 45 | 领域专家 Agent 与深度摄入 | Retrieval / Memory | Workbench / UX | 中 |
+| 6 | 46 | 多模型共识与策略护栏 | Evaluation / Policy | Core Loop | 中-高 |
+
+### Gemini 原版 Phase 41 拆分说明
+
+Gemini 原版 Phase 41 混合了三个差异较大的方向：(a) swl doctor 容器健康检查、(b) 真实成本遥测、(c) ReAct 降级方言。ReAct 降级属于 Capabilities track，风险特征（正则解析脆弱性、需要高测试覆盖）与前两者不同。拆为 Phase 42（doctor + 成本遥测）和 Phase 43（ReAct 降级），降低单 phase 复杂度。原版 Phase 42-45 顺延为 Phase 41/44-46。
 
 ### 依赖关系
 
 ```
-Phase 35 (Meta-Optimizer Baseline)
-  │
-  ├──→ Phase 36 (Concern Cleanup)
-  │       └──→ Phase 39 (Ingestion Specialist) [依赖 36 清理 LibrarianExecutor]
-  │
-  ├──→ Phase 37 (Control Center) [独立，CLI 痛点优先]
-  │
-  ├──→ Phase 38 (Provider Connector & Cost) [独立，需外部依赖]
-  │
-  └──→ Phase 40 (Debate Topology) [依赖 Phase 33 ReviewGate 稳定]
-          └──→ Phase 41a (Dynamic Negotiation)
-                Phase 41b (Literature Specialist) [独立于 41a]
+Phase 41 (Librarian 收口 + Concern 清理)
+  └──→ Phase 45 (深度摄入，依赖 Librarian 稳定)
+
+Phase 42 (Doctor + 成本遥测)
+  └──→ Phase 46 (智能预算，依赖真实成本数据)
+
+Phase 43 (ReAct 降级) — 独立
+  └──→ Phase 46 (多模型共识，依赖弱模型可用)
+
+Phase 44 (Web Control Center 增强) — 独立，可与 41/42 并行
 ```
 
-### Phase 36 — Concern Cleanup + LibrarianExecutor 收口（新增）
+### Phase 41 — Librarian 收口与结构化清理（优先级 #1）
 
-**Primary Track**: Core Loop
-**Secondary Track**: Retrieval / Memory
-**风险等级**: 低
+**优先级理由**：4 条 Open concern 中最老的（Phase 36 C1）已跨 4 个 phase，Librarian save_state → index 一致性问题在并发场景下有数据损坏风险。Phase 40 新增的 debate 代码重复（C1）也自然归入此 phase。先稳固内核再加新能力更安全。
 
-本轮优先消化 `docs/concerns_backlog.md` 中积压的 5 条 Open concern，其中 Phase 32 LibrarianExecutor 的 state mutation 问题最为关键——Phase 39 Ingestion Specialist 将进一步依赖 Librarian 路径，如果 side effect 仍散落在 executor 内部，并发场景会产生不可预测的状态覆盖。
+**Concern 消化计划**：
 
-**核心任务**：
+| Concern | 来源 | 消化 Slice |
+|---------|------|-----------|
+| `_apply_librarian_side_effects()` save_state → index 一致性 | Phase 36 C1 | S1: Librarian 持久化原子化 |
+| 单任务与子任务 debate loop 代码重复 ~170 行 | Phase 40 C1 | S2: 提取 `_debate_loop_core()` |
 
-| Concern | 来源 | 消化方式 | Slice |
-|---------|------|---------|-------|
-| LibrarianExecutor 直接操作 state + 多层持久化 | Phase 32 | 收回 side effect 到 orchestrator：LibrarianExecutor 只返回 ExecutorResult + 待写入 payload，由 orchestrator 执行 save_state / save_knowledge_objects / append_canonical_record | S1 |
-| `acknowledge_task()` route_mode 硬编码 | Phase 21 | 增加 `route_mode` 参数，默认 `”summary”` 保持兼容 | S2 |
-| `canonical_write_guard` 无运行时执行 | Phase 25 | 在 executor dispatch 前增加 guard check：if route 标记 canonical_write_guard 且 executor 非 Librarian → block | S2 |
-| `build_stage_promote_preflight_notices()` 返回类型变更 | Phase 28 | 补充类型标注 + 添加 migration docstring；若确认无外部调用者则标记 Won't Fix | S2 |
-| CodexFIMDialect 未转义 FIM 标记 | Phase 34 | 添加 `<fim_prefix>` / `<fim_suffix>` 文本替换（escape 为 `[fim_prefix]` / `[fim_suffix]`） | S2 |
+**风险**: 低-中。S1 涉及 orchestrator 调用路径变更，需全量知识晋升回归；S2 为纯重构。
 
-**Slice 拆分**：
-- **S1**: LibrarianExecutor state mutation 收口（orchestrator.py + librarian_executor.py 重构）
-- **S2**: 4 条 API cleanup concern 批量消化
+### Phase 42 — 本地栈健康检查 + 真实成本遥测
 
-**风险**: 4/9（impact 2, reversibility 1, dependency 1）—— S1 影响 Librarian 执行路径，需回归验证；S2 为低风险 API 调整。
+**Concern 消化计划**：
 
-**为什么优先**：
-1. 按 `concerns_backlog.md` 规则，每 3-5 个 phase 需回顾清理，当前已跨 5 个 phase（Phase 31-35）
-2. Phase 32 concern 阻塞后续 Ingestion Specialist 安全接入 Librarian
-3. 积压 concern 不清理会导致技术债复利增长
+| Concern | 来源 | 消化 Slice |
+|---------|------|-----------|
+| fallback `token_cost` 未计入 Meta-Optimizer route stats | Phase 38 C1 | S2: 成本遥测升级时一并修正 |
+| debate retry 事件与正常执行事件无法区分 | Phase 40 C2 | S2: Meta-Optimizer 事件扫描排除/标记 debate 轮次 |
 
----
+**风险**: 低。swl doctor 扩展为新增代码；成本遥测升级局限在 meta_optimizer 模块内。
 
-### Phase 37 — 可视化工作台 Control Center 基线（原 Phase 38，提前）
+### Phase 43 — ReAct 降级方言
 
-**优先级调整理由**：当前 CLI 审查体验是日常开发最直接的痛点，Phase 33 并行子任务跑通后在 CLI 逐条审查 artifact 效率极低。比 Ingestion Specialist 和 Provider Connector 更紧迫。
+**风险**: 中。正则解析脆弱性需要极高测试覆盖率。独立于 41/42，可按需排序。
 
-（Phase 描述与核心任务保持不变，见上方第二节。）
+### Phase 44 — 可视化工作台 Control Center 增强
 
-**约束重申**：
-- 严格只读：零写入 `.swl/`，所有状态流转仍走 CLI
-- 极简栈：JSON API + 单页 HTML，不引入 React/Vue 构建工具链
-- AGENTS.md 非目标对照：不得演化为全功能 Web 系统
+**注意**：Phase 37 已建立只读 Web 基线（`swl serve`），本 phase 是增量扩展（Task Tree 图形化 + Artifact 对比审阅区），非从零构建。
 
----
+**约束重申**：严格只读，零写入 `.swl/`，极简栈（JSON API + 单页 HTML）。
 
-### Phase 38 — Provider Connector 整合与成本遥测（原 Phase 36，推后）
+**风险**: 中。Scope 膨胀风险仍为最高关注点。
 
-**优先级调整理由**：Provider Connector 引入外部依赖（Docker/Go），运维复杂度高。应在内部 concern 清理和 UX 痛点缓解后再引入。
+### Phase 45 — 领域专家 Agent 与深度摄入
 
-（Phase 描述与核心任务保持不变，见上方第二节。）
+**依赖前置**：Phase 41 Librarian 收口必须先完成。深度摄入产出走 Librarian 防线，如果 Librarian 的 side-effect 问题未修复，并发摄入会产生不可预测的状态覆盖。
 
-**分期建议不变**：
-- Phase 38a: `token_cost` 遥测扩展（纯 Python，不引入外部依赖）
-- Phase 38b: Provider Connector 实际部署（new-api 本地 sidecar）
+**风险**: 中。幻觉防控 + 引用标注是核心挑战。
 
----
+### Phase 46 — 多模型共识与策略护栏
 
-### Phase 39 — Ingestion Specialist 外部会话摄入（原 Phase 37，推后）
+**依赖前置**：Phase 42（真实成本数据，用于预算策略）+ Phase 43（ReAct 降级，用于弱模型参与共识）。
 
-**优先级调整理由**：依赖 Phase 36 对 LibrarianExecutor 的 state mutation 收口。Ingestion 产出必须走 Librarian 防线，如果 Librarian 自身仍有 side effect 隐患，Ingestion 链路的可靠性无法保证。
+**风险**: 中-高。成本爆炸风险，多 Reviewer 线性增加 Token 消耗，必须与智能预算策略同步上线。
 
-（Phase 描述与核心任务保持不变，见上方第二节。）
+### Tag 建议
 
----
+自 `v0.2.0` 以来已完成 Phase 38/39/40，新增外部知识摄入、对抗审查拓扑、成本遥测基线三项用户可感知的能力增量。main 处于稳定状态（302 tests passed），无进行中的重构，4 条 Open concern 均为内部优化不影响公共 API。
 
-### Phase 40 — Debate Topology 与对抗审查（原 Phase 39）
-
-（Phase 描述、核心任务与风险批注保持不变。）
-
----
-
-### Phase 41a — 动态能力协商 (ReAct Degradation)（原 Phase 40 拆分）
-
-**Primary Track**: Execution Topology
-**Secondary Track**: Capabilities
-
-仅包含 Dynamic Capability Negotiator：在目标模型无原生 Tool Calling 时，动态渲染为 ReAct Prompt 降级文本流。
-
----
-
-### Phase 41b — Literature Specialist 领域 RAG（原 Phase 40 拆分）
-
-**Primary Track**: Retrieval / Memory
-**Secondary Track**: Capabilities
-
-仅包含 Literature Specialist：领域 RAG 包，专用于长文档/多源文件交叉对比。独立于 41a，可按需排序。
-
----
-
-### 各 Phase 风险批注
-
-**Phase 36 — Concern Cleanup**
-- 🔍 S1 风险点：LibrarianExecutor 重构涉及 orchestrator 调用路径变更，需确保知识晋升/回写全路径回归。建议增加 Librarian 专项集成测试。
-- 🔍 S2 风险点：极低。4 条 concern 均为 API 清理，不影响核心执行路径。
-
-**Phase 37 — Control Center Baseline**
-- ⚠️ Scope 膨胀风险（最高）：必须坚守只读 + 极简栈。
-- 🔍 AGENTS.md 非目标：不得演化为全功能 Web 系统。
-
-**Phase 38 — Provider Connector & Cost**
-- ⚠️ 运维复杂度风险：首次引入 Python CLI 之外的系统依赖。
-- 🔍 非目标对照：严格限制为本地 sidecar，不得演化为多租户网关。
-
-**Phase 39 — Ingestion Specialist**
-- ⚠️ 幻觉与质量风险：限制输入为 JSON + Markdown，产出必须走 Staged-Knowledge → Librarian 防线。
-
-**Phase 40 — Debate Topology**
-- ⚠️ 死循环陷阱：max rounds = 3 + 结构化 feedback artifact + 熔断升级到 human。
-
-**Phase 41a — Dynamic Negotiation**
-- ⚠️ 正则解析脆弱性：需极高测试覆盖率。
-
-**Phase 41b — Literature Specialist**
-- 风险低。领域 RAG 包为独立模块，不影响核心调度路径。
-
-### Claude 审计总结
-
-**调整要点**：
-
-1. **新增 Phase 36 Concern Cleanup**：优先消化 5 条积压 concern，重点是 LibrarianExecutor state mutation 收口，为后续 Ingestion Specialist 扫清障碍
-2. **Phase 38 (Control Center) 提前至 #2**：CLI 审查痛点是当前最直接的日常效率瓶颈
-3. **Phase 36 (Provider Connector) 推后至 #3**：外部依赖引入应在内部清理和 UX 缓解之后
-4. **Phase 37 (Ingestion Specialist) 推后至 #4**：依赖 LibrarianExecutor 收口
-5. **原 Phase 40 拆分为 41a + 41b**：Dynamic Negotiation 和 Literature Specialist 分属不同 track
+**建议打 `v0.3.0`**：外部知识摄入 + 对抗审查拓扑 + 成本遥测基线。
