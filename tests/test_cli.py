@@ -5133,6 +5133,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Parse an external session export, filter it into staged candidates", output)
         self.assertIn("--dry-run", output)
         self.assertIn("--format", output)
+        self.assertIn("--summary", output)
 
     def test_cli_ingest_dry_run_prints_report_without_persisting_registry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -5169,6 +5170,26 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(len(staged_records), 1)
         self.assertEqual(staged_records[0].source_kind, "external_session_ingestion")
         self.assertEqual(staged_records[0].source_ref, str(source.resolve()))
+
+    def test_cli_ingest_summary_appends_structured_sections(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "session.md"
+            source.write_text(
+                "# Decisions\nDecision: keep staged review manual.\n\n# Constraints\nConstraint: no realtime sync.",
+                encoding="utf-8",
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "ingest", str(source), "--dry-run", "--summary"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("# Ingestion Report", output)
+        self.assertIn("# Ingestion Summary", output)
+        self.assertIn("## Decisions (1)", output)
+        self.assertIn("## Constraints (1)", output)
+        self.assertIn("## Rejected Alternatives (0)", output)
 
     def test_task_grounding_prints_grounding_evidence_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

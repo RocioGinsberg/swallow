@@ -5,19 +5,17 @@
 - latest_completed_track: `Workbench / UX` (Primary) + `Core Loop` (Secondary)
 - latest_completed_phase: `Phase 44`
 - latest_completed_slice: `Web Control Center Enhancement`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Retrieval / Memory` (Primary) + `Evaluation / Policy` (Secondary)
+- active_phase: `Phase 45`
+- active_slice: `review_complete_merge_ready`
 - active_branch: `main`
-- status: `post_phase44_stable_checkpoint`
+- status: `phase45_review_complete_merge_ready`
 
 ---
 
 ## 当前状态说明
 
-Phase 44 已完成实现、review、PR、merge，并形成新的稳定 checkpoint。本轮增量包括只读 Web Control Center 的 `Subtask Tree`、`artifact-diff` compare 模式与 `execution-timeline` 可视化；同时此前已完成的 Librarian 原子持久化、debate loop 核心抽取与遥测修正都已进入稳定主线。
-
-当前仓库状态适合从 roadmap 重新选择下一轮方向，而不是继续扩张已完成的 Phase 44。由于下一 phase 的 kickoff 尚未在仓库内正式落盘，状态指针先停在 `none_selected / fresh_kickoff_required`。
+Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向为 Eval 基线建立 + Ingestion 深化。3 个 slice：S1 eval 基础设施 + 降噪/提案质量基线、S2 ChatGPT 对话树上下文还原、S3 `swl ingest --summary` 结构化摘要。整体风险 11/27（低-中）。这是项目首次引入 Eval-Driven Development（规则已固化到 `.agents/shared/rules.md` §十）。S1 / S2 / S3 已全部完成，Claude review 也已完成，当前状态为 merge ready。
 
 ---
 
@@ -51,9 +49,16 @@ Phase 44 已完成实现、review、PR、merge，并形成新的稳定 checkpoin
 
 下一步：
 
-- **[Human / Claude / Gemini]** 确认下一轮 active phase 与 kickoff 边界。
-- **[Codex]** 在 kickoff 就绪后按新 phase 进入 slice 实现。
+- **[Codex]** 已完成 S1：补齐 `tests/eval/`、pytest eval marker 与质量基线测试。
+- **[Human]** 已完成 S1 提交，并对 eval fixture 位置做了微调。
+- **[Codex]** 已完成 S2 `ChatGPT conversation tree restoration`。
+- **[Human]** 已完成 S2 提交。
+- **[Codex]** 已完成 S3 `swl ingest --summary`。
+- **[Human]** 已完成 S3 提交。
+- **[Codex]** 已整理 `closeout.md` 与本地 `pr.md`。
+- **[Claude]** 已完成 Phase 45 review：`0 BLOCK / 1 CONCERN / 1 NOTE / Merge ready`。
+- **[Codex]** 已同步 closeout / backlog / `pr.md` 到 review 完成状态。
 
 当前阻塞项：
 
-- 等待下一轮 phase 正式选定并落盘 kickoff 文档。
+- 等待 Human 更新 PR 描述、push 分支并做 merge 决策。

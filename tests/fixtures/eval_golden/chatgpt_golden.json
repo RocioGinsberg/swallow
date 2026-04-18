@@ -1,0 +1,115 @@
+{
+  "case_id": "chatgpt_linear_export",
+  "format": "chatgpt_json",
+  "payload": {
+    "title": "Phase 45 Eval ChatGPT Export",
+    "mapping": {
+      "root": {
+        "id": "root",
+        "message": null
+      },
+      "u1": {
+        "id": "u1",
+        "parent": "root",
+        "message": {
+          "author": {
+            "role": "user"
+          },
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "Constraint: keep staged review manual."
+            ]
+          },
+          "create_time": 1
+        }
+      },
+      "a1": {
+        "id": "a1",
+        "parent": "u1",
+        "message": {
+          "author": {
+            "role": "assistant"
+          },
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "Decision: keep staged review manual.\n- Constraint: no realtime sync."
+            ]
+          },
+          "create_time": 2
+        }
+      },
+      "u2": {
+        "id": "u2",
+        "parent": "a1",
+        "message": {
+          "author": {
+            "role": "user"
+          },
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "ok"
+            ]
+          },
+          "create_time": 3
+        }
+      },
+      "a2": {
+        "id": "a2",
+        "parent": "u2",
+        "message": {
+          "author": {
+            "role": "assistant"
+          },
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "Thanks"
+            ]
+          },
+          "create_time": 4
+        }
+      },
+      "u3": {
+        "id": "u3",
+        "parent": "a2",
+        "message": {
+          "author": {
+            "role": "user"
+          },
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "Risk: remote sync is out of scope."
+            ]
+          },
+          "create_time": 5
+        }
+      },
+      "a3": {
+        "id": "a3",
+        "parent": "u3",
+        "message": {
+          "author": {
+            "role": "assistant"
+          },
+          "content": {
+            "content_type": "text",
+            "parts": [
+              "```python\nprint('keep')\n```"
+            ]
+          },
+          "create_time": 6
+        }
+      }
+    }
+  },
+  "expected_keep_turn_ids": [
+    "u1",
+    "a1",
+    "u3",
+    "a3"
+  ]
+}

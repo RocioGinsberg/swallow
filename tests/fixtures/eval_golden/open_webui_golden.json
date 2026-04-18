@@ -1,0 +1,41 @@
+{
+  "case_id": "open_webui_linear_export",
+  "format": "open_webui_json",
+  "payload": [
+    {
+      "id": "o1",
+      "role": "user",
+      "content": "Decision: use route registry matching.",
+      "timestamp": "1"
+    },
+    {
+      "id": "o2",
+      "role": "assistant",
+      "content": "Sounds good",
+      "timestamp": "2"
+    },
+    {
+      "id": "o3",
+      "role": "user",
+      "content": "Constraint: avoid realtime sync.",
+      "timestamp": "3"
+    },
+    {
+      "id": "o4",
+      "role": "assistant",
+      "content": "Thanks",
+      "timestamp": "4"
+    },
+    {
+      "id": "o5",
+      "role": "user",
+      "content": "Outcome: keep local-first execution.",
+      "timestamp": "5"
+    }
+  ],
+  "expected_keep_turn_ids": [
+    "o1",
+    "o3",
+    "o5"
+  ]
+}

@@ -86,7 +86,6 @@ def detect_ingestion_format(payload: Any) -> str:
 def parse_chatgpt_export(payload: Any) -> list[ConversationTurn]:
     conversations = payload if isinstance(payload, list) else [payload]
     turns: list[tuple[float, int, ConversationTurn]] = []
-    sequence = 0
     for conversation in conversations:
         if not isinstance(conversation, dict):
             continue
@@ -94,6 +93,8 @@ def parse_chatgpt_export(payload: Any) -> list[ConversationTurn]:
         if not isinstance(mapping, dict) or not mapping:
             continue
         title = str(conversation.get("title", "")).strip()
+        node_records: dict[str, tuple[str, float, int, str, str]] = {}
+        sequence = 0
         for node_id, node in mapping.items():
             if not isinstance(node, dict):
                 continue
@@ -105,20 +106,39 @@ def parse_chatgpt_export(payload: Any) -> list[ConversationTurn]:
             if not role or not content:
                 continue
             create_time = message.get("create_time")
+            node_records[str(node_id).strip()] = (
+                str(node.get("parent", "")).strip(),
+                _as_sortable_timestamp(create_time, sequence),
+                sequence,
+                role,
+                content,
+            )
+            sequence += 1
+        if not node_records:
+            continue
+
+        primary_path = _select_chatgpt_primary_path(mapping, node_records)
+        for node_id, (parent_id, sortable_timestamp, sequence, role, content) in node_records.items():
+            raw_node = mapping.get(node_id, {})
+            create_time = raw_node.get("message", {}).get("create_time") if isinstance(raw_node, dict) else None
+            metadata: dict[str, str] = {"conversation_title": title} if title else {}
+            if node_id not in primary_path:
+                metadata["branch"] = "abandoned"
+            if parent_id:
+                metadata["parent_turn_id"] = parent_id
             turns.append(
                 (
-                    _as_sortable_timestamp(create_time, sequence),
+                    sortable_timestamp,
                     sequence,
                     ConversationTurn(
                         role=role,
                         content=content,
                         timestamp=_stringify_timestamp(create_time),
-                        turn_id=str(node_id).strip(),
-                        metadata={"conversation_title": title} if title else {},
+                        turn_id=node_id,
+                        metadata=metadata,
                     ),
                 )
             )
-            sequence += 1
     if not turns:
         raise IngestionParseError("ChatGPT export did not contain any parseable messages.")
     turns.sort(key=lambda item: (item[0], item[1]))
@@ -366,3 +386,56 @@ def _as_sortable_timestamp(value: Any, fallback: int) -> float:
         return float(str(value).strip())
     except (TypeError, ValueError):
         return float(fallback)
+
+
+def _select_chatgpt_primary_path(
+    mapping: dict[str, Any],
+    node_records: dict[str, tuple[str, float, int, str, str]],
+) -> set[str]:
+    best_leaf_id = max(
+        node_records,
+        key=lambda node_id: (
+            _chatgpt_path_depth(mapping, node_records, node_id),
+            node_records[node_id][1],
+            node_records[node_id][2],
+            node_id,
+        ),
+    )
+
+    primary_path: set[str] = set()
+    current_id = best_leaf_id
+    visited: set[str] = set()
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+        if current_id in node_records:
+            primary_path.add(current_id)
+        raw_node = mapping.get(current_id)
+        if not isinstance(raw_node, dict):
+            break
+        parent_id = str(raw_node.get("parent", "")).strip()
+        if not parent_id:
+            break
+        current_id = parent_id
+    return primary_path
+
+
+def _chatgpt_path_depth(
+    mapping: dict[str, Any],
+    node_records: dict[str, tuple[str, float, int, str, str]],
+    node_id: str,
+) -> int:
+    depth = 0
+    current_id = node_id
+    visited: set[str] = set()
+    while current_id and current_id not in visited:
+        visited.add(current_id)
+        if current_id in node_records:
+            depth += 1
+        raw_node = mapping.get(current_id)
+        if not isinstance(raw_node, dict):
+            break
+        parent_id = str(raw_node.get("parent", "")).strip()
+        if not parent_id:
+            break
+        current_id = parent_id
+    return depth

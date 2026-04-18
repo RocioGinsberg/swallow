@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from swallow.ingestion.pipeline import (
     EXTERNAL_SESSION_SOURCE_KIND,
     build_ingestion_report,
+    build_ingestion_summary,
     run_ingestion_pipeline,
 )
 from swallow.staged_knowledge import load_staged_candidates
@@ -57,6 +58,29 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertIn("# Ingestion Report", report)
         self.assertIn("source_kind: external_session_ingestion", report)
         self.assertIn("dry_run: yes", report)
+
+    def test_build_ingestion_summary_groups_fragments(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "session.md"
+            source.write_text(
+                "# Decisions\nDecision: keep staged review manual.\n\n"
+                "# Constraints\nConstraint: no realtime sync.\n\n"
+                "# Rejected\nReject plan A and switch to plan B.",
+                encoding="utf-8",
+            )
+
+            result = run_ingestion_pipeline(tmp_path, source, dry_run=True)
+
+        summary = build_ingestion_summary(result)
+        self.assertIn("# Ingestion Summary", summary)
+        self.assertIn("## Decisions (1)", summary)
+        self.assertIn("Decision: keep staged review manual.", summary)
+        self.assertIn("## Constraints (1)", summary)
+        self.assertIn("Constraint: no realtime sync.", summary)
+        self.assertIn("## Rejected Alternatives (1)", summary)
+        self.assertIn("Reject plan A and switch to plan B.", summary)
+        self.assertIn("precision_estimate: N/A", summary)
 
 
 if __name__ == "__main__":

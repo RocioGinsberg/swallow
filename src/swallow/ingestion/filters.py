@@ -53,6 +53,23 @@ CHATTER_PREFIXES: tuple[str, ...] = (
     "got it",
     "明白",
 )
+ABANDONMENT_KEYWORDS: tuple[str, ...] = (
+    "否定",
+    "放弃",
+    "不采用",
+    "不要",
+    "改用",
+    "弃用",
+    "reject",
+    "rejected",
+    "abandon",
+    "abandoned",
+    "drop plan",
+    "switch to",
+    "instead",
+    "replace",
+    "regenerate",
+)
 
 
 @dataclass(slots=True)
@@ -83,7 +100,12 @@ def merge_conversation_turns(turns: list[ConversationTurn]) -> list[Conversation
 
     merged: list[ConversationTurn] = []
     for turn in turns:
-        if not merged or merged[-1].role != turn.role or turn.role == "document":
+        if (
+            not merged
+            or merged[-1].role != turn.role
+            or turn.role == "document"
+            or merged[-1].metadata.get("branch", "") != turn.metadata.get("branch", "")
+        ):
             merged.append(
                 ConversationTurn(
                     role=turn.role,
@@ -125,8 +147,8 @@ def filter_conversation_turns(turns: list[ConversationTurn]) -> list[ExtractedFr
     fragments: list[ExtractedFragment] = []
     seen: set[str] = set()
     for turn in merge_conversation_turns(turns):
-        signals = _classify_signals(turn.content, turn.role)
-        if "drop_chatter" in signals:
+        signals = _classify_signals(turn.content, turn.role, turn.metadata)
+        if "drop_chatter" in signals or "drop_abandoned_branch" in signals:
             continue
         dedupe_key = _normalize_fragment_text(turn.content)
         if not dedupe_key or dedupe_key in seen:
@@ -145,10 +167,17 @@ def filter_conversation_turns(turns: list[ConversationTurn]) -> list[ExtractedFr
     return fragments
 
 
-def _classify_signals(text: str, role: str) -> list[str]:
+def _classify_signals(text: str, role: str, metadata: dict[str, str] | None = None) -> list[str]:
     signals: list[str] = []
     normalized = text.strip()
     lowered = normalized.lower()
+    branch = str((metadata or {}).get("branch", "")).strip().lower()
+    if branch == "abandoned":
+        signals.append("abandoned_branch")
+        if not _has_abandonment_signal(lowered):
+            signals.append("drop_abandoned_branch")
+            return signals
+        signals.append("rejected_alternative")
     if _is_chatter(lowered):
         signals.append("drop_chatter")
         return signals
@@ -172,6 +201,11 @@ def _is_chatter(lowered: str) -> bool:
     if len(compact) <= 24 and any(compact.startswith(prefix) for prefix in CHATTER_PREFIXES):
         return True
     return False
+
+
+def _has_abandonment_signal(lowered: str) -> bool:
+    compact = " ".join(lowered.split())
+    return any(keyword in compact for keyword in ABANDONMENT_KEYWORDS)
 
 
 def _normalize_fragment_text(text: str) -> str:

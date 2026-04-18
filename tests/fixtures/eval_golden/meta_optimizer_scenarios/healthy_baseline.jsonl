@@ -1,0 +1,2 @@
+{"task_id": "healthy-baseline", "event_type": "executor.completed", "message": "Healthy execution.", "payload": {"physical_route": "local-summary", "logical_model": "local", "task_family": "execution", "latency_ms": 3, "token_cost": 0.0, "degraded": false, "error_code": ""}}
+{"task_id": "healthy-baseline", "event_type": "executor.completed", "message": "Healthy execution again.", "payload": {"physical_route": "local-summary", "logical_model": "local", "task_family": "execution", "latency_ms": 4, "token_cost": 0.0, "degraded": false, "error_code": ""}}

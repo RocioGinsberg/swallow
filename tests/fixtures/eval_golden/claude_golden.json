@@ -1,0 +1,69 @@
+{
+  "case_id": "claude_linear_export",
+  "format": "claude_json",
+  "payload": {
+    "name": "Phase 45 Eval Claude Export",
+    "chat_messages": [
+      {
+        "uuid": "c1",
+        "sender": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Decision: adopt the route health proposal review."
+          }
+        ],
+        "created_at": "1"
+      },
+      {
+        "uuid": "c2",
+        "sender": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Okay"
+          }
+        ],
+        "created_at": "2"
+      },
+      {
+        "uuid": "c3",
+        "sender": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Non-goal: no remote ingestion sync."
+          }
+        ],
+        "created_at": "3"
+      },
+      {
+        "uuid": "c4",
+        "sender": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "Thanks"
+          }
+        ],
+        "created_at": "4"
+      },
+      {
+        "uuid": "c5",
+        "sender": "assistant",
+        "content": [
+          {
+            "type": "text",
+            "text": "- Proposal: keep eval tests outside the default pytest run."
+          }
+        ],
+        "created_at": "5"
+      }
+    ]
+  },
+  "expected_keep_turn_ids": [
+    "c1",
+    "c3",
+    "c5"
+  ]
+}
