@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v0.3.2`** — Eval-Driven Development 基线 + 对话树还原 + 结构化摄入摘要
+**当前 tag: `v0.4.0`** — 多模型网络引擎纪元：HTTP 执行器 + CLI 去品牌化 + 多模型路由 + 降级矩阵
 
-本仓库已形成稳定运行基线，320 tests passed + 2 eval passed。
+本仓库已形成稳定运行基线，342 tests passed + 4 eval passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -62,6 +62,11 @@
 - Eval-Driven Development 基础设施：`tests/eval/` + `@pytest.mark.eval` 标记隔离 + Ingestion 降噪质量基线（precision/recall）+ Meta-Optimizer 提案质量基线（scenario-based）
 - ChatGPT 对话树还原：parent-child 树构建、主路径/侧枝识别、abandoned branch 语义保留
 - `swl ingest --summary`：Decisions / Constraints / Rejected Alternatives / Statistics 结构化摘要
+- **HTTP 执行器（HTTPExecutor）**：httpx 直连本地 new-api（OpenAI-compatible），替代 subprocess CLI 成为系统主 LLM 路径，真实多模型网络分发能力首次落地
+- **CLI 执行器去品牌化（CLIAgentExecutor）**：配置驱动的 `CLIAgentConfig`，Codex / Cline 作为配置实例，消除品牌硬编码，`run_executor_inline` 对未知 executor 显式报错
+- **多模型 HTTP 路由**：`http-claude`（claude_xml）/ `http-qwen`（plain_text）/ `http-glm`（plain_text）/ `http-gemini`（plain_text）/ `http-deepseek`（codex_fim）+ `local-cline` 全部注册
+- **分层降级矩阵**：`http-claude → http-qwen → http-glm → local-cline → local-summary`，循环检测保护，429 rate-limit 走重试路径而非立即降级
+- **自建遥测层**：HTTPExecutor 从 API 响应 `usage` 字段捕获真实 token 数据，替代静态成本估算，Meta-Optimizer 消费真实成本数据
 
 ---
 

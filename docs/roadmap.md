@@ -66,52 +66,43 @@ status: living-document
 
 ## 三、推荐 Phase 队列与风险批注 (Claude 维护)
 
-> 最近更新：2026-04-19 (Claude 审阅 Gemini roadmap 产出，更新风险批注与补充上下文)
+> 最近更新：2026-04-20 (Phase 46 完成，更新队列状态与 Phase 47 前置验证要求)
 
 ### 队列总览
 
 | 优先级 | Phase | 名称 | Primary Track | Secondary Track | 风险等级 |
 |--------|-------|------|---------------|-----------------|----------|
 | ~~1~~ | ~~41-45~~| ~~Librarian 收口 / 工作台 / 外部摄入 / Eval 基线~~ | ~~...~~ | ~~...~~ | ~~已完成~~ |
-| **2** | **46** | **模型网关物理层实装 (Gateway Core Materialization)** | **Execution Topology** | **Capabilities** | **高** |
-| 3 | 47 | 多模型共识与策略护栏 | Evaluation / Policy | Core Loop | 中 |
+| ~~2~~ | ~~46~~ | ~~模型网关物理层实装 (Gateway Core Materialization)~~ | ~~Execution Topology~~ | ~~Capabilities~~ | ~~已完成，tag v0.4.0~~ |
+| **3** | **47** | **多模型共识与策略护栏** | **Evaluation / Policy** | **Core Loop** | **中** |
 | 4 | 48 | 存储引擎升级与全异步改造 | Core Loop | State / Truth | 高 |
 
 ### 依赖关系
 
 ```
 Phase 45 (Eval 基线) ✅
-  └──→ Phase 46 (Gateway 网关：通过 Eval 保证底座替换不降级)
+  └──→ Phase 46 (Gateway 网关) ✅ tag v0.4.0
          └──→ Phase 47 (多模型共识：依赖真实的底层多模型分发能力)
                 └──→ Phase 48 (全异步：提升并发调度的性能)
 ```
 
-排序确认：46 → 47 → 48 的依赖链成立。没有真实 HTTP 执行器，多模型共识无从谈起；没有多模型分发，异步改造的收益不大。Phase 46 作为最高优先级，完全同意。
+### ~~Phase 46 — 模型网关物理层实装~~（已完成）
 
-### Phase 46 — 模型网关物理层实装（当前最优先级）
+已完成，tag `v0.4.0`。`HTTPExecutor` 落地，`CLIAgentExecutor` 去品牌化，5 条 HTTP 路由 + `local-cline` 注册，降级链 `http-claude → http-qwen → http-glm → local-cline → local-summary` 有循环检测保护，429 rate-limit 走重试路径。342 passed，4 eval passed。
 
-**优先级理由**：系统现在存在”大脑（Orchestrator）与四肢（Executor）断开”的致命问题。编排层已有完整的路由策略、方言适配、能力协商设计（`PROVIDER_ROUTER_AND_NEGOTIATION.md`），但执行层唯一能真正调用 LLM 的活路径仍然是 `run_codex_executor` 通过 `subprocess.run` 调 Codex CLI。其他路径（`run_local_executor`、`run_mock_executor` 等）要么是 mock 要么是 note-only，不具备真实 LLM 调用能力。必须开发 HTTP Client 替换这条路径，否则后续所有多模型策略编排都是纸上谈兵。
+### Phase 47 — 多模型共识与策略护栏（当前最优先级）
 
-**风险**: 高。具体风险点如下：
+**风险批注**：中。Phase 46 已提供真实多模型分发能力，Phase 47 的前置依赖已满足。
 
-1. **Eval 覆盖缺口**：当前 `tests/eval/` 的基线覆盖的是 ingestion 降噪和 meta-optimizer 提案质量，并不直接覆盖”执行器替换后模型输出质量不降级”这个场景。Phase 46 kickoff 时必须明确：新增哪些 eval 场景来覆盖 HTTP executor 的方言正确性和输出质量（如 JSON Schema 遵循率、代码格式、`<thinking>` 标签闭合等）。
-
-2. **基础设施就绪假设**：Phase 46 假设 `localhost:3000` (new-api) 已经可用。Roadmap 未说明当前 Docker Compose 栈的部署状态。如果 new-api 还没跑起来，Phase 46 的第一个 slice 需要包含基础设施就绪验证，否则后续 slice 全部阻塞。
-
-3. **单 Phase scope 过大**：三个核心任务（HTTP Executor + 方言对齐 + 降级矩阵）放在一个 phase 里。HTTP Executor 本身按风险评级标准已是跨模块(3) + 依赖外部系统(3) + 需要额外工作回滚(2) = 8 分高风险。建议 kickoff 时拆为 3-4 个有明确 stop/go gate 的 slice，避免大爆炸式替换。
-
-### Phase 47 — 多模型共识与策略护栏
-
-**风险批注**：中。前置依赖（Phase 46 HTTP 执行器）是主要风险来源——如果 Phase 46 的降级矩阵不够健壮，多 Reviewer 共识拓扑会放大单点故障。建议 Phase 47 kickoff 时先验证 Phase 46 的降级路径在多模型并发场景下是否稳定。
+**Phase 47 kickoff 前置验证要求**：
+1. 确认 Phase 46 的降级路径在多模型并发场景下稳定（可通过 eval 场景覆盖）
+2. 明确 N-Reviewer 共识拓扑的触发条件：是 TaskCard 级配置还是全局策略
+3. 智能预算策略的成本数据来源：Phase 46 的 `token_cost` event log 已可消费，确认 Meta-Optimizer 是否需要扩展
 
 ### Phase 48 — 存储引擎升级与全异步改造
 
-**风险批注**：高。需要特别讨论一个 trade-off：当前系统的核心卖点之一是”本地优先、零外部依赖”，引入 PostgreSQL 会改变部署模型（用户需要额外运行 PG 实例）。建议 Gemini 在 context_brief 中评估 SQLite（或 SQLite + WAL）作为中间方案的可行性——它保持零服务依赖，同时提供事务保证和 SQL 查询能力，可能足以覆盖 Phase 48 的并发需求而不破坏部署简洁性。如果最终确认需要 PG，应在 kickoff 中显式标注这是一个部署模型变更决策，需要 Human gate。
-
-### 差距描述精确性备注（供 Gemini 参考）
-
-差距 #1 的描述”`executor.py` 内部硬编码了 `subprocess.run([“codex”])`”需要微调。当前 `executor.py` 已有 `run_local_executor`、`run_mock_executor`、`run_mock_remote_executor`、`run_note_only_executor`、`run_codex_executor` 五条路径，`run_codex_executor` 是默认 fallback 而非唯一路径。问题的本质是：**唯一能真正调用 LLM 的活路径仍然是 subprocess 调 Codex CLI**，其他路径不具备真实推理能力。建议将措辞从”硬编码”调整为”唯一活 LLM 路径”。
+**风险批注**：高。SQLite (WAL 模式) + `sqlite-vec` 已在 roadmap 中确认为目标方案（替代 PostgreSQL），与项目零外部依赖原则一致。主要风险是 `TaskState`、`EventLog`、RAG 知识索引的迁移范围，建议 kickoff 时明确迁移边界和回滚策略。
 
 ### Tag 建议
 
-v0.3.2 已打。待 Phase 46 网关彻底打通后，系统将迎来历史性的架构闭环（大脑与手脚连接），届时建议升级大版本号为 `v0.4.0` (多模型网络引擎纪元)。
+Phase 46 完成后已打 `v0.4.0`（多模型网络引擎纪元）。Phase 47 完成后建议打 `v0.5.0`（多模型共识纪元）。

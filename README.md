@@ -96,7 +96,7 @@ It is about:
 
 ## Current Implementation Snapshot
 
-**Current tag: `v0.3.2`**
+**Current tag: `v0.4.0`** — Multi-Model Network Engine: HTTP executor, CLI debranding, multi-model routing, fallback matrix
 
 > This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
 
@@ -126,6 +126,11 @@ In practice, the current system includes:
 - `swl ingest --summary`: structured ingestion summaries with Decisions / Constraints / Rejected Alternatives / Statistics sections
 - operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
 - retrieval over repository files and Markdown / Obsidian notes, with reusable knowledge kept explicit and policy-gated
+- **HTTP executor (`HTTPExecutor`)**: httpx-based direct connection to local new-api (OpenAI-compatible), replacing subprocess CLI as the primary LLM path — the system now has real multi-model network dispatch capability
+- **CLI executor debranding (`CLIAgentExecutor`)**: configuration-driven `CLIAgentConfig` with Codex and Cline as named config instances, eliminating brand hardcoding; unknown executor names now raise `UnknownExecutorError` explicitly
+- **multi-model HTTP routes**: `http-claude` (claude_xml) / `http-qwen` (plain_text) / `http-glm` (plain_text) / `http-gemini` (plain_text) / `http-deepseek` (codex_fim) + `local-cline` all registered
+- **layered fallback matrix**: `http-claude → http-qwen → http-glm → local-cline → local-summary` with cycle detection; HTTP 429 rate-limit routes to retry rather than immediate fallback
+- **self-built telemetry layer**: HTTPExecutor captures real token usage from API response `usage` fields, replacing static cost estimation; Meta-Optimizer now consumes real cost data
 
 The current `main` should be treated as the stable baseline corresponding to the latest tag.
 

@@ -95,7 +95,7 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-**当前 tag: `v0.3.2`**
+**当前 tag: `v0.4.0`** — 多模型网络引擎纪元：HTTP 执行器 + CLI 去品牌化 + 多模型路由 + 降级矩阵
 
 > 本节仅在打新 tag 时更新。实时开发进度请查阅 `docs/active_context.md` 和 `docs/roadmap.md`。
 
@@ -125,6 +125,11 @@ swallow 长期围绕五层组织：
 - `swl ingest --summary`：Decisions / Constraints / Rejected Alternatives / Statistics 结构化摄入摘要
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
 - repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构
+- **HTTP 执行器（HTTPExecutor）**：httpx 直连本地 new-api（OpenAI-compatible），替代 subprocess CLI 成为系统主 LLM 路径，系统首次具备真实多模型网络分发能力
+- **CLI 执行器去品牌化（CLIAgentExecutor）**：配置驱动的 `CLIAgentConfig`，Codex / Cline 作为具名配置实例，消除品牌硬编码；未知 executor name 显式抛出 `UnknownExecutorError`
+- **多模型 HTTP 路由**：`http-claude`（claude_xml）/ `http-qwen`（plain_text）/ `http-glm`（plain_text）/ `http-gemini`（plain_text）/ `http-deepseek`（codex_fim）+ `local-cline` 全部注册
+- **分层降级矩阵**：`http-claude → http-qwen → http-glm → local-cline → local-summary`，循环检测保护；HTTP 429 rate-limit 走重试路径而非立即降级
+- **自建遥测层**：HTTPExecutor 从 API 响应 `usage` 字段捕获真实 token 数据，替代静态成本估算；Meta-Optimizer 现在消费真实成本数据
 
 当前 `main` 应被视为与最新 tag 对齐的稳定基线。
 
