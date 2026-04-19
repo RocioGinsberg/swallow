@@ -56,4 +56,4 @@ Phase 46 方案拆解已产出（`docs/plans/phase46/design_decision.md`）。4 
 
 当前阻塞项：
 
-- `new-api` 本地端点当前不可达（`curl http://localhost:3000/api/status` 失败），真实 HTTP gate 暂未满足
+- 无。new-api 容器已就绪（`~/ai-stack/`，SQLite 模式，端口 3000）。S1 stop/go gate 满足，待 Human 执行 S1 commit 后进入 S2。
