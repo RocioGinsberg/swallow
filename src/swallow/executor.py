@@ -167,7 +167,7 @@ class PlainTextDialect:
     spec = DialectSpec(
         name="plain_text",
         description="Default identity transform for existing plain text executor prompts.",
-        supported_model_hints=["mock", "mock-remote", "local"],
+        supported_model_hints=["mock", "mock-remote", "local", "qwen", "glm", "gemini"],
     )
 
     def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
@@ -372,6 +372,17 @@ def resolve_new_api_api_key() -> str:
         if configured:
             return configured
     return ""
+
+
+def resolve_http_model_name(state: TaskState) -> str:
+    configured_hint = str(state.route_model_hint or "").strip()
+    if configured_hint and configured_hint not in {"http", "http-default"}:
+        return configured_hint
+    for env_name in ("AIWF_NEW_API_DEFAULT_MODEL", "AIWF_HTTP_DEFAULT_MODEL"):
+        configured = os.environ.get(env_name, "").strip()
+        if configured:
+            return configured
+    return "deepseek-chat"
 
 
 def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
@@ -751,9 +762,10 @@ def run_http_executor(
     prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
     endpoint = resolve_new_api_chat_completions_url()
     api_key = resolve_new_api_api_key()
+    model_name = resolve_http_model_name(state)
     timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
     payload = {
-        "model": state.route_model_hint or "claude",
+        "model": model_name,
         "messages": [{"role": "user", "content": prompt}],
     }
     headers = {"Content-Type": "application/json"}
@@ -1084,6 +1096,7 @@ def build_failure_recommendations(failure_kind: str) -> list[str]:
     if failure_kind == "http_error":
         return [
             "- Verify that the configured new-api endpoint is reachable and returns an OpenAI-compatible chat completion payload.",
+            "- Confirm that the selected HTTP route resolves to a concrete model ID instead of the compatibility alias.",
             "- Re-run after checking endpoint status, credentials, and model mapping, or continue manually from the retrieved context if the HTTP path is unavailable now.",
             *common_tail,
         ]

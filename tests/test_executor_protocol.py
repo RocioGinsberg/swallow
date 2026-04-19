@@ -195,6 +195,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(result.executor_name, "http")
         self.assertEqual(result.output, "Gateway response")
         http_post.assert_called_once()
+        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "claude")
 
     def test_run_http_executor_includes_authorization_header_when_key_is_configured(self) -> None:
         state = TaskState(
@@ -216,6 +217,28 @@ class ExecutorProtocolTest(unittest.TestCase):
                 run_http_executor(state, [])
 
         self.assertEqual(http_post.call_args.kwargs["headers"]["Authorization"], "Bearer phase46-test-token")
+
+    def test_run_http_executor_resolves_compatibility_alias_to_default_model(self) -> None:
+        state = TaskState(
+            task_id="task-http-default-model",
+            title="HTTP default model",
+            goal="Use the configured default model for the local-http compatibility route",
+            workspace_root="/tmp",
+            executor_name="http",
+            route_name="local-http",
+            route_model_hint="http-default",
+            route_dialect="plain_text",
+        )
+        response = _FakeHTTPResponse(
+            payload={"choices": [{"message": {"content": "ok"}}]},
+        )
+
+        with patch.dict("os.environ", {"AIWF_NEW_API_DEFAULT_MODEL": "deepseek-chat"}, clear=False):
+            with patch("swallow.executor.httpx.post", return_value=response) as http_post:
+                result = run_http_executor(state, [])
+
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "deepseek-chat")
 
     def test_run_executor_inline_raises_for_unknown_executor(self) -> None:
         state = TaskState(

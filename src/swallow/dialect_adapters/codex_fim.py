@@ -12,7 +12,7 @@ class CodexFIMDialect:
     spec = DialectSpec(
         name="codex_fim",
         description="FIM-style prompt layout for code-oriented executor routes.",
-        supported_model_hints=["codex", "deepseek-coder"],
+        supported_model_hints=["codex", "deepseek", "deepseek-coder"],
     )
 
     def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
