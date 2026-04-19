@@ -62,9 +62,13 @@ def evaluate_checkpoint_snapshot(
     elif retry_ready and checkpoint_kind in {"retry_review", "detached_retry_review"}:
         status = "warning"
         checkpoint_state = "retry_ready"
-        recovery_semantics = "retry_checkpoint_recovery"
         recommended_path = "retry"
         message = "Latest checkpoint allows an operator-gated retry on the accepted run path."
+        if failure_kind in {"timeout", "launch_error", "unreachable_backend", "http_timeout", "http_rate_limited"}:
+            recovery_semantics = "interruption_recovery"
+            interruption_kind = failure_kind
+        else:
+            recovery_semantics = "retry_checkpoint_recovery"
         findings.append(
             CheckpointSnapshotFinding(
                 code="checkpoint.retry_ready",
@@ -96,7 +100,7 @@ def evaluate_checkpoint_snapshot(
         checkpoint_state = "resume_ready"
         recommended_path = "resume"
         message = "Latest failure is checkpointed for operator-guided recovery from persisted task context."
-        if failure_kind in {"timeout", "launch_error", "unreachable_backend", "http_timeout"}:
+        if failure_kind in {"timeout", "launch_error", "unreachable_backend", "http_timeout", "http_rate_limited"}:
             recovery_semantics = "interruption_recovery"
             interruption_kind = failure_kind
         else:

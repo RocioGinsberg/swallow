@@ -16,7 +16,8 @@ from swallow.models import (
     ExecutorResult,
     ValidationResult,
 )
-from swallow.orchestrator import create_task, run_task
+from swallow.models import RetrievalItem, TaskCard, TaskState
+from swallow.orchestrator import _run_binary_fallback, create_task, run_task
 
 
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
@@ -192,6 +193,42 @@ class BinaryFallbackTest(unittest.TestCase):
                 (artifacts_dir / "executor_output.md").read_text(encoding="utf-8").strip(),
                 "fallback executor output",
             )
+
+    def test_binary_fallback_skips_route_degradation_after_http_rate_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = TaskState(
+                task_id="task-http-rate-limit",
+                title="HTTP rate limit",
+                goal="Preserve the current route for retry when the gateway returns 429",
+                workspace_root=str(tmp_path),
+                executor_name="http",
+                route_name="http-claude",
+                route_backend="http_api",
+                route_executor_family="api",
+                route_execution_site="local",
+                route_transport_kind="http",
+                route_model_hint="claude-3-7-sonnet",
+                route_dialect="claude_xml",
+            )
+            card = TaskCard(goal=state.goal, parent_task_id=state.task_id, route_hint="http-claude", executor_type="api")
+            primary_result = ExecutorResult(
+                executor_name="http",
+                status="failed",
+                message="HTTP executor failed with status 429.",
+                output="rate limited",
+                dialect="claude_xml",
+                failure_kind="http_rate_limited",
+                stderr="rate limited",
+            )
+
+            result, next_card, used_fallback = _run_binary_fallback(tmp_path, state, card, [], primary_result)
+
+        self.assertFalse(used_fallback)
+        self.assertIs(result, primary_result)
+        self.assertEqual(next_card, card)
+        self.assertEqual(state.route_name, "http-claude")
+        self.assertFalse(state.route_is_fallback)
 
 
 if __name__ == "__main__":

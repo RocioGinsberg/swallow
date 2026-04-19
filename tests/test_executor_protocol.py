@@ -285,6 +285,23 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(http_post.call_count, 2)
         self.assertEqual(http_post.call_args.kwargs["json"]["model"], "qwen2.5-coder-32b-instruct")
 
+    def test_run_http_executor_keeps_same_route_on_rate_limit(self) -> None:
+        state = _http_state(
+            route_name="http-claude",
+            route_model_hint="claude-3-7-sonnet",
+            route_dialect="claude_xml",
+        )
+        rate_limited = _FakeHTTPResponse(status_code=429, text="rate limited")
+
+        with patch("swallow.executor.httpx.post", return_value=rate_limited) as http_post:
+            result = run_http_executor(state, [])
+
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(result.failure_kind, "http_rate_limited")
+        self.assertFalse(result.degraded)
+        self.assertEqual(state.route_name, "http-claude")
+        self.assertEqual(http_post.call_count, 1)
+
     def test_run_executor_inline_falls_back_from_http_to_local_summary_when_cline_is_unavailable(self) -> None:
         state = _http_state(
             route_name="http-glm",

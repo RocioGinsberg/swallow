@@ -603,6 +603,8 @@ def _run_binary_fallback(
     retrieval_items: list[RetrievalItem],
     primary_result: ExecutorResult,
 ) -> tuple[ExecutorResult, TaskCard, bool]:
+    if primary_result.degraded or primary_result.failure_kind == "http_rate_limited":
+        return primary_result, card, False
     fallback_route = fallback_route_for(state.route_name)
     if fallback_route is None or fallback_route.name == state.route_name:
         return primary_result, card, False

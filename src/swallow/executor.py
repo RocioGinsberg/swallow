@@ -930,16 +930,19 @@ def run_http_executor(
                 response_text
                 or "Set AIWF_NEW_API_KEY, OPENAI_API_KEY, or NEW_API_KEY before using the HTTP executor."
             )
+        failure_kind = "http_rate_limited" if exc.response.status_code == 429 else "http_error"
         result = ExecutorResult(
             executor_name="http",
             status="failed",
             message=f"HTTP executor failed with status {exc.response.status_code}.",
             output=response_text,
             prompt=prompt,
-            failure_kind="http_error",
+            failure_kind=failure_kind,
             stdout="",
             stderr=response_text or str(exc),
         )
+        if exc.response.status_code == 429:
+            return apply_fallback_if_enabled(state, retrieval_items, result)
         return _apply_executor_route_fallback(
             state,
             retrieval_items,
@@ -1298,6 +1301,13 @@ def build_failure_recommendations(failure_kind: str) -> list[str]:
             "- Verify that the configured new-api endpoint is reachable and returns an OpenAI-compatible chat completion payload.",
             "- Confirm that the selected HTTP route resolves to a concrete model ID instead of the compatibility alias.",
             "- Re-run after checking endpoint status, credentials, and model mapping, or continue manually from the retrieved context if the HTTP path is unavailable now.",
+            *common_tail,
+        ]
+    if failure_kind == "http_rate_limited":
+        return [
+            "- The HTTP gateway reported rate limiting (429); prefer retrying the same route instead of switching models immediately.",
+            "- Re-run after a short backoff or adjust provider-side quota / concurrency settings before changing the route.",
+            "- Keep the current route as the primary recovery path unless repeated rate limiting persists across retries.",
             *common_tail,
         ]
     if failure_kind == "http_timeout":
