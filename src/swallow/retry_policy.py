@@ -12,7 +12,7 @@ from .models import (
 )
 
 
-RETRYABLE_FAILURE_KINDS = {"timeout", "unreachable_backend", "generic_failure"}
+RETRYABLE_FAILURE_KINDS = {"timeout", "unreachable_backend", "generic_failure", "http_timeout", "http_error"}
 BASELINE_MAX_ATTEMPTS = 2
 
 

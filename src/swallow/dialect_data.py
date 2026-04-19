@@ -19,6 +19,8 @@ DEFAULT_EXECUTOR = "codex"
 EXECUTOR_ALIASES = {
     "": DEFAULT_EXECUTOR,
     "codex": "codex",
+    "cline": "cline",
+    "http": "http",
     "mock": "mock",
     "mock-remote": "mock-remote",
     "mock_remote": "mock-remote",
@@ -111,7 +113,7 @@ class PromptData:
 
 def normalize_executor_name(raw_name: str | None) -> str:
     normalized = (raw_name or "").strip().lower()
-    return EXECUTOR_ALIASES.get(normalized, DEFAULT_EXECUTOR)
+    return EXECUTOR_ALIASES.get(normalized, normalized or DEFAULT_EXECUTOR)
 
 
 def resolve_executor_name(state: TaskState) -> str:

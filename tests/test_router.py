@@ -8,7 +8,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
-from swallow.router import RouteRegistry, build_detached_route, route_for_executor, select_route
+from swallow.router import RouteRegistry, build_detached_route, route_for_executor, route_for_mode, select_route
 
 
 def _route(
@@ -52,6 +52,19 @@ class RouteRegistryTest(unittest.TestCase):
 
         self.assertEqual(route.name, "local-codex")
         self.assertEqual(route.fallback_route_name, "local-summary")
+
+    def test_route_for_executor_returns_builtin_http_route(self) -> None:
+        route = route_for_executor("http")
+
+        self.assertEqual(route.name, "local-http")
+        self.assertEqual(route.backend_kind, "http_api")
+        self.assertEqual(route.transport_kind, "http")
+
+    def test_route_for_mode_supports_http_mode(self) -> None:
+        route = route_for_mode("http")
+
+        self.assertIsNotNone(route)
+        self.assertEqual(route.name, "local-http")
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
         detached = build_detached_route(route_for_executor("codex"))

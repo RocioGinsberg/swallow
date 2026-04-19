@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import replace
+from dataclasses import dataclass, replace
 import shutil
 import subprocess
 import sys
@@ -10,12 +10,19 @@ import tempfile
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
+import httpx
+
 from .cost_estimation import estimate_tokens
 from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
 from .dialect_adapters import ClaudeXMLDialect, CodexFIMDialect
 from .models import DialectSpec, ExecutorResult, RetrievalItem, TaskCard, TaskState
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
+DEFAULT_NEW_API_CHAT_COMPLETIONS_URL = "http://localhost:3000/v1/chat/completions"
+
+
+class UnknownExecutorError(ValueError):
+    """Raised when the task state points at an executor we do not implement."""
 
 
 class DialectAdapter(Protocol):
@@ -72,6 +79,72 @@ class MockExecutor:
         return _run_harness_execution(base_dir, state, retrieval_items)
 
 
+class HTTPExecutor:
+    """Adapter for the HTTP-backed execution path."""
+
+    def execute(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
+        return _run_harness_execution(base_dir, state, retrieval_items)
+
+
+@dataclass(frozen=True, slots=True)
+class CLIAgentConfig:
+    executor_name: str
+    display_name: str
+    bin_env_var: str
+    default_bin: str
+    fixed_args: tuple[str, ...]
+    output_path_flags: tuple[str, ...] = ()
+    workspace_root_flags: tuple[str, ...] = ()
+
+
+CODEX_CONFIG = CLIAgentConfig(
+    executor_name="codex",
+    display_name="Codex",
+    bin_env_var="AIWF_CODEX_BIN",
+    default_bin="codex",
+    fixed_args=("exec", "--skip-git-repo-check", "--full-auto", "--ephemeral", "--color", "never"),
+    output_path_flags=("--output-last-message",),
+    workspace_root_flags=("--cd",),
+)
+
+CLINE_CONFIG = CLIAgentConfig(
+    executor_name="cline",
+    display_name="Cline",
+    bin_env_var="AIWF_CLINE_BIN",
+    default_bin="cline",
+    fixed_args=("-y",),
+)
+
+CLI_AGENT_CONFIGS = {
+    CODEX_CONFIG.executor_name: CODEX_CONFIG,
+    CLINE_CONFIG.executor_name: CLINE_CONFIG,
+}
+
+
+class CLIAgentExecutor:
+    """Adapter for brand-configured CLI agents that still run through the harness."""
+
+    def __init__(self, config: CLIAgentConfig) -> None:
+        self.config = config
+
+    def execute(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
+        return _run_harness_execution(base_dir, state, retrieval_items)
+
+
 def resolve_executor(executor_type: str, executor_name: str) -> ExecutorProtocol:
     raw_name = (executor_name or "").strip().lower()
     normalized_name = normalize_executor_name(executor_name)
@@ -83,6 +156,10 @@ def resolve_executor(executor_type: str, executor_name: str) -> ExecutorProtocol
         return LibrarianExecutor()
     if normalized_name in {"mock", "mock-remote"} or normalized_type == "mock":
         return MockExecutor()
+    if normalized_name == "http" or normalized_type in {"http", "api"}:
+        return HTTPExecutor()
+    if normalized_name in CLI_AGENT_CONFIGS:
+        return CLIAgentExecutor(CLI_AGENT_CONFIGS[normalized_name])
     return LocalCLIExecutor()
 
 
@@ -267,11 +344,34 @@ def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) 
         result = run_note_only_executor(state, retrieval_items, prompt)
     elif executor_name == "local":
         result = run_local_executor(state, retrieval_items, prompt)
-    else:
+    elif executor_name == "http":
+        result = run_http_executor(state, retrieval_items, prompt)
+    elif executor_name == "codex":
         result = run_codex_executor(state, retrieval_items, prompt)
+    elif executor_name == "cline":
+        result = run_cli_agent_executor(CLINE_CONFIG, state, retrieval_items, prompt)
+    else:
+        raise UnknownExecutorError(f"Unknown executor name: {executor_name}")
+    result = replace(result, executor_name=executor_name)
+    result = replace(result, prompt=prompt or result.prompt)
     result = replace(result, review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip())
     result.dialect = state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint)
     return _attach_estimated_usage(result)
+
+
+def resolve_new_api_chat_completions_url() -> str:
+    configured = os.environ.get("AIWF_NEW_API_BASE_URL", "").strip().rstrip("/")
+    if configured:
+        return f"{configured}/v1/chat/completions"
+    return DEFAULT_NEW_API_CHAT_COMPLETIONS_URL
+
+
+def resolve_new_api_api_key() -> str:
+    for env_name in ("AIWF_NEW_API_KEY", "OPENAI_API_KEY", "NEW_API_KEY"):
+        configured = os.environ.get(env_name, "").strip()
+        if configured:
+            return configured
+    return ""
 
 
 def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
@@ -313,15 +413,15 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
         if completed.returncode != 0:
             return _attach_estimated_usage(
                 ExecutorResult(
-                executor_name=resolve_executor_name(state),
-                status="failed",
-                message="Detached local executor child process failed.",
-                output="",
-                prompt=prompt,
-                dialect=state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint),
-                failure_kind="launch_error",
-                stdout=completed.stdout,
-                stderr=completed.stderr,
+                    executor_name=resolve_executor_name(state),
+                    status="failed",
+                    message="Detached local executor child process failed.",
+                    output="",
+                    prompt=prompt,
+                    dialect=state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint),
+                    failure_kind="launch_error",
+                    stdout=completed.stdout,
+                    stderr=completed.stderr,
                 )
             )
         try:
@@ -329,21 +429,23 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
         except (OSError, json.JSONDecodeError) as exc:
             return _attach_estimated_usage(
                 ExecutorResult(
-                executor_name=resolve_executor_name(state),
-                status="failed",
-                message="Detached local executor did not return a readable result.",
-                output="",
-                prompt=prompt,
-                dialect=state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint),
-                failure_kind="generic_failure",
-                stdout=completed.stdout,
-                stderr=f"{completed.stderr}\n{exc}".strip(),
+                    executor_name=resolve_executor_name(state),
+                    status="failed",
+                    message="Detached local executor did not return a readable result.",
+                    output="",
+                    prompt=prompt,
+                    dialect=state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint),
+                    failure_kind="generic_failure",
+                    stdout=completed.stdout,
+                    stderr=f"{completed.stderr}\n{exc}".strip(),
                 )
             )
     return replace(
         ExecutorResult(**payload),
         review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip(),
     )
+
+
 
 
 def _attach_estimated_usage(result: ExecutorResult) -> ExecutorResult:
@@ -621,42 +723,166 @@ def build_formatted_executor_prompt(state: TaskState, retrieval_items: list[Retr
     return adapter.format_prompt(raw_prompt, state, retrieval_items)
 
 
-def run_codex_executor(
+def _normalize_http_response_content(content: object) -> str:
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                text_value = str(item.get("text", "")).strip()
+                if text_value:
+                    parts.append(text_value)
+            else:
+                text_value = str(item).strip()
+                if text_value:
+                    parts.append(text_value)
+        return "\n".join(parts).strip()
+    if content is None:
+        return ""
+    return str(content).strip()
+
+
+def run_http_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str | None = None,
+) -> ExecutorResult:
+    prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
+    endpoint = resolve_new_api_chat_completions_url()
+    api_key = resolve_new_api_api_key()
+    timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
+    payload = {
+        "model": state.route_model_hint or "claude",
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    try:
+        response = httpx.post(endpoint, json=payload, headers=headers, timeout=timeout_seconds)
+        response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        result = ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message=f"HTTP executor timed out after {timeout_seconds} seconds.",
+            prompt=prompt,
+            failure_kind="http_timeout",
+            stdout="",
+            stderr=str(exc),
+        )
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+    except httpx.HTTPStatusError as exc:
+        response_text = clean_output(exc.response.text)
+        if exc.response.status_code in {401, 403} and not api_key:
+            response_text = (
+                response_text
+                or "Set AIWF_NEW_API_KEY, OPENAI_API_KEY, or NEW_API_KEY before using the HTTP executor."
+            )
+        result = ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message=f"HTTP executor failed with status {exc.response.status_code}.",
+            output=response_text,
+            prompt=prompt,
+            failure_kind="http_error",
+            stdout="",
+            stderr=response_text or str(exc),
+        )
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+    except httpx.RequestError as exc:
+        result = ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message=f"HTTP executor request failed: {exc}",
+            prompt=prompt,
+            failure_kind="http_error",
+            stdout="",
+            stderr=str(exc),
+        )
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+
+    try:
+        data = response.json()
+        choices = data["choices"]
+        message = choices[0]["message"]
+        content = _normalize_http_response_content(message.get("content"))
+    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        result = ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message="HTTP executor returned an unreadable chat completion payload.",
+            output=clean_output(response.text),
+            prompt=prompt,
+            failure_kind="http_error",
+            stdout="",
+            stderr=str(exc),
+        )
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+
+    return ExecutorResult(
+        executor_name="http",
+        status="completed",
+        message="HTTP executor completed.",
+        output=content or "HTTP executor completed without a final text response.",
+        prompt=prompt,
+        failure_kind="",
+        stdout="",
+        stderr="",
+    )
+
+
+def _build_cli_agent_command(
+    config: CLIAgentConfig,
+    *,
+    workspace_root: str,
+    prompt: str,
+    output_path: Path | None = None,
+) -> list[str]:
+    command = [resolve_cli_agent_binary(config), *config.fixed_args]
+    if output_path is not None and config.output_path_flags:
+        command.extend([*config.output_path_flags, str(output_path)])
+    if config.workspace_root_flags:
+        command.extend([*config.workspace_root_flags, workspace_root])
+    command.append(prompt)
+    return command
+
+
+def resolve_cli_agent_binary(config: CLIAgentConfig) -> str:
+    return os.environ.get(config.bin_env_var, config.default_bin).strip() or config.default_bin
+
+
+def run_cli_agent_executor(
+    config: CLIAgentConfig,
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     prompt: str | None = None,
 ) -> ExecutorResult:
     prompt = prompt or build_executor_prompt(state, retrieval_items)
-    codex_bin = os.environ.get("AIWF_CODEX_BIN", "codex").strip()
+    agent_bin = resolve_cli_agent_binary(config)
     timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
-    if not shutil.which(codex_bin):
+    if not shutil.which(agent_bin):
         result = ExecutorResult(
-            executor_name="codex",
+            executor_name=config.executor_name,
             status="failed",
-            message=f"Codex binary not found: {codex_bin}",
+            message=f"{config.display_name} binary not found: {agent_bin}",
             prompt=prompt,
             failure_kind="launch_error",
             stdout="",
-            stderr=f"Codex binary not found: {codex_bin}",
+            stderr=f"{config.display_name} binary not found: {agent_bin}",
         )
         return apply_fallback_if_enabled(state, retrieval_items, result)
 
-    with tempfile.TemporaryDirectory(prefix="swl-codex-") as temp_dir:
-        output_path = Path(temp_dir) / "last_message.txt"
-        command = [
-            codex_bin,
-            "exec",
-            "--skip-git-repo-check",
-            "--full-auto",
-            "--ephemeral",
-            "--color",
-            "never",
-            "--output-last-message",
-            str(output_path),
-            "--cd",
-            state.workspace_root,
-            prompt,
-        ]
+    with tempfile.TemporaryDirectory(prefix=f"swl-{config.executor_name}-") as temp_dir:
+        output_path = Path(temp_dir) / "last_message.txt" if config.output_path_flags else None
+        command = _build_cli_agent_command(
+            config,
+            workspace_root=state.workspace_root,
+            prompt=prompt,
+            output_path=output_path,
+        )
         try:
             completed = subprocess.run(
                 command,
@@ -667,11 +893,15 @@ def run_codex_executor(
                 timeout=timeout_seconds,
             )
         except subprocess.TimeoutExpired as exc:
-            output = read_last_message(output_path) or clean_output(exc.stdout) or clean_output(exc.stderr)
+            output = (
+                (read_last_message(output_path) if output_path is not None else "")
+                or clean_output(exc.stdout)
+                or clean_output(exc.stderr)
+            )
             result = ExecutorResult(
-                executor_name="codex",
+                executor_name=config.executor_name,
                 status="failed",
-                message=f"Codex executor timed out after {timeout_seconds} seconds.",
+                message=f"{config.display_name} executor timed out after {timeout_seconds} seconds.",
                 output=output,
                 prompt=prompt,
                 failure_kind="timeout",
@@ -681,9 +911,9 @@ def run_codex_executor(
             return apply_fallback_if_enabled(state, retrieval_items, result)
         except OSError as exc:
             result = ExecutorResult(
-                executor_name="codex",
+                executor_name=config.executor_name,
                 status="failed",
-                message=f"Failed to launch Codex: {exc}",
+                message=f"Failed to launch {config.display_name}: {exc}",
                 prompt=prompt,
                 failure_kind="launch_error",
                 stdout="",
@@ -691,16 +921,16 @@ def run_codex_executor(
             )
             return apply_fallback_if_enabled(state, retrieval_items, result)
 
-        output = read_last_message(output_path) or clean_output(completed.stdout)
+        output = (read_last_message(output_path) if output_path is not None else "") or clean_output(completed.stdout)
         error_output = clean_output(completed.stderr)
         if completed.returncode != 0:
             combined_output = output or error_output
             failure_kind = classify_failure_kind(completed.returncode, error_output, combined_output)
-            message = f"Codex executor failed with exit code {completed.returncode}."
+            message = f"{config.display_name} executor failed with exit code {completed.returncode}."
             if error_output:
                 message = f"{message} {error_output}"
             result = ExecutorResult(
-                executor_name="codex",
+                executor_name=config.executor_name,
                 status="failed",
                 message=message,
                 output=combined_output,
@@ -712,15 +942,23 @@ def run_codex_executor(
             return apply_fallback_if_enabled(state, retrieval_items, result)
 
         return ExecutorResult(
-            executor_name="codex",
+            executor_name=config.executor_name,
             status="completed",
-            message="Codex executor completed.",
-            output=output or "Codex completed without a final text response.",
+            message=f"{config.display_name} executor completed.",
+            output=output or f"{config.display_name} completed without a final text response.",
             prompt=prompt,
             failure_kind="",
             stdout=clean_output(completed.stdout),
             stderr=error_output,
         )
+
+
+def run_codex_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str | None = None,
+) -> ExecutorResult:
+    return run_cli_agent_executor(CODEX_CONFIG, state, retrieval_items, prompt)
 
 
 def parse_timeout_seconds(raw_value: str) -> int:
@@ -843,6 +1081,18 @@ def build_failure_recommendations(failure_kind: str) -> list[str]:
         "- Use this note and `executor_prompt.md` as the persisted continuation context.",
     ]
 
+    if failure_kind == "http_error":
+        return [
+            "- Verify that the configured new-api endpoint is reachable and returns an OpenAI-compatible chat completion payload.",
+            "- Re-run after checking endpoint status, credentials, and model mapping, or continue manually from the retrieved context if the HTTP path is unavailable now.",
+            *common_tail,
+        ]
+    if failure_kind == "http_timeout":
+        return [
+            "- Re-run with a longer `AIWF_EXECUTOR_TIMEOUT_SECONDS` value if the HTTP gateway is reachable but slow.",
+            "- Review gateway health and model latency before retrying so the next run uses an explicit timeout assumption.",
+            *common_tail,
+        ]
     if failure_kind == "unreachable_backend":
         return [
             "- Verify that the execution environment allows outbound network and websocket access for the Codex backend.",

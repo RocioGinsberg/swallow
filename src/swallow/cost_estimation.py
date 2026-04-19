@@ -5,9 +5,13 @@ from typing import Protocol, runtime_checkable
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude": (3.0, 15.0),
     "codex": (0.0, 0.0),
+    "deepseek": (0.27, 1.1),
+    "gemini": (1.25, 5.0),
+    "glm": (0.5, 1.5),
     "local": (0.0, 0.0),
     "mock": (0.0, 0.0),
     "mock-remote": (0.0, 0.0),
+    "qwen": (0.6, 1.2),
 }
 
 

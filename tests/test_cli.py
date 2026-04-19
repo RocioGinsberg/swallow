@@ -8120,7 +8120,7 @@ class CliLifecycleTest(unittest.TestCase):
     def test_normalize_executor_name_supports_aliases(self) -> None:
         self.assertEqual(normalize_executor_name("local-summary"), "local")
         self.assertEqual(normalize_executor_name("note_only"), "note-only")
-        self.assertEqual(normalize_executor_name("unknown-executor"), "codex")
+        self.assertEqual(normalize_executor_name("unknown-executor"), "unknown-executor")
 
     def test_resolve_dialect_name_prefers_route_hint_and_falls_back_to_plain_text(self) -> None:
         self.assertEqual(resolve_dialect_name("structured_markdown", "codex"), "structured_markdown")

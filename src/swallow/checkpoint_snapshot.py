@@ -96,7 +96,7 @@ def evaluate_checkpoint_snapshot(
         checkpoint_state = "resume_ready"
         recommended_path = "resume"
         message = "Latest failure is checkpointed for operator-guided recovery from persisted task context."
-        if failure_kind in {"timeout", "launch_error", "unreachable_backend"}:
+        if failure_kind in {"timeout", "launch_error", "unreachable_backend", "http_timeout"}:
             recovery_semantics = "interruption_recovery"
             interruption_kind = failure_kind
         else:
