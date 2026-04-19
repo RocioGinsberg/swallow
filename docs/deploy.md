@@ -6,7 +6,8 @@
 │  swl CLI                                          │
 │    └─ Swallow Runtime                             │
 │        ├─ RouteRegistry                           │
-│        └─ Dialect Adapters                        │
+│        ├─ Dialect Adapters                        │
+│        └─ 自建遥测层（token usage / route health）│
 │           │                                        │
 │           └─ HTTP → localhost:3000 (new-api)      │
 │                                                    │
@@ -16,10 +17,8 @@
 │  │   ├─ HTTPS_PROXY=http://vps-wg-ip:8888   │    │
 │  │   └─ 上游: OpenAI/Anthropic/OR/AIHubMix  │    │
 │  │                                           │    │
-│  │ TensorZero :3001  推理遥测                │    │
 │  │ Open WebUI :3002  对话面板                │    │
 │  │   └─ OPENAI_API_BASE=http://new-api:3000 │    │
-│  │ Postgres   :5432  (pgvector)              │    │
 │  │ Caddy      :443   本地 HTTPS + 反代      │    │
 │  └──────────────────────────────────────────┘    │
 │                                                    │
@@ -160,39 +159,18 @@ curl -x http://10.8.0.1:8888 https://api.openai.com/v1/models -H "Authorization:
 ```yaml
 # ~/ai-stack/docker-compose.yml
 services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
-    volumes:
-      - ./data/postgres:/var/lib/postgresql/data
-      - ./init-pgvector.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    restart: unless-stopped
-
   new-api:
     image: calciumion/new-api:latest
     ports:
       - "127.0.0.1:3000:3000"   # 只绑 localhost
     environment:
-      SQL_DSN: postgres://postgres:${PG_PASSWORD}@postgres:5432/newapi
+      # 不设 SQL_DSN，new-api 默认使用 SQLite（零外部依赖）
       # 关键：上游请求走 VPS Tinyproxy
       HTTPS_PROXY: http://10.8.0.1:8888
       HTTP_PROXY: http://10.8.0.1:8888
-      NO_PROXY: localhost,127.0.0.1,postgres,tensorzero,openwebui
-    depends_on:
-      - postgres
-    restart: unless-stopped
-
-  tensorzero:
-    image: tensorzero/gateway:latest
-    ports:
-      - "127.0.0.1:3001:3001"
-    environment:
-      TENSORZERO_POSTGRES_URL: postgres://postgres:${PG_PASSWORD}@postgres:5432/tensorzero
+      NO_PROXY: localhost,127.0.0.1,openwebui
     volumes:
-      - ./tensorzero/tensorzero.toml:/app/config/tensorzero.toml:ro
-    depends_on:
-      - postgres
+      - ./data/new-api:/data   # SQLite 数据持久化
     restart: unless-stopped
 
   openwebui:
@@ -200,7 +178,7 @@ services:
     ports:
       - "0.0.0.0:3002:8080"     # Tailscale 可访问
     environment:
-      DATABASE_URL: postgresql://postgres:${PG_PASSWORD}@postgres:5432/openwebui
+      # 不设 DATABASE_URL，Open WebUI 默认使用 SQLite
       OPENAI_API_BASE_URL: http://new-api:3000/v1
       OPENAI_API_KEY: ${NEW_API_KEY}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET}
@@ -224,11 +202,14 @@ services:
 **端口绑定的设计**：
 
 * `127.0.0.1:3000` (new-api)：只本机访问，Swallow Runtime 直连
-* `127.0.0.1:3001` (tensorzero)：同上
 * `0.0.0.0:3002` (Open WebUI)：Tailscale 内网可访问（Tailscale 会自动让 100.x.x.x 这个接口上的 0.0.0.0 绑定可达）
 * `127.0.0.1:443` (Caddy)：可选，如果你想在 Tailscale 里用 HTTPS 访问
 
+> **遥测说明**：推理遥测（token usage、route health、latency）由 Swallow 自建层承担——HTTPExecutor 从每次 API 响应的 `usage` 字段捕获真实 token 数据，写入 event log，由 Meta-Optimizer 消费。不依赖 TensorZero 或 PostgreSQL。
+
 如果想统一走 HTTPS，把 Open WebUI 改成 `127.0.0.1:3002`，Caddy 反代到它，然后 Caddy 绑 `0.0.0.0:443`。Tailscale 配合 MagicDNS 可以直接给你签证书（`tailscale cert`）。
+
+> **未来扩展**：如需引入 TensorZero（A/B 实验框架）或 PostgreSQL（pgvector 向量检索），在对应 phase 时单独添加 service 即可，不影响当前最小栈。
 
 ## Swallow Runtime 配置
 
@@ -263,7 +244,7 @@ routes:
 4. 在 new-api 面板（`localhost:3000`）配一个 OpenAI 渠道，点"测试" → 通过
 5. 在工作站浏览器打开 `localhost:3002` → Open WebUI 能用
 6. 手机装 Tailscale，加入 Tailnet → 手机浏览器打开 `http://100.x.x.10:3002` → 能用
-7. `swl ask "test"` → 看到回复且 TensorZero 面板里有记录
+7. `swl ask "test"` → 看到回复，`swl doctor` 报告 new-api 端点状态正常
 
 ## 几个容易踩的坑
 
@@ -294,15 +275,8 @@ Docker 容器里的 `10.8.0.1` 能不能到达取决于网络模式。默认 bri
 
 第一次打开 `3002` 端口，会让你注册第一个账号——**这个账号是管理员**。注册完立刻在 .env 里设 `ENABLE_SIGNUP=false` 或 `DEFAULT_USER_ROLE=pending`，防止别人扫到后注册。
 
-**5. pgvector 扩展手动开启**
+**5. ~~pgvector 扩展手动开启~~**
 
-```sql
--- init-pgvector.sql
-CREATE DATABASE newapi;
-CREATE DATABASE tensorzero;
-CREATE DATABASE openwebui;
-\c openwebui
-CREATE EXTENSION IF NOT EXISTS vector;
-```
+> 已移除 PostgreSQL 依赖，此步骤不再需要。new-api 和 Open WebUI 均使用 SQLite。如未来引入 PostgreSQL（如 TensorZero 或向量检索），届时再配置。
 
 ---

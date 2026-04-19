@@ -1,0 +1,16 @@
+[
+  {
+    "object_id": "knowledge-0001",
+    "text": "Current task topology review retrieval reuse boundary stays grounded by the compatibility report artifact for this task.",
+    "stage": "verified",
+    "source_kind": "external_knowledge_capture",
+    "source_ref": "fixture://demo-current",
+    "task_linked": true,
+    "captured_at": "2026-04-20T00:00:00+00:00",
+    "evidence_status": "artifact_backed",
+    "artifact_ref": ".swl/tasks/demo/artifacts/summary.md",
+    "retrieval_eligible": true,
+    "knowledge_reuse_scope": "retrieval_candidate",
+    "canonicalization_intent": "none"
+  }
+]

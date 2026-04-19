@@ -8,7 +8,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
-from swallow.router import RouteRegistry, build_detached_route, route_for_executor, select_route
+from swallow.router import RouteRegistry, build_detached_route, route_by_name, route_for_executor, route_for_mode, select_route
 
 
 def _route(
@@ -16,6 +16,9 @@ def _route(
     name: str,
     executor_name: str,
     backend_kind: str,
+    model_hint: str | None = None,
+    dialect_hint: str = "",
+    fallback_route_name: str = "local-summary",
     execution_site: str = "local",
     executor_family: str = "cli",
     execution_kind: str = "artifact_generation",
@@ -25,8 +28,9 @@ def _route(
         name=name,
         executor_name=executor_name,
         backend_kind=backend_kind,
-        model_hint=executor_name,
-        fallback_route_name="local-summary",
+        model_hint=model_hint or executor_name,
+        dialect_hint=dialect_hint,
+        fallback_route_name=fallback_route_name,
         executor_family=executor_family,
         execution_site=execution_site,
         remote_capable=execution_site == "remote",
@@ -52,6 +56,33 @@ class RouteRegistryTest(unittest.TestCase):
 
         self.assertEqual(route.name, "local-codex")
         self.assertEqual(route.fallback_route_name, "local-summary")
+
+    def test_route_for_executor_returns_builtin_http_route(self) -> None:
+        route = route_for_executor("http")
+
+        self.assertEqual(route.name, "local-http")
+        self.assertEqual(route.backend_kind, "http_api")
+        self.assertEqual(route.transport_kind, "http")
+
+    def test_route_for_executor_returns_builtin_cline_route(self) -> None:
+        route = route_for_executor("cline")
+
+        self.assertEqual(route.name, "local-cline")
+        self.assertEqual(route.fallback_route_name, "local-summary")
+
+    def test_route_for_mode_supports_http_mode(self) -> None:
+        route = route_for_mode("http")
+
+        self.assertIsNotNone(route)
+        self.assertEqual(route.name, "local-http")
+
+    def test_builtin_multi_model_http_routes_are_registered(self) -> None:
+        self.assertEqual(route_by_name("http-claude").dialect_hint, "claude_xml")
+        self.assertEqual(route_by_name("http-qwen").dialect_hint, "plain_text")
+        self.assertEqual(route_by_name("http-glm").fallback_route_name, "local-cline")
+        self.assertEqual(route_by_name("http-gemini").fallback_route_name, "http-qwen")
+        self.assertEqual(route_by_name("http-deepseek").dialect_hint, "codex_fim")
+        self.assertEqual(route_by_name("local-cline").dialect_hint, "plain_text")
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
         detached = build_detached_route(route_for_executor("codex"))
@@ -169,6 +200,64 @@ class RouteRegistryTest(unittest.TestCase):
 
         self.assertEqual(selection.route.name, "local-summary")
         self.assertIn("local summary fallback", selection.reason)
+
+    def test_select_route_prefers_http_route_matching_model_hint(self) -> None:
+        registry = RouteRegistry(
+            [
+                _route(
+                    name="local-http",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    model_hint="http-default",
+                    dialect_hint="plain_text",
+                    execution_site="local",
+                    executor_family="api",
+                ),
+                _route(
+                    name="http-claude",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    model_hint="claude-3-7-sonnet",
+                    dialect_hint="claude_xml",
+                    fallback_route_name="http-qwen",
+                    execution_site="local",
+                    executor_family="api",
+                ),
+                _route(
+                    name="http-deepseek",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    model_hint="deepseek-chat",
+                    dialect_hint="codex_fim",
+                    fallback_route_name="http-qwen",
+                    execution_site="local",
+                    executor_family="api",
+                    execution_kind="code_execution",
+                ),
+                _route(
+                    name="local-summary",
+                    executor_name="local",
+                    backend_kind="local_summary",
+                ),
+            ]
+        )
+        state = TaskState(
+            task_id="http-model-match-001",
+            title="HTTP model selection",
+            goal="Route HTTP executor by logical model hint",
+            workspace_root="/tmp",
+            executor_name="http",
+            route_executor_family="api",
+            route_execution_site="local",
+            route_model_hint="deepseek",
+        )
+
+        with patch("swallow.router.ROUTE_REGISTRY", registry):
+            selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "http-deepseek")
+        self.assertEqual(selection.route.dialect_hint, "codex_fim")
+        self.assertIn("model hint", selection.reason)
 
 
 if __name__ == "__main__":

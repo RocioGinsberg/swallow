@@ -120,10 +120,14 @@ class DialectAdaptersTest(unittest.TestCase):
             prompt_data.retrieval_entries[0],
         )
 
-    def test_resolve_dialect_name_matches_claude_and_codex_model_hints(self) -> None:
+    def test_resolve_dialect_name_matches_provider_model_hint_matrix(self) -> None:
         self.assertEqual(resolve_dialect_name("", "claude-3-7-sonnet"), "claude_xml")
         self.assertEqual(resolve_dialect_name("", "codex"), "codex_fim")
+        self.assertEqual(resolve_dialect_name("", "deepseek-chat"), "codex_fim")
         self.assertEqual(resolve_dialect_name("", "deepseek-coder-v2"), "codex_fim")
+        self.assertEqual(resolve_dialect_name("", "qwen2.5-coder-32b-instruct"), "plain_text")
+        self.assertEqual(resolve_dialect_name("", "glm-4.5-air"), "plain_text")
+        self.assertEqual(resolve_dialect_name("", "gemini-2.5-pro"), "plain_text")
 
     def test_build_formatted_executor_prompt_wraps_claude_xml_prompt(self) -> None:
         state = TaskState(
@@ -352,6 +356,27 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertIn("<fim_prefix>", prompt)
         self.assertIn("Review Feedback (Round 1)", prompt)
         self.assertIn("Fix the failing schema fields.", prompt)
+
+    def test_build_formatted_executor_prompt_uses_codex_fim_for_deepseek_code_route(self) -> None:
+        state = TaskState(
+            task_id="deepseek-fim-001",
+            title="DeepSeek code route",
+            goal="Use the code-oriented HTTP dialect for DeepSeek routes",
+            workspace_root="/tmp",
+            route_name="http-deepseek",
+            route_backend="http_api",
+            route_executor_family="api",
+            route_execution_site="local",
+            route_model_hint="deepseek-chat",
+            route_dialect="codex_fim",
+            route_capabilities={"execution_kind": "code_execution", "supports_tool_loop": False},
+        )
+
+        prompt = build_formatted_executor_prompt(state, [])
+
+        self.assertTrue(prompt.startswith("<fim_prefix>\n"))
+        self.assertIn("Route: http-deepseek", prompt)
+        self.assertIn("Model Hint: deepseek-chat", prompt)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,8 @@ class CostEstimationTest(unittest.TestCase):
         self.assertEqual(estimate_cost("local", 1000, 1000), 0.0)
         self.assertEqual(estimate_cost("codex", 1000, 1000), 0.0)
         self.assertAlmostEqual(estimate_cost("claude-3-5-sonnet", 1_000_000, 1_000_000), 18.0)
+        self.assertGreater(estimate_cost("gemini-2.5-pro", 1_000_000, 1_000_000), 0.0)
+        self.assertGreater(estimate_cost("qwen3-coder", 1_000_000, 1_000_000), 0.0)
         self.assertEqual(estimate_cost("unknown-model", 1000, 1000), 0.0)
 
     def test_static_cost_estimator_satisfies_protocol(self) -> None:

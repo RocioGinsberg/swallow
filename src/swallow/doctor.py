@@ -6,6 +6,8 @@ import subprocess
 from dataclasses import dataclass
 from urllib import error, request
 
+DEFAULT_NEW_API_BASE_URL = "http://localhost:3000"
+
 
 @dataclass(slots=True)
 class DoctorResult:
@@ -97,6 +99,35 @@ def _check_http_endpoint(name: str, url: str, *, timeout: int = 5) -> LocalStack
         return LocalStackCheck(name=name, status="fail", details=str(exc))
 
 
+def resolve_new_api_base_url() -> str:
+    configured = os.environ.get("AIWF_NEW_API_BASE_URL", DEFAULT_NEW_API_BASE_URL).strip()
+    if not configured:
+        return DEFAULT_NEW_API_BASE_URL
+    return configured.rstrip("/")
+
+
+def _check_new_api_endpoint(*, timeout: int = 5) -> LocalStackCheck:
+    url = f"{resolve_new_api_base_url()}/v1/models"
+    try:
+        with request.urlopen(url, timeout=timeout) as response:
+            status = int(getattr(response, "status", 200))
+            return LocalStackCheck(
+                name="new_api_endpoint",
+                status="pass" if 200 <= status < 300 else "fail",
+                details=f"HTTP {status} ({url})",
+            )
+    except error.HTTPError as exc:
+        status = int(getattr(exc, "code", 0) or 0)
+        reachable = status in {401, 403}
+        return LocalStackCheck(
+            name="new_api_endpoint",
+            status="pass" if reachable else "fail",
+            details=f"HTTP {status} ({url})",
+        )
+    except (error.URLError, TimeoutError, ValueError) as exc:
+        return LocalStackCheck(name="new_api_endpoint", status="fail", details=str(exc))
+
+
 def _check_pgvector_extension() -> LocalStackCheck:
     postgres_check = _check_container_running("postgres_container", "postgres")
     if postgres_check.status != "pass":
@@ -144,6 +175,7 @@ def diagnose_local_stack() -> tuple[int, LocalStackDoctorResult]:
         _check_container_running("postgres_container", "postgres"),
         _check_pgvector_extension(),
         _check_http_endpoint("new_api_http", "http://localhost:3000/api/status"),
+        _check_new_api_endpoint(),
         _check_command_success("wireguard_tunnel", ["ping", "-c", "1", "-W", "2", "10.8.0.1"], timeout=5),
         _check_command_success(
             "egress_proxy",

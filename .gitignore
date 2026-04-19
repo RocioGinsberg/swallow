@@ -13,6 +13,7 @@ dist/
 .venv/
 venv/
 env/
+.env
 
 # Test and coverage output
 .coverage
@@ -23,6 +24,8 @@ htmlcov/
 
 # Local runtime artifacts
 .swl/
+!tests/fixtures/retrieval_eval/.swl/
+!tests/fixtures/retrieval_eval/.swl/**
 
 # OS/editor noise
 .DS_Store

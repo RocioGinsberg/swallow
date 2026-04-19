@@ -90,6 +90,27 @@
 
 ---
 
+## 本地基础设施
+
+Phase 46 依赖的 Docker 栈位于 `~/ai-stack/`，与仓库分离。
+
+```bash
+cd ~/ai-stack
+docker compose up -d new-api      # 起 new-api（SQLite，端口 3000）
+docker compose up -d openwebui    # 可选，起对话面板（端口 3002）
+docker compose ps                 # 确认容器状态
+```
+
+验证 new-api 可达：
+
+```bash
+curl http://localhost:3000/api/status
+```
+
+WireGuard 出口代理（`HTTPS_PROXY`）当前未启用，需要时取消 `docker-compose.yml` 中的注释并重启 new-api。
+
+---
+
 ## 恢复命令
 
 重新打开仓库后，可先执行：
@@ -99,4 +120,4 @@ cd /home/rocio/projects/swallow
 sed -n '1,160p' current_state.md
 ```
 
-然后按“恢复时优先读取”的顺序进入当前工作上下文。
+然后按”恢复时优先读取”的顺序进入当前工作上下文。

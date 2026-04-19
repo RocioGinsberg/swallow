@@ -18,6 +18,7 @@ CAPABILITY_MATCH_FIELDS = (
 
 ROUTE_MODE_TO_ROUTE_NAME = {
     "live": "local-codex",
+    "http": "local-http",
     "deterministic": "local-mock",
     "offline": "local-note",
     "summary": "local-summary",
@@ -29,6 +30,7 @@ ROUTE_MODE_ALIASES = {
     "": "auto",
     "auto": "auto",
     "live": "live",
+    "http": "http",
     "deterministic": "deterministic",
     "detached": "detached",
     "offline": "offline",
@@ -78,6 +80,7 @@ class RouteRegistry:
         *,
         route_name_hint: str = "",
         executor_name: str = "",
+        model_hint: str = "",
         executor_family: str = "",
         execution_site: str = "",
         required_capabilities: dict[str, object] | None = None,
@@ -94,6 +97,9 @@ class RouteRegistry:
             if _registered_executor_name(route.executor_name) == normalized_executor
         ]
         if exact_executor_matches:
+            model_matches = _filter_model_hint_matches(exact_executor_matches, model_hint)
+            if model_matches:
+                return model_matches, "exact_executor_model_hint"
             return exact_executor_matches, "exact_executor"
 
         family_site_matches = [
@@ -133,6 +139,21 @@ def _filter_capability_matches(
     return matches
 
 
+def _filter_model_hint_matches(routes: Iterable[RouteSpec], model_hint: str) -> list[RouteSpec]:
+    requested_hint = (model_hint or "").strip().lower()
+    if not requested_hint:
+        return []
+
+    matches: list[RouteSpec] = []
+    for route in routes:
+        route_hint = str(route.model_hint or "").strip().lower()
+        if not route_hint:
+            continue
+        if route_hint == requested_hint or route_hint in requested_hint or requested_hint in route_hint:
+            matches.append(route)
+    return matches
+
+
 def _route_matches_capabilities(route: RouteSpec, requirements: dict[str, object]) -> bool:
     has_requirement = False
     for field_name in CAPABILITY_MATCH_FIELDS:
@@ -156,6 +177,174 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 backend_kind="local_cli",
                 model_hint="codex",
                 dialect_hint="codex_fim",
+                fallback_route_name="local-summary",
+                executor_family="cli",
+                execution_site="local",
+                remote_capable=False,
+                transport_kind="local_process",
+                capabilities=RouteCapabilities(
+                    execution_kind="code_execution",
+                    supports_tool_loop=True,
+                    filesystem_access="workspace_write",
+                    network_access="optional",
+                    deterministic=False,
+                    resumable=True,
+                ),
+                taxonomy=TaxonomyProfile(
+                    system_role="general-executor",
+                    memory_authority="task-state",
+                ),
+            ),
+            RouteSpec(
+                name="local-http",
+                executor_name="http",
+                backend_kind="http_api",
+                model_hint="http-default",
+                dialect_hint="plain_text",
+                fallback_route_name="local-cline",
+                executor_family="api",
+                execution_site="local",
+                remote_capable=False,
+                transport_kind="http",
+                capabilities=RouteCapabilities(
+                    execution_kind="artifact_generation",
+                    supports_tool_loop=False,
+                    filesystem_access="workspace_read",
+                    network_access="optional",
+                    deterministic=False,
+                    resumable=True,
+                ),
+                taxonomy=TaxonomyProfile(
+                    system_role="general-executor",
+                    memory_authority="task-state",
+                ),
+            ),
+            RouteSpec(
+                name="http-claude",
+                executor_name="http",
+                backend_kind="http_api",
+                model_hint="claude-3-7-sonnet",
+                dialect_hint="claude_xml",
+                fallback_route_name="http-qwen",
+                executor_family="api",
+                execution_site="local",
+                remote_capable=False,
+                transport_kind="http",
+                capabilities=RouteCapabilities(
+                    execution_kind="artifact_generation",
+                    supports_tool_loop=False,
+                    filesystem_access="workspace_read",
+                    network_access="optional",
+                    deterministic=False,
+                    resumable=True,
+                ),
+                taxonomy=TaxonomyProfile(
+                    system_role="general-executor",
+                    memory_authority="task-state",
+                ),
+            ),
+            RouteSpec(
+                name="http-qwen",
+                executor_name="http",
+                backend_kind="http_api",
+                model_hint="qwen2.5-coder-32b-instruct",
+                dialect_hint="plain_text",
+                fallback_route_name="http-glm",
+                executor_family="api",
+                execution_site="local",
+                remote_capable=False,
+                transport_kind="http",
+                capabilities=RouteCapabilities(
+                    execution_kind="artifact_generation",
+                    supports_tool_loop=False,
+                    filesystem_access="workspace_read",
+                    network_access="optional",
+                    deterministic=False,
+                    resumable=True,
+                ),
+                taxonomy=TaxonomyProfile(
+                    system_role="general-executor",
+                    memory_authority="task-state",
+                ),
+            ),
+            RouteSpec(
+                name="http-glm",
+                executor_name="http",
+                backend_kind="http_api",
+                model_hint="glm-4.5-air",
+                dialect_hint="plain_text",
+                fallback_route_name="local-cline",
+                executor_family="api",
+                execution_site="local",
+                remote_capable=False,
+                transport_kind="http",
+                capabilities=RouteCapabilities(
+                    execution_kind="artifact_generation",
+                    supports_tool_loop=False,
+                    filesystem_access="workspace_read",
+                    network_access="optional",
+                    deterministic=False,
+                    resumable=True,
+                ),
+                taxonomy=TaxonomyProfile(
+                    system_role="general-executor",
+                    memory_authority="task-state",
+                ),
+            ),
+            RouteSpec(
+                name="http-gemini",
+                executor_name="http",
+                backend_kind="http_api",
+                model_hint="gemini-2.5-pro",
+                dialect_hint="plain_text",
+                fallback_route_name="http-qwen",
+                executor_family="api",
+                execution_site="local",
+                remote_capable=False,
+                transport_kind="http",
+                capabilities=RouteCapabilities(
+                    execution_kind="artifact_generation",
+                    supports_tool_loop=False,
+                    filesystem_access="workspace_read",
+                    network_access="optional",
+                    deterministic=False,
+                    resumable=True,
+                ),
+                taxonomy=TaxonomyProfile(
+                    system_role="general-executor",
+                    memory_authority="task-state",
+                ),
+            ),
+            RouteSpec(
+                name="http-deepseek",
+                executor_name="http",
+                backend_kind="http_api",
+                model_hint="deepseek-chat",
+                dialect_hint="codex_fim",
+                fallback_route_name="http-qwen",
+                executor_family="api",
+                execution_site="local",
+                remote_capable=False,
+                transport_kind="http",
+                capabilities=RouteCapabilities(
+                    execution_kind="code_execution",
+                    supports_tool_loop=False,
+                    filesystem_access="workspace_read",
+                    network_access="optional",
+                    deterministic=False,
+                    resumable=True,
+                ),
+                taxonomy=TaxonomyProfile(
+                    system_role="general-executor",
+                    memory_authority="task-state",
+                ),
+            ),
+            RouteSpec(
+                name="local-cline",
+                executor_name="cline",
+                backend_kind="local_cli",
+                model_hint="cline",
+                dialect_hint="plain_text",
                 fallback_route_name="local-summary",
                 executor_family="cli",
                 execution_site="local",
@@ -324,6 +513,8 @@ def fallback_route_for(route_name: str) -> RouteSpec | None:
 def _reason_with_strategy_match(base_reason: str, match_kind: str) -> str:
     if match_kind in {"exact_executor", "exact_route_name"}:
         return base_reason
+    if match_kind == "exact_executor_model_hint":
+        return f"{base_reason} Strategy router matched executor and model hint."
     if match_kind == "family_site":
         return f"{base_reason} Strategy router matched executor family and execution site."
     if match_kind == "capability":
@@ -381,6 +572,7 @@ def select_route(
 
     candidates, match_kind = ROUTE_REGISTRY.candidate_routes(
         executor_name=selected_executor,
+        model_hint=state.route_model_hint,
         executor_family=state.route_executor_family,
         execution_site=state.route_execution_site,
         required_capabilities=state.route_capabilities,

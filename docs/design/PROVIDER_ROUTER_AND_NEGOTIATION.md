@@ -114,22 +114,18 @@ OpenRouter 等聚合器可以作为物理路由之一，但网关层不应在概
 
 > 选型评估日期：2026-04-16。技术生态变化快，实施前应重新验证。
 
-### 5.1 Provider Connector 层：双层架构（推理优化 + 渠道管理）
+### 5.1 Provider Connector 层：渠道管理 + 自建遥测
 
-网关层的 Provider Connector 采用双层架构，分别解决两个正交问题：
+#### 推理遥测层：Swallow 自建（替代 TensorZero）
 
-#### 推理优化层：TensorZero
+推理遥测（token usage、route health、latency、task family 标签）由 Swallow 自建层承担，不引入外部服务依赖：
 
-负责结构化推理追踪、A/B 实验和任务语义遥测。
+- **真实 token 成本**：HTTPExecutor 从每次 API 响应的 `usage` 字段（`prompt_tokens` / `completion_tokens`）捕获真实 token 数据，写入 event log，替代原有的静态成本估算
+- **route health 遥测**：现有 Meta-Optimizer 消费 event log，分析路由健康度、失败指纹、降级趋势
+- **task family 标签**：现有 executor event telemetry 已携带 `task_family` / `logical_model` / `physical_route` / `latency_ms` / `degraded` / `error_code`
+- **存储**：写入 swallow 自身的 event log（SQLite，Phase 48 迁移目标），零外部依赖
 
-| 维度 | TensorZero | 与 Swallow 哲学的契合 |
-|---|---|---|
-| 语言 | Rust（编译型二进制分发） | 无 pip/npm 供应链投毒风险 |
-| 性能 | <1ms P99 @ 10k QPS | 网关层"应该透明"得到物理保障 |
-| 结构化推理 | 内置 "function" 概念 | 天然对应 Swallow task family，遥测自带任务语义标签 |
-| 配置方式 | 声明式 TOML，GitOps 驱动 | 与 Git Truth Layer 哲学一致 |
-| A/B 实验 | 内置 variant 路由 | Strategy Router 可直接利用做模型对比 |
-| 可观测性 | 结构化推理追踪 + 反馈收集 | 直接喂 Meta-Optimizer，无需额外 ETL |
+> **TensorZero 评估结论（2026-04-19）**：TensorZero 强依赖 PostgreSQL，与项目"本地优先、零外部依赖"原则冲突。其核心价值（结构化遥测 + 真实成本数据）可由 Swallow 自建层覆盖。A/B 实验框架（variant 路由）留待未来 phase 评估是否自建或引入轻量替代。TensorZero 从"可选插件"降级为"暂不考虑"。
 
 #### 渠道管理层：new-api（自部署）
 
@@ -145,16 +141,17 @@ OpenRouter 等聚合器可以作为物理路由之一，但网关层不应在概
 
 > 项目地址：https://github.com/QuantumNous/new-api
 
-#### 两层协作关系
+#### 协作关系
 
 两者定位不同，可以共存也可以只用其一：
 
-- **完整方案**：new-api 作为渠道管理网关（管理多 key、供应商接入、额度监控），TensorZero 叠加在其上做推理优化和遥测
-- **轻量起步**：先只部署 new-api + Swallow 自建 thin wrapper，推理优化和遥测后续引入
+- **当前方案**：new-api 作为渠道管理网关（管理多 key、供应商接入、额度监控），遥测由 Swallow 自建层承担
+- **未来扩展**：如需 A/B 实验框架，届时评估自建或引入轻量替代（不引入 PostgreSQL 依赖）
 
-**备选方案**：如果两者均不适用，**Portkey Gateway**（2026.3 完全开源，200+ LLM，50+ Guardrails，Node.js）是第三选择。
+**备选方案**：如果 new-api 不适用，**Portkey Gateway**（2026.3 完全开源，200+ LLM，50+ Guardrails，Node.js）是第三选择。
 
 **明确排除**：
+*   **TensorZero**：强依赖 PostgreSQL，与项目零外部依赖原则冲突。核心遥测功能由 Swallow 自建层覆盖。
 *   **LiteLLM**：2026.3 供应链投毒事件（PyPI 版本 1.82.7/1.82.8 泄露用户凭证）+ Python GIL 高并发瓶颈 + 运维重（需 Redis + PostgreSQL）。
 *   **Kong AI Gateway**：企业级 API 管理工具，对 Swallow 当前规模而言过于重量级，定价模型不适合。
 
@@ -169,9 +166,9 @@ Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fa
   ├── Route Resolver         — 自建，消费 Strategy Router 的逻辑标识
   ├── Dialect Adapters       — 自建，Swallow 特有的语义转换（§3）
   ├── Execution Fallback     — 自建上报机制
+  ├── 自建遥测层             — HTTPExecutor 捕获 usage 字段，写入 event log
   └── Provider Connector 层
-        ├── new-api          — 渠道管理 + 格式互转 + 额度控制（自部署）
-        └── TensorZero       — 推理优化 + 遥测收集器（可选叠加）
+        └── new-api          — 渠道管理 + 格式互转 + 额度控制（自部署，SQLite）
 
 第 7 层  LLM Providers / Local Models (ollama, vLLM, etc.)
 ```
@@ -185,7 +182,7 @@ Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fa
 | **AiHubMix** | `https://aihubmix.com/v1` | OpenAI SDK，改 base_url + api_key | 460+ 模型，按量付费，支持 Claude 原生 v1/messages 接口 |
 | **OpenRouter** | `https://openrouter.ai/api/v1` | OpenAI SDK 兼容 | 广泛的开源/闭源模型覆盖 |
 
-在 TensorZero 中，将上述聚合器声明为 OpenAI-compatible provider 即可接入，无需特殊适配。
+在 new-api 中，将上述聚合器声明为 OpenAI-compatible provider 即可接入，无需特殊适配。
 
 ### 5.4 部署拓扑与网络出口
 
@@ -193,7 +190,7 @@ Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fa
 
 **核心原则：Docker Stack 在本地，VPS 只做出口代理。**
 
-所有计算密集型服务（new-api、TensorZero、Open WebUI、Postgres）运行在课题组工作站上，Swallow Runtime 通过 `localhost:3000` 零延迟直连 new-api。VPS 瘦身为纯出口代理（WireGuard + Tinyproxy），仅承担让 API 请求从干净 IP 出去的职责。跨设备访问走 Tailscale 内网，不需要公网暴露任何 HTTP 服务。
+所有服务（new-api、Open WebUI）运行在课题组工作站上，Swallow Runtime 通过 `localhost:3000` 零延迟直连 new-api。VPS 瘦身为纯出口代理（WireGuard + Tinyproxy），仅承担让 API 请求从干净 IP 出去的职责。跨设备访问走 Tailscale 内网，不需要公网暴露任何 HTTP 服务。
 
 **部署拓扑概览**：
 
@@ -202,14 +199,13 @@ Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fa
   swl CLI → Swallow Runtime
     ├── Strategy Router (RouteRegistry)  — 纯本地，零延迟
     ├── Dialect Adapters                 — 纯本地
+    ├── 自建遥测层                       — event log，SQLite
     └── HTTP → localhost:3000 (new-api)
 
   Docker Compose Stack:
-    new-api    :3000  渠道管理 + 格式互转
+    new-api    :3000  渠道管理 + 格式互转（SQLite）
       └── HTTPS_PROXY → VPS WireGuard 隧道
-    TensorZero :3001  推理遥测（可选）
-    Open WebUI :3002  探索性对话面板
-    Postgres   :5432  (pgvector)
+    Open WebUI :3002  探索性对话面板（SQLite）
 
 VPS（纯出口代理，1C 512M）
   WireGuard Server :51820 (UDP)
@@ -224,12 +220,8 @@ Tailscale（跨设备访问）
 - **对话路径**（零延迟）：本地浏览器 → localhost:3002 (Open WebUI) → localhost:3000 (new-api) → 同上
 - **跨设备路径**（Tailscale）：远程设备 → 100.x.x.10:3002 (Open WebUI) → 同上
 
-**Cloudflare**：在当前拓扑中不再作为必要组件。VPS 上没有 HTTP 服务需要保护，跨设备访问走 Tailscale 内网。仅在以下场景保留为可选：
-- 从 Tailnet 外远程访问 Control Center 时，可通过 Cloudflare Tunnel 暴露
-- 未来如需公网暴露服务或多租户接入时重新评估
-
 **安全设计**：
-- new-api / TensorZero 端口绑定 `127.0.0.1`，仅本机可达
+- new-api 端口绑定 `127.0.0.1`，仅本机可达
 - Open WebUI 绑定 `0.0.0.0:3002`，Tailscale 内网可达
 - Tinyproxy 绑定 WG 内网接口（`Listen 10.8.0.1`），公网不可达
 - VPS 防火墙仅开 SSH + WireGuard UDP
@@ -239,4 +231,6 @@ Tailscale（跨设备访问）
 
 ### 5.5 技术栈演化预期
 
-当前阶段以 Python 快速验证为主。初步成型后将向更轻量、高性能的方向改写（如 Go/Rust）。选型时已优先考虑与语言无关的集成方式（TensorZero 通过 HTTP API 接入，不绑定特定语言 SDK），确保技术栈迁移时 Provider Connector 层无需更换。
+当前阶段以 Python 快速验证为主。初步成型后将向更轻量、高性能的方向改写（如 Go/Rust）。选型时已优先考虑与语言无关的集成方式（new-api 通过 HTTP API 接入，不绑定特定语言 SDK），确保技术栈迁移时 Provider Connector 层无需更换。
+
+遥测层当前由 Swallow 自建（event log + Meta-Optimizer），Phase 48 迁移至 SQLite 后具备完整的本地查询能力。如未来需要 A/B 实验框架，届时评估是否自建 variant 路由或引入轻量替代，不引入 PostgreSQL 依赖。

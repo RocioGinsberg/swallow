@@ -1,0 +1,16 @@
+[
+  {
+    "object_id": "knowledge-0001",
+    "text": "Historical cross task retrieval history boundary grounding reuse remains available from the prior task evidence snapshot.",
+    "stage": "verified",
+    "source_kind": "external_knowledge_capture",
+    "source_ref": "fixture://prior-history",
+    "task_linked": true,
+    "captured_at": "2026-04-20T00:00:00+00:00",
+    "evidence_status": "artifact_backed",
+    "artifact_ref": ".swl/tasks/prior/artifacts/history.md",
+    "retrieval_eligible": true,
+    "knowledge_reuse_scope": "retrieval_candidate",
+    "canonicalization_intent": "none"
+  }
+]
