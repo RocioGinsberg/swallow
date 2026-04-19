@@ -442,6 +442,8 @@ class TaskCard:
     output_schema: dict[str, Any] = field(default_factory=dict)
     route_hint: str = ""
     executor_type: str = "cli"
+    reviewer_routes: list[str] = field(default_factory=list)
+    consensus_policy: str = "majority"
     constraints: list[str] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)
     subtask_index: int = 1

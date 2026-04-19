@@ -111,6 +111,7 @@ from .review_gate import (
     build_review_feedback,
     render_review_feedback_markdown,
     review_executor_output,
+    run_review_gate,
 )
 from .staged_knowledge import StagedCandidate, submit_staged_candidate
 from .subtask_orchestrator import SubtaskOrchestrator, SubtaskOrchestratorResult, SubtaskRunRecord
@@ -774,7 +775,7 @@ def _run_single_task_with_debate(
                 executor_result,
             )
             executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
-        review_gate_result = review_executor_output(executor_result, current_card)
+        review_gate_result = run_review_gate(state, executor_result, current_card)
         return executor_result, review_gate_result
 
     executor_result, review_gate_result, debate_exhausted = _debate_loop_core(
@@ -900,7 +901,7 @@ def _run_subtask_attempt(
             subtask_base_dir = Path(tmp)
             executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, retrieval_items)
             extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
-        review_gate_result = review_executor_output(executor_result, card)
+        review_gate_result = run_review_gate(isolated_state, executor_result, card)
     except Exception as exc:  # pragma: no cover - defensive path
         executor_result = ExecutorResult(
             executor_name="subtask-orchestrator",
@@ -1221,7 +1222,10 @@ def _run_subtask_orchestration(
                 subtask_extra_artifacts[card.card_id] = extra_artifacts
             return executor_result
 
-    orchestrator = SubtaskOrchestrator(execute_subtask, review_executor_output)
+    orchestrator = SubtaskOrchestrator(
+        execute_subtask,
+        lambda executor_result, review_card: run_review_gate(state, executor_result, review_card),
+    )
     result = orchestrator.run(base_dir, state, cards, retrieval_items)
     attempt_counts = {record.card_id: 1 for record in result.records}
     failed_records = [record for record in result.records if record.status != "completed"]
@@ -1518,6 +1522,8 @@ def create_task(
     knowledge_canonicalization_intent: str = "none",
     capability_refs: list[str] | None = None,
     route_mode: str = "auto",
+    reviewer_routes: list[str] | None = None,
+    consensus_policy: str = "majority",
 ) -> TaskState:
     task_id = uuid4().hex[:12]
     capability_manifest = parse_capability_refs(capability_refs)
@@ -1542,13 +1548,29 @@ def create_task(
         retrieval_eligible=knowledge_retrieval_eligible,
         canonicalization_intent=knowledge_canonicalization_intent,
     )
+    task_semantics_payload = task_semantics.to_dict()
+    if reviewer_routes:
+        normalized_reviewer_routes: list[str] = []
+        seen_routes: set[str] = set()
+        for item in reviewer_routes:
+            normalized = str(item).strip()
+            if not normalized or normalized in seen_routes:
+                continue
+            normalized_reviewer_routes.append(normalized)
+            seen_routes.add(normalized)
+        if normalized_reviewer_routes:
+            task_semantics_payload["reviewer_routes"] = normalized_reviewer_routes
+    normalized_consensus_policy = str(consensus_policy or "majority").strip().lower()
+    if normalized_consensus_policy in {"majority", "veto"}:
+        task_semantics_payload["consensus_policy"] = normalized_consensus_policy
+
     state = TaskState(
         task_id=task_id,
         title=title,
         goal=goal,
         workspace_root=str(workspace_root.resolve()),
         executor_name=normalize_executor_name(executor_name),
-        task_semantics=task_semantics.to_dict(),
+        task_semantics=task_semantics_payload,
         knowledge_objects=[item.to_dict() for item in knowledge_objects],
         capability_manifest=capability_manifest.to_dict(),
         capability_assembly=capability_assembly.to_dict(),
@@ -2298,6 +2320,8 @@ def run_task(
                 "route_hint": card.route_hint,
                 "executor_type": card.executor_type,
                 "subtask_indices": [planned_card.subtask_index for planned_card in cards],
+                "reviewer_routes": card.reviewer_routes,
+                "consensus_policy": card.consensus_policy,
                 "parent_task_id": card.parent_task_id,
             },
         ),
@@ -2400,7 +2424,7 @@ def run_task(
         state.executor_status = executor_result.status
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
-        review_gate_result = review_executor_output(executor_result, card)
+        review_gate_result = run_review_gate(state, executor_result, card)
         execution_skipped = True
         debate_exhausted = False
     state.executor_name = executor_result.executor_name
@@ -2420,6 +2444,8 @@ def run_task(
                 "card_ids": [planned_card.card_id for planned_card in cards],
                 "executor_name": executor_result.executor_name,
                 "executor_status": executor_result.status,
+                "reviewer_routes": card.reviewer_routes,
+                "consensus_policy": card.consensus_policy,
                 "failed_card_ids": subtask_result.failed_card_ids if subtask_result is not None else [],
                 "skipped_execution": execution_skipped,
                 "source": "previous_execution" if execution_skipped else "live_execution",

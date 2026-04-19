@@ -54,6 +54,29 @@ def _next_action_proposals(state: TaskState) -> list[str]:
     return proposals
 
 
+def _reviewer_routes(state: TaskState) -> list[str]:
+    semantics = state.task_semantics if state.task_semantics else {}
+    raw_routes = semantics.get("reviewer_routes", [])
+    if not isinstance(raw_routes, list):
+        return []
+
+    routes: list[str] = []
+    seen: set[str] = set()
+    for item in raw_routes:
+        normalized = str(item).strip()
+        if not normalized or normalized in seen:
+            continue
+        routes.append(normalized)
+        seen.add(normalized)
+    return routes
+
+
+def _consensus_policy(state: TaskState) -> str:
+    semantics = state.task_semantics if state.task_semantics else {}
+    raw_policy = str(semantics.get("consensus_policy", "majority")).strip().lower()
+    return raw_policy if raw_policy in {"majority", "veto"} else "majority"
+
+
 def _parallel_subtasks_requested(constraints: list[str]) -> bool:
     for item in constraints:
         normalized = item.lower()
@@ -71,6 +94,8 @@ def _build_subtask_cards(
     parallel_requested: bool,
 ) -> list[TaskCard]:
     cards: list[TaskCard] = []
+    reviewer_routes = _reviewer_routes(state)
+    consensus_policy = _consensus_policy(state)
     for index, action in enumerate(next_actions, start=1):
         depends_on = [] if parallel_requested or index == 1 else [cards[-1].card_id]
         cards.append(
@@ -86,6 +111,8 @@ def _build_subtask_cards(
                 output_schema={},
                 route_hint=state.route_name,
                 executor_type=state.route_executor_family,
+                reviewer_routes=list(reviewer_routes),
+                consensus_policy=consensus_policy,
                 constraints=list(constraints),
                 depends_on=depends_on,
                 subtask_index=index,
@@ -142,6 +169,8 @@ def plan(state: TaskState) -> list[TaskCard]:
         return [card]
 
     next_actions = _next_action_proposals(state)
+    reviewer_routes = _reviewer_routes(state)
+    consensus_policy = _consensus_policy(state)
     if len(next_actions) > 1:
         parallel_requested = _parallel_subtasks_requested(constraints)
         return _build_subtask_cards(
@@ -159,6 +188,8 @@ def plan(state: TaskState) -> list[TaskCard]:
         output_schema={},
         route_hint=state.route_name,
         executor_type=state.route_executor_family,
+        reviewer_routes=reviewer_routes,
+        consensus_policy=consensus_policy,
         constraints=list(constraints),
         depends_on=[],
         subtask_index=1,
