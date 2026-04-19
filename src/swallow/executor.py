@@ -459,8 +459,7 @@ def run_prompt_executor(
             original_route_name=original_route_name,
         )
     if executor_name == "codex":
-        return run_cli_agent_executor(
-            CODEX_CONFIG,
+        return run_codex_executor(
             state,
             retrieval_items,
             prompt,
@@ -468,8 +467,7 @@ def run_prompt_executor(
             original_route_name=original_route_name,
         )
     if executor_name == "cline":
-        return run_cli_agent_executor(
-            CLINE_CONFIG,
+        return run_cline_executor(
             state,
             retrieval_items,
             prompt,
@@ -1161,8 +1159,36 @@ def run_codex_executor(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     prompt: str | None = None,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
 ) -> ExecutorResult:
-    return run_cli_agent_executor(CODEX_CONFIG, state, retrieval_items, prompt)
+    return run_cli_agent_executor(
+        CODEX_CONFIG,
+        state,
+        retrieval_items,
+        prompt,
+        visited_routes=visited_routes,
+        original_route_name=original_route_name,
+    )
+
+
+def run_cline_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str | None = None,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
+) -> ExecutorResult:
+    return run_cli_agent_executor(
+        CLINE_CONFIG,
+        state,
+        retrieval_items,
+        prompt,
+        visited_routes=visited_routes,
+        original_route_name=original_route_name,
+    )
 
 
 def parse_timeout_seconds(raw_value: str) -> int:

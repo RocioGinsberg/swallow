@@ -60,7 +60,12 @@ class BinaryFallbackTest(unittest.TestCase):
             task_dir = tmp_path / ".swl" / "tasks" / created.task_id
             artifacts_dir = task_dir / "artifacts"
 
-            def fail_codex(_state: object, _retrieval_items: list[object], prompt: str | None = None) -> ExecutorResult:
+            def fail_codex(
+                _state: object,
+                _retrieval_items: list[object],
+                prompt: str | None = None,
+                **_kwargs: object,
+            ) -> ExecutorResult:
                 return ExecutorResult(
                     executor_name="codex",
                     status="failed",
@@ -72,7 +77,12 @@ class BinaryFallbackTest(unittest.TestCase):
                     stderr="codex unavailable",
                 )
 
-            def complete_local(_state: object, _retrieval_items: list[object], prompt: str) -> ExecutorResult:
+            def complete_local(
+                _state: object,
+                _retrieval_items: list[object],
+                prompt: str,
+                **_kwargs: object,
+            ) -> ExecutorResult:
                 return ExecutorResult(
                     executor_name="local",
                     status="completed",
@@ -137,7 +147,12 @@ class BinaryFallbackTest(unittest.TestCase):
             task_dir = tmp_path / ".swl" / "tasks" / created.task_id
             artifacts_dir = task_dir / "artifacts"
 
-            def fail_codex(_state: object, _retrieval_items: list[object], prompt: str | None = None) -> ExecutorResult:
+            def fail_codex(
+                _state: object,
+                _retrieval_items: list[object],
+                prompt: str | None = None,
+                **_kwargs: object,
+            ) -> ExecutorResult:
                 return ExecutorResult(
                     executor_name="codex",
                     status="failed",
@@ -149,7 +164,12 @@ class BinaryFallbackTest(unittest.TestCase):
                     stderr="codex unavailable",
                 )
 
-            def fail_local(_state: object, _retrieval_items: list[object], prompt: str) -> ExecutorResult:
+            def fail_local(
+                _state: object,
+                _retrieval_items: list[object],
+                prompt: str,
+                **_kwargs: object,
+            ) -> ExecutorResult:
                 return ExecutorResult(
                     executor_name="local",
                     status="failed",
