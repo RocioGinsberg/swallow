@@ -80,6 +80,6 @@ depends_on:
 
 ## 分支建议
 
-- 建议分支名：`phase46/gateway-core`
+- 建议分支名：`feat/phase46_gateway-core`
 - PR 范围：S1-S4 全部完成后一次性 PR
 - 如果 S2 scope 过大，可考虑 S1+S2 先开一个 PR，S3+S4 第二个 PR
