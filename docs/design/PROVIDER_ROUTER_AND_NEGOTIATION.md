@@ -178,7 +178,7 @@ Swallow 自持的网关逻辑（Route Resolver、Dialect Adapters、Execution Fa
 
 ### 5.3 已知聚合器通道
 
-以下聚合平台均提供 OpenAI 兼容接口，可在 Route Resolver 中作为物理通道注册。它们的定位是**上游供应商**，不是网关本身（§0.3）。自部署 new-api 后，这些平台可作为 new-api 的上游渠道接入，无需在 Swallow 侧逐一配置。
+以下聚合平台均提供 OpenAI 兼容接口，可在 Route Resolver 中作为物理通道注册。它们的定位是**上游供应商**，不是网关本身（§0.3）。自部署 new-api 后，这些平台可作为 new-api 的上游渠道接入，无需在 Swallow 侧逐一配置。还可考虑：Together、Fireworks、DeepInfra 等
 
 | 聚合器 | base_url | 接入方式 | 备注 |
 |---|---|---|---|
