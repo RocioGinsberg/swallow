@@ -552,6 +552,9 @@ def _append_parent_executor_event(
                 "execution_lifecycle": state.execution_lifecycle,
                 "dialect": executor_result.dialect or state.route_dialect,
                 "failure_kind": executor_result.failure_kind,
+                "degraded": executor_result.degraded or state.route_is_fallback,
+                "original_route_name": executor_result.original_route_name,
+                "fallback_route_name": executor_result.fallback_route_name,
                 "output_written": [
                     "executor_prompt.md",
                     "executor_output.md",
@@ -562,7 +565,7 @@ def _append_parent_executor_event(
             | build_telemetry_fields(
                 state,
                 latency_ms=executor_result.latency_ms,
-                degraded=state.route_is_fallback,
+                degraded=executor_result.degraded or state.route_is_fallback,
                 token_cost=token_cost,
                 error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
             ).to_dict(),
@@ -629,6 +632,12 @@ def _run_binary_fallback(
         executor_type=fallback_route.executor_family,
     )
     fallback_result = _execute_task_card(base_dir, state, fallback_card, retrieval_items)
+    fallback_result = replace(
+        fallback_result,
+        degraded=True,
+        original_route_name=primary_route_name,
+        fallback_route_name=fallback_route.name,
+    )
     fallback_artifacts = _write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,

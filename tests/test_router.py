@@ -64,6 +64,12 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(route.backend_kind, "http_api")
         self.assertEqual(route.transport_kind, "http")
 
+    def test_route_for_executor_returns_builtin_cline_route(self) -> None:
+        route = route_for_executor("cline")
+
+        self.assertEqual(route.name, "local-cline")
+        self.assertEqual(route.fallback_route_name, "local-summary")
+
     def test_route_for_mode_supports_http_mode(self) -> None:
         route = route_for_mode("http")
 
@@ -73,9 +79,10 @@ class RouteRegistryTest(unittest.TestCase):
     def test_builtin_multi_model_http_routes_are_registered(self) -> None:
         self.assertEqual(route_by_name("http-claude").dialect_hint, "claude_xml")
         self.assertEqual(route_by_name("http-qwen").dialect_hint, "plain_text")
-        self.assertEqual(route_by_name("http-glm").fallback_route_name, "local-summary")
+        self.assertEqual(route_by_name("http-glm").fallback_route_name, "local-cline")
         self.assertEqual(route_by_name("http-gemini").fallback_route_name, "http-qwen")
         self.assertEqual(route_by_name("http-deepseek").dialect_hint, "codex_fim")
+        self.assertEqual(route_by_name("local-cline").dialect_hint, "plain_text")
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
         detached = build_detached_route(route_for_executor("codex"))

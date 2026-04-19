@@ -15,7 +15,7 @@ import httpx
 from .cost_estimation import estimate_tokens
 from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
 from .dialect_adapters import ClaudeXMLDialect, CodexFIMDialect
-from .models import DialectSpec, ExecutorResult, RetrievalItem, TaskCard, TaskState
+from .models import DialectSpec, ExecutorResult, RetrievalItem, RouteSpec, TaskCard, TaskState
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
 DEFAULT_NEW_API_CHAT_COMPLETIONS_URL = "http://localhost:3000/v1/chat/completions"
@@ -352,10 +352,10 @@ def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) 
         result = run_cli_agent_executor(CLINE_CONFIG, state, retrieval_items, prompt)
     else:
         raise UnknownExecutorError(f"Unknown executor name: {executor_name}")
-    result = replace(result, executor_name=executor_name)
-    result = replace(result, prompt=prompt or result.prompt)
+    result = replace(result, executor_name=result.executor_name or executor_name)
+    result = replace(result, prompt=result.prompt or prompt)
     result = replace(result, review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip())
-    result.dialect = state.route_dialect or resolve_dialect_name(model_hint=state.route_model_hint)
+    result.dialect = state.route_dialect or result.dialect or resolve_dialect_name(model_hint=state.route_model_hint)
     return _attach_estimated_usage(result)
 
 
@@ -383,6 +383,134 @@ def resolve_http_model_name(state: TaskState) -> str:
         if configured:
             return configured
     return "deepseek-chat"
+
+
+def _executor_route_fallback_enabled(state: TaskState) -> bool:
+    route_name = str(state.route_name or "").strip().lower()
+    return route_name.startswith("http-") or route_name in {"local-http", "local-cline"}
+
+
+def _load_fallback_route(route_name: str) -> RouteSpec | None:
+    from .router import fallback_route_for
+
+    return fallback_route_for(route_name)
+
+
+def _apply_route_spec_for_executor_fallback(state: TaskState, route: RouteSpec, reason: str) -> None:
+    state.executor_name = route.executor_name
+    state.route_name = route.name
+    state.route_backend = route.backend_kind
+    state.route_executor_family = route.executor_family
+    state.route_execution_site = route.execution_site
+    state.route_remote_capable = route.remote_capable
+    state.route_transport_kind = route.transport_kind
+    state.route_taxonomy_role = route.taxonomy.system_role
+    state.route_taxonomy_memory_authority = route.taxonomy.memory_authority
+    state.route_model_hint = route.model_hint
+    state.route_dialect = resolve_dialect_name(route.dialect_hint, route.model_hint)
+    state.route_reason = reason
+    state.route_is_fallback = True
+    state.route_capabilities = route.capabilities.to_dict()
+    state.topology_route_name = route.name
+    state.topology_executor_family = route.executor_family
+    state.topology_execution_site = route.execution_site
+    state.topology_transport_kind = route.transport_kind
+    state.topology_remote_capable_intent = route.remote_capable
+
+
+def _attach_route_fallback_metadata(
+    result: ExecutorResult,
+    *,
+    original_route_name: str,
+    fallback_route_name: str,
+) -> ExecutorResult:
+    return replace(
+        result,
+        degraded=True,
+        original_route_name=result.original_route_name or original_route_name,
+        fallback_route_name=result.fallback_route_name or fallback_route_name,
+    )
+
+
+def _run_executor_for_fallback_route(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    *,
+    visited_routes: set[str],
+    original_route_name: str,
+) -> ExecutorResult:
+    executor_name = resolve_executor_name(state)
+    if executor_name == "http":
+        return run_http_executor(
+            state,
+            retrieval_items,
+            None,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+
+    prompt = build_formatted_executor_prompt(state, retrieval_items)
+    if executor_name == "cline":
+        return run_cli_agent_executor(
+            CLINE_CONFIG,
+            state,
+            retrieval_items,
+            prompt,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+    if executor_name == "local":
+        return run_local_executor(state, retrieval_items, prompt)
+    if executor_name == "note-only":
+        return run_note_only_executor(state, retrieval_items, prompt)
+    if executor_name == "mock":
+        return run_mock_executor(prompt)
+    if executor_name == "mock-remote":
+        return run_mock_remote_executor(state, retrieval_items, prompt)
+    if executor_name == "codex":
+        return run_codex_executor(state, retrieval_items, prompt)
+    raise UnknownExecutorError(f"Unknown executor name: {executor_name}")
+
+
+def _apply_executor_route_fallback(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    result: ExecutorResult,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
+) -> ExecutorResult:
+    if not _executor_route_fallback_enabled(state):
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+
+    current_route_name = str(state.route_name or "").strip()
+    if not current_route_name:
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+
+    seen_routes = set(visited_routes or ())
+    seen_routes.add(current_route_name)
+    primary_route_name = str(original_route_name or current_route_name).strip() or current_route_name
+    fallback_route = _load_fallback_route(current_route_name)
+    if fallback_route is None or fallback_route.name in seen_routes:
+        if result.degraded:
+            return result
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+
+    fallback_reason = (
+        f"Executor-level route fallback selected '{fallback_route.name}' after '{current_route_name}' failed."
+    )
+    _apply_route_spec_for_executor_fallback(state, fallback_route, fallback_reason)
+    fallback_result = _run_executor_for_fallback_route(
+        state,
+        retrieval_items,
+        visited_routes=seen_routes | {fallback_route.name},
+        original_route_name=primary_route_name,
+    )
+    return _attach_route_fallback_metadata(
+        fallback_result,
+        original_route_name=primary_route_name,
+        fallback_route_name=str(fallback_result.fallback_route_name or state.route_name).strip() or fallback_route.name,
+    )
 
 
 def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
@@ -758,6 +886,9 @@ def run_http_executor(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     prompt: str | None = None,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
 ) -> ExecutorResult:
     prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
     endpoint = resolve_new_api_chat_completions_url()
@@ -785,7 +916,13 @@ def run_http_executor(
             stdout="",
             stderr=str(exc),
         )
-        return apply_fallback_if_enabled(state, retrieval_items, result)
+        return _apply_executor_route_fallback(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
     except httpx.HTTPStatusError as exc:
         response_text = clean_output(exc.response.text)
         if exc.response.status_code in {401, 403} and not api_key:
@@ -803,7 +940,13 @@ def run_http_executor(
             stdout="",
             stderr=response_text or str(exc),
         )
-        return apply_fallback_if_enabled(state, retrieval_items, result)
+        return _apply_executor_route_fallback(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
     except httpx.RequestError as exc:
         result = ExecutorResult(
             executor_name="http",
@@ -814,7 +957,13 @@ def run_http_executor(
             stdout="",
             stderr=str(exc),
         )
-        return apply_fallback_if_enabled(state, retrieval_items, result)
+        return _apply_executor_route_fallback(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
 
     try:
         data = response.json()
@@ -832,7 +981,13 @@ def run_http_executor(
             stdout="",
             stderr=str(exc),
         )
-        return apply_fallback_if_enabled(state, retrieval_items, result)
+        return _apply_executor_route_fallback(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
 
     return ExecutorResult(
         executor_name="http",
@@ -871,6 +1026,9 @@ def run_cli_agent_executor(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     prompt: str | None = None,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
 ) -> ExecutorResult:
     prompt = prompt or build_executor_prompt(state, retrieval_items)
     agent_bin = resolve_cli_agent_binary(config)
@@ -885,7 +1043,13 @@ def run_cli_agent_executor(
             stdout="",
             stderr=f"{config.display_name} binary not found: {agent_bin}",
         )
-        return apply_fallback_if_enabled(state, retrieval_items, result)
+        return _apply_executor_route_fallback(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
 
     with tempfile.TemporaryDirectory(prefix=f"swl-{config.executor_name}-") as temp_dir:
         output_path = Path(temp_dir) / "last_message.txt" if config.output_path_flags else None
@@ -920,7 +1084,13 @@ def run_cli_agent_executor(
                 stdout=clean_timeout_stream(getattr(exc, "stdout", None), getattr(exc, "output", None)),
                 stderr=clean_timeout_stream(getattr(exc, "stderr", None), None),
             )
-            return apply_fallback_if_enabled(state, retrieval_items, result)
+            return _apply_executor_route_fallback(
+                state,
+                retrieval_items,
+                result,
+                visited_routes=visited_routes,
+                original_route_name=original_route_name,
+            )
         except OSError as exc:
             result = ExecutorResult(
                 executor_name=config.executor_name,
@@ -931,7 +1101,13 @@ def run_cli_agent_executor(
                 stdout="",
                 stderr=str(exc),
             )
-            return apply_fallback_if_enabled(state, retrieval_items, result)
+            return _apply_executor_route_fallback(
+                state,
+                retrieval_items,
+                result,
+                visited_routes=visited_routes,
+                original_route_name=original_route_name,
+            )
 
         output = (read_last_message(output_path) if output_path is not None else "") or clean_output(completed.stdout)
         error_output = clean_output(completed.stderr)
@@ -951,7 +1127,13 @@ def run_cli_agent_executor(
                 stdout=clean_output(completed.stdout),
                 stderr=error_output,
             )
-            return apply_fallback_if_enabled(state, retrieval_items, result)
+            return _apply_executor_route_fallback(
+                state,
+                retrieval_items,
+                result,
+                visited_routes=visited_routes,
+                original_route_name=original_route_name,
+            )
 
         return ExecutorResult(
             executor_name=config.executor_name,
@@ -1047,9 +1229,15 @@ def apply_fallback_if_enabled(
         message=f"{result.message} Structured fallback note generated.",
         output=combined_output,
         prompt=result.prompt,
+        dialect=result.dialect,
         failure_kind=result.failure_kind,
         stdout=result.stdout,
         stderr=result.stderr,
+        review_feedback=result.review_feedback,
+        degraded=result.degraded,
+        original_route_name=result.original_route_name,
+        fallback_route_name=result.fallback_route_name,
+        side_effects=result.side_effects,
     )
 
 
@@ -1066,6 +1254,17 @@ def build_fallback_output(
         f"- status: {result.status}",
         f"- failure_kind: {result.failure_kind or 'none'}",
         f"- reason: {result.message}",
+    ]
+    if result.degraded:
+        lines.extend(
+            [
+                f"- degraded: yes",
+                f"- original_route: {result.original_route_name or 'unknown'}",
+                f"- fallback_route: {result.fallback_route_name or state.route_name or 'unknown'}",
+            ]
+        )
+    lines.extend(
+        [
         "",
         "## Task",
         f"- id: {state.task_id}",
@@ -1073,7 +1272,8 @@ def build_fallback_output(
         f"- goal: {state.goal}",
         "",
         "## Retrieved Context To Reuse",
-    ]
+        ]
+    )
     if retrieval_items:
         for item in retrieval_items[:5]:
             lines.append(

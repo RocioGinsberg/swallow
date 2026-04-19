@@ -472,6 +472,9 @@ class ExecutorResult:
     stdout: str = ""
     stderr: str = ""
     review_feedback: str = ""
+    degraded: bool = False
+    original_route_name: str = ""
+    fallback_route_name: str = ""
     side_effects: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:

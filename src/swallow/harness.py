@@ -162,6 +162,9 @@ def run_execution(
                 "dialect": executor_result.dialect or state.route_dialect,
                 "failure_kind": executor_result.failure_kind,
                 "review_feedback": executor_result.review_feedback,
+                "degraded": executor_result.degraded or state.route_is_fallback,
+                "original_route_name": executor_result.original_route_name,
+                "fallback_route_name": executor_result.fallback_route_name,
                 "output_written": [
                     "executor_prompt.md",
                     "executor_output.md",
@@ -172,7 +175,7 @@ def run_execution(
             | build_telemetry_fields(
                 state,
                 latency_ms=executor_result.latency_ms,
-                degraded=state.route_is_fallback,
+                degraded=executor_result.degraded or state.route_is_fallback,
                 token_cost=token_cost,
                 error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
             ).to_dict(),
