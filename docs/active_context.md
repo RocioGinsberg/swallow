@@ -5,17 +5,19 @@
 - latest_completed_track: `Retrieval / Memory` (Primary) + `Evaluation / Policy` (Secondary)
 - latest_completed_phase: `Phase 45`
 - latest_completed_slice: `Eval Baseline + Deep Ingestion`
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_track: `Execution Topology` (Primary) + `Capabilities` (Secondary)
+- active_phase: `Phase 46`
+- active_slice: `all_planning_docs_complete`
 - active_branch: `main`
-- status: `post_phase45_stable_tag_v0.3.2_pending`
+- status: `phase46_planning_complete_awaiting_human_approval`
 
 ---
 
 ## 当前状态说明
 
 Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向为 Eval 基线建立 + Ingestion 深化。3 个 slice：S1 eval 基础设施 + 降噪/提案质量基线、S2 ChatGPT 对话树上下文还原、S3 `swl ingest --summary` 结构化摘要。整体风险 11/27（低-中）。这是项目首次引入 Eval-Driven Development（规则已固化到 `.agents/shared/rules.md` §十）。S1 / S2 / S3 已全部完成，Claude review 也已完成，当前状态为 merge ready。
+
+Phase 46 方案拆解已产出（`docs/plans/phase46/design_decision.md`），目标为模型网关物理层实装。4 个 slice：S1 基础设施就绪验证、S2 HTTP 执行器核心 + CLI 去品牌化（高风险）、S3 方言对齐与多模型路由（claude/qwen/glm/gemini/deepseek）、S4 降级矩阵（HTTP → Cline CLI → 离线）+ Eval 护航。整体风险 24/36（中-高）。全部规划文档已产出，等待 Human 审批后进入实现。
 
 ---
 
@@ -26,15 +28,14 @@ Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向
 1. `AGENTS.md`
 2. `docs/active_context.md`
 3. `docs/roadmap.md`
-4. `docs/system_tracks.md`
-5. `current_state.md`
-6. `docs/plans/phase44/closeout.md`
+4. `docs/plans/phase46/kickoff.md`
+5. `docs/plans/phase46/breakdown.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase44/review_comments.md`
+- `docs/plans/phase46/design_decision.md`
+- `docs/plans/phase46/risk_assessment.md`
 - `docs/concerns_backlog.md`
-- `pr.md`
 - 历史 phase closeout / review_comments
 
 ---
@@ -49,16 +50,10 @@ Phase 45 kickoff 已产出，当前按 human gate 已通过进入实现。方向
 
 下一步：
 
-- **[Codex]** 已完成 S1：补齐 `tests/eval/`、pytest eval marker 与质量基线测试。
-- **[Human]** 已完成 S1 提交，并对 eval fixture 位置做了微调。
-- **[Codex]** 已完成 S2 `ChatGPT conversation tree restoration`。
-- **[Human]** 已完成 S2 提交。
-- **[Codex]** 已完成 S3 `swl ingest --summary`。
-- **[Human]** 已完成 S3 提交。
-- **[Codex]** 已整理 `closeout.md` 与本地 `pr.md`。
-- **[Claude]** 已完成 Phase 45 review：`0 BLOCK / 1 CONCERN / 1 NOTE / Merge ready`。
-- **[Codex]** 已同步 closeout / backlog / `pr.md` 到 review 完成状态。
+- **[Human]** 审阅 Phase 46 全部规划文档，确认方向后批准进入实现
+- **[Human/Codex]** 确认 new-api Docker 栈就绪状态（S1 前置）
+- **[Codex]** Human 批准后，创建 `phase46/gateway-core` 分支，从 S1 开始实现
 
 当前阻塞项：
 
-- 等待 Human 更新 PR 描述、push 分支并做 merge 决策。
+- 等待 Human 审批 Phase 46 规划文档（kickoff / design_decision / breakdown / risk_assessment）
