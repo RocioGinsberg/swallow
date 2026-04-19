@@ -77,6 +77,16 @@ def _consensus_policy(state: TaskState) -> str:
     return raw_policy if raw_policy in {"majority", "veto"} else "majority"
 
 
+def _token_cost_limit(state: TaskState) -> float:
+    semantics = state.task_semantics if state.task_semantics else {}
+    raw_limit = semantics.get("token_cost_limit", 0.0)
+    try:
+        parsed = float(raw_limit)
+    except (TypeError, ValueError):
+        return 0.0
+    return parsed if parsed > 0 else 0.0
+
+
 def _parallel_subtasks_requested(constraints: list[str]) -> bool:
     for item in constraints:
         normalized = item.lower()
@@ -96,6 +106,7 @@ def _build_subtask_cards(
     cards: list[TaskCard] = []
     reviewer_routes = _reviewer_routes(state)
     consensus_policy = _consensus_policy(state)
+    token_cost_limit = _token_cost_limit(state)
     for index, action in enumerate(next_actions, start=1):
         depends_on = [] if parallel_requested or index == 1 else [cards[-1].card_id]
         cards.append(
@@ -113,6 +124,7 @@ def _build_subtask_cards(
                 executor_type=state.route_executor_family,
                 reviewer_routes=list(reviewer_routes),
                 consensus_policy=consensus_policy,
+                token_cost_limit=token_cost_limit,
                 constraints=list(constraints),
                 depends_on=depends_on,
                 subtask_index=index,
@@ -171,6 +183,7 @@ def plan(state: TaskState) -> list[TaskCard]:
     next_actions = _next_action_proposals(state)
     reviewer_routes = _reviewer_routes(state)
     consensus_policy = _consensus_policy(state)
+    token_cost_limit = _token_cost_limit(state)
     if len(next_actions) > 1:
         parallel_requested = _parallel_subtasks_requested(constraints)
         return _build_subtask_cards(
@@ -190,6 +203,7 @@ def plan(state: TaskState) -> list[TaskCard]:
         executor_type=state.route_executor_family,
         reviewer_routes=reviewer_routes,
         consensus_policy=consensus_policy,
+        token_cost_limit=token_cost_limit,
         constraints=list(constraints),
         depends_on=[],
         subtask_index=1,

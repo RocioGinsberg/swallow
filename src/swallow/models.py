@@ -444,6 +444,7 @@ class TaskCard:
     executor_type: str = "cli"
     reviewer_routes: list[str] = field(default_factory=list)
     consensus_policy: str = "majority"
+    token_cost_limit: float = 0.0
     constraints: list[str] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)
     subtask_index: int = 1
@@ -638,6 +639,8 @@ class ExecutionBudgetPolicyResult:
     budget_state: str
     timeout_state: str
     recommended_action: str
+    current_token_cost: float = 0.0
+    token_cost_limit: float = 0.0
     findings: list[ExecutionBudgetPolicyFinding] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -649,6 +652,8 @@ class ExecutionBudgetPolicyResult:
             "remaining_attempts": self.remaining_attempts,
             "budget_state": self.budget_state,
             "timeout_state": self.timeout_state,
+            "current_token_cost": self.current_token_cost,
+            "token_cost_limit": self.token_cost_limit,
             "recommended_action": self.recommended_action,
             "findings": [finding.to_dict() for finding in self.findings],
         }

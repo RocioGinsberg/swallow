@@ -22,6 +22,8 @@ def evaluate_checkpoint_snapshot(
     findings: list[CheckpointSnapshotFinding] = []
     recovery_semantics = "checkpoint_pending"
     interruption_kind = "none"
+    budget_state = str(execution_budget_policy.get("budget_state", "available")).strip()
+    is_cost_exhausted = budget_state == "cost_exhausted" or failure_kind == "budget_exhausted"
 
     required_artifacts = [
         state.artifact_paths.get("summary", ""),
@@ -79,16 +81,27 @@ def evaluate_checkpoint_snapshot(
     elif state.status == "waiting_human":
         status = "warning"
         checkpoint_state = "waiting_human"
-        recovery_semantics = "human_gate_debate_exhausted"
         recommended_path = "run"
-        message = "Debate loop exhausted its review rounds and now requires explicit human-guided rerun."
-        findings.append(
-            CheckpointSnapshotFinding(
-                code="checkpoint.waiting_human",
-                level="warning",
-                message="Debate circuit breaker tripped, so the next step is an explicit operator rerun after review feedback inspection.",
+        if is_cost_exhausted:
+            recovery_semantics = "human_gate_budget_exhausted"
+            message = "Token cost budget is exhausted and the task now requires explicit operator approval before rerun."
+            findings.append(
+                CheckpointSnapshotFinding(
+                    code="checkpoint.waiting_human_budget_exhausted",
+                    level="warning",
+                    message="Token cost budget is exhausted, so the next step is an operator-guided rerun with a raised limit or cheaper route.",
+                )
             )
-        )
+        else:
+            recovery_semantics = "human_gate_debate_exhausted"
+            message = "Debate loop exhausted its review rounds and now requires explicit human-guided rerun."
+            findings.append(
+                CheckpointSnapshotFinding(
+                    code="checkpoint.waiting_human",
+                    level="warning",
+                    message="Debate circuit breaker tripped, so the next step is an explicit operator rerun after review feedback inspection.",
+                )
+            )
     elif review_ready:
         status = "passed"
         checkpoint_state = "review_ready"
@@ -141,12 +154,16 @@ def evaluate_checkpoint_snapshot(
             )
         )
 
-    if str(execution_budget_policy.get("budget_state", "available")) == "exhausted":
+    if budget_state in {"exhausted", "cost_exhausted"}:
         findings.append(
             CheckpointSnapshotFinding(
                 code="checkpoint.budget_exhausted",
                 level="warning",
-                message="Execution budget is exhausted, so recovery may require an explicit rerun decision.",
+                message=(
+                    "Execution budget is exhausted, so recovery may require an explicit rerun decision."
+                    if budget_state == "exhausted"
+                    else "Token cost budget is exhausted, so recovery requires an explicit rerun decision."
+                ),
             )
         )
 

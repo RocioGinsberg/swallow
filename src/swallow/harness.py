@@ -8,7 +8,11 @@ from time import perf_counter
 from .checkpoint_snapshot import build_checkpoint_snapshot_report, evaluate_checkpoint_snapshot
 from .compatibility import build_compatibility_report, evaluate_route_compatibility
 from .cost_estimation import DEFAULT_COST_ESTIMATOR, CostEstimator
-from .execution_budget_policy import build_execution_budget_policy_report, evaluate_execution_budget_policy
+from .execution_budget_policy import (
+    build_execution_budget_policy_report,
+    evaluate_execution_budget_policy,
+    normalize_token_cost_limit,
+)
 from .execution_fit import build_execution_fit_report, evaluate_execution_fit
 from .executor import build_failure_recommendations, run_executor
 from .grounding import build_grounding_evidence, build_grounding_evidence_report, extract_grounding_entries
@@ -396,7 +400,14 @@ def write_task_artifacts(
         ),
     )
 
-    execution_budget_policy_result = evaluate_execution_budget_policy(retry_policy_result)
+    execution_budget_policy_result = evaluate_execution_budget_policy(
+        retry_policy_result,
+        base_dir=base_dir,
+        task_id=state.task_id,
+        token_cost_limit=normalize_token_cost_limit(
+            state.task_semantics.get("token_cost_limit", 0.0) if state.task_semantics else 0.0
+        ),
+    )
     save_execution_budget_policy(base_dir, state.task_id, execution_budget_policy_result.to_dict())
     write_artifact(
         base_dir,
@@ -416,6 +427,8 @@ def write_task_artifacts(
                 "budget_state": execution_budget_policy_result.budget_state,
                 "timeout_state": execution_budget_policy_result.timeout_state,
                 "remaining_attempts": execution_budget_policy_result.remaining_attempts,
+                "current_token_cost": execution_budget_policy_result.current_token_cost,
+                "token_cost_limit": execution_budget_policy_result.token_cost_limit,
             },
         ),
     )
