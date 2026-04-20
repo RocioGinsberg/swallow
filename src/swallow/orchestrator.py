@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
 import tempfile
 import threading
 
 from dataclasses import replace
 from pathlib import Path
-from typing import Callable
+from typing import Awaitable, Callable
 from uuid import uuid4
 
 from .capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
@@ -113,9 +115,15 @@ from .review_gate import (
     render_review_feedback_markdown,
     review_executor_output,
     run_review_gate,
+    run_review_gate_async,
 )
 from .staged_knowledge import StagedCandidate, submit_staged_candidate
-from .subtask_orchestrator import SubtaskOrchestrator, SubtaskOrchestratorResult, SubtaskRunRecord
+from .subtask_orchestrator import (
+    AsyncSubtaskOrchestrator,
+    SubtaskOrchestrator,
+    SubtaskOrchestratorResult,
+    SubtaskRunRecord,
+)
 from .store import (
     append_event,
     append_canonical_record,
@@ -214,6 +222,59 @@ def _execute_task_card(
 ) -> ExecutorResult:
     executor = resolve_executor(card.executor_type, state.executor_name)
     return executor.execute(base_dir, state, card, retrieval_items)
+
+
+_ORIGINAL_EXECUTE_TASK_CARD = _execute_task_card
+
+
+async def _resolve_async_result(value: object) -> object:
+    if inspect.isawaitable(value):
+        return await value
+    return value
+
+
+async def _run_retrieval_async(
+    base_dir: Path,
+    state: TaskState,
+    request: RetrievalRequest,
+) -> list[RetrievalItem]:
+    result = run_retrieval(base_dir, state, request)
+    return await _resolve_async_result(result)
+
+
+async def _write_task_artifacts_async(
+    base_dir: Path,
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    executor_result: ExecutorResult,
+    grounding_evidence_override: dict[str, object] | None = None,
+) -> tuple[
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+    object,
+]:
+    result = write_task_artifacts(
+        base_dir,
+        state,
+        retrieval_items,
+        executor_result,
+        grounding_evidence_override,
+    )
+    return await _resolve_async_result(result)
+
+
+async def _execute_task_card_async(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+) -> ExecutorResult:
+    result = _execute_task_card(base_dir, state, card, retrieval_items)
+    return await _resolve_async_result(result)
 
 
 def _append_canonical_write_guard_warning(base_dir: Path, state: TaskState, card: TaskCard) -> None:
@@ -682,6 +743,90 @@ def _run_binary_fallback(
     return fallback_result, fallback_card, True
 
 
+async def _run_binary_fallback_async(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+    primary_result: ExecutorResult,
+) -> tuple[ExecutorResult, TaskCard, bool]:
+    if primary_result.degraded or primary_result.failure_kind == "http_rate_limited":
+        return primary_result, card, False
+    fallback_route = fallback_route_for(state.route_name)
+    if fallback_route is None or fallback_route.name == state.route_name:
+        return primary_result, card, False
+
+    primary_route_name = state.route_name
+    primary_executor_name = primary_result.executor_name
+    primary_failure_kind = primary_result.failure_kind
+    primary_artifacts = _write_prefixed_executor_artifacts(
+        base_dir,
+        state.task_id,
+        prefix="fallback_primary",
+    )
+    fallback_reason = (
+        f"Selected fallback route '{fallback_route.name}' after executor failure on '{primary_route_name}'."
+    )
+    _apply_route_spec_to_state(state, fallback_route, fallback_reason)
+    state.route_is_fallback = True
+    applied_constraints = _apply_capability_enforcement(state)
+    _apply_execution_topology(state, dispatch_status=_dispatch_status_for_transport(state.route_transport_kind))
+    _apply_execution_site_contract(state)
+    state.executor_status = "running"
+    save_state(base_dir, state)
+
+    fallback_card = replace(
+        card,
+        route_hint=fallback_route.name,
+        executor_type=fallback_route.executor_family,
+    )
+    fallback_result = await _execute_task_card_async(base_dir, state, fallback_card, retrieval_items)
+    fallback_result = replace(
+        fallback_result,
+        degraded=True,
+        original_route_name=primary_route_name,
+        fallback_route_name=fallback_route.name,
+    )
+    fallback_artifacts = _write_prefixed_executor_artifacts(
+        base_dir,
+        state.task_id,
+        prefix="fallback",
+    )
+    fallback_token_cost = estimate_cost(
+        state.route_model_hint,
+        fallback_result.estimated_input_tokens,
+        fallback_result.estimated_output_tokens,
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type=EVENT_TASK_EXECUTION_FALLBACK,
+            message=f"Fallback route '{fallback_route.name}' executed after primary executor failure.",
+            payload={
+                "previous_route_name": primary_route_name,
+                "previous_executor_name": primary_executor_name,
+                "previous_failure_kind": primary_failure_kind,
+                "previous_status": primary_result.status,
+                "fallback_route_name": fallback_route.name,
+                "fallback_executor_name": fallback_result.executor_name,
+                "fallback_status": fallback_result.status,
+                "fallback_failure_kind": fallback_result.failure_kind,
+                "fallback_route_reason": state.route_reason,
+                "fallback_route_capabilities": state.route_capabilities,
+                "capability_constraints_applied": _serialize_capability_constraints(applied_constraints),
+                "previous_latency_ms": primary_result.latency_ms,
+                "latency_ms": fallback_result.latency_ms,
+                "degraded": True,
+                "token_cost": fallback_token_cost,
+                "primary_artifacts_written": primary_artifacts,
+                "fallback_artifacts_written": fallback_artifacts,
+            },
+        ),
+    )
+    return fallback_result, fallback_card, True
+
+
 def _build_debate_last_feedback(
     review_gate_result: ReviewGateResult,
     executor_result: ExecutorResult,
@@ -878,6 +1023,57 @@ def _debate_loop_core(
         retry_round += 1
 
 
+async def _debate_loop_core_async(
+    *,
+    run_attempt: Callable[[int], Awaitable[tuple[ExecutorResult, ReviewGateResult]]],
+    clear_feedback_state: Callable[[], None],
+    store_feedback: Callable[[ReviewFeedback], str],
+    apply_feedback: Callable[[str, ReviewFeedback], None],
+    append_round_event: Callable[[str, ReviewFeedback, ExecutorResult, ReviewGateResult], None],
+    persist_exhausted: Callable[[list[str], ReviewFeedback, ReviewGateResult], str],
+    append_breaker_event: Callable[[list[str], str, ExecutorResult, ReviewGateResult], None],
+) -> tuple[ExecutorResult, ReviewGateResult, bool]:
+    feedback_refs: list[str] = []
+    retry_round = 0
+    clear_feedback_state()
+
+    while True:
+        executor_result, review_gate_result = await run_attempt(retry_round)
+
+        if review_gate_result.status == "passed":
+            clear_feedback_state()
+            return executor_result, review_gate_result, False
+        if executor_result.status != "completed":
+            clear_feedback_state()
+            return executor_result, review_gate_result, False
+
+        if retry_round >= DEBATE_MAX_ROUNDS:
+            last_feedback = _build_debate_last_feedback(
+                review_gate_result,
+                executor_result,
+                retry_round=retry_round,
+            )
+            debate_exhausted_ref = persist_exhausted(feedback_refs, last_feedback, review_gate_result)
+            append_breaker_event(feedback_refs, debate_exhausted_ref, executor_result, review_gate_result)
+            return executor_result, review_gate_result, True
+
+        feedback = build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=retry_round + 1,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        )
+        if feedback is None:
+            clear_feedback_state()
+            return executor_result, review_gate_result, False
+
+        feedback_ref = store_feedback(feedback)
+        feedback_refs.append(feedback_ref)
+        apply_feedback(feedback_ref, feedback)
+        append_round_event(feedback_ref, feedback, executor_result, review_gate_result)
+        retry_round += 1
+
+
 def _run_single_task_with_debate(
     base_dir: Path,
     state: TaskState,
@@ -914,6 +1110,107 @@ def _run_single_task_with_debate(
         return executor_result, review_gate_result
 
     executor_result, review_gate_result, debate_exhausted = _debate_loop_core(
+        run_attempt=run_attempt,
+        clear_feedback_state=lambda: _clear_review_feedback_state(state),
+        store_feedback=lambda feedback: _persist_review_feedback(base_dir, state.task_id, feedback),
+        apply_feedback=lambda feedback_ref, feedback: (
+            setattr(state, "review_feedback_ref", feedback_ref),
+            setattr(state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
+        ),
+        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type="task.debate_round",
+                message=f"Review feedback generated for debate round {feedback.round_number}.",
+                payload={
+                    "round_number": feedback.round_number,
+                    "max_rounds": feedback.max_rounds,
+                    "retry_scheduled": True,
+                    "feedback_ref": feedback_ref,
+                    "failed_checks": feedback.failed_checks,
+                    "suggestions": feedback.suggestions,
+                    "executor_name": executor_result.executor_name,
+                    "executor_status": executor_result.status,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        ),
+        persist_exhausted=lambda feedback_refs, last_feedback, review_gate_result: _persist_debate_exhausted_artifact(
+            base_dir,
+            state.task_id,
+            feedback_refs=feedback_refs,
+            last_feedback=last_feedback,
+            review_gate_result=review_gate_result,
+        ),
+        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type="task.debate_circuit_breaker",
+                message="Debate loop exhausted the maximum review rounds and is waiting for human intervention.",
+                payload={
+                    "max_rounds": DEBATE_MAX_ROUNDS,
+                    "feedback_refs": feedback_refs,
+                    "debate_exhausted_ref": debate_exhausted_ref,
+                    "executor_name": executor_result.executor_name,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        ),
+    )
+
+    if debate_exhausted:
+        return (
+            replace(
+                executor_result,
+                status="failed",
+                message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
+                failure_kind="debate_circuit_breaker",
+                review_feedback=state.review_feedback_ref,
+            ),
+            review_gate_result,
+            True,
+        )
+    return executor_result, review_gate_result, False
+
+
+async def _run_single_task_with_debate_async(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+) -> tuple[ExecutorResult, ReviewGateResult, bool]:
+    current_card = card
+
+    async def run_attempt(_retry_round: int) -> tuple[ExecutorResult, ReviewGateResult]:
+        nonlocal current_card, state
+        budget_guard = _budget_guard_result(
+            base_dir,
+            state,
+            current_card,
+            retry_round=_retry_round,
+            attempt_number=_retry_round + 1,
+        )
+        if budget_guard is not None:
+            return budget_guard
+        _append_canonical_write_guard_warning(base_dir, state, current_card)
+        executor_result = await _execute_task_card_async(base_dir, state, current_card, retrieval_items)
+        executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
+        state = _apply_librarian_side_effects(base_dir, state, executor_result)
+        if executor_result.status == "failed":
+            executor_result, current_card, _ = await _run_binary_fallback_async(
+                base_dir,
+                state,
+                current_card,
+                retrieval_items,
+                executor_result,
+            )
+            executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
+        review_gate_result = await run_review_gate_async(state, executor_result, current_card)
+        return executor_result, review_gate_result
+
+    executor_result, review_gate_result, debate_exhausted = await _debate_loop_core_async(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(state),
         store_feedback=lambda feedback: _persist_review_feedback(base_dir, state.task_id, feedback),
@@ -1094,6 +1391,81 @@ def _run_subtask_attempt(
     )
 
 
+async def _run_subtask_attempt_async(
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+    *,
+    base_dir: Path,
+    attempt_number: int = 1,
+) -> tuple[SubtaskRunRecord, dict[str, str]]:
+    started_at = utc_now()
+    isolated_state = TaskState.from_dict(state.to_dict())
+    try:
+        budget_guard = _budget_guard_result(
+            base_dir,
+            isolated_state,
+            card,
+            retry_round=max(attempt_number - 1, 0),
+            attempt_number=attempt_number,
+            subtask_index=card.subtask_index,
+        )
+        if budget_guard is not None:
+            executor_result, review_gate_result = budget_guard
+            extra_artifacts = {}
+        else:
+            with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
+                subtask_base_dir = Path(tmp)
+                executor_result = await _execute_task_card_async(
+                    subtask_base_dir,
+                    isolated_state,
+                    card,
+                    retrieval_items,
+                )
+                extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+            review_gate_result = await run_review_gate_async(isolated_state, executor_result, card)
+    except Exception as exc:  # pragma: no cover - defensive path
+        executor_result = ExecutorResult(
+            executor_name="subtask-orchestrator",
+            status="failed",
+            message=f"Subtask execution raised {type(exc).__name__}.",
+            failure_kind="subtask_exception",
+            stderr=str(exc),
+        )
+        review_gate_result = ReviewGateResult(
+            status="failed",
+            message="Subtask execution failed before review gate completed.",
+            checks=[
+                {
+                    "name": "subtask_execution",
+                    "passed": False,
+                    "detail": f"subtask raised {type(exc).__name__}: {exc}",
+                }
+            ],
+        )
+        extra_artifacts = {}
+
+    status = (
+        "completed"
+        if executor_result.status == "completed" and review_gate_result.status == "passed"
+        else "failed"
+    )
+    return (
+        SubtaskRunRecord(
+            card_id=card.card_id,
+            subtask_index=card.subtask_index,
+            goal=card.goal,
+            depends_on=list(card.depends_on),
+            status=status,
+            started_at=started_at,
+            completed_at=utc_now(),
+            executor_result=executor_result,
+            review_gate_result=review_gate_result,
+        ),
+        extra_artifacts,
+    )
+
+
 def _run_subtask_debate_retries(
     base_dir: Path,
     state: TaskState,
@@ -1131,6 +1503,110 @@ def _run_subtask_debate_retries(
         return executor_result, review_gate_result
 
     _executor_result, _review_gate_result, debate_exhausted = _debate_loop_core(
+        run_attempt=run_attempt,
+        clear_feedback_state=lambda: _clear_review_feedback_state(isolated_state),
+        store_feedback=lambda feedback: _persist_subtask_review_feedback(
+            base_dir,
+            state.task_id,
+            card.subtask_index,
+            feedback,
+        ),
+        apply_feedback=lambda feedback_ref, feedback: (
+            setattr(isolated_state, "review_feedback_ref", feedback_ref),
+            setattr(isolated_state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
+        ),
+        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type=f"subtask.{card.subtask_index}.debate_round",
+                message=f"Review feedback generated for subtask {card.subtask_index} debate round {feedback.round_number}.",
+                payload={
+                    "card_id": card.card_id,
+                    "goal": card.goal,
+                    "subtask_index": card.subtask_index,
+                    "round_number": feedback.round_number,
+                    "max_rounds": feedback.max_rounds,
+                    "attempt_number": feedback.round_number + 1,
+                    "retry_scheduled": True,
+                    "feedback_ref": feedback_ref,
+                    "failed_checks": feedback.failed_checks,
+                    "suggestions": feedback.suggestions,
+                    "executor_name": executor_result.executor_name,
+                    "executor_status": executor_result.status,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        ),
+        persist_exhausted=lambda feedback_refs, last_feedback, review_gate_result: _persist_subtask_debate_exhausted_artifact(
+            base_dir,
+            state.task_id,
+            card.subtask_index,
+            feedback_refs=feedback_refs,
+            last_feedback=last_feedback,
+            review_gate_result=review_gate_result,
+        ),
+        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+            base_dir,
+            Event(
+                task_id=state.task_id,
+                event_type=f"subtask.{card.subtask_index}.debate_circuit_breaker",
+                message=f"Subtask {card.subtask_index} exhausted debate rounds and now requires human intervention.",
+                payload={
+                    "card_id": card.card_id,
+                    "goal": card.goal,
+                    "subtask_index": card.subtask_index,
+                    "max_rounds": DEBATE_MAX_ROUNDS,
+                    "attempt_count": 1 + len(retry_attempts),
+                    "feedback_refs": feedback_refs,
+                    "debate_exhausted_ref": debate_exhausted_ref,
+                    "executor_name": executor_result.executor_name,
+                    "review_status": review_gate_result.status,
+                },
+            ),
+        ),
+    )
+
+    return retry_attempts, debate_exhausted
+
+
+async def _run_subtask_debate_retries_async(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    retrieval_items: list[RetrievalItem],
+    initial_record: SubtaskRunRecord,
+) -> tuple[list[tuple[int, SubtaskRunRecord, dict[str, str]]], bool]:
+    retry_attempts: list[tuple[int, SubtaskRunRecord, dict[str, str]]] = []
+    current_record = initial_record
+    isolated_state = TaskState.from_dict(state.to_dict())
+
+    async def run_attempt(retry_round: int) -> tuple[ExecutorResult, ReviewGateResult]:
+        nonlocal current_record
+        if retry_round > 0:
+            retry_record, extra_artifacts = await _run_subtask_attempt_async(
+                isolated_state,
+                replace(card, depends_on=[]),
+                retrieval_items,
+                base_dir=base_dir,
+                attempt_number=retry_round + 1,
+            )
+            retry_attempts.append((retry_round + 1, retry_record, extra_artifacts))
+            current_record = retry_record
+
+        executor_result = current_record.executor_result or ExecutorResult(
+            executor_name="subtask-orchestrator",
+            status="failed",
+            message="Missing subtask executor result.",
+        )
+        review_gate_result = current_record.review_gate_result or ReviewGateResult(
+            status="failed",
+            message="Missing subtask review gate result.",
+            checks=[],
+        )
+        return executor_result, review_gate_result
+
+    _executor_result, _review_gate_result, debate_exhausted = await _debate_loop_core_async(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(isolated_state),
         store_feedback=lambda feedback: _persist_subtask_review_feedback(
@@ -1426,6 +1902,139 @@ def _run_subtask_orchestration(
 
     for failed_record in failed_records:
         retry_attempts, debate_exhausted = _run_subtask_debate_retries(
+            base_dir,
+            state,
+            cards_by_id[failed_record.card_id],
+            retrieval_items,
+            failed_record,
+        )
+        if retry_attempts:
+            attempt_counts[failed_record.card_id] = 1 + len(retry_attempts)
+            records_by_id[failed_record.card_id] = retry_attempts[-1][1]
+            for attempt_number, retry_record, extra_artifacts in retry_attempts:
+                _write_subtask_attempt_artifacts(
+                    base_dir,
+                    state.task_id,
+                    retry_record,
+                    attempt_number=attempt_number,
+                    extra_artifacts=extra_artifacts,
+                )
+                _append_subtask_events(base_dir, state.task_id, retry_record, attempt_number=attempt_number)
+        if debate_exhausted:
+            debate_exhausted_card_ids.append(failed_record.card_id)
+
+    result.records = [records_by_id[card.card_id] for card in cards]
+    budget_exhausted_card_ids = [
+        record.card_id
+        for record in result.records
+        if record.executor_result is not None and record.executor_result.failure_kind == "budget_exhausted"
+    ]
+    result.failed_card_ids = [record.card_id for record in result.records if record.status != "completed"]
+    result.failed_count = len(result.failed_card_ids)
+    result.completed_count = len(result.records) - result.failed_count
+    result.status = "completed" if result.failed_count == 0 else "failed"
+    if budget_exhausted_card_ids and debate_exhausted_card_ids:
+        result.message = (
+            f"{len(debate_exhausted_card_ids)} subtasks exhausted debate rounds and "
+            f"{len(budget_exhausted_card_ids)} reached the token cost budget; human intervention required."
+        )
+    elif budget_exhausted_card_ids:
+        result.message = (
+            f"{len(budget_exhausted_card_ids)} subtasks reached the token cost budget and require human intervention."
+        )
+    elif debate_exhausted_card_ids:
+        result.message = (
+            f"{len(debate_exhausted_card_ids)} subtasks exhausted debate rounds and require human intervention."
+        )
+    else:
+        result.message = (
+            "All subtasks completed successfully."
+            if result.failed_count == 0
+            else f"{result.failed_count} subtasks failed execution or review."
+        )
+
+    review_gate_result = _build_subtask_review_gate_result(result, attempt_counts)
+    executor_result = _build_subtask_executor_result(
+        result,
+        attempt_counts,
+        debate_exhausted_card_ids=debate_exhausted_card_ids,
+        budget_exhausted_card_ids=budget_exhausted_card_ids,
+    )
+    _write_parent_executor_artifacts(base_dir, state, executor_result)
+    _append_parent_executor_event(base_dir, state, executor_result)
+    return executor_result, review_gate_result, result, bool(debate_exhausted_card_ids or budget_exhausted_card_ids)
+
+
+async def _run_subtask_orchestration_async(
+    base_dir: Path,
+    state: TaskState,
+    cards: list[TaskCard],
+    retrieval_items: list[RetrievalItem],
+) -> tuple[ExecutorResult, ReviewGateResult, SubtaskOrchestratorResult, bool]:
+    subtask_extra_artifacts: dict[str, dict[str, str]] = {}
+    subtask_budget_review_results: dict[str, ReviewGateResult] = {}
+    subtask_extra_artifacts_lock = asyncio.Lock()
+
+    async def execute_subtask(
+        _unused_base_dir: Path,
+        isolated_state: TaskState,
+        card: TaskCard,
+        subtask_retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        budget_guard = _budget_guard_result(
+            base_dir,
+            isolated_state,
+            card,
+            retry_round=0,
+            attempt_number=1,
+            subtask_index=card.subtask_index,
+        )
+        if budget_guard is not None:
+            executor_result, review_gate_result = budget_guard
+            async with subtask_extra_artifacts_lock:
+                subtask_budget_review_results[card.card_id] = review_gate_result
+            return executor_result
+        with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
+            subtask_base_dir = Path(tmp)
+            executor_result = await _execute_task_card_async(
+                subtask_base_dir,
+                isolated_state,
+                card,
+                subtask_retrieval_items,
+            )
+            extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+        async with subtask_extra_artifacts_lock:
+            subtask_extra_artifacts[card.card_id] = extra_artifacts
+        return executor_result
+
+    orchestrator = AsyncSubtaskOrchestrator(
+        execute_subtask,
+        lambda executor_result, review_card: run_review_gate_async(state, executor_result, review_card),
+    )
+    result = await orchestrator.run(base_dir, state, cards, retrieval_items)
+    for record in result.records:
+        budget_review_gate_result = subtask_budget_review_results.get(record.card_id)
+        if budget_review_gate_result is not None:
+            record.review_gate_result = budget_review_gate_result
+            record.status = "failed"
+    attempt_counts = {record.card_id: 1 for record in result.records}
+    failed_records = [record for record in result.records if record.status != "completed"]
+    cards_by_id = {card.card_id: card for card in cards}
+    records_by_id = {record.card_id: record for record in result.records}
+    debate_exhausted_card_ids: list[str] = []
+
+    for record in result.records:
+        _write_subtask_attempt_artifacts(
+            base_dir,
+            state.task_id,
+            record,
+            attempt_number=1,
+            extra_artifacts=subtask_extra_artifacts.get(record.card_id, {}),
+        )
+        _append_subtask_events(base_dir, state.task_id, record, attempt_number=1)
+
+    for failed_record in failed_records:
+        retry_attempts, debate_exhausted = await _run_subtask_debate_retries_async(
             base_dir,
             state,
             cards_by_id[failed_record.card_id],
@@ -2403,7 +3012,18 @@ def evaluate_task_canonical_reuse(
     return {"record": record, "summary": summary, "artifact_paths": state.artifact_paths}
 
 
-def run_task(
+def _run_orchestrator_sync(coro: Awaitable[TaskState]) -> TaskState:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    close = getattr(coro, "close", None)
+    if callable(close):
+        close()
+    raise RuntimeError("run_task() cannot be used inside a running event loop; use run_task_async().")
+
+
+async def run_task_async(
     base_dir: Path,
     task_id: str,
     executor_name: str | None = None,
@@ -2552,7 +3172,7 @@ def run_task(
             )
     if retrieval_items is None:
         retrieval_request = build_task_retrieval_request(state)
-        retrieval_items = run_retrieval(base_dir, state, retrieval_request)
+        retrieval_items = await _run_retrieval_async(base_dir, state, retrieval_request)
         retrieval_skipped = False
     else:
         retrieval_skipped = True
@@ -2615,14 +3235,23 @@ def run_task(
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
         if multi_card_plan:
-            executor_result, review_gate_result, subtask_result, debate_exhausted = _run_subtask_orchestration(
-                base_dir,
-                state,
-                cards,
-                retrieval_items,
-            )
+            if _execute_task_card is _ORIGINAL_EXECUTE_TASK_CARD:
+                executor_result, review_gate_result, subtask_result, debate_exhausted = await asyncio.to_thread(
+                    _run_subtask_orchestration,
+                    base_dir,
+                    state,
+                    cards,
+                    retrieval_items,
+                )
+            else:
+                executor_result, review_gate_result, subtask_result, debate_exhausted = await _run_subtask_orchestration_async(
+                    base_dir,
+                    state,
+                    cards,
+                    retrieval_items,
+                )
         else:
-            executor_result, review_gate_result, debate_exhausted = _run_single_task_with_debate(
+            executor_result, review_gate_result, debate_exhausted = await _run_single_task_with_debate_async(
                 base_dir,
                 state,
                 card,
@@ -2635,7 +3264,7 @@ def run_task(
         state.executor_status = executor_result.status
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
-        review_gate_result = run_review_gate(state, executor_result, card)
+        review_gate_result = await run_review_gate_async(state, executor_result, card)
         execution_skipped = True
         debate_exhausted = False
     state.executor_name = executor_result.executor_name
@@ -2754,7 +3383,7 @@ def run_task(
         retry_policy_result,
         stop_policy_result,
         execution_budget_policy_result,
-    ) = write_task_artifacts(
+    ) = await _write_task_artifacts_async(
         base_dir,
         artifact_state,
         retrieval_items,
@@ -2869,6 +3498,28 @@ def run_task(
             ),
         )
     return state
+
+
+def run_task(
+    base_dir: Path,
+    task_id: str,
+    executor_name: str | None = None,
+    capability_refs: list[str] | None = None,
+    route_mode: str | None = None,
+    reset_grounding: bool = False,
+    skip_to_phase: str = "retrieval",
+) -> TaskState:
+    return _run_orchestrator_sync(
+        run_task_async(
+            base_dir=base_dir,
+            task_id=task_id,
+            executor_name=executor_name,
+            capability_refs=capability_refs,
+            route_mode=route_mode,
+            reset_grounding=reset_grounding,
+            skip_to_phase=skip_to_phase,
+        )
+    )
 
 
 def build_task_semantics_report(state: TaskState) -> str:
