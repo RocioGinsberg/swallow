@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import Event, ExecutorResult, ValidationResult
-from swallow.orchestrator import create_task, run_task
+from swallow.orchestrator import create_task, run_task, run_task_async
 from swallow.store import append_event
 
 
@@ -258,6 +258,51 @@ class DebateLoopTest(unittest.TestCase):
         self.assertAlmostEqual(budget_event["payload"]["token_cost_limit"], 0.05)
         self.assertFalse(any(event["event_type"] == "task.debate_round" for event in events))
         self.assertFalse(any(event["event_type"] in {"task.completed", "task.failed"} for event in events))
+
+
+class DebateLoopAsyncTest(unittest.IsolatedAsyncioTestCase):
+    async def test_run_task_async_retries_inside_running_loop(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Async debate loop retry",
+                goal="Retry once after a failed review gate result inside an event loop",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / created.task_id
+            artifacts_dir = task_dir / "artifacts"
+            prompts: list[str] = []
+            call_count = 0
+
+            def run_local(_state: object, _retrieval_items: list[object], prompt: str) -> ExecutorResult:
+                nonlocal call_count
+                call_count += 1
+                prompts.append(prompt)
+                return ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message=f"attempt {call_count}",
+                    output="" if call_count == 1 else "resolved output",
+                    prompt=prompt,
+                    dialect="plain_text",
+                )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch("swallow.executor.run_local_executor", side_effect=run_local):
+                        final_state = await run_task_async(tmp_path, created.task_id, executor_name="local")
+
+            events = _load_json_lines(task_dir / "events.jsonl")
+            debate_event = next(event for event in events if event["event_type"] == "task.debate_round")
+            feedback_payload = json.loads((artifacts_dir / "review_feedback_round_1.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(call_count, 2)
+        self.assertEqual(debate_event["payload"]["round_number"], 1)
+        self.assertEqual(feedback_payload["round_number"], 1)
+        self.assertIn("## Review Feedback (Round 1)", prompts[1])
 
 
 if __name__ == "__main__":
