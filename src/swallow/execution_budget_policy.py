@@ -27,6 +27,7 @@ def normalize_token_cost_limit(raw_value: object) -> float:
 
 
 def calculate_task_token_cost(base_dir: Path, task_id: str) -> float:
+    """Aggregate token cost across the task lifetime, regardless of which card emitted it."""
     path = events_path(base_dir, task_id)
     if not path.exists():
         return 0.0

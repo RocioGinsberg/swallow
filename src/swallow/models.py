@@ -442,6 +442,7 @@ class TaskCard:
     output_schema: dict[str, Any] = field(default_factory=dict)
     route_hint: str = ""
     executor_type: str = "cli"
+    # Under veto, reviewer_routes[0] owns veto authority and later routes are advisory.
     reviewer_routes: list[str] = field(default_factory=list)
     consensus_policy: str = "majority"
     token_cost_limit: float = 0.0

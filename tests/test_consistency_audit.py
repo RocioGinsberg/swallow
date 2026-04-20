@@ -18,6 +18,20 @@ from swallow.store import write_artifact
 
 
 class ConsistencyAuditTest(unittest.TestCase):
+    def test_run_consistency_audit_fails_gracefully_when_task_state_is_missing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            result = run_consistency_audit(
+                tmp_path,
+                "missing-task",
+                auditor_route="http-claude",
+            )
+
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(result.audit_artifact, "")
+        self.assertIn("Task state is missing", result.message)
+
     def test_run_consistency_audit_writes_markdown_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -123,6 +137,28 @@ class ConsistencyAuditTest(unittest.TestCase):
         self.assertIn("consistency_audit", stdout.getvalue())
         self.assertIn("status=completed", stdout.getvalue())
         self.assertIn("route=http-claude", stdout.getvalue())
+
+    def test_cli_task_consistency_audit_reports_missing_task_without_crashing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stdout = io.StringIO()
+
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "consistency-audit",
+                        "missing-task",
+                        "--auditor-route",
+                        "http-claude",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("status=failed", stdout.getvalue())
+        self.assertIn("artifact=-", stdout.getvalue())
 
 
 if __name__ == "__main__":

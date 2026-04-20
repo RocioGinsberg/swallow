@@ -2268,8 +2268,9 @@ def main(argv: list[str] | None = None) -> int:
             auditor_route=args.auditor_route,
             sample_artifact_path=args.artifact,
         )
+        artifact_ref = result.audit_artifact or "-"
         print(
-            f"{result.task_id} consistency_audit status={result.status} route={result.auditor_route} artifact={result.audit_artifact}"
+            f"{result.task_id} consistency_audit status={result.status} route={result.auditor_route} artifact={artifact_ref}"
         )
         return 0
 

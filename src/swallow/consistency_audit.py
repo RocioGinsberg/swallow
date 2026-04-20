@@ -155,10 +155,29 @@ def run_consistency_audit(
     auditor_route: str,
     sample_artifact_path: str = "executor_output.md",
 ) -> ConsistencyAuditResult:
-    state = load_state(base_dir, task_id)
-    resolved_artifact_path = _resolve_sample_artifact_path(base_dir, task_id, sample_artifact_path)
     audit_artifact_name = f"consistency_audit_{_timestamp_slug()}.md"
     audit_artifact_ref = f".swl/tasks/{task_id}/artifacts/{audit_artifact_name}"
+    resolved_artifact_path = _resolve_sample_artifact_path(base_dir, task_id, sample_artifact_path)
+    try:
+        state = load_state(base_dir, task_id)
+    except FileNotFoundError:
+        return ConsistencyAuditResult(
+            status="failed",
+            message=f"Task state is missing for task_id: {task_id}",
+            task_id=task_id,
+            auditor_route=auditor_route,
+            sample_artifact_path=str(resolved_artifact_path),
+            audit_artifact="",
+        )
+    except Exception as exc:
+        return ConsistencyAuditResult(
+            status="failed",
+            message=f"Task state could not be loaded for task_id {task_id}: {exc}",
+            task_id=task_id,
+            auditor_route=auditor_route,
+            sample_artifact_path=str(resolved_artifact_path),
+            audit_artifact="",
+        )
 
     if not resolved_artifact_path.exists():
         message = f"Sample artifact is missing: {resolved_artifact_path}"
