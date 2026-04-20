@@ -95,9 +95,11 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-**当前 tag: `v0.4.0`** — 多模型网络引擎纪元：HTTP 执行器 + CLI 去品牌化 + 多模型路由 + 降级矩阵
+**当前 tag: `v0.5.0`** — 多模型共识与策略护栏纪元：N-Reviewer 共识 + TaskCard 成本护栏 + 一致性抽检
 
 > 本节仅在打新 tag 时更新。实时开发进度请查阅 `docs/active_context.md` 和 `docs/roadmap.md`。
+
+当前稳定验证基线为 `359 tests passed + 7 eval passed`。
 
 当前系统已经具备：
 
@@ -112,6 +114,9 @@ swallow 长期围绕五层组织：
 - 有界 1:N `TaskCard` 规划、基于 DAG 的 subtask orchestration，以及父任务级 artifact / event 聚合
 - 本地外部会话摄入链路：格式解析、规则式过滤、staged candidate 注册与 `swl ingest`
 - 多轮 Debate Topology：结构化 `ReviewFeedback`、单任务 / 子任务 feedback-driven retry 与 `waiting_human` 熔断
+- **N-Reviewer 共识门禁**：`TaskCard.reviewer_routes` + `consensus_policy` 支持 `majority` / `veto` 聚合，且不改动 `_debate_loop_core()` 对外接口
+- **TaskCard 级真实成本护栏**：`TaskCard.token_cost_limit` 消费 task event log 中的真实 `token_cost`，预算耗尽时写出 `budget_exhausted` 并统一进入 `waiting_human`
+- **只读一致性抽检入口**：`swl task consistency-audit <task-id> --auditor-route <route>` 可对既有 artifact 发起审计，写出 `consistency_audit_*.md` 且不修改 task state
 - 基于能力矩阵的 Strategy Router + `RouteRegistry`，四级候选匹配（精确 → 家族+站点 → 能力 → 兜底），以及 route 级 binary fallback
 - Claude XML 与 Codex FIM 方言适配器，以及共享的 `dialect_data` prompt 数据采集层（含 FIM 标记转义）
 - 结构化 executor 事件遥测（`task_family`、`logical_model`、`physical_route`、`latency_ms`、`degraded`、`error_code`）
@@ -120,7 +125,7 @@ swallow 长期围绕五层组织：
 - 共享 debate loop 核心：统一单任务与子任务 retry 控制流，不改变既有事件与 artifact 语义
 - Meta-Optimizer 遥测修正：fallback token_cost 回计、debate retry 与正常执行事件隔离统计
 - 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图、Subtask Tree、artifact compare 与 execution timeline，零写入 `.swl/`，无前端构建工具链
-- Eval-Driven Development 基础设施：`tests/eval/` + `@pytest.mark.eval` 标记隔离 + Ingestion 降噪质量基线（precision/recall golden dataset）+ Meta-Optimizer 提案质量基线（scenario-based 覆盖率）
+- Eval-Driven Development 基础设施：`tests/eval/` + `@pytest.mark.eval` 标记隔离 + Ingestion 降噪质量基线（precision/recall golden dataset）+ Meta-Optimizer 提案质量基线（scenario-based 覆盖率）+ 共识 majority / veto / budget exhaustion 质量基线
 - ChatGPT 对话树还原：parent-child 树构建、主路径/侧枝识别、abandoned branch 语义保留（被否方案记录）
 - `swl ingest --summary`：Decisions / Constraints / Rejected Alternatives / Statistics 结构化摄入摘要
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口

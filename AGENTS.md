@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v0.4.0`** — 多模型网络引擎纪元：HTTP 执行器 + CLI 去品牌化 + 多模型路由 + 降级矩阵
+**当前 tag: `v0.5.0`** — 多模型共识与策略护栏纪元：N-Reviewer 共识 + TaskCard 成本护栏 + 一致性抽检
 
-本仓库已形成稳定运行基线，342 tests passed + 4 eval passed。
+本仓库已形成稳定运行基线，359 tests passed + 7 eval passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -48,6 +48,9 @@
 - 有界 1:N TaskCard planning、DAG subtask orchestration、parent-task artifact/event aggregation
 - 外部会话摄入：ChatGPT / Claude / Open WebUI / Markdown 解析、规则式过滤、`swl ingest` CLI
 - 多轮 Debate Topology：结构化 `ReviewFeedback`、单任务 / 子任务 feedback-driven retry、`waiting_human` 熔断
+- **N-Reviewer 共识门禁**：`TaskCard.reviewer_routes` / `consensus_policy` + `majority` / `veto` 聚合，保持 `_debate_loop_core()` 外部接口不变
+- **TaskCard 级真实成本护栏**：`token_cost_limit` + event log `token_cost` 聚合，预算耗尽统一进入 `waiting_human`，`checkpoint_snapshot` 可见 `human_gate_budget_exhausted`
+- **只读一致性抽检**：`swl task consistency-audit <task-id> --auditor-route <route>` 对既有 artifact 发起跨模型审计，产出 `consistency_audit_*.md` 且不污染 task state
 - Capability-aware Strategy Router + RouteRegistry + 四级候选匹配 + binary fallback
 - Claude XML / Codex FIM dialect adapters + 共享 dialect_data prompt 数据层
 - 结构化 executor event telemetry (task_family / logical_model / physical_route / latency_ms / degraded / error_code)
@@ -59,7 +62,7 @@
 - 共享 debate loop 核心：单任务与子任务路径复用统一 `_debate_loop_core()`
 - acknowledge_task route_mode 参数化 + canonical_write_guard 运行时审计 + CodexFIMDialect FIM 标记转义
 - 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图 + Subtask Tree + artifact compare + execution timeline，零写入 `.swl/`，无前端构建工具链
-- Eval-Driven Development 基础设施：`tests/eval/` + `@pytest.mark.eval` 标记隔离 + Ingestion 降噪质量基线（precision/recall）+ Meta-Optimizer 提案质量基线（scenario-based）
+- Eval-Driven Development 基础设施：`tests/eval/` + `@pytest.mark.eval` 标记隔离 + Ingestion 降噪质量基线（precision/recall）+ Meta-Optimizer 提案质量基线（scenario-based）+ 共识 majority / veto / budget exhaustion 质量基线
 - ChatGPT 对话树还原：parent-child 树构建、主路径/侧枝识别、abandoned branch 语义保留
 - `swl ingest --summary`：Decisions / Constraints / Rejected Alternatives / Statistics 结构化摘要
 - **HTTP 执行器（HTTPExecutor）**：httpx 直连本地 new-api（OpenAI-compatible），替代 subprocess CLI 成为系统主 LLM 路径，真实多模型网络分发能力首次落地

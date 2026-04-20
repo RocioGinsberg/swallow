@@ -96,9 +96,11 @@ It is about:
 
 ## Current Implementation Snapshot
 
-**Current tag: `v0.4.0`** — Multi-Model Network Engine: HTTP executor, CLI debranding, multi-model routing, fallback matrix
+**Current tag: `v0.5.0`** — Consensus & Policy Guardrails: N-reviewer consensus, task-card token budgets, consistency audit
 
 > This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
+
+The stable baseline now stands at `359 tests passed + 7 eval passed`.
 
 In practice, the current system includes:
 
@@ -113,6 +115,9 @@ In practice, the current system includes:
 - bounded 1:N `TaskCard` planning, DAG-based subtask orchestration, and parent-task artifact / event aggregation
 - a local external-session ingestion pipeline with format parsers, filtering, staged candidate registration, and `swl ingest`
 - a multi-round Debate Topology with structured `ReviewFeedback`, single-task and per-subtask retry loops, and `waiting_human` circuit breaking
+- an N-reviewer consensus gate: `TaskCard.reviewer_routes` + `consensus_policy` support `majority` / `veto` review aggregation without changing `_debate_loop_core()`
+- task-card token-cost guardrails: `TaskCard.token_cost_limit` consumes real executor `token_cost` from task event logs, trips `budget_exhausted`, and routes the task into `waiting_human`
+- a read-only consistency audit entrypoint: `swl task consistency-audit <task-id> --auditor-route <route>` audits existing artifacts and writes `consistency_audit_*.md` without mutating task state
 - a capability-aware Strategy Router with `RouteRegistry`, four-tier candidate matching (exact → family+site → capability → summary fallback), and route-level binary fallback
 - Claude XML and Codex FIM dialect adapters with a shared `dialect_data` prompt collection layer and FIM marker escaping
 - structured executor event telemetry (`task_family`, `logical_model`, `physical_route`, `latency_ms`, `degraded`, `error_code`)
@@ -121,7 +126,7 @@ In practice, the current system includes:
 - a shared debate loop core that unifies single-task and subtask retry control flow without changing event/artifact semantics
 - fallback token-cost accounting and debate-retry telemetry isolation in the Meta-Optimizer route stats layer
 - a read-only Web Control Center (`swl serve`): FastAPI JSON API + single-page HTML dashboard + dual-pane artifact review, subtask tree view, artifact compare endpoint, execution timeline charts, zero writes to `.swl/`, no frontend build toolchain
-- Eval-Driven Development infrastructure: `tests/eval/` with `@pytest.mark.eval` isolation, ingestion quality baseline (precision/recall on golden datasets), and Meta-Optimizer proposal quality baseline (scenario-based coverage)
+- Eval-Driven Development infrastructure: `tests/eval/` with `@pytest.mark.eval` isolation, ingestion quality baseline (precision/recall on golden datasets), Meta-Optimizer proposal quality baseline (scenario-based coverage), and consensus majority / veto / budget-exhaustion baselines
 - ChatGPT conversation tree restoration: parent-child tree construction, primary path vs. abandoned branch detection, semantic preservation of rejected alternatives
 - `swl ingest --summary`: structured ingestion summaries with Decisions / Constraints / Rejected Alternatives / Statistics sections
 - operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
