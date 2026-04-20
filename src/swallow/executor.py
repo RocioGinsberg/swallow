@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 from dataclasses import dataclass, replace
@@ -43,12 +44,28 @@ class ExecutorProtocol(Protocol):
         retrieval_items: list[RetrievalItem],
     ) -> ExecutorResult: ...
 
+    async def execute_async(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult: ...
+
 
 def _run_harness_execution(base_dir: Path, state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
     # Imported lazily to avoid turning executor <-> harness into a hard import cycle.
     from .harness import run_execution
 
     return run_execution(base_dir, state, retrieval_items)
+
+
+async def _run_harness_execution_async(
+    base_dir: Path,
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+) -> ExecutorResult:
+    return await asyncio.to_thread(_run_harness_execution, base_dir, state, retrieval_items)
 
 
 class LocalCLIExecutor:
@@ -64,6 +81,16 @@ class LocalCLIExecutor:
         del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
         return _run_harness_execution(base_dir, state, retrieval_items)
 
+    async def execute_async(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
+        return await _run_harness_execution_async(base_dir, state, retrieval_items)
+
 
 class MockExecutor:
     """Adapter for deterministic mock execution routes."""
@@ -78,6 +105,16 @@ class MockExecutor:
         del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
         return _run_harness_execution(base_dir, state, retrieval_items)
 
+    async def execute_async(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
+        return await _run_harness_execution_async(base_dir, state, retrieval_items)
+
 
 class HTTPExecutor:
     """Adapter for the HTTP-backed execution path."""
@@ -91,6 +128,16 @@ class HTTPExecutor:
     ) -> ExecutorResult:
         del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
         return _run_harness_execution(base_dir, state, retrieval_items)
+
+    async def execute_async(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
+        return await _run_harness_execution_async(base_dir, state, retrieval_items)
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,6 +190,16 @@ class CLIAgentExecutor:
     ) -> ExecutorResult:
         del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
         return _run_harness_execution(base_dir, state, retrieval_items)
+
+    async def execute_async(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> ExecutorResult:
+        del card  # Runtime v0 keeps task cards structural; harness semantics stay unchanged.
+        return await _run_harness_execution_async(base_dir, state, retrieval_items)
 
 
 def resolve_executor(executor_type: str, executor_name: str) -> ExecutorProtocol:
@@ -332,10 +389,27 @@ def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> Exec
     return run_executor_inline(state, retrieval_items)
 
 
+async def run_executor_async(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+    if state.route_transport_kind == "local_detached_process" and os.environ.get(DETACHED_CHILD_ENV) != "1":
+        return await asyncio.to_thread(run_detached_executor, state, retrieval_items)
+    return await run_executor_inline_async(state, retrieval_items)
+
+
 def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
     executor_name = resolve_executor_name(state)
     prompt = build_formatted_executor_prompt(state, retrieval_items)
     result = run_prompt_executor(state, retrieval_items, prompt)
+    result = replace(result, executor_name=result.executor_name or executor_name)
+    result = replace(result, prompt=result.prompt or prompt)
+    result = replace(result, review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip())
+    result.dialect = state.route_dialect or result.dialect or resolve_dialect_name(model_hint=state.route_model_hint)
+    return _attach_estimated_usage(result)
+
+
+async def run_executor_inline_async(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
+    executor_name = resolve_executor_name(state)
+    prompt = build_formatted_executor_prompt(state, retrieval_items)
+    result = await run_prompt_executor_async(state, retrieval_items, prompt)
     result = replace(result, executor_name=result.executor_name or executor_name)
     result = replace(result, prompt=result.prompt or prompt)
     result = replace(result, review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip())
@@ -433,6 +507,23 @@ def _run_executor_for_fallback_route(
     )
 
 
+async def _run_executor_for_fallback_route_async(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    *,
+    visited_routes: set[str],
+    original_route_name: str,
+) -> ExecutorResult:
+    prompt = build_formatted_executor_prompt(state, retrieval_items)
+    return await run_prompt_executor_async(
+        state,
+        retrieval_items,
+        prompt,
+        visited_routes=visited_routes,
+        original_route_name=original_route_name,
+    )
+
+
 def run_prompt_executor(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
@@ -477,6 +568,52 @@ def run_prompt_executor(
     raise UnknownExecutorError(f"Unknown executor name: {executor_name}")
 
 
+async def run_prompt_executor_async(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
+) -> ExecutorResult:
+    executor_name = resolve_executor_name(state)
+    if executor_name == "mock":
+        return run_mock_executor(prompt)
+    if executor_name == "mock-remote":
+        return run_mock_remote_executor(state, retrieval_items, prompt)
+    if executor_name == "note-only":
+        return run_note_only_executor(state, retrieval_items, prompt)
+    if executor_name == "local":
+        return run_local_executor(state, retrieval_items, prompt)
+    if executor_name == "http":
+        return await run_http_executor_async(
+            state,
+            retrieval_items,
+            prompt,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+    if executor_name == "codex":
+        return await asyncio.to_thread(
+            run_codex_executor,
+            state,
+            retrieval_items,
+            prompt,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+    if executor_name == "cline":
+        return await asyncio.to_thread(
+            run_cline_executor,
+            state,
+            retrieval_items,
+            prompt,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+    raise UnknownExecutorError(f"Unknown executor name: {executor_name}")
+
+
 def _apply_executor_route_fallback(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
@@ -506,6 +643,47 @@ def _apply_executor_route_fallback(
     )
     _apply_route_spec_for_executor_fallback(state, fallback_route, fallback_reason)
     fallback_result = _run_executor_for_fallback_route(
+        state,
+        retrieval_items,
+        visited_routes=seen_routes | {fallback_route.name},
+        original_route_name=primary_route_name,
+    )
+    return _attach_route_fallback_metadata(
+        fallback_result,
+        original_route_name=primary_route_name,
+        fallback_route_name=str(fallback_result.fallback_route_name or state.route_name).strip() or fallback_route.name,
+    )
+
+
+async def _apply_executor_route_fallback_async(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    result: ExecutorResult,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
+) -> ExecutorResult:
+    if not _executor_route_fallback_enabled(state):
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+
+    current_route_name = str(state.route_name or "").strip()
+    if not current_route_name:
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+
+    seen_routes = set(visited_routes or ())
+    seen_routes.add(current_route_name)
+    primary_route_name = str(original_route_name or current_route_name).strip() or current_route_name
+    fallback_route = _load_fallback_route(current_route_name)
+    if fallback_route is None or fallback_route.name in seen_routes:
+        if result.degraded:
+            return result
+        return apply_fallback_if_enabled(state, retrieval_items, result)
+
+    fallback_reason = (
+        f"Executor-level route fallback selected '{fallback_route.name}' after '{current_route_name}' failed."
+    )
+    _apply_route_spec_for_executor_fallback(state, fallback_route, fallback_reason)
+    fallback_result = await _run_executor_for_fallback_route_async(
         state,
         retrieval_items,
         visited_routes=seen_routes | {fallback_route.name},
@@ -887,6 +1065,21 @@ def _normalize_http_response_content(content: object) -> str:
     return str(content).strip()
 
 
+def _http_request_payload(prompt: str, state: TaskState) -> dict[str, object]:
+    return {
+        "model": resolve_http_model_name(state),
+        "messages": [{"role": "user", "content": prompt}],
+    }
+
+
+def _http_request_headers() -> dict[str, str]:
+    headers = {"Content-Type": "application/json"}
+    api_key = resolve_new_api_api_key()
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    return headers
+
+
 def run_http_executor(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
@@ -897,16 +1090,9 @@ def run_http_executor(
 ) -> ExecutorResult:
     prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
     endpoint = resolve_new_api_chat_completions_url()
-    api_key = resolve_new_api_api_key()
-    model_name = resolve_http_model_name(state)
+    headers = _http_request_headers()
     timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
-    payload = {
-        "model": model_name,
-        "messages": [{"role": "user", "content": prompt}],
-    }
-    headers = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    payload = _http_request_payload(prompt, state)
 
     try:
         response = httpx.post(endpoint, json=payload, headers=headers, timeout=timeout_seconds)
@@ -930,7 +1116,7 @@ def run_http_executor(
         )
     except httpx.HTTPStatusError as exc:
         response_text = clean_output(exc.response.text)
-        if exc.response.status_code in {401, 403} and not api_key:
+        if exc.response.status_code in {401, 403} and "Authorization" not in headers:
             response_text = (
                 response_text
                 or "Set AIWF_NEW_API_KEY, OPENAI_API_KEY, or NEW_API_KEY before using the HTTP executor."
@@ -990,6 +1176,122 @@ def run_http_executor(
             stderr=str(exc),
         )
         return _apply_executor_route_fallback(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+
+    return ExecutorResult(
+        executor_name="http",
+        status="completed",
+        message="HTTP executor completed.",
+        output=content or "HTTP executor completed without a final text response.",
+        prompt=prompt,
+        failure_kind="",
+        stdout="",
+        stderr="",
+    )
+
+
+async def run_http_executor_async(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str | None = None,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
+) -> ExecutorResult:
+    prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
+    endpoint = resolve_new_api_chat_completions_url()
+    headers = _http_request_headers()
+    timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
+    payload = _http_request_payload(prompt, state)
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+            response = await client.post(endpoint, json=payload, headers=headers)
+            response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        result = ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message=f"HTTP executor timed out after {timeout_seconds} seconds.",
+            prompt=prompt,
+            failure_kind="http_timeout",
+            stdout="",
+            stderr=str(exc),
+        )
+        return await _apply_executor_route_fallback_async(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+    except httpx.HTTPStatusError as exc:
+        response_text = clean_output(exc.response.text)
+        if exc.response.status_code in {401, 403} and "Authorization" not in headers:
+            response_text = (
+                response_text
+                or "Set AIWF_NEW_API_KEY, OPENAI_API_KEY, or NEW_API_KEY before using the HTTP executor."
+            )
+        failure_kind = "http_rate_limited" if exc.response.status_code == 429 else "http_error"
+        result = ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message=f"HTTP executor failed with status {exc.response.status_code}.",
+            output=response_text,
+            prompt=prompt,
+            failure_kind=failure_kind,
+            stdout="",
+            stderr=response_text or str(exc),
+        )
+        if exc.response.status_code == 429:
+            return apply_fallback_if_enabled(state, retrieval_items, result)
+        return await _apply_executor_route_fallback_async(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+    except httpx.RequestError as exc:
+        result = ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message=f"HTTP executor request failed: {exc}",
+            prompt=prompt,
+            failure_kind="http_error",
+            stdout="",
+            stderr=str(exc),
+        )
+        return await _apply_executor_route_fallback_async(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+
+    try:
+        data = response.json()
+        choices = data["choices"]
+        message = choices[0]["message"]
+        content = _normalize_http_response_content(message.get("content"))
+    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError, AttributeError) as exc:
+        result = ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message="HTTP executor returned an unreadable chat completion payload.",
+            output=clean_output(getattr(response, "text", "")),
+            prompt=prompt,
+            failure_kind="http_error",
+            stdout="",
+            stderr=str(exc),
+        )
+        return await _apply_executor_route_fallback_async(
             state,
             retrieval_items,
             result,

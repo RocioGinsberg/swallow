@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -328,3 +329,12 @@ class LibrarianExecutor:
                 "change_log_payload": change_log_payload,
             },
         )
+
+    async def execute_async(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[object],
+    ) -> ExecutorResult:
+        return await asyncio.to_thread(self.execute, base_dir, state, card, retrieval_items)
