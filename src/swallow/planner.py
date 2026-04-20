@@ -87,6 +87,16 @@ def _token_cost_limit(state: TaskState) -> float:
     return parsed if parsed > 0 else 0.0
 
 
+def _reviewer_timeout_seconds(state: TaskState) -> int:
+    semantics = state.task_semantics if state.task_semantics else {}
+    raw_timeout = semantics.get("reviewer_timeout_seconds", 60)
+    try:
+        parsed = int(raw_timeout)
+    except (TypeError, ValueError):
+        return 60
+    return parsed if parsed > 0 else 60
+
+
 def _parallel_subtasks_requested(constraints: list[str]) -> bool:
     for item in constraints:
         normalized = item.lower()
@@ -106,6 +116,7 @@ def _build_subtask_cards(
     cards: list[TaskCard] = []
     reviewer_routes = _reviewer_routes(state)
     consensus_policy = _consensus_policy(state)
+    reviewer_timeout_seconds = _reviewer_timeout_seconds(state)
     token_cost_limit = _token_cost_limit(state)
     for index, action in enumerate(next_actions, start=1):
         depends_on = [] if parallel_requested or index == 1 else [cards[-1].card_id]
@@ -124,6 +135,7 @@ def _build_subtask_cards(
                 executor_type=state.route_executor_family,
                 reviewer_routes=list(reviewer_routes),
                 consensus_policy=consensus_policy,
+                reviewer_timeout_seconds=reviewer_timeout_seconds,
                 token_cost_limit=token_cost_limit,
                 constraints=list(constraints),
                 depends_on=depends_on,
@@ -183,6 +195,7 @@ def plan(state: TaskState) -> list[TaskCard]:
     next_actions = _next_action_proposals(state)
     reviewer_routes = _reviewer_routes(state)
     consensus_policy = _consensus_policy(state)
+    reviewer_timeout_seconds = _reviewer_timeout_seconds(state)
     token_cost_limit = _token_cost_limit(state)
     if len(next_actions) > 1:
         parallel_requested = _parallel_subtasks_requested(constraints)
@@ -203,6 +216,7 @@ def plan(state: TaskState) -> list[TaskCard]:
         executor_type=state.route_executor_family,
         reviewer_routes=reviewer_routes,
         consensus_policy=consensus_policy,
+        reviewer_timeout_seconds=reviewer_timeout_seconds,
         token_cost_limit=token_cost_limit,
         constraints=list(constraints),
         depends_on=[],

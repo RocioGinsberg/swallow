@@ -3,7 +3,7 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 import sys
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -76,7 +76,7 @@ def test_phase47_eval_majority_consensus_requires_actual_majority() -> None:
         ),
     ]
 
-    with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+    with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
         result = run_review_gate(
             state,
             ExecutorResult(
@@ -120,7 +120,7 @@ def test_phase47_eval_veto_consensus_respects_primary_reviewer_rejection() -> No
         ),
     ]
 
-    with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+    with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
         result = run_review_gate(
             state,
             ExecutorResult(

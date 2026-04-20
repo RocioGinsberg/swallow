@@ -1720,6 +1720,7 @@ def create_task(
     route_mode: str = "auto",
     reviewer_routes: list[str] | None = None,
     consensus_policy: str = "majority",
+    reviewer_timeout_seconds: int = 60,
     token_cost_limit: float = 0.0,
 ) -> TaskState:
     task_id = uuid4().hex[:12]
@@ -1760,6 +1761,12 @@ def create_task(
     normalized_consensus_policy = str(consensus_policy or "majority").strip().lower()
     if normalized_consensus_policy in {"majority", "veto"}:
         task_semantics_payload["consensus_policy"] = normalized_consensus_policy
+    try:
+        normalized_reviewer_timeout = int(reviewer_timeout_seconds)
+    except (TypeError, ValueError):
+        normalized_reviewer_timeout = 60
+    if normalized_reviewer_timeout > 0 and normalized_reviewer_timeout != 60:
+        task_semantics_payload["reviewer_timeout_seconds"] = normalized_reviewer_timeout
     try:
         normalized_token_cost_limit = float(token_cost_limit)
     except (TypeError, ValueError):

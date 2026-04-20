@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from swallow.models import ExecutorResult, TaskCard, TaskState
 from swallow.review_gate import ReviewFeedback, ReviewGateResult, build_review_feedback, review_executor_output, run_review_gate
@@ -278,7 +278,7 @@ class ReviewGateTest(unittest.TestCase):
             ),
         ]
 
-        with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+        with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
             result = run_review_gate(
                 state,
                 ExecutorResult(
@@ -317,7 +317,7 @@ class ReviewGateTest(unittest.TestCase):
             ),
         ]
 
-        with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+        with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
             result = run_review_gate(
                 state,
                 ExecutorResult(
@@ -356,7 +356,7 @@ class ReviewGateTest(unittest.TestCase):
             ),
         ]
 
-        with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+        with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
             result = run_review_gate(
                 state,
                 ExecutorResult(
@@ -381,12 +381,14 @@ class ReviewGateTest(unittest.TestCase):
         )
 
         with patch(
-            "swallow.review_gate.run_prompt_executor",
-            return_value=ExecutorResult(
-                executor_name="http",
-                status="completed",
-                message="review ok",
-                output="not-json",
+            "swallow.review_gate.run_prompt_executor_async",
+            new=AsyncMock(
+                return_value=ExecutorResult(
+                    executor_name="http",
+                    status="completed",
+                    message="review ok",
+                    output="not-json",
+                )
             ),
         ):
             result = run_review_gate(
@@ -412,7 +414,7 @@ class ReviewGateTest(unittest.TestCase):
             consensus_policy="majority",
         )
 
-        with patch("swallow.review_gate.run_prompt_executor") as reviewer_call:
+        with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock()) as reviewer_call:
             result = run_review_gate(
                 state,
                 ExecutorResult(

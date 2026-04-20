@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 import sys
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -188,7 +188,7 @@ class DebateLoopTest(unittest.TestCase):
                             dialect="plain_text",
                         ),
                     ):
-                        with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+                        with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
                             final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             events = _load_json_lines(task_dir / "events.jsonl")
