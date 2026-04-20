@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Protocol
 
 from .knowledge_store import load_task_knowledge_view, persist_task_knowledge_view
 from .models import (
@@ -132,7 +132,36 @@ def ensure_task_layout(base_dir: Path, task_id: str) -> None:
     knowledge_wiki_root(base_dir).mkdir(parents=True, exist_ok=True)
 
 
-def save_state(base_dir: Path, state: TaskState) -> None:
+def _load_json_lines(path: Path) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+
+    records: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        payload = json.loads(stripped)
+        if isinstance(payload, dict):
+            records.append(payload)
+    return records
+
+
+class TaskStoreProtocol(Protocol):
+    def save_state(self, base_dir: Path, state: TaskState) -> None: ...
+
+    def load_state(self, base_dir: Path, task_id: str) -> TaskState: ...
+
+    def iter_task_states(self, base_dir: Path) -> Iterable[TaskState]: ...
+
+    def append_event(self, base_dir: Path, event: Event) -> None: ...
+
+    def load_events(self, base_dir: Path, task_id: str) -> list[dict[str, object]]: ...
+
+    def iter_recent_task_events(self, base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]: ...
+
+
+def _save_state_file(base_dir: Path, state: TaskState) -> None:
     ensure_task_layout(base_dir, state.task_id)
     state.updated_at = utc_now()
     state_path(base_dir, state.task_id).write_text(
@@ -141,12 +170,12 @@ def save_state(base_dir: Path, state: TaskState) -> None:
     )
 
 
-def load_state(base_dir: Path, task_id: str) -> TaskState:
+def _load_state_file(base_dir: Path, task_id: str) -> TaskState:
     data = json.loads(state_path(base_dir, task_id).read_text(encoding="utf-8"))
     return TaskState.from_dict(data)
 
 
-def iter_task_states(base_dir: Path) -> Iterable[TaskState]:
+def _iter_task_states_file(base_dir: Path) -> Iterable[TaskState]:
     root = tasks_root(base_dir)
     if not root.exists():
         return []
@@ -163,10 +192,97 @@ def iter_task_states(base_dir: Path) -> Iterable[TaskState]:
     return states
 
 
-def append_event(base_dir: Path, event: Event) -> None:
+def _append_event_file(base_dir: Path, event: Event) -> None:
     ensure_task_layout(base_dir, event.task_id)
     with events_path(base_dir, event.task_id).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event.to_dict()) + "\n")
+
+
+def _load_events_file(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    return _load_json_lines(events_path(base_dir, task_id))
+
+
+def _iter_recent_task_events_file(base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
+    if last_n <= 0:
+        return []
+
+    root = tasks_root(base_dir)
+    if not root.exists():
+        return []
+
+    task_event_paths: list[tuple[str, Path]] = []
+    for entry in root.iterdir():
+        if not entry.is_dir():
+            continue
+        event_path = entry / "events.jsonl"
+        if not event_path.exists():
+            continue
+        task_event_paths.append((entry.name, event_path))
+
+    task_event_paths.sort(
+        key=lambda item: (item[1].stat().st_mtime, item[0]),
+        reverse=True,
+    )
+    return [(task_id, _load_json_lines(path)) for task_id, path in task_event_paths[:last_n]]
+
+
+class FileTaskStore:
+    def save_state(self, base_dir: Path, state: TaskState) -> None:
+        _save_state_file(base_dir, state)
+
+    def load_state(self, base_dir: Path, task_id: str) -> TaskState:
+        return _load_state_file(base_dir, task_id)
+
+    def iter_task_states(self, base_dir: Path) -> Iterable[TaskState]:
+        return _iter_task_states_file(base_dir)
+
+    def append_event(self, base_dir: Path, event: Event) -> None:
+        _append_event_file(base_dir, event)
+
+    def load_events(self, base_dir: Path, task_id: str) -> list[dict[str, object]]:
+        return _load_events_file(base_dir, task_id)
+
+    def iter_recent_task_events(self, base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
+        return _iter_recent_task_events_file(base_dir, last_n)
+
+
+def normalize_store_backend(raw_backend: object) -> str:
+    normalized = str(raw_backend or "file").strip().lower()
+    return normalized if normalized in {"file", "sqlite"} else "file"
+
+
+def resolve_task_store(base_dir: Path) -> TaskStoreProtocol:
+    del base_dir
+    backend = normalize_store_backend(os.environ.get("SWALLOW_STORE_BACKEND", "file"))
+    if backend == "sqlite":
+        from .sqlite_store import SqliteTaskStore
+
+        return SqliteTaskStore()
+    return FileTaskStore()
+
+
+def save_state(base_dir: Path, state: TaskState) -> None:
+    resolve_task_store(base_dir).save_state(base_dir, state)
+
+
+def load_state(base_dir: Path, task_id: str) -> TaskState:
+    return resolve_task_store(base_dir).load_state(base_dir, task_id)
+
+
+def iter_task_states(base_dir: Path) -> Iterable[TaskState]:
+    return resolve_task_store(base_dir).iter_task_states(base_dir)
+
+
+def append_event(base_dir: Path, event: Event) -> None:
+    resolve_task_store(base_dir).append_event(base_dir, event)
+
+
+def load_events(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    return resolve_task_store(base_dir).load_events(base_dir, task_id)
+
+
+def iter_recent_task_events(base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
+    return resolve_task_store(base_dir).iter_recent_task_events(base_dir, last_n)
 
 
 def save_retrieval(base_dir: Path, task_id: str, items: list[RetrievalItem]) -> None:

@@ -7,9 +7,9 @@
 - latest_completed_slice: `Consensus & Policy Guardrails (v0.5.0)`
 - active_track: `Core Loop` (Primary) + `State / Truth` (Secondary)
 - active_phase: `Phase 48`
-- active_slice: `phase48_s2_async_review_gate_completed`
+- active_slice: `phase48_s3_sqlite_schema_completed`
 - active_branch: `feat/phase48_async-storage`
-- status: `phase48_s1_s2_validated_ready_for_split_commits`
+- status: `phase48_s3_validated_ready_for_human_commit`
 
 ---
 
@@ -17,13 +17,13 @@
 
 Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模型共识门禁、成本护栏及一致性审计等关键能力。
 
-根据 `docs/roadmap.md`，Phase 48 的重点转向 **“存储引擎升级与全异步改造”**。Human 已通过本轮对话授权开始实现，当前已在 `feat/phase48_async-storage` 上完成前两个 slice 的最小闭环：S1（`async-executor`）为 executor 协议补齐 `execute_async()`、`run_executor_async()`、`run_prompt_executor_async()` 与异步 HTTP fallback 路径；S2（`async-review-gate`）为 ReviewGate 新增 `run_review_gate_async()` / `run_consensus_review_async()`，将多 Reviewer 审查改为 `asyncio.gather(..., return_exceptions=True)` 并发执行，并引入 `reviewer_timeout_seconds` TaskCard 配置以约束单路 reviewer 超时。当前工作树尚未按 slice 提交，Human 应先按 S1 / S2 路径拆分提交。
+根据 `docs/roadmap.md`，Phase 48 的重点转向 **“存储引擎升级与全异步改造”**。当前 `feat/phase48_async-storage` 已完成前三个 slice 的最小闭环：S1（`async-executor`）补齐 executor 异步桥接与异步 HTTP fallback；S2（`async-review-gate`）将多 Reviewer 审查切为 `asyncio.gather(..., return_exceptions=True)` 并发执行；S3（`sqlite-schema`）新增 `SqliteTaskStore`、`TaskStoreProtocol` / `FileTaskStore` 双存储分派、`.swl/swallow.db` 路径与 `SWALLOW_STORE_BACKEND=sqlite|file` 切换，并将 CLI / Web API / Meta-Optimizer / execution budget policy 的 state/event 读取改为统一走 store helper。当前工作树仅剩 S3 未提交 diff，Human 审查后可直接提交。
 
 ---
 
 ## 当前关键文档
 
-当前进入 Phase 48 S2 审查前，优先读取：
+当前进入 Phase 48 S3 审查前，优先读取：
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
@@ -51,6 +51,10 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
 - **[Gemini]** 产出 `docs/plans/phase48/context_brief.md`。
 - **[Claude]** 已产出 `docs/plans/phase48/kickoff.md`、`design_decision.md`、`risk_assessment.md`。
 - **[Human]** 已通过当前对话授权开始 Phase 48 实现。
+- **[Human]** 已完成前三次提交：
+  - `docs(phase48): add kickoff decision and roadmap sync`
+  - `feat(async): add executor async bridge and http async path`
+  - `feat(async): parallelize review gate execution`
 - **[Codex]** 已完成 S1（`async-executor`）：
   - `ExecutorProtocol` 新增 `execute_async()` 过渡接口
   - `LocalCLIExecutor` / `MockExecutor` / `HTTPExecutor` / `CLIAgentExecutor` / `LibrarianExecutor` 均支持异步桥接
@@ -72,11 +76,21 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
   - `.venv/bin/python -m pytest tests/test_executor_async.py tests/test_executor_protocol.py --tb=short -vv` → `20 passed`
   - `.venv/bin/python -m pytest tests/eval/test_consensus_eval.py -m eval --tb=short -q` → `3 passed`
   - `.venv/bin/python -m pytest tests/test_run_task_subtasks.py tests/test_librarian_executor.py tests/test_consistency_audit.py --tb=short -vv` → `12 passed`
+- **[Codex]** 已完成 S3（`sqlite-schema`）：
+  - 新增 `src/swallow/sqlite_store.py`，以 SQLite WAL 模式持久化 `TaskState` / `EventLog`
+  - `src/swallow/store.py` 抽出 `TaskStoreProtocol` / `FileTaskStore`，新增 `load_events()` / `iter_recent_task_events()` helper
+  - `src/swallow/paths.py` 新增 `.swl/swallow.db` 路径
+  - `src/swallow/execution_budget_policy.py` / `src/swallow/cli.py` / `src/swallow/web/api.py` / `src/swallow/meta_optimizer.py` 改为通过 store helper 读取 state/events
+  - 新增 `tests/test_sqlite_store.py`，覆盖 sqlite round-trip、event-only 兼容和 sqlite backend 下的 create/run/read 集成链路
+- **[Codex]** 已完成 S3 定向验证：
+  - `.venv/bin/python -m pytest tests/test_sqlite_store.py tests/test_execution_budget_policy.py tests/test_web_api.py tests/test_meta_optimizer.py --tb=short -q` → `21 passed`
+  - `.venv/bin/python -m pytest tests/test_debate_loop.py tests/test_run_task_subtasks.py tests/test_librarian_executor.py tests/test_consistency_audit.py --tb=short -q` → `16 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -k 'task_list or task_queue or task_inspect' --tb=short -q` → `17 passed, 179 deselected`
 
 待启动：
 
-- **[Human]** 审查并按 slice 拆分提交当前 S1 / S2 diff。
-- **[Codex]** S1 / S2 提交完成后继续进入 S3（`sqlite-schema`）。
+- **[Human]** 审查并提交当前 S3（`sqlite-schema`）diff。
+- **[Codex]** S3 commit 完成后继续进入 S4（`async-orchestrator`）。
 
 ## 当前产出物
 
@@ -91,16 +105,20 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
 - `src/swallow/models.py` (codex, 2026-04-20)
 - `src/swallow/planner.py` (codex, 2026-04-20)
 - `src/swallow/orchestrator.py` (codex, 2026-04-20)
+- `src/swallow/store.py` (codex, 2026-04-20)
+- `src/swallow/sqlite_store.py` (codex, 2026-04-20)
+- `src/swallow/paths.py` (codex, 2026-04-20)
 - `tests/test_executor_async.py` (codex, 2026-04-20)
 - `tests/test_review_gate_async.py` (codex, 2026-04-20)
+- `tests/test_sqlite_store.py` (codex, 2026-04-20)
 - `pyproject.toml` (codex, 2026-04-20)
 
 ## 当前下一步
 
-1. Human 先按路径拆分当前 diff，提交 S1（`async-executor`）实现。
-2. Human 再提交 S2（`async-review-gate`）实现。
-3. Codex 基于已提交的 S1 / S2 继续推进 S3（`sqlite-schema`）。
+1. Human 审查并提交当前 S3（`sqlite-schema`）实现。
+2. Codex 基于已提交的 S3 继续推进 S4（`async-orchestrator`）。
+3. S4 完成后进入人工 gate，再决定是否启动 S5（`store-cutover`）。
 
 当前阻塞项：
 
-- 无硬阻塞；当前等待 Human 将工作树按 slice 拆分提交。
+- 无硬阻塞；当前等待 Human 审查并提交 S3 diff。

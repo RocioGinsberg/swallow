@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from pathlib import Path
 
 from ..models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED
-from ..paths import artifacts_dir, events_path
-from ..store import iter_task_states, load_knowledge_objects, load_state
+from ..paths import artifacts_dir
+from ..store import iter_task_states, load_events, load_knowledge_objects, load_state
 
 
 def _static_dir() -> Path:
@@ -29,21 +28,6 @@ def _filter_task_states(states: list[object], focus: str) -> list[object]:
     if focus == "recent":
         return states
     return states
-
-
-def _load_json_lines(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-
-    payloads: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        data = json.loads(stripped)
-        if isinstance(data, dict):
-            payloads.append(data)
-    return payloads
 
 
 def _relative_to_base(base_dir: Path, path: Path) -> str:
@@ -161,7 +145,7 @@ def build_task_payload(base_dir: Path, task_id: str) -> dict[str, object]:
 
 
 def build_task_events_payload(base_dir: Path, task_id: str) -> dict[str, object]:
-    payload = _load_json_lines(events_path(base_dir, task_id))
+    payload = load_events(base_dir, task_id)
     return {"task_id": task_id, "count": len(payload), "events": payload}
 
 
@@ -216,7 +200,7 @@ def build_task_knowledge_payload(base_dir: Path, task_id: str) -> dict[str, obje
 
 def build_task_subtask_tree_payload(base_dir: Path, task_id: str) -> dict[str, object]:
     state = load_state(base_dir, task_id)
-    events = _load_json_lines(events_path(base_dir, task_id))
+    events = load_events(base_dir, task_id)
     planned_event = next((event for event in events if str(event.get("event_type", "")).strip() == "task.planned"), None)
 
     children_by_key: dict[str, dict[str, object]] = {}
@@ -312,7 +296,7 @@ def build_task_subtask_tree_payload(base_dir: Path, task_id: str) -> dict[str, o
 
 def build_task_execution_timeline_payload(base_dir: Path, task_id: str) -> dict[str, object]:
     load_state(base_dir, task_id)
-    events = _load_json_lines(events_path(base_dir, task_id))
+    events = load_events(base_dir, task_id)
     entries: list[dict[str, object]] = []
     current_round = 0
     max_round = 0

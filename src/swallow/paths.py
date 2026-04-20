@@ -10,6 +10,10 @@ def app_root(base_dir: Path) -> Path:
     return base_dir / APP_DIR_NAME
 
 
+def swallow_db_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "swallow.db"
+
+
 def canonical_registry_root(base_dir: Path) -> Path:
     return app_root(base_dir) / "canonical_knowledge"
 

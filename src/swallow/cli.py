@@ -75,6 +75,7 @@ from .staged_knowledge import StagedCandidate, load_staged_candidates, update_st
 from .store import (
     append_canonical_record,
     iter_task_states,
+    load_events,
     load_knowledge_objects,
     load_state,
     save_canonical_registry_index,
@@ -195,7 +196,7 @@ def format_taxonomy_label(state: object) -> str:
 
 
 def load_latest_capability_enforcement(base_dir: Path, task_id: str) -> dict[str, object]:
-    events = load_json_lines_if_exists(base_dir / ".swl" / "tasks" / task_id / "events.jsonl")
+    events = load_events(base_dir, task_id)
     for event in reversed(events):
         if str(event.get("event_type", "")) == "task.capability_enforced":
             payload = event.get("payload", {})
@@ -982,7 +983,7 @@ def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
 
 
 def build_attempt_summaries(base_dir: Path, task_id: str) -> list[dict[str, str]]:
-    events = load_json_lines_if_exists(base_dir / ".swl" / "tasks" / task_id / "events.jsonl")
+    events = load_events(base_dir, task_id)
     attempts: dict[str, dict[str, str]] = {}
     attempt_order: list[str] = []
     for event in events:
