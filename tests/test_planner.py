@@ -49,8 +49,33 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(card.output_schema, {})
         self.assertEqual(card.depends_on, [])
         self.assertEqual(card.subtask_index, 1)
+        self.assertEqual(card.reviewer_routes, [])
+        self.assertEqual(card.consensus_policy, "majority")
         self.assertTrue(card.card_id)
         self.assertTrue(card.created_at)
+
+    def test_plan_propagates_consensus_review_configuration(self) -> None:
+        state = TaskState(
+            task_id="task-consensus",
+            title="Consensus plan",
+            goal="Fan out to multiple reviewers",
+            workspace_root="/tmp/workspace",
+            task_semantics={
+                "constraints": ["Keep the gate conservative"],
+                "reviewer_routes": ["http-claude", "http-qwen", "http-claude", ""],
+                "consensus_policy": "veto",
+                "token_cost_limit": 1.25,
+            },
+            route_name="local-http",
+            route_executor_family="api",
+        )
+
+        cards = plan(state)
+
+        self.assertEqual(len(cards), 1)
+        self.assertEqual(cards[0].reviewer_routes, ["http-claude", "http-qwen"])
+        self.assertEqual(cards[0].consensus_policy, "veto")
+        self.assertEqual(cards[0].token_cost_limit, 1.25)
 
     def test_plan_builds_librarian_task_card_for_local_promotion_ready_evidence(self) -> None:
         state = TaskState(

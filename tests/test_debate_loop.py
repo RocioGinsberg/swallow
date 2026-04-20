@@ -9,8 +9,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import ExecutorResult, ValidationResult
+from swallow.models import Event, ExecutorResult, ValidationResult
 from swallow.orchestrator import create_task, run_task
+from swallow.store import append_event
 
 
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
@@ -143,6 +144,119 @@ class DebateLoopTest(unittest.TestCase):
         self.assertEqual(len(debate_exhausted["feedback_refs"]), 3)
         self.assertEqual(breaker_event["payload"]["max_rounds"], 3)
         self.assertEqual(waiting_event["payload"]["status"], "waiting_human")
+        self.assertFalse(any(event["event_type"] in {"task.completed", "task.failed"} for event in events))
+
+    def test_run_task_uses_consensus_review_gate_when_task_card_requests_reviewers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Consensus debate loop",
+                goal="Require reviewer consensus before passing",
+                workspace_root=tmp_path,
+                executor_name="local",
+                reviewer_routes=["http-claude", "http-qwen"],
+                consensus_policy="majority",
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / created.task_id
+
+            reviewer_outputs = [
+                ExecutorResult(
+                    executor_name="http",
+                    status="completed",
+                    message="review ok",
+                    output='{"status":"passed","message":"approved","checks":[{"name":"goal_alignment","passed":true,"detail":"goal met"}]}',
+                ),
+                ExecutorResult(
+                    executor_name="http",
+                    status="completed",
+                    message="review ok",
+                    output='{"status":"passed","message":"approved","checks":[{"name":"material_risk","passed":true,"detail":"risk acceptable"}]}',
+                ),
+            ]
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch(
+                        "swallow.executor.run_local_executor",
+                        return_value=ExecutorResult(
+                            executor_name="local",
+                            status="completed",
+                            message="ok",
+                            output="candidate output",
+                            prompt="prompt",
+                            dialect="plain_text",
+                        ),
+                    ):
+                        with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+                            final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            events = _load_json_lines(task_dir / "events.jsonl")
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+            planned_event = next(event for event in events if event["event_type"] == "task.planned")
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(planned_event["payload"]["reviewer_routes"], ["http-claude", "http-qwen"])
+        self.assertEqual(planned_event["payload"]["consensus_policy"], "majority")
+        self.assertEqual(review_gate_event["payload"]["status"], "passed")
+        self.assertEqual(review_gate_event["payload"]["reviewer_routes"], ["http-claude", "http-qwen"])
+
+    def test_run_task_waits_for_human_when_token_cost_budget_is_exhausted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Budget exhausted",
+                goal="Stop before execution when token cost budget is already spent",
+                workspace_root=tmp_path,
+                executor_name="local",
+                token_cost_limit=0.05,
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / created.task_id
+
+            append_event(
+                tmp_path,
+                Event(
+                    task_id=created.task_id,
+                    event_type="executor.completed",
+                    message="prior execution cost",
+                    payload={"token_cost": 0.10},
+                ),
+            )
+            append_event(
+                tmp_path,
+                Event(
+                    task_id=created.task_id,
+                    event_type="task.execution_fallback",
+                    message="fallback cost should not be double-counted",
+                    payload={"token_cost": 9.99},
+                ),
+            )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch(
+                        "swallow.executor.run_local_executor",
+                        side_effect=AssertionError("executor should not run when budget is exhausted"),
+                    ):
+                        final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            events = _load_json_lines(task_dir / "events.jsonl")
+            budget_event = next(event for event in events if event["event_type"] == "task.budget_exhausted")
+            waiting_event = next(event for event in events if event["event_type"] == "task.waiting_human")
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+
+        self.assertEqual(final_state.status, "waiting_human")
+        self.assertEqual(final_state.phase, "waiting_human")
+        self.assertEqual(final_state.execution_lifecycle, "waiting_human")
+        self.assertEqual(waiting_event["payload"]["waiting_reason"], "budget_exhausted")
+        self.assertEqual(waiting_event["payload"]["failure_kind"], "budget_exhausted")
+        self.assertEqual(review_gate_event["payload"]["status"], "failed")
+        self.assertEqual(review_gate_event["payload"]["token_cost_limit"], 0.05)
+        self.assertEqual(review_gate_event["payload"]["checks"][0]["name"], "token_cost_budget")
+        self.assertAlmostEqual(budget_event["payload"]["current_token_cost"], 0.10)
+        self.assertAlmostEqual(budget_event["payload"]["token_cost_limit"], 0.05)
+        self.assertFalse(any(event["event_type"] == "task.debate_round" for event in events))
         self.assertFalse(any(event["event_type"] in {"task.completed", "task.failed"} for event in events))
 
 

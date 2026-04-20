@@ -9,9 +9,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import ExecutorResult, ValidationResult
+from swallow.models import Event, ExecutorResult, ValidationResult
 from swallow.orchestrator import create_task, run_task
 from swallow.store import write_artifact
+from swallow.store import append_event
 
 
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
@@ -303,6 +304,71 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             self.assertFalse(any(event["event_type"] == "subtask.2.debate_round" for event in events))
             self.assertFalse(any(event["event_type"] == "subtask.2.debate_circuit_breaker" for event in events))
             self.assertFalse((artifacts_dir / "subtask_2_attempt2_executor_output.md").exists())
+
+    def test_run_task_waits_for_human_when_subtask_budget_is_exhausted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Multi-card budget exhausted",
+                goal="Stop all subtasks when the shared token cost budget is already spent",
+                workspace_root=tmp_path,
+                executor_name="local",
+                next_action_proposals=[
+                    "Prepare changes",
+                    "Verify results",
+                ],
+                token_cost_limit=0.05,
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / created.task_id
+            artifacts_dir = task_dir / "artifacts"
+
+            append_event(
+                tmp_path,
+                Event(
+                    task_id=created.task_id,
+                    event_type="executor.completed",
+                    message="prior execution cost",
+                    payload={"token_cost": 0.10},
+                ),
+            )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch(
+                    "swallow.orchestrator._execute_task_card",
+                    side_effect=AssertionError("subtask executor should not run when budget is exhausted"),
+                ):
+                    with patch(
+                        "swallow.orchestrator.write_task_artifacts",
+                        return_value=_passing_validation_tuple(),
+                    ):
+                        final_state = run_task(tmp_path, created.task_id, executor_name="local")
+
+            events = _load_json_lines(task_dir / "events.jsonl")
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+            waiting_event = next(event for event in events if event["event_type"] == "task.waiting_human")
+            executor_event = next(event for event in events if event["event_type"] == "executor.failed")
+            subtask_budget_events = [
+                event for event in events if event["event_type"] in {"subtask.1.budget_exhausted", "subtask.2.budget_exhausted"}
+            ]
+
+            self.assertEqual(final_state.status, "waiting_human")
+            self.assertEqual(final_state.phase, "waiting_human")
+            self.assertEqual(final_state.execution_lifecycle, "waiting_human")
+            self.assertEqual(final_state.executor_name, "subtask-orchestrator")
+            self.assertEqual(final_state.executor_status, "failed")
+            self.assertEqual(waiting_event["payload"]["waiting_reason"], "budget_exhausted")
+            self.assertEqual(review_gate_event["payload"]["status"], "failed")
+            self.assertEqual(len(review_gate_event["payload"]["failed_card_ids"]), 2)
+            self.assertEqual(executor_event["payload"]["failure_kind"], "budget_exhausted")
+            self.assertEqual(len(subtask_budget_events), 2)
+            self.assertTrue((artifacts_dir / "executor_output.md").exists())
+            self.assertIn(
+                "budget_exhausted_count: 2",
+                (artifacts_dir / "executor_output.md").read_text(encoding="utf-8"),
+            )
+            self.assertFalse(any(".debate_round" in event["event_type"] for event in events))
+            self.assertFalse(any(event["event_type"] == "task.failed" for event in events))
 
 
 if __name__ == "__main__":

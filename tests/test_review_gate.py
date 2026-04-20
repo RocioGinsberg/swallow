@@ -7,8 +7,27 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import ExecutorResult, TaskCard
-from swallow.review_gate import ReviewFeedback, ReviewGateResult, build_review_feedback, review_executor_output
+from unittest.mock import patch
+
+from swallow.models import ExecutorResult, TaskCard, TaskState
+from swallow.review_gate import ReviewFeedback, ReviewGateResult, build_review_feedback, review_executor_output, run_review_gate
+
+
+def _review_state() -> TaskState:
+    return TaskState(
+        task_id="task-review",
+        title="Review task",
+        goal="Review the latest executor output",
+        workspace_root="/tmp/workspace",
+        executor_name="http",
+        route_name="local-http",
+        route_backend="http_api",
+        route_executor_family="api",
+        route_execution_site="local",
+        route_transport_kind="http",
+        route_model_hint="deepseek-chat",
+        route_dialect="plain_text",
+    )
 
 
 class ReviewGateTest(unittest.TestCase):
@@ -229,6 +248,184 @@ class ReviewGateTest(unittest.TestCase):
             "Return a structured JSON object that satisfies the required schema fields and constant values.",
             feedback.suggestions,
         )
+
+    def test_run_review_gate_passes_when_majority_reviewers_pass(self) -> None:
+        state = _review_state()
+        card = TaskCard(
+            goal="Review output",
+            parent_task_id=state.task_id,
+            reviewer_routes=["http-claude", "http-qwen", "http-gemini"],
+            consensus_policy="majority",
+        )
+        reviewer_outputs = [
+            ExecutorResult(
+                executor_name="http",
+                status="completed",
+                message="review ok",
+                output='{"status":"passed","message":"approved","checks":[{"name":"goal_alignment","passed":true,"detail":"goal met"}]}',
+            ),
+            ExecutorResult(
+                executor_name="http",
+                status="completed",
+                message="review ok",
+                output='{"status":"passed","message":"approved","checks":[{"name":"constraint_adherence","passed":true,"detail":"constraints met"}]}',
+            ),
+            ExecutorResult(
+                executor_name="http",
+                status="completed",
+                message="review ok",
+                output='{"status":"failed","message":"needs tightening","checks":[{"name":"material_risk","passed":false,"detail":"too hand-wavy"}]}',
+            ),
+        ]
+
+        with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+            result = run_review_gate(
+                state,
+                ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message="ok",
+                    output="bounded implementation details",
+                ),
+                card,
+            )
+
+        self.assertEqual(result.status, "passed")
+        self.assertIn("majority vote", result.message)
+        self.assertTrue(any(check["name"] == "consensus_policy" and check["passed"] for check in result.checks))
+
+    def test_run_review_gate_fails_tie_under_majority_policy(self) -> None:
+        state = _review_state()
+        card = TaskCard(
+            goal="Review output",
+            parent_task_id=state.task_id,
+            reviewer_routes=["http-claude", "http-qwen"],
+            consensus_policy="majority",
+        )
+        reviewer_outputs = [
+            ExecutorResult(
+                executor_name="http",
+                status="completed",
+                message="review ok",
+                output='{"status":"passed","message":"approved","checks":[{"name":"goal_alignment","passed":true,"detail":"goal met"}]}',
+            ),
+            ExecutorResult(
+                executor_name="http",
+                status="completed",
+                message="review ok",
+                output='{"status":"failed","message":"not enough evidence","checks":[{"name":"material_risk","passed":false,"detail":"insufficient support"}]}',
+            ),
+        ]
+
+        with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+            result = run_review_gate(
+                state,
+                ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message="ok",
+                    output="candidate output",
+                ),
+                card,
+            )
+
+        self.assertEqual(result.status, "failed")
+        self.assertIn("required 2", result.message)
+        self.assertTrue(any(check["name"] == "reviewer_route:http-qwen" and not check["passed"] for check in result.checks))
+
+    def test_run_review_gate_fails_when_veto_route_rejects(self) -> None:
+        state = _review_state()
+        card = TaskCard(
+            goal="Review output",
+            parent_task_id=state.task_id,
+            reviewer_routes=["http-claude", "http-qwen"],
+            consensus_policy="veto",
+        )
+        reviewer_outputs = [
+            ExecutorResult(
+                executor_name="http",
+                status="completed",
+                message="review ok",
+                output='{"status":"failed","message":"strong reviewer rejects","checks":[{"name":"goal_alignment","passed":false,"detail":"goal not met"}]}',
+            ),
+            ExecutorResult(
+                executor_name="http",
+                status="completed",
+                message="review ok",
+                output='{"status":"passed","message":"secondary reviewer accepts","checks":[{"name":"material_risk","passed":true,"detail":"acceptable"}]}',
+            ),
+        ]
+
+        with patch("swallow.review_gate.run_prompt_executor", side_effect=reviewer_outputs):
+            result = run_review_gate(
+                state,
+                ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message="ok",
+                    output="candidate output",
+                ),
+                card,
+            )
+
+        self.assertEqual(result.status, "failed")
+        self.assertIn("veto route 'http-claude' rejected", result.message)
+
+    def test_run_review_gate_treats_unreadable_reviewer_payload_as_failed(self) -> None:
+        state = _review_state()
+        card = TaskCard(
+            goal="Review output",
+            parent_task_id=state.task_id,
+            reviewer_routes=["http-claude"],
+            consensus_policy="majority",
+        )
+
+        with patch(
+            "swallow.review_gate.run_prompt_executor",
+            return_value=ExecutorResult(
+                executor_name="http",
+                status="completed",
+                message="review ok",
+                output="not-json",
+            ),
+        ):
+            result = run_review_gate(
+                state,
+                ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message="ok",
+                    output="candidate output",
+                ),
+                card,
+            )
+
+        self.assertEqual(result.status, "failed")
+        self.assertTrue(any(check["name"] == "reviewer_route:http-claude" and not check["passed"] for check in result.checks))
+
+    def test_run_review_gate_skips_consensus_when_local_checks_fail(self) -> None:
+        state = _review_state()
+        card = TaskCard(
+            goal="Review output",
+            parent_task_id=state.task_id,
+            reviewer_routes=["http-claude", "http-qwen"],
+            consensus_policy="majority",
+        )
+
+        with patch("swallow.review_gate.run_prompt_executor") as reviewer_call:
+            result = run_review_gate(
+                state,
+                ExecutorResult(
+                    executor_name="local",
+                    status="failed",
+                    message="executor failed",
+                    output="",
+                ),
+                card,
+            )
+
+        self.assertEqual(result.status, "failed")
+        reviewer_call.assert_not_called()
 
 
 if __name__ == "__main__":

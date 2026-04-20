@@ -335,23 +335,7 @@ def run_executor(state: TaskState, retrieval_items: list[RetrievalItem]) -> Exec
 def run_executor_inline(state: TaskState, retrieval_items: list[RetrievalItem]) -> ExecutorResult:
     executor_name = resolve_executor_name(state)
     prompt = build_formatted_executor_prompt(state, retrieval_items)
-
-    if executor_name == "mock":
-        result = run_mock_executor(prompt)
-    elif executor_name == "mock-remote":
-        result = run_mock_remote_executor(state, retrieval_items, prompt)
-    elif executor_name == "note-only":
-        result = run_note_only_executor(state, retrieval_items, prompt)
-    elif executor_name == "local":
-        result = run_local_executor(state, retrieval_items, prompt)
-    elif executor_name == "http":
-        result = run_http_executor(state, retrieval_items, prompt)
-    elif executor_name == "codex":
-        result = run_codex_executor(state, retrieval_items, prompt)
-    elif executor_name == "cline":
-        result = run_cli_agent_executor(CLINE_CONFIG, state, retrieval_items, prompt)
-    else:
-        raise UnknownExecutorError(f"Unknown executor name: {executor_name}")
+    result = run_prompt_executor(state, retrieval_items, prompt)
     result = replace(result, executor_name=result.executor_name or executor_name)
     result = replace(result, prompt=result.prompt or prompt)
     result = replace(result, review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip())
@@ -439,36 +423,57 @@ def _run_executor_for_fallback_route(
     visited_routes: set[str],
     original_route_name: str,
 ) -> ExecutorResult:
+    prompt = build_formatted_executor_prompt(state, retrieval_items)
+    return run_prompt_executor(
+        state,
+        retrieval_items,
+        prompt,
+        visited_routes=visited_routes,
+        original_route_name=original_route_name,
+    )
+
+
+def run_prompt_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
+) -> ExecutorResult:
     executor_name = resolve_executor_name(state)
+    if executor_name == "mock":
+        return run_mock_executor(prompt)
+    if executor_name == "mock-remote":
+        return run_mock_remote_executor(state, retrieval_items, prompt)
+    if executor_name == "note-only":
+        return run_note_only_executor(state, retrieval_items, prompt)
+    if executor_name == "local":
+        return run_local_executor(state, retrieval_items, prompt)
     if executor_name == "http":
         return run_http_executor(
-            state,
-            retrieval_items,
-            None,
-            visited_routes=visited_routes,
-            original_route_name=original_route_name,
-        )
-
-    prompt = build_formatted_executor_prompt(state, retrieval_items)
-    if executor_name == "cline":
-        return run_cli_agent_executor(
-            CLINE_CONFIG,
             state,
             retrieval_items,
             prompt,
             visited_routes=visited_routes,
             original_route_name=original_route_name,
         )
-    if executor_name == "local":
-        return run_local_executor(state, retrieval_items, prompt)
-    if executor_name == "note-only":
-        return run_note_only_executor(state, retrieval_items, prompt)
-    if executor_name == "mock":
-        return run_mock_executor(prompt)
-    if executor_name == "mock-remote":
-        return run_mock_remote_executor(state, retrieval_items, prompt)
     if executor_name == "codex":
-        return run_codex_executor(state, retrieval_items, prompt)
+        return run_codex_executor(
+            state,
+            retrieval_items,
+            prompt,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+    if executor_name == "cline":
+        return run_cline_executor(
+            state,
+            retrieval_items,
+            prompt,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
     raise UnknownExecutorError(f"Unknown executor name: {executor_name}")
 
 
@@ -1154,8 +1159,36 @@ def run_codex_executor(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     prompt: str | None = None,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
 ) -> ExecutorResult:
-    return run_cli_agent_executor(CODEX_CONFIG, state, retrieval_items, prompt)
+    return run_cli_agent_executor(
+        CODEX_CONFIG,
+        state,
+        retrieval_items,
+        prompt,
+        visited_routes=visited_routes,
+        original_route_name=original_route_name,
+    )
+
+
+def run_cline_executor(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    prompt: str | None = None,
+    *,
+    visited_routes: set[str] | None = None,
+    original_route_name: str | None = None,
+) -> ExecutorResult:
+    return run_cli_agent_executor(
+        CLINE_CONFIG,
+        state,
+        retrieval_items,
+        prompt,
+        visited_routes=visited_routes,
+        original_route_name=original_route_name,
+    )
 
 
 def parse_timeout_seconds(raw_value: str) -> int:

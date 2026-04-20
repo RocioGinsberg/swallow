@@ -27,6 +27,7 @@ from .canonical_reuse_eval import (
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .capability_enforcement import CapabilityConstraint, enforce_capability_constraints
 from .cost_estimation import estimate_cost
+from .execution_budget_policy import evaluate_token_cost_budget, normalize_token_cost_limit
 from .executor import normalize_executor_name, resolve_dialect_name, resolve_executor
 from .dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
 from .grounding import build_grounding_evidence, extract_grounding_entries
@@ -111,6 +112,7 @@ from .review_gate import (
     build_review_feedback,
     render_review_feedback_markdown,
     review_executor_output,
+    run_review_gate,
 )
 from .staged_knowledge import StagedCandidate, submit_staged_candidate
 from .subtask_orchestrator import SubtaskOrchestrator, SubtaskOrchestratorResult, SubtaskRunRecord
@@ -700,6 +702,131 @@ def _build_debate_last_feedback(
     )
 
 
+def _task_card_token_cost_limit(card: TaskCard) -> float:
+    return normalize_token_cost_limit(card.token_cost_limit)
+
+
+def _build_budget_exhausted_executor_result(
+    state: TaskState,
+    card: TaskCard,
+    *,
+    current_token_cost: float,
+    token_cost_limit: float,
+) -> ExecutorResult:
+    return ExecutorResult(
+        executor_name=state.executor_name,
+        status="failed",
+        message=(
+            "TaskCard token cost budget is exhausted; waiting for human intervention before continuing "
+            f"(current={current_token_cost:.8f}, limit={token_cost_limit:.8f})."
+        ),
+        failure_kind="budget_exhausted",
+        review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip(),
+        output="",
+        prompt="",
+        dialect=state.route_dialect or "plain_text",
+        stdout="",
+        stderr="",
+    )
+
+
+def _build_budget_exhausted_review_gate_result(
+    *,
+    current_token_cost: float,
+    token_cost_limit: float,
+) -> ReviewGateResult:
+    return ReviewGateResult(
+        status="failed",
+        message="TaskCard token cost budget is exhausted before execution can continue.",
+        checks=[
+            {
+                "name": "token_cost_budget",
+                "passed": False,
+                "detail": (
+                    f"current_token_cost={current_token_cost:.8f}; "
+                    f"token_cost_limit={token_cost_limit:.8f}"
+                ),
+            }
+        ],
+    )
+
+
+def _append_budget_exhausted_event(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    *,
+    retry_round: int,
+    attempt_number: int,
+    current_token_cost: float,
+    token_cost_limit: float,
+    subtask_index: int | None = None,
+) -> None:
+    event_type = "task.budget_exhausted" if subtask_index is None else f"subtask.{subtask_index}.budget_exhausted"
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type=event_type,
+            message="Token cost limit reached before the next execution attempt.",
+            payload={
+                "card_id": card.card_id,
+                "goal": card.goal,
+                "retry_round": retry_round,
+                "attempt_number": attempt_number,
+                "current_token_cost": current_token_cost,
+                "token_cost_limit": token_cost_limit,
+                "consensus_policy": card.consensus_policy,
+                "reviewer_routes": card.reviewer_routes,
+                "subtask_index": subtask_index or card.subtask_index,
+            },
+        ),
+    )
+
+
+def _budget_guard_result(
+    base_dir: Path,
+    state: TaskState,
+    card: TaskCard,
+    *,
+    retry_round: int,
+    attempt_number: int,
+    subtask_index: int | None = None,
+) -> tuple[ExecutorResult, ReviewGateResult] | None:
+    token_cost_limit = _task_card_token_cost_limit(card)
+    if token_cost_limit <= 0:
+        return None
+
+    budget = evaluate_token_cost_budget(base_dir, state.task_id, token_cost_limit)
+    budget_state = str(budget.get("budget_state", "available")).strip()
+    current_token_cost = float(budget.get("current_token_cost", 0.0) or 0.0)
+    if budget_state != "cost_exhausted":
+        return None
+
+    _append_budget_exhausted_event(
+        base_dir,
+        state,
+        card,
+        retry_round=retry_round,
+        attempt_number=attempt_number,
+        current_token_cost=current_token_cost,
+        token_cost_limit=token_cost_limit,
+        subtask_index=subtask_index,
+    )
+    return (
+        _build_budget_exhausted_executor_result(
+            state,
+            card,
+            current_token_cost=current_token_cost,
+            token_cost_limit=token_cost_limit,
+        ),
+        _build_budget_exhausted_review_gate_result(
+            current_token_cost=current_token_cost,
+            token_cost_limit=token_cost_limit,
+        ),
+    )
+
+
 def _debate_loop_core(
     *,
     run_attempt: Callable[[int], tuple[ExecutorResult, ReviewGateResult]],
@@ -761,6 +888,15 @@ def _run_single_task_with_debate(
 
     def run_attempt(_retry_round: int) -> tuple[ExecutorResult, ReviewGateResult]:
         nonlocal current_card, state
+        budget_guard = _budget_guard_result(
+            base_dir,
+            state,
+            current_card,
+            retry_round=_retry_round,
+            attempt_number=_retry_round + 1,
+        )
+        if budget_guard is not None:
+            return budget_guard
         _append_canonical_write_guard_warning(base_dir, state, current_card)
         executor_result = _execute_task_card(base_dir, state, current_card, retrieval_items)
         executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
@@ -774,7 +910,7 @@ def _run_single_task_with_debate(
                 executor_result,
             )
             executor_result = replace(executor_result, review_feedback=state.review_feedback_ref)
-        review_gate_result = review_executor_output(executor_result, current_card)
+        review_gate_result = run_review_gate(state, executor_result, current_card)
         return executor_result, review_gate_result
 
     executor_result, review_gate_result, debate_exhausted = _debate_loop_core(
@@ -892,15 +1028,30 @@ def _run_subtask_attempt(
     state: TaskState,
     card: TaskCard,
     retrieval_items: list[RetrievalItem],
+    *,
+    base_dir: Path,
+    attempt_number: int = 1,
 ) -> tuple[SubtaskRunRecord, dict[str, str]]:
     started_at = utc_now()
     isolated_state = TaskState.from_dict(state.to_dict())
     try:
-        with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
-            subtask_base_dir = Path(tmp)
-            executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, retrieval_items)
-            extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
-        review_gate_result = review_executor_output(executor_result, card)
+        budget_guard = _budget_guard_result(
+            base_dir,
+            isolated_state,
+            card,
+            retry_round=max(attempt_number - 1, 0),
+            attempt_number=attempt_number,
+            subtask_index=card.subtask_index,
+        )
+        if budget_guard is not None:
+            executor_result, review_gate_result = budget_guard
+            extra_artifacts = {}
+        else:
+            with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
+                subtask_base_dir = Path(tmp)
+                executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, retrieval_items)
+                extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+            review_gate_result = run_review_gate(isolated_state, executor_result, card)
     except Exception as exc:  # pragma: no cover - defensive path
         executor_result = ExecutorResult(
             executor_name="subtask-orchestrator",
@@ -961,6 +1112,8 @@ def _run_subtask_debate_retries(
                 isolated_state,
                 replace(card, depends_on=[]),
                 retrieval_items,
+                base_dir=base_dir,
+                attempt_number=retry_round + 1,
             )
             retry_attempts.append((retry_round + 1, retry_record, extra_artifacts))
             current_record = retry_record
@@ -1131,8 +1284,10 @@ def _build_subtask_executor_result(
     attempt_counts: dict[str, int],
     *,
     debate_exhausted_card_ids: list[str] | None = None,
+    budget_exhausted_card_ids: list[str] | None = None,
 ) -> ExecutorResult:
     debate_exhausted_card_ids = list(debate_exhausted_card_ids or [])
+    budget_exhausted_card_ids = list(budget_exhausted_card_ids or [])
     prompt_lines = [
         "# Subtask Orchestrator Plan",
         "",
@@ -1147,6 +1302,7 @@ def _build_subtask_executor_result(
         f"- completed_count: {result.completed_count}",
         f"- failed_count: {result.failed_count}",
         f"- debate_exhausted_count: {len(debate_exhausted_card_ids)}",
+        f"- budget_exhausted_count: {len(budget_exhausted_card_ids)}",
         f"- max_parallelism: {result.max_parallelism}",
         "",
         "## Subtasks",
@@ -1170,10 +1326,17 @@ def _build_subtask_executor_result(
                 f"  executor_status: {executor_result.status if executor_result else 'failed'}",
                 f"  review_gate_status: {review_gate_result.status if review_gate_result else 'failed'}",
                 f"  debate_exhausted: {'yes' if record.card_id in debate_exhausted_card_ids else 'no'}",
+                f"  budget_exhausted: {'yes' if record.card_id in budget_exhausted_card_ids else 'no'}",
             ]
         )
     status = "completed" if result.failed_count == 0 else "failed"
-    if debate_exhausted_card_ids:
+    if budget_exhausted_card_ids and debate_exhausted_card_ids:
+        message = "One or more subtasks exhausted debate rounds or token cost budget and require human intervention."
+        failure_kind = "budget_exhausted"
+    elif budget_exhausted_card_ids:
+        message = "One or more subtasks reached the token cost budget and require human intervention."
+        failure_kind = "budget_exhausted"
+    elif debate_exhausted_card_ids:
         message = "One or more subtasks exhausted debate rounds and require human intervention."
         failure_kind = "debate_circuit_breaker"
     else:
@@ -1205,6 +1368,7 @@ def _run_subtask_orchestration(
     retrieval_items: list[RetrievalItem],
 ) -> tuple[ExecutorResult, ReviewGateResult, SubtaskOrchestratorResult, bool]:
     subtask_extra_artifacts: dict[str, dict[str, str]] = {}
+    subtask_budget_review_results: dict[str, ReviewGateResult] = {}
     subtask_extra_artifacts_lock = threading.Lock()
 
     def execute_subtask(
@@ -1213,6 +1377,19 @@ def _run_subtask_orchestration(
         card: TaskCard,
         subtask_retrieval_items: list[RetrievalItem],
     ) -> ExecutorResult:
+        budget_guard = _budget_guard_result(
+            base_dir,
+            isolated_state,
+            card,
+            retry_round=0,
+            attempt_number=1,
+            subtask_index=card.subtask_index,
+        )
+        if budget_guard is not None:
+            executor_result, review_gate_result = budget_guard
+            with subtask_extra_artifacts_lock:
+                subtask_budget_review_results[card.card_id] = review_gate_result
+            return executor_result
         with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
             subtask_base_dir = Path(tmp)
             executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, subtask_retrieval_items)
@@ -1221,8 +1398,16 @@ def _run_subtask_orchestration(
                 subtask_extra_artifacts[card.card_id] = extra_artifacts
             return executor_result
 
-    orchestrator = SubtaskOrchestrator(execute_subtask, review_executor_output)
+    orchestrator = SubtaskOrchestrator(
+        execute_subtask,
+        lambda executor_result, review_card: run_review_gate(state, executor_result, review_card),
+    )
     result = orchestrator.run(base_dir, state, cards, retrieval_items)
+    for record in result.records:
+        budget_review_gate_result = subtask_budget_review_results.get(record.card_id)
+        if budget_review_gate_result is not None:
+            record.review_gate_result = budget_review_gate_result
+            record.status = "failed"
     attempt_counts = {record.card_id: 1 for record in result.records}
     failed_records = [record for record in result.records if record.status != "completed"]
     cards_by_id = {card.card_id: card for card in cards}
@@ -1263,11 +1448,25 @@ def _run_subtask_orchestration(
             debate_exhausted_card_ids.append(failed_record.card_id)
 
     result.records = [records_by_id[card.card_id] for card in cards]
+    budget_exhausted_card_ids = [
+        record.card_id
+        for record in result.records
+        if record.executor_result is not None and record.executor_result.failure_kind == "budget_exhausted"
+    ]
     result.failed_card_ids = [record.card_id for record in result.records if record.status != "completed"]
     result.failed_count = len(result.failed_card_ids)
     result.completed_count = len(result.records) - result.failed_count
     result.status = "completed" if result.failed_count == 0 else "failed"
-    if debate_exhausted_card_ids:
+    if budget_exhausted_card_ids and debate_exhausted_card_ids:
+        result.message = (
+            f"{len(debate_exhausted_card_ids)} subtasks exhausted debate rounds and "
+            f"{len(budget_exhausted_card_ids)} reached the token cost budget; human intervention required."
+        )
+    elif budget_exhausted_card_ids:
+        result.message = (
+            f"{len(budget_exhausted_card_ids)} subtasks reached the token cost budget and require human intervention."
+        )
+    elif debate_exhausted_card_ids:
         result.message = (
             f"{len(debate_exhausted_card_ids)} subtasks exhausted debate rounds and require human intervention."
         )
@@ -1283,10 +1482,11 @@ def _run_subtask_orchestration(
         result,
         attempt_counts,
         debate_exhausted_card_ids=debate_exhausted_card_ids,
+        budget_exhausted_card_ids=budget_exhausted_card_ids,
     )
     _write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
-    return executor_result, review_gate_result, result, bool(debate_exhausted_card_ids)
+    return executor_result, review_gate_result, result, bool(debate_exhausted_card_ids or budget_exhausted_card_ids)
 
 
 def _load_locked_grounding_evidence(base_dir: Path, state: TaskState) -> dict[str, object] | None:
@@ -1518,6 +1718,9 @@ def create_task(
     knowledge_canonicalization_intent: str = "none",
     capability_refs: list[str] | None = None,
     route_mode: str = "auto",
+    reviewer_routes: list[str] | None = None,
+    consensus_policy: str = "majority",
+    token_cost_limit: float = 0.0,
 ) -> TaskState:
     task_id = uuid4().hex[:12]
     capability_manifest = parse_capability_refs(capability_refs)
@@ -1542,13 +1745,35 @@ def create_task(
         retrieval_eligible=knowledge_retrieval_eligible,
         canonicalization_intent=knowledge_canonicalization_intent,
     )
+    task_semantics_payload = task_semantics.to_dict()
+    if reviewer_routes:
+        normalized_reviewer_routes: list[str] = []
+        seen_routes: set[str] = set()
+        for item in reviewer_routes:
+            normalized = str(item).strip()
+            if not normalized or normalized in seen_routes:
+                continue
+            normalized_reviewer_routes.append(normalized)
+            seen_routes.add(normalized)
+        if normalized_reviewer_routes:
+            task_semantics_payload["reviewer_routes"] = normalized_reviewer_routes
+    normalized_consensus_policy = str(consensus_policy or "majority").strip().lower()
+    if normalized_consensus_policy in {"majority", "veto"}:
+        task_semantics_payload["consensus_policy"] = normalized_consensus_policy
+    try:
+        normalized_token_cost_limit = float(token_cost_limit)
+    except (TypeError, ValueError):
+        normalized_token_cost_limit = 0.0
+    if normalized_token_cost_limit > 0:
+        task_semantics_payload["token_cost_limit"] = normalized_token_cost_limit
+
     state = TaskState(
         task_id=task_id,
         title=title,
         goal=goal,
         workspace_root=str(workspace_root.resolve()),
         executor_name=normalize_executor_name(executor_name),
-        task_semantics=task_semantics.to_dict(),
+        task_semantics=task_semantics_payload,
         knowledge_objects=[item.to_dict() for item in knowledge_objects],
         capability_manifest=capability_manifest.to_dict(),
         capability_assembly=capability_assembly.to_dict(),
@@ -2298,6 +2523,9 @@ def run_task(
                 "route_hint": card.route_hint,
                 "executor_type": card.executor_type,
                 "subtask_indices": [planned_card.subtask_index for planned_card in cards],
+                "reviewer_routes": card.reviewer_routes,
+                "consensus_policy": card.consensus_policy,
+                "token_cost_limit": card.token_cost_limit,
                 "parent_task_id": card.parent_task_id,
             },
         ),
@@ -2400,7 +2628,7 @@ def run_task(
         state.executor_status = executor_result.status
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
-        review_gate_result = review_executor_output(executor_result, card)
+        review_gate_result = run_review_gate(state, executor_result, card)
         execution_skipped = True
         debate_exhausted = False
     state.executor_name = executor_result.executor_name
@@ -2420,6 +2648,9 @@ def run_task(
                 "card_ids": [planned_card.card_id for planned_card in cards],
                 "executor_name": executor_result.executor_name,
                 "executor_status": executor_result.status,
+                "reviewer_routes": card.reviewer_routes,
+                "consensus_policy": card.consensus_policy,
+                "token_cost_limit": card.token_cost_limit,
                 "failed_card_ids": subtask_result.failed_card_ids if subtask_result is not None else [],
                 "skipped_execution": execution_skipped,
                 "source": "previous_execution" if execution_skipped else "live_execution",
@@ -2499,7 +2730,12 @@ def run_task(
     state.last_phase_checkpoint_at = utc_now()
     save_state(base_dir, state)
     artifact_state = replace(state)
-    if debate_exhausted:
+    manual_intervention_required = debate_exhausted or executor_result.failure_kind == "budget_exhausted"
+    waiting_reason = "budget_exhausted" if executor_result.failure_kind == "budget_exhausted" else ""
+    if not waiting_reason and debate_exhausted:
+        waiting_reason = "debate_exhausted"
+
+    if manual_intervention_required:
         artifact_state.status = "waiting_human"
         artifact_state.phase = "waiting_human"
         artifact_state.execution_lifecycle = "waiting_human"
@@ -2519,7 +2755,7 @@ def run_task(
         grounding_evidence_override=grounding_evidence,
     )
 
-    if debate_exhausted:
+    if manual_intervention_required:
         state.status = "waiting_human"
         state.phase = "waiting_human"
         state.execution_lifecycle = "waiting_human"
@@ -2537,16 +2773,22 @@ def run_task(
     staged_candidates = _route_knowledge_to_staged(base_dir, state)
     save_state(base_dir, state)
     _record_phase_checkpoint(base_dir, state, "analysis_done", source="live_analysis")
-    if debate_exhausted:
+    if manual_intervention_required:
         append_event(
             base_dir,
             Event(
                 task_id=task_id,
                 event_type="task.waiting_human",
-                message="Task is waiting for human intervention after debate loop exhaustion.",
+                message=(
+                    "Task is waiting for human intervention after token cost budget exhaustion."
+                    if waiting_reason == "budget_exhausted"
+                    else "Task is waiting for human intervention after debate loop exhaustion."
+                ),
                 payload={
                     "status": state.status,
                     "phase": state.phase,
+                    "waiting_reason": waiting_reason,
+                    "failure_kind": executor_result.failure_kind,
                     "retrieval_count": state.retrieval_count,
                     "executor_name": state.executor_name,
                     "review_feedback_ref": state.review_feedback_ref,

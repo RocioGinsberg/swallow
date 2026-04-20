@@ -12,6 +12,7 @@ from .canonical_reuse_eval import (
     compare_canonical_reuse_regression,
 )
 from .canonical_audit import audit_canonical_registry, build_canonical_audit_report
+from .consistency_audit import run_consistency_audit
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .canonical_registry import (
@@ -1625,6 +1626,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Evaluation judgment.",
     )
     canonical_reuse_evaluate_parser.add_argument("--note", default="", help="Optional operator note for the evaluation record.")
+    consistency_audit_parser = task_subparsers.add_parser(
+        "consistency-audit",
+        help="Run a manual cross-model consistency audit against an existing task artifact.",
+        description="Run a manual cross-model consistency audit against an existing task artifact.",
+    )
+    consistency_audit_parser.add_argument("task_id", help="Task identifier.")
+    consistency_audit_parser.add_argument(
+        "--auditor-route",
+        required=True,
+        help="Route name used for the audit request, for example http-claude.",
+    )
+    consistency_audit_parser.add_argument(
+        "--artifact",
+        default="executor_output.md",
+        help="Artifact filename or path to audit. Relative paths resolve under the task artifacts directory.",
+    )
     review_parser = task_subparsers.add_parser("review", help="Print a review-focused task handoff summary.")
     review_parser.add_argument("task_id", help="Task identifier.")
     checkpoint_parser = task_subparsers.add_parser(
@@ -2241,6 +2258,19 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(
             f"{result['record']['task_id']} canonical_reuse_evaluated judgment={result['record']['judgment']} citations={result['record']['citation_count']}"
+        )
+        return 0
+
+    if args.command == "task" and args.task_command == "consistency-audit":
+        result = run_consistency_audit(
+            base_dir,
+            args.task_id,
+            auditor_route=args.auditor_route,
+            sample_artifact_path=args.artifact,
+        )
+        artifact_ref = result.audit_artifact or "-"
+        print(
+            f"{result.task_id} consistency_audit status={result.status} route={result.auditor_route} artifact={artifact_ref}"
         )
         return 0
 
