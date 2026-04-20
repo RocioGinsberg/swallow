@@ -21,16 +21,16 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 44`
-- latest_completed_slice: `Web Control Center Enhancement`
+- latest_completed_phase: `Phase 47`
+- latest_completed_slice: `Consensus & Policy Guardrails`
 - checkpoint_type: `phase_closeout`
-- last_checked: `2026-04-19`
+- last_checked: `2026-04-20`
 
 说明：
 
-- Phase 44 已完成实现、review、PR 与 merge，并已形成新的稳定 checkpoint。
-- `docs/plans/phase44/closeout.md` 与 `docs/plans/phase44/review_comments.md` 已反映当前收口结论。
-- 当前默认不再继续扩张已完成的 Phase 44，而应从 roadmap 重新选择下一轮方向。
+- Phase 47 已完成实现、review、merge 与 tag `v0.5.0`，并已形成新的稳定 checkpoint。
+- `docs/plans/phase47/closeout.md` 与 `docs/plans/phase47/review_comments.md` 已反映当前收口结论。
+- 当前默认不再继续扩张已完成的 Phase 47，而应从 roadmap 重新选择下一轮方向。
 
 ---
 
@@ -58,11 +58,11 @@
 3. `docs/roadmap.md`
 4. `docs/system_tracks.md`
 5. `current_state.md`
-6. `docs/plans/phase44/closeout.md`
+6. `docs/plans/phase47/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase44/review_comments.md`
+- `docs/plans/phase47/review_comments.md`
 - `docs/concerns_backlog.md`
 - `pr.md`
 - 历史 phase closeout / review_comments
@@ -75,6 +75,7 @@
 
 ```bash
 .venv/bin/python -m pytest
+.venv/bin/python -m pytest -m eval --tb=short
 .venv/bin/python -m swallow.cli --help
 ```
 
@@ -85,8 +86,10 @@
 - Web Control Center 仍保持严格只读；不会写入 `.swl/`，也未引入前端构建工具链。
 - Artifact compare 当前是纯文本双栏 compare，不包含结构化 diff 高亮或批注工作流。
 - `meta-optimize` 仍是只读分析入口，不会自动采纳策略提案，也不会直接修改 route policy 或 task state。
+- `ReviewGate` 现已支持多 Reviewer 共识拓扑，但仍是顺序执行，尚未进入 async 并发 reviewer 调度。
+- `TaskCard.token_cost_limit` 当前按 task 全生命周期聚合真实 `token_cost`，而不是按单 card 独立结算。
+- 一致性抽检当前仍是手动、只读入口，不自动进入主任务闭环。
 - 真实执行环境下的外部网络、代理与 provider 连通性仍受本地环境约束，`swl doctor` 只负责诊断，不负责修复。
-- 系统当前已具备多轮 debate retry 与 `waiting_human` 熔断，但尚未进入多 Reviewer 共识拓扑。
 
 ---
 
