@@ -15,7 +15,16 @@ from swallow.models import Event, TaskState
 from swallow.orchestrator import create_task, run_task
 from swallow.paths import swallow_db_path
 from swallow.sqlite_store import SqliteTaskStore
-from swallow.store import append_event, load_events, load_state
+from swallow.store import (
+    append_event,
+    iter_recent_task_events,
+    iter_task_states,
+    load_events,
+    load_state,
+    migrate_file_tasks_to_sqlite,
+    normalize_store_backend,
+    save_state,
+)
 from swallow.web.api import build_task_events_payload, build_tasks_payload
 
 
@@ -32,6 +41,35 @@ def _sqlite_state(task_id: str = "sqlite-task") -> TaskState:
 
 
 class SqliteTaskStoreTest(unittest.TestCase):
+    def test_default_backend_uses_sqlite_with_file_mirror(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            state = _sqlite_state("default-sqlite-task")
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": ""}, clear=False):
+                save_state(base_dir, state)
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id=state.task_id,
+                        event_type="task.created",
+                        message="default sqlite write",
+                        payload={"status": "created"},
+                    ),
+                )
+                restored = load_state(base_dir, state.task_id)
+                events = load_events(base_dir, state.task_id)
+                db_exists = swallow_db_path(base_dir).exists()
+                state_file_exists = (base_dir / ".swl" / "tasks" / state.task_id / "state.json").exists()
+                events_file_exists = (base_dir / ".swl" / "tasks" / state.task_id / "events.jsonl").exists()
+
+        self.assertEqual(normalize_store_backend(None), "sqlite")
+        self.assertEqual(restored.task_id, state.task_id)
+        self.assertEqual(len(events), 1)
+        self.assertTrue(db_exists)
+        self.assertTrue(state_file_exists)
+        self.assertTrue(events_file_exists)
+
     def test_sqlite_task_store_round_trips_state_and_events(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
@@ -67,6 +105,91 @@ class SqliteTaskStoreTest(unittest.TestCase):
                 journal_mode = str(connection.execute("PRAGMA journal_mode").fetchone()[0]).lower()
 
         self.assertEqual(journal_mode, "wal")
+
+    def test_default_backend_reads_legacy_file_only_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            state = _sqlite_state("legacy-file-task")
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_state(base_dir, state)
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id=state.task_id,
+                        event_type="task.created",
+                        message="legacy file write",
+                        payload={"status": "created"},
+                    ),
+                )
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": ""}, clear=False):
+                restored = load_state(base_dir, state.task_id)
+                events = load_events(base_dir, state.task_id)
+                states = list(iter_task_states(base_dir))
+                recent = iter_recent_task_events(base_dir, 5)
+
+        self.assertEqual(restored.task_id, state.task_id)
+        self.assertEqual(events[0]["message"], "legacy file write")
+        self.assertEqual(states[0].task_id, state.task_id)
+        self.assertEqual(recent[0][0], state.task_id)
+
+    def test_migrate_file_tasks_to_sqlite_dry_run_does_not_create_db(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            state = _sqlite_state("dry-run-task")
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_state(base_dir, state)
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id=state.task_id,
+                        event_type="task.created",
+                        message="dry run candidate",
+                        payload={"status": "created"},
+                    ),
+                )
+
+            summary = migrate_file_tasks_to_sqlite(base_dir, dry_run=True)
+            db_exists = swallow_db_path(base_dir).exists()
+
+        self.assertEqual(summary["task_count_scanned"], 1)
+        self.assertEqual(summary["task_count_migrated"], 1)
+        self.assertEqual(summary["event_count_migrated"], 1)
+        self.assertFalse(db_exists)
+
+    def test_migrate_file_tasks_to_sqlite_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            state = _sqlite_state("migrate-task")
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_state(base_dir, state)
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id=state.task_id,
+                        event_type="task.created",
+                        message="migrate me",
+                        payload={"status": "created"},
+                    ),
+                )
+
+            first = migrate_file_tasks_to_sqlite(base_dir)
+            second = migrate_file_tasks_to_sqlite(base_dir)
+            sqlite_store = SqliteTaskStore()
+            restored = sqlite_store.load_state(base_dir, state.task_id)
+            sqlite_events = sqlite_store.load_events(base_dir, state.task_id)
+            state_file_exists = (base_dir / ".swl" / "tasks" / state.task_id / "state.json").exists()
+
+        self.assertEqual(first["task_count_migrated"], 1)
+        self.assertEqual(first["event_count_migrated"], 1)
+        self.assertEqual(second["task_count_migrated"], 0)
+        self.assertEqual(second["task_count_skipped"], 1)
+        self.assertEqual(restored.task_id, state.task_id)
+        self.assertEqual(len(sqlite_events), 1)
+        self.assertTrue(state_file_exists)
 
     def test_sqlite_backend_keeps_event_only_budget_scans_working(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -124,7 +247,7 @@ class SqliteTaskStoreTest(unittest.TestCase):
         self.assertGreater(events_payload["count"], 0)
         self.assertIn(created.task_id, snapshot.scanned_task_ids)
         self.assertTrue(db_exists)
-        self.assertFalse(state_file_exists)
+        self.assertTrue(state_file_exists)
 
 
 if __name__ == "__main__":

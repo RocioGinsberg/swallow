@@ -7,9 +7,9 @@
 - latest_completed_slice: `Consensus & Policy Guardrails (v0.5.0)`
 - active_track: `Core Loop` (Primary) + `State / Truth` (Secondary)
 - active_phase: `Phase 48`
-- active_slice: `phase48_s4_async_orchestrator_completed`
+- active_slice: `phase48_s5_store_cutover_completed`
 - active_branch: `feat/phase48_async-storage`
-- status: `phase48_s4_validated_ready_for_human_commit`
+- status: `phase48_s5_validated_ready_for_human_commit`
 
 ---
 
@@ -17,13 +17,13 @@
 
 Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模型共识门禁、成本护栏及一致性审计等关键能力。
 
-根据 `docs/roadmap.md`，Phase 48 的重点转向 **“存储引擎升级与全异步改造”**。当前 `feat/phase48_async-storage` 已完成前四个 slice 的最小闭环：S1（`async-executor`）补齐 executor 异步桥接与异步 HTTP fallback；S2（`async-review-gate`）将多 Reviewer 审查切为 `asyncio.gather(..., return_exceptions=True)` 并发执行；S3（`sqlite-schema`）新增 `SqliteTaskStore`、`TaskStoreProtocol` / `FileTaskStore` 双存储分派、`.swl/swallow.db` 路径与 `SWALLOW_STORE_BACKEND=sqlite|file` 切换，并将 CLI / Web API / Meta-Optimizer / execution budget policy 的 state/event 读取改为统一走 store helper；S4（`async-orchestrator`）补齐 `run_task_async()`、async debate loop / async subtask orchestrator 基础能力、CLI 生命周期兼容壳与事件循环内运行路径。当前工作树为 S4 已验证未提交状态，下一步进入 Human 审查与 S5 gate 判断。
+根据 `docs/roadmap.md`，Phase 48 的重点转向 **“存储引擎升级与全异步改造”**。当前 `feat/phase48_async-storage` 已完成五个 slice 的最小闭环：S1（`async-executor`）补齐 executor 异步桥接与异步 HTTP fallback；S2（`async-review-gate`）将多 Reviewer 审查切为 `asyncio.gather(..., return_exceptions=True)` 并发执行；S3（`sqlite-schema`）新增 `SqliteTaskStore`、`TaskStoreProtocol` / `FileTaskStore` 双存储分派、`.swl/swallow.db` 路径与 `SWALLOW_STORE_BACKEND=sqlite|file` 切换，并将 CLI / Web API / Meta-Optimizer / execution budget policy 的 state/event 读取改为统一走 store helper；S4（`async-orchestrator`）补齐 `run_task_async()`、async debate loop / async subtask orchestrator 基础能力、CLI 生命周期兼容壳与事件循环内运行路径；S5（`store-cutover`）将默认 store backend 切换为 SQLite，引入 sqlite primary + file mirror/fallback 的过渡实现，补齐 `swl migrate` 与 `swl doctor sqlite`，并让默认 `swl doctor` 输出包含 SQLite 健康检查。当前工作树为 S5 已实现并完成定向验证，等待 Human 审查与提交。
 
 ---
 
 ## 当前关键文档
 
-当前进入 Phase 48 S3 审查前，优先读取：
+当前进入 Phase 48 S5 收口前，优先读取：
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
@@ -51,12 +51,13 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
 - **[Gemini]** 产出 `docs/plans/phase48/context_brief.md`。
 - **[Claude]** 已产出 `docs/plans/phase48/kickoff.md`、`design_decision.md`、`risk_assessment.md`。
 - **[Human]** 已通过当前对话授权开始 Phase 48 实现。
-- **[Human]** 已完成前三次提交：
+- **[Human]** 当前分支已有提交：
   - `docs(phase48): add kickoff decision and roadmap sync`
   - `feat(async): add executor async bridge and http async path`
   - `feat(async): parallelize review gate execution`
-- **[Codex]** 已完成 S3 提交：
   - `feat(store): add sqlite task and event backend` (`b7eb4b4`)
+  - `feat(async): add orchestrator async runtime path` (`6c36925`)
+  - `test(phase47):add orchestrator async runtime path` (`2a91bec`)
 - **[Codex]** 已完成 S1（`async-executor`）：
   - `ExecutorProtocol` 新增 `execute_async()` 过渡接口
   - `LocalCLIExecutor` / `MockExecutor` / `HTTPExecutor` / `CLIAgentExecutor` / `LibrarianExecutor` 均支持异步桥接
@@ -99,11 +100,21 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
   - `.venv/bin/python -m pytest tests/test_subtask_orchestrator.py tests/test_debate_loop.py tests/test_run_task_subtasks.py tests/test_binary_fallback.py --tb=short -q` → `18 passed`
   - `.venv/bin/python -m pytest tests/test_cli.py -k 'task_run or task_resume or task_rerun' --tb=short -q` → `6 passed, 190 deselected`
   - `.venv/bin/python -m pytest tests/test_sqlite_store.py tests/test_web_api.py --tb=short -q` → `13 passed`
+- **[Codex]** 已完成 S5（`store-cutover`）：
+  - `src/swallow/store.py` 将默认 backend 切换为 SQLite，并新增 `DefaultTaskStore` 作为 sqlite primary + file mirror/fallback 过渡层
+  - `src/swallow/store.py` 新增 `migrate_file_tasks_to_sqlite()`，支持 legacy file task → SQLite 回填与 `--dry-run`
+  - `src/swallow/sqlite_store.py` 补齐 task/event existence、count 与 database health helper，避免 `swl migrate --dry-run` 意外建库
+  - `src/swallow/doctor.py` 新增 SQLite doctor result / formatter / diagnose 流程
+  - `src/swallow/cli.py` 新增 `swl migrate`、`swl doctor sqlite`，并将默认 `swl doctor` 扩展为 codex + sqlite + stack 三段输出
+  - `tests/test_sqlite_store.py` / `tests/test_doctor.py` / `tests/test_cli.py` 补齐默认 backend、legacy fallback、migration dry-run / idempotent、doctor sqlite 与 CLI 迁移路径覆盖
+- **[Codex]** 已完成 S5 定向验证：
+  - `pytest -q tests/test_sqlite_store.py tests/test_doctor.py tests/test_cli.py` → `211 passed, 5 subtests passed`
+  - `pytest -q tests/test_web_api.py tests/test_execution_budget_policy.py tests/test_meta_optimizer.py tests/test_run_task_subtasks.py tests/test_debate_loop.py` → `27 passed`
 
-待启动：
+待执行：
 
-- **[Human]** 审查并提交当前 S4（`async-orchestrator`）diff。
-- **[Human]** 决定是否对 S5（`store-cutover`）开启新的实现 gate。
+- **[Human]** 审查并提交当前 S5（`store-cutover`）diff。
+- **[Claude]** 在 S5 提交后继续执行 Phase 48 review / closeout gate。
 
 ## 当前产出物
 
@@ -118,22 +129,26 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
 - `src/swallow/models.py` (codex, 2026-04-20)
 - `src/swallow/planner.py` (codex, 2026-04-20)
 - `src/swallow/orchestrator.py` (codex, 2026-04-20)
-- `src/swallow/store.py` (codex, 2026-04-20)
-- `src/swallow/sqlite_store.py` (codex, 2026-04-20)
+- `src/swallow/cli.py` (codex, 2026-04-21)
+- `src/swallow/doctor.py` (codex, 2026-04-21)
+- `src/swallow/store.py` (codex, 2026-04-21)
+- `src/swallow/sqlite_store.py` (codex, 2026-04-21)
 - `src/swallow/paths.py` (codex, 2026-04-20)
+- `tests/test_cli.py` (codex, 2026-04-21)
+- `tests/test_doctor.py` (codex, 2026-04-21)
 - `tests/test_executor_async.py` (codex, 2026-04-20)
 - `tests/test_review_gate_async.py` (codex, 2026-04-20)
-- `tests/test_sqlite_store.py` (codex, 2026-04-20)
+- `tests/test_sqlite_store.py` (codex, 2026-04-21)
 - `tests/test_subtask_orchestrator.py` (codex, 2026-04-20)
 - `tests/test_debate_loop.py` (codex, 2026-04-20)
 - `pyproject.toml` (codex, 2026-04-20)
 
 ## 当前下一步
 
-1. Human 审查并提交当前 S4（`async-orchestrator`）实现。
-2. Human 基于 S4 收口结果决定是否启动 S5（`store-cutover`）。
-3. 如启动 S5，Codex 继续推进 SQLite 默认切换、迁移命令与 doctor 检查补齐。
+1. Human 审查并提交当前 S5（`store-cutover`）实现。
+2. Claude 基于最新 branch 继续进行 review / concern 收口，并判断是否可进入 Phase 48 closeout。
+3. Human 在 review concern 清空后决定是否执行更大范围回归、PR 或 phase merge。
 
 当前阻塞项：
 
-- 无硬阻塞；当前等待 Human 审查并提交 S4 diff / 决定是否开启 S5。
+- 无硬阻塞；当前等待 Human 审查并提交 S5 diff。

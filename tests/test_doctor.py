@@ -11,7 +11,9 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.doctor import diagnose_local_stack
+from swallow.doctor import diagnose_local_stack, diagnose_sqlite_store, format_sqlite_doctor_result
+from swallow.models import Event, TaskState
+from swallow.store import append_event, save_state
 
 
 def _completed(args: list[str], returncode: int = 0, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
@@ -51,6 +53,79 @@ class LocalStackDoctorTest(unittest.TestCase):
         self.assertEqual(statuses["new_api_endpoint"], "pass")
         self.assertEqual(statuses["wireguard_tunnel"], "pass")
         self.assertEqual(statuses["egress_proxy"], "pass")
+
+
+class SqliteDoctorTest(unittest.TestCase):
+    def test_diagnose_sqlite_store_reports_file_only_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_state(
+                    base_dir,
+                    TaskState(
+                        task_id="legacy-task",
+                        title="Legacy task",
+                        goal="Retain file-only compatibility",
+                        workspace_root=str(base_dir),
+                        executor_name="local",
+                    ),
+                )
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id="legacy-task",
+                        event_type="task.created",
+                        message="legacy",
+                        payload={"status": "created"},
+                    ),
+                )
+
+            exit_code, result = diagnose_sqlite_store(base_dir)
+            formatted = format_sqlite_doctor_result(result)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result.backend, "sqlite")
+        self.assertFalse(result.db_exists)
+        self.assertEqual(result.file_task_count, 1)
+        self.assertEqual(result.file_only_task_count, 1)
+        self.assertTrue(result.migration_recommended)
+        self.assertIn("migration_recommended=yes", formatted)
+
+    def test_diagnose_sqlite_store_reports_healthy_database(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": ""}, clear=False):
+                save_state(
+                    base_dir,
+                    TaskState(
+                        task_id="sqlite-task",
+                        title="SQLite task",
+                        goal="Persist state in SQLite",
+                        workspace_root=str(base_dir),
+                        executor_name="local",
+                    ),
+                )
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id="sqlite-task",
+                        event_type="task.created",
+                        message="sqlite",
+                        payload={"status": "created"},
+                    ),
+                )
+
+            exit_code, result = diagnose_sqlite_store(base_dir)
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(result.db_exists)
+        self.assertTrue(result.schema_ok)
+        self.assertTrue(result.integrity_ok)
+        self.assertEqual(result.task_count, 1)
+        self.assertEqual(result.event_count, 1)
+        self.assertEqual(result.file_task_count, 1)
+        self.assertEqual(result.file_only_task_count, 0)
+        self.assertFalse(result.migration_recommended)
 
     def test_diagnose_local_stack_treats_tensorzero_as_optional(self) -> None:
         response = MagicMock()

@@ -24,8 +24,10 @@ from .canonical_registry import (
 from .doctor import (
     diagnose_codex,
     diagnose_local_stack,
+    diagnose_sqlite_store,
     format_codex_doctor_result,
     format_local_stack_doctor_result,
+    format_sqlite_doctor_result,
 )
 from .ingestion.pipeline import build_ingestion_report, build_ingestion_summary, run_ingestion_pipeline
 from .knowledge_store import persist_wiki_entry_from_record
@@ -78,6 +80,7 @@ from .store import (
     load_events,
     load_knowledge_objects,
     load_state,
+    migrate_file_tasks_to_sqlite,
     save_canonical_registry_index,
     save_canonical_reuse_policy,
 )
@@ -271,6 +274,23 @@ def build_policy_snapshot(
         f"checkpoint_kind: {stop_policy.get('checkpoint_kind', 'pending')}",
         f"escalation_level: {stop_policy.get('escalation_level', 'pending')}",
     ]
+
+
+def format_store_migration_summary(summary: dict[str, object]) -> str:
+    migrated_task_ids = summary.get("migrated_task_ids", [])
+    skipped_task_ids = summary.get("skipped_task_ids", [])
+    lines = [
+        f"db_path={summary.get('db_path', '')}",
+        f"dry_run={'yes' if summary.get('dry_run', False) else 'no'}",
+        f"task_count_scanned={summary.get('task_count_scanned', 0)}",
+        f"task_count_migrated={summary.get('task_count_migrated', 0)}",
+        f"task_count_skipped={summary.get('task_count_skipped', 0)}",
+        f"event_count_migrated={summary.get('event_count_migrated', 0)}",
+        f"event_count_skipped={summary.get('event_count_skipped', 0)}",
+        "migrated_task_ids=" + ",".join(str(item) for item in migrated_task_ids),
+        "skipped_task_ids=" + ",".join(str(item) for item in skipped_task_ids),
+    ]
+    return "\n".join(lines)
 
 
 def build_intake_snapshot(base_dir: Path, task_id: str) -> list[str]:
@@ -1104,6 +1124,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip local Docker / WireGuard / proxy health checks.",
     )
     doctor_subparsers = doctor_parser.add_subparsers(dest="doctor_command", required=False)
+    migrate_parser = subparsers.add_parser(
+        "migrate",
+        help="Backfill file-based task state into the SQLite store.",
+        description="Backfill legacy file-based task state and events into the SQLite store.",
+    )
+    migrate_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Scan file-based task state and report migration candidates without writing SQLite records.",
+    )
     meta_optimize_parser = subparsers.add_parser(
         "meta-optimize",
         help="Scan recent task event logs and emit a read-only optimization proposal report.",
@@ -1825,6 +1855,7 @@ def build_parser() -> argparse.ArgumentParser:
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
     doctor_subparsers.add_parser("codex", help="Run a minimal Codex executor preflight.")
+    doctor_subparsers.add_parser("sqlite", help="Inspect the SQLite store and migration status.")
     doctor_subparsers.add_parser("stack", help="Run local Docker / WireGuard / proxy health checks.")
 
     return parser
@@ -2864,10 +2895,18 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(json.loads(retrieval_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
         return 0
 
+    if args.command == "migrate":
+        print(format_store_migration_summary(migrate_file_tasks_to_sqlite(base_dir, dry_run=args.dry_run)))
+        return 0
+
     if args.command == "doctor":
         if args.doctor_command == "codex":
             exit_code, result = diagnose_codex()
             print(format_codex_doctor_result(result))
+            return exit_code
+        if args.doctor_command == "sqlite":
+            exit_code, result = diagnose_sqlite_store(base_dir)
+            print(format_sqlite_doctor_result(result))
             return exit_code
         if args.doctor_command == "stack":
             exit_code, result = diagnose_local_stack()
@@ -2876,13 +2915,18 @@ def main(argv: list[str] | None = None) -> int:
 
         codex_exit_code, codex_result = diagnose_codex()
         print(format_codex_doctor_result(codex_result))
+
+        sqlite_exit_code, sqlite_result = diagnose_sqlite_store(base_dir)
+        print()
+        print(format_sqlite_doctor_result(sqlite_result))
+
         if args.skip_stack:
-            return codex_exit_code
+            return 0 if codex_exit_code == 0 and sqlite_exit_code == 0 else 1
 
         stack_exit_code, stack_result = diagnose_local_stack()
         print()
         print(format_local_stack_doctor_result(stack_result))
-        return 0 if codex_exit_code == 0 and stack_exit_code == 0 else 1
+        return 0 if codex_exit_code == 0 and sqlite_exit_code == 0 and stack_exit_code == 0 else 1
 
     parser.error("Unsupported command.")
     return 2
