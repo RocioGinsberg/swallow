@@ -445,6 +445,7 @@ class TaskCard:
     # Under veto, reviewer_routes[0] owns veto authority and later routes are advisory.
     reviewer_routes: list[str] = field(default_factory=list)
     consensus_policy: str = "majority"
+    reviewer_timeout_seconds: int = 60
     token_cost_limit: float = 0.0
     constraints: list[str] = field(default_factory=list)
     depends_on: list[str] = field(default_factory=list)

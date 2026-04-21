@@ -62,12 +62,14 @@ from swallow.paths import (
     canonical_reuse_regression_path,
     knowledge_wiki_entry_path,
     remote_handoff_contract_path,
+    swallow_db_path,
 )
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
 from swallow.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
 from swallow.store import (
+    append_event,
     append_canonical_record,
     load_state,
     save_knowledge_objects,
@@ -6106,26 +6108,46 @@ class CliLifecycleTest(unittest.TestCase):
         stdout = StringIO()
         with patch("swallow.cli.diagnose_codex", return_value=(0, object())) as mocked_codex:
             with patch("swallow.cli.format_codex_doctor_result", return_value="codex-ok"):
-                with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
-                    with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
-                        with redirect_stdout(stdout):
-                            exit_code = main(["doctor"])
+                with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
+                    with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
+                        with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
+                            with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
+                                with redirect_stdout(stdout):
+                                    exit_code = main(["doctor"])
         self.assertEqual(exit_code, 0)
         mocked_codex.assert_called_once_with()
+        mocked_sqlite.assert_called_once()
         mocked_stack.assert_called_once_with()
-        self.assertEqual(stdout.getvalue(), "codex-ok\n\nstack-ok\n")
+        self.assertEqual(stdout.getvalue(), "codex-ok\n\nsqlite-ok\n\nstack-ok\n")
 
     def test_doctor_skip_stack_only_runs_codex_check(self) -> None:
         stdout = StringIO()
         with patch("swallow.cli.diagnose_codex", return_value=(0, object())) as mocked_codex:
             with patch("swallow.cli.format_codex_doctor_result", return_value="codex-ok"):
-                with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
-                    with redirect_stdout(stdout):
-                        exit_code = main(["doctor", "--skip-stack"])
+                with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
+                    with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
+                        with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
+                            with redirect_stdout(stdout):
+                                exit_code = main(["doctor", "--skip-stack"])
         self.assertEqual(exit_code, 0)
         mocked_codex.assert_called_once_with()
+        mocked_sqlite.assert_called_once()
         mocked_stack.assert_not_called()
-        self.assertEqual(stdout.getvalue(), "codex-ok\n")
+        self.assertEqual(stdout.getvalue(), "codex-ok\n\nsqlite-ok\n")
+
+    def test_doctor_sqlite_subcommand_runs_sqlite_check_only(self) -> None:
+        stdout = StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            with patch("swallow.cli.diagnose_codex") as mocked_codex:
+                with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
+                    with redirect_stdout(stdout):
+                        exit_code = main(["--base-dir", tmp, "doctor", "sqlite"])
+        self.assertEqual(exit_code, 0)
+        mocked_codex.assert_not_called()
+        mocked_stack.assert_not_called()
+        output = stdout.getvalue()
+        self.assertIn("db_path=", output)
+        self.assertIn("migration_recommended=no", output)
 
     def test_doctor_stack_subcommand_runs_stack_check_only(self) -> None:
         stdout = StringIO()
@@ -6138,6 +6160,77 @@ class CliLifecycleTest(unittest.TestCase):
         mocked_codex.assert_not_called()
         mocked_stack.assert_called_once_with()
         self.assertEqual(stdout.getvalue(), "stack-ok\n")
+
+    def test_migrate_dry_run_reports_candidates_without_writing_db(self) -> None:
+        stdout = StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_state(
+                    base_dir,
+                    TaskState(
+                        task_id="legacy-task",
+                        title="Legacy task",
+                        goal="Dry-run sqlite migration",
+                        workspace_root=str(base_dir),
+                        executor_name="local",
+                    ),
+                )
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id="legacy-task",
+                        event_type="task.created",
+                        message="legacy",
+                        payload={"status": "created"},
+                    ),
+                )
+            with redirect_stdout(stdout):
+                exit_code = main(["--base-dir", str(base_dir), "migrate", "--dry-run"])
+            db_exists = swallow_db_path(base_dir).exists()
+
+        self.assertEqual(exit_code, 0)
+        self.assertFalse(db_exists)
+        output = stdout.getvalue()
+        self.assertIn("dry_run=yes", output)
+        self.assertIn("task_count_migrated=1", output)
+        self.assertIn("event_count_migrated=1", output)
+
+    def test_migrate_imports_file_task_into_sqlite(self) -> None:
+        stdout = StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_state(
+                    base_dir,
+                    TaskState(
+                        task_id="legacy-task",
+                        title="Legacy task",
+                        goal="Migrate sqlite state",
+                        workspace_root=str(base_dir),
+                        executor_name="local",
+                    ),
+                )
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id="legacy-task",
+                        event_type="task.created",
+                        message="legacy",
+                        payload={"status": "created"},
+                    ),
+                )
+            with redirect_stdout(stdout):
+                exit_code = main(["--base-dir", str(base_dir), "migrate"])
+            db_exists = swallow_db_path(base_dir).exists()
+            migrated_state = load_state(base_dir, "legacy-task")
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(db_exists)
+        self.assertEqual(migrated_state.task_id, "legacy-task")
+        output = stdout.getvalue()
+        self.assertIn("dry_run=no", output)
+        self.assertIn("task_count_migrated=1", output)
 
     def test_task_run_artifact_paths_include_executor_streams(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

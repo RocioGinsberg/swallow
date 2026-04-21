@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, Protocol
 
 from .knowledge_store import load_task_knowledge_view, persist_task_knowledge_view
 from .models import (
@@ -46,6 +46,7 @@ from .paths import (
     retrieval_path,
     route_path,
     state_path,
+    swallow_db_path,
     task_root,
     tasks_root,
     topology_path,
@@ -132,7 +133,50 @@ def ensure_task_layout(base_dir: Path, task_id: str) -> None:
     knowledge_wiki_root(base_dir).mkdir(parents=True, exist_ok=True)
 
 
-def save_state(base_dir: Path, state: TaskState) -> None:
+def _load_json_lines(path: Path) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+
+    records: list[dict[str, object]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        payload = json.loads(stripped)
+        if isinstance(payload, dict):
+            records.append(payload)
+    return records
+
+
+def iter_file_task_ids(base_dir: Path) -> list[str]:
+    root = tasks_root(base_dir)
+    if not root.exists():
+        return []
+
+    task_ids: list[str] = []
+    for entry in root.iterdir():
+        if not entry.is_dir():
+            continue
+        if state_path(base_dir, entry.name).exists() or events_path(base_dir, entry.name).exists():
+            task_ids.append(entry.name)
+    return sorted(task_ids)
+
+
+class TaskStoreProtocol(Protocol):
+    def save_state(self, base_dir: Path, state: TaskState) -> None: ...
+
+    def load_state(self, base_dir: Path, task_id: str) -> TaskState: ...
+
+    def iter_task_states(self, base_dir: Path) -> Iterable[TaskState]: ...
+
+    def append_event(self, base_dir: Path, event: Event) -> None: ...
+
+    def load_events(self, base_dir: Path, task_id: str) -> list[dict[str, object]]: ...
+
+    def iter_recent_task_events(self, base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]: ...
+
+
+def _save_state_file(base_dir: Path, state: TaskState) -> None:
     ensure_task_layout(base_dir, state.task_id)
     state.updated_at = utc_now()
     state_path(base_dir, state.task_id).write_text(
@@ -141,12 +185,12 @@ def save_state(base_dir: Path, state: TaskState) -> None:
     )
 
 
-def load_state(base_dir: Path, task_id: str) -> TaskState:
+def _load_state_file(base_dir: Path, task_id: str) -> TaskState:
     data = json.loads(state_path(base_dir, task_id).read_text(encoding="utf-8"))
     return TaskState.from_dict(data)
 
 
-def iter_task_states(base_dir: Path) -> Iterable[TaskState]:
+def _iter_task_states_file(base_dir: Path) -> Iterable[TaskState]:
     root = tasks_root(base_dir)
     if not root.exists():
         return []
@@ -163,10 +207,248 @@ def iter_task_states(base_dir: Path) -> Iterable[TaskState]:
     return states
 
 
-def append_event(base_dir: Path, event: Event) -> None:
+def _append_event_file(base_dir: Path, event: Event) -> None:
     ensure_task_layout(base_dir, event.task_id)
     with events_path(base_dir, event.task_id).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event.to_dict()) + "\n")
+
+
+def _load_events_file(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    return _load_json_lines(events_path(base_dir, task_id))
+
+
+def _iter_recent_task_event_paths_file(
+    base_dir: Path,
+    *,
+    include_task_ids: set[str] | None = None,
+) -> list[tuple[str, Path]]:
+    root = tasks_root(base_dir)
+    if not root.exists():
+        return []
+
+    task_event_paths: list[tuple[str, Path]] = []
+    for entry in root.iterdir():
+        if not entry.is_dir():
+            continue
+        if include_task_ids is not None and entry.name not in include_task_ids:
+            continue
+        event_path = entry / "events.jsonl"
+        if not event_path.exists():
+            continue
+        task_event_paths.append((entry.name, event_path))
+
+    task_event_paths.sort(
+        key=lambda item: (item[1].stat().st_mtime, item[0]),
+        reverse=True,
+    )
+    return task_event_paths
+
+
+def _iter_recent_task_events_file(base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
+    if last_n <= 0:
+        return []
+
+    task_event_paths = _iter_recent_task_event_paths_file(base_dir)
+    return [(task_id, _load_json_lines(path)) for task_id, path in task_event_paths[:last_n]]
+
+
+class FileTaskStore:
+    def save_state(self, base_dir: Path, state: TaskState) -> None:
+        _save_state_file(base_dir, state)
+
+    def load_state(self, base_dir: Path, task_id: str) -> TaskState:
+        return _load_state_file(base_dir, task_id)
+
+    def iter_task_states(self, base_dir: Path) -> Iterable[TaskState]:
+        return _iter_task_states_file(base_dir)
+
+    def append_event(self, base_dir: Path, event: Event) -> None:
+        _append_event_file(base_dir, event)
+
+    def load_events(self, base_dir: Path, task_id: str) -> list[dict[str, object]]:
+        return _load_events_file(base_dir, task_id)
+
+    def iter_recent_task_events(self, base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
+        return _iter_recent_task_events_file(base_dir, last_n)
+
+
+def _state_sort_key(state: TaskState) -> tuple[str, str]:
+    return (str(state.updated_at or ""), str(state.task_id or ""))
+
+
+def _event_sort_key(task_id: str, events: list[dict[str, object]]) -> tuple[str, str]:
+    last_created_at = ""
+    if events:
+        last_payload = events[-1]
+        last_created_at = str(last_payload.get("created_at", "")).strip()
+    return (last_created_at, task_id)
+
+
+class DefaultTaskStore:
+    def __init__(self) -> None:
+        self._file_store = FileTaskStore()
+
+    def _sqlite_store(self) -> TaskStoreProtocol:
+        from .sqlite_store import SqliteTaskStore
+
+        return SqliteTaskStore()
+
+    def save_state(self, base_dir: Path, state: TaskState) -> None:
+        sqlite_store = self._sqlite_store()
+        sqlite_store.save_state(base_dir, state)
+        self._file_store.save_state(base_dir, state)
+
+    def load_state(self, base_dir: Path, task_id: str) -> TaskState:
+        sqlite_store = self._sqlite_store()
+        try:
+            return sqlite_store.load_state(base_dir, task_id)
+        except FileNotFoundError:
+            return self._file_store.load_state(base_dir, task_id)
+
+    def iter_task_states(self, base_dir: Path) -> Iterable[TaskState]:
+        sqlite_store = self._sqlite_store()
+        states_by_id: dict[str, TaskState] = {
+            state.task_id: state
+            for state in sqlite_store.iter_task_states(base_dir)
+        }
+        for state in self._file_store.iter_task_states(base_dir):
+            states_by_id.setdefault(state.task_id, state)
+        return sorted(states_by_id.values(), key=_state_sort_key, reverse=True)
+
+    def append_event(self, base_dir: Path, event: Event) -> None:
+        sqlite_store = self._sqlite_store()
+        sqlite_store.append_event(base_dir, event)
+        self._file_store.append_event(base_dir, event)
+
+    def load_events(self, base_dir: Path, task_id: str) -> list[dict[str, object]]:
+        sqlite_store = self._sqlite_store()
+        events = sqlite_store.load_events(base_dir, task_id)
+        if events:
+            return events
+        return self._file_store.load_events(base_dir, task_id)
+
+    def iter_recent_task_events(self, base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
+        if last_n <= 0:
+            return []
+
+        sqlite_store = self._sqlite_store()
+        recent_by_task_id: dict[str, list[dict[str, object]]] = {
+            task_id: events
+            for task_id, events in sqlite_store.iter_recent_task_events(base_dir, last_n)
+        }
+        file_only_task_ids = {
+            task_id
+            for task_id in iter_file_task_ids(base_dir)
+            if not sqlite_store.task_exists(base_dir, task_id) and sqlite_store.event_count(base_dir, task_id) == 0
+        }
+        if file_only_task_ids:
+            for task_id, path in _iter_recent_task_event_paths_file(base_dir, include_task_ids=file_only_task_ids)[:last_n]:
+                recent_by_task_id.setdefault(task_id, _load_json_lines(path))
+        ordered = sorted(
+            recent_by_task_id.items(),
+            key=lambda item: _event_sort_key(item[0], item[1]),
+            reverse=True,
+        )
+        return ordered[:last_n]
+
+
+def normalize_store_backend(raw_backend: object) -> str:
+    normalized = str(raw_backend or "sqlite").strip().lower()
+    return normalized if normalized in {"file", "sqlite"} else "sqlite"
+
+
+def resolve_task_store(base_dir: Path) -> TaskStoreProtocol:
+    del base_dir
+    backend = normalize_store_backend(os.environ.get("SWALLOW_STORE_BACKEND", "sqlite"))
+    if backend == "file":
+        return FileTaskStore()
+    return DefaultTaskStore()
+
+
+def save_state(base_dir: Path, state: TaskState) -> None:
+    resolve_task_store(base_dir).save_state(base_dir, state)
+
+
+def load_state(base_dir: Path, task_id: str) -> TaskState:
+    return resolve_task_store(base_dir).load_state(base_dir, task_id)
+
+
+def iter_task_states(base_dir: Path) -> Iterable[TaskState]:
+    return resolve_task_store(base_dir).iter_task_states(base_dir)
+
+
+def append_event(base_dir: Path, event: Event) -> None:
+    resolve_task_store(base_dir).append_event(base_dir, event)
+
+
+def load_events(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    return resolve_task_store(base_dir).load_events(base_dir, task_id)
+
+
+def iter_recent_task_events(base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
+    return resolve_task_store(base_dir).iter_recent_task_events(base_dir, last_n)
+
+
+def _event_from_payload(task_id: str, payload: dict[str, object]) -> Event:
+    raw_payload = payload.get("payload", {})
+    normalized_payload = dict(raw_payload) if isinstance(raw_payload, dict) else {}
+    return Event(
+        task_id=str(payload.get("task_id", task_id)).strip() or task_id,
+        event_type=str(payload.get("event_type", "")).strip(),
+        message=str(payload.get("message", "")).strip(),
+        created_at=str(payload.get("created_at", "")).strip() or utc_now(),
+        payload=normalized_payload,
+    )
+
+
+def migrate_file_tasks_to_sqlite(
+    base_dir: Path,
+    *,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    from .sqlite_store import SqliteTaskStore
+
+    file_store = FileTaskStore()
+    sqlite_store = SqliteTaskStore()
+    scanned_task_ids = iter_file_task_ids(base_dir)
+    migrated_task_ids: list[str] = []
+    skipped_task_ids: list[str] = []
+    event_count_migrated = 0
+    event_count_skipped = 0
+
+    for task_id in scanned_task_ids:
+        has_state_file = state_path(base_dir, task_id).exists()
+        file_events = _load_events_file(base_dir, task_id)
+        sqlite_has_state = sqlite_store.task_exists(base_dir, task_id)
+        sqlite_event_count = sqlite_store.event_count(base_dir, task_id)
+
+        should_skip = sqlite_has_state or (not has_state_file and sqlite_event_count > 0)
+        if should_skip:
+            skipped_task_ids.append(task_id)
+            event_count_skipped += len(file_events)
+            continue
+
+        migrated_task_ids.append(task_id)
+        event_count_migrated += len(file_events)
+        if dry_run:
+            continue
+
+        if has_state_file:
+            sqlite_store.save_state(base_dir, file_store.load_state(base_dir, task_id))
+        for payload in file_events:
+            sqlite_store.append_event(base_dir, _event_from_payload(task_id, payload))
+
+    return {
+        "db_path": str(swallow_db_path(base_dir)),
+        "dry_run": dry_run,
+        "task_count_scanned": len(scanned_task_ids),
+        "task_count_migrated": len(migrated_task_ids),
+        "task_count_skipped": len(skipped_task_ids),
+        "event_count_migrated": event_count_migrated,
+        "event_count_skipped": event_count_skipped,
+        "migrated_task_ids": migrated_task_ids,
+        "skipped_task_ids": skipped_task_ids,
+    }
 
 
 def save_retrieval(base_dir: Path, task_id: str, items: list[RetrievalItem]) -> None:

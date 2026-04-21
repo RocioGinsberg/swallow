@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Callable
+from typing import Awaitable, Callable
 
 from .models import ExecutorResult, RetrievalItem, TaskCard, TaskState, utc_now
 from .review_gate import ReviewGateResult
@@ -13,6 +14,8 @@ MAX_SUBTASK_WORKERS = 4
 
 ExecuteCard = Callable[[Path, TaskState, TaskCard, list[RetrievalItem]], ExecutorResult]
 ReviewCard = Callable[[ExecutorResult, TaskCard], ReviewGateResult]
+AsyncExecuteCard = Callable[[Path, TaskState, TaskCard, list[RetrievalItem]], Awaitable[ExecutorResult]]
+AsyncReviewCard = Callable[[ExecutorResult, TaskCard], Awaitable[ReviewGateResult]]
 
 
 @dataclass(slots=True)
@@ -204,6 +207,134 @@ class SubtaskOrchestrator:
                 for future in as_completed(future_to_card):
                     card = future_to_card[future]
                     records_by_id[card.card_id] = future.result()
+
+        records = [records_by_id[card.card_id] for card in cards]
+        failed_card_ids = [record.card_id for record in records if record.status != "completed"]
+        failed_count = len(failed_card_ids)
+        completed_count = len(records) - failed_count
+        return SubtaskOrchestratorResult(
+            status="completed" if failed_count == 0 else "failed",
+            message="All subtasks completed successfully."
+            if failed_count == 0
+            else f"{failed_count} subtasks failed execution or review.",
+            records=records,
+            levels=serialized_levels,
+            completed_count=completed_count,
+            failed_count=failed_count,
+            failed_card_ids=failed_card_ids,
+            max_parallelism=max(len(level) for level in levels),
+        )
+
+
+class AsyncSubtaskOrchestrator:
+    def __init__(
+        self,
+        execute_card: AsyncExecuteCard,
+        review_card: AsyncReviewCard,
+        *,
+        max_workers: int = MAX_SUBTASK_WORKERS,
+    ) -> None:
+        self._execute_card = execute_card
+        self._review_card = review_card
+        self._max_workers = max(1, min(max_workers, MAX_SUBTASK_WORKERS))
+
+    async def _run_single_card(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> SubtaskRunRecord:
+        started_at = utc_now()
+        isolated_state = _clone_state(state)
+        try:
+            executor_result = await self._execute_card(base_dir, isolated_state, card, retrieval_items)
+            review_gate_result = await self._review_card(executor_result, card)
+        except Exception as exc:  # pragma: no cover - defensive path
+            executor_result = ExecutorResult(
+                executor_name="subtask-orchestrator",
+                status="failed",
+                message=f"Subtask execution raised {type(exc).__name__}.",
+                failure_kind="subtask_exception",
+                stderr=str(exc),
+            )
+            review_gate_result = _failure_review_gate_result(
+                f"subtask raised {type(exc).__name__}: {exc}"
+            )
+
+        status = (
+            "completed"
+            if executor_result.status == "completed" and review_gate_result.status == "passed"
+            else "failed"
+        )
+        return SubtaskRunRecord(
+            card_id=card.card_id,
+            subtask_index=card.subtask_index,
+            goal=card.goal,
+            depends_on=list(card.depends_on),
+            status=status,
+            started_at=started_at,
+            completed_at=utc_now(),
+            executor_result=executor_result,
+            review_gate_result=review_gate_result,
+        )
+
+    async def _run_level(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        level: list[TaskCard],
+        retrieval_items: list[RetrievalItem],
+    ) -> dict[str, SubtaskRunRecord]:
+        if len(level) == 1:
+            card = level[0]
+            return {
+                card.card_id: await self._run_single_card(
+                    base_dir,
+                    state,
+                    card,
+                    retrieval_items,
+                )
+            }
+
+        semaphore = asyncio.Semaphore(min(self._max_workers, len(level)))
+
+        async def run_card(card: TaskCard) -> SubtaskRunRecord:
+            async with semaphore:
+                return await self._run_single_card(base_dir, state, card, retrieval_items)
+
+        gathered_records = await asyncio.gather(*(run_card(card) for card in level))
+        return {
+            card.card_id: record
+            for card, record in zip(level, gathered_records, strict=True)
+        }
+
+    async def run(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        cards: list[TaskCard],
+        retrieval_items: list[RetrievalItem],
+    ) -> SubtaskOrchestratorResult:
+        levels = build_subtask_levels(cards)
+        if not levels:
+            return SubtaskOrchestratorResult(
+                status="completed",
+                message="No subtask cards were provided.",
+                records=[],
+                levels=[],
+                completed_count=0,
+                failed_count=0,
+                failed_card_ids=[],
+                max_parallelism=0,
+            )
+
+        records_by_id: dict[str, SubtaskRunRecord] = {}
+        serialized_levels = [[card.card_id for card in level] for level in levels]
+        for level in levels:
+            records_by_id.update(
+                await self._run_level(base_dir, state, level, retrieval_items)
+            )
 
         records = [records_by_id[card.card_id] for card in cards]
         failed_card_ids = [record.card_id for record in records if record.status != "completed"]

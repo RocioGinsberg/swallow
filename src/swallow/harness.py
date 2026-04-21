@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 import json
 from pathlib import Path
@@ -98,6 +99,14 @@ def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -
         ),
     )
     return retrieval_items
+
+
+async def run_retrieval_async(
+    base_dir: Path,
+    state: TaskState,
+    request: RetrievalRequest,
+) -> list[RetrievalItem]:
+    return await asyncio.to_thread(run_retrieval, base_dir, state, request)
 
 
 def run_execution(
@@ -622,6 +631,31 @@ def write_task_artifacts(
         retry_policy_result,
         stop_policy_result,
         execution_budget_policy_result,
+    )
+
+
+async def write_task_artifacts_async(
+    base_dir: Path,
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    executor_result: ExecutorResult,
+    grounding_evidence_override: dict[str, object] | None = None,
+) -> tuple[
+    CompatibilityResult,
+    ExecutionFitResult,
+    KnowledgePolicyResult,
+    ValidationResult,
+    RetryPolicyResult,
+    StopPolicyResult,
+    ExecutionBudgetPolicyResult,
+]:
+    return await asyncio.to_thread(
+        write_task_artifacts,
+        base_dir,
+        state,
+        retrieval_items,
+        executor_result,
+        grounding_evidence_override,
     )
 
 

@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import asyncio
 import json
 
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-from .executor import run_prompt_executor
+from .executor import run_prompt_executor_async
 from .models import ExecutorResult, TaskCard, TaskState
 from .router import route_by_name
 
 
 REVIEW_OUTPUT_CHAR_LIMIT = 6000
 CONSENSUS_POLICIES = {"majority", "veto"}
+DEFAULT_REVIEWER_TIMEOUT_SECONDS = 60
 
 
 @dataclass(slots=True)
@@ -408,6 +410,15 @@ def _consensus_check(
     return {"name": "consensus_policy", "passed": passed_count >= required_count, "detail": detail}
 
 
+def _reviewer_timeout_seconds(card: TaskCard) -> int:
+    raw_timeout = getattr(card, "reviewer_timeout_seconds", DEFAULT_REVIEWER_TIMEOUT_SECONDS)
+    try:
+        parsed = int(raw_timeout)
+    except (TypeError, ValueError):
+        return DEFAULT_REVIEWER_TIMEOUT_SECONDS
+    return parsed if parsed > 0 else DEFAULT_REVIEWER_TIMEOUT_SECONDS
+
+
 def _build_reviewer_state(base_state: TaskState, route_name: str) -> tuple[TaskState | None, str]:
     route = route_by_name(route_name)
     if route is None:
@@ -436,7 +447,84 @@ def _build_reviewer_state(base_state: TaskState, route_name: str) -> tuple[TaskS
     return state, ""
 
 
-def run_consensus_review(
+async def _execute_reviewer_async(
+    state: TaskState,
+    executor_result: ExecutorResult,
+    card: TaskCard,
+    *,
+    route_name: str,
+    consensus_policy: str,
+) -> ReviewGateResult:
+    reviewer_state, error_message = _build_reviewer_state(state, route_name)
+    if reviewer_state is None:
+        return ReviewGateResult(
+            status="failed",
+            message=error_message or f"Reviewer route '{route_name}' is unavailable.",
+            checks=[
+                {
+                    "name": "reviewer_route",
+                    "passed": False,
+                    "detail": error_message or f"Reviewer route '{route_name}' is unavailable.",
+                }
+            ],
+        )
+
+    prompt = _build_reviewer_prompt(
+        executor_result,
+        card,
+        route_name=route_name,
+        consensus_policy=consensus_policy,
+    )
+    timeout_seconds = _reviewer_timeout_seconds(card)
+    try:
+        review_execution = await asyncio.wait_for(
+            run_prompt_executor_async(reviewer_state, [], prompt),
+            timeout=timeout_seconds,
+        )
+    except asyncio.TimeoutError:
+        return ReviewGateResult(
+            status="failed",
+            message=f"Reviewer route '{route_name}' timed out before returning a usable review.",
+            checks=[
+                {
+                    "name": "reviewer_timeout",
+                    "passed": False,
+                    "detail": f"reviewer timed out after {timeout_seconds} seconds",
+                }
+            ],
+        )
+
+    if review_execution.status != "completed":
+        return ReviewGateResult(
+            status="failed",
+            message=f"Reviewer route '{route_name}' failed before returning a usable review.",
+            checks=[
+                {
+                    "name": "reviewer_execution",
+                    "passed": False,
+                    "detail": review_execution.message,
+                }
+            ],
+        )
+
+    return _reviewer_result_from_output(route_name, review_execution.output)
+
+
+def _reviewer_result_from_exception(route_name: str, error: Exception) -> ReviewGateResult:
+    return ReviewGateResult(
+        status="failed",
+        message=f"Reviewer route '{route_name}' raised before returning a usable review.",
+        checks=[
+            {
+                "name": "reviewer_execution",
+                "passed": False,
+                "detail": f"reviewer raised {type(error).__name__}: {error}",
+            }
+        ],
+    )
+
+
+async def run_consensus_review_async(
     state: TaskState,
     executor_result: ExecutorResult,
     card: TaskCard,
@@ -460,43 +548,25 @@ def run_consensus_review(
             "baseline_checks": [dict(check) for check in baseline_result.checks],
         }
     ]
+    reviewer_tasks = [
+        _execute_reviewer_async(
+            state,
+            executor_result,
+            card,
+            route_name=route_name,
+            consensus_policy=normalized_policy,
+        )
+        for route_name in normalized_routes
+    ]
+    gathered_results = await asyncio.gather(*reviewer_tasks, return_exceptions=True)
+
     reviewer_results: list[tuple[str, ReviewGateResult]] = []
-    for route_name in normalized_routes:
-        reviewer_state, error_message = _build_reviewer_state(state, route_name)
-        if reviewer_state is None:
-            reviewer_result = ReviewGateResult(
-                status="failed",
-                message=error_message or f"Reviewer route '{route_name}' is unavailable.",
-                checks=[
-                    {
-                        "name": "reviewer_route",
-                        "passed": False,
-                        "detail": error_message or f"Reviewer route '{route_name}' is unavailable.",
-                    }
-                ],
-            )
-        else:
-            prompt = _build_reviewer_prompt(
-                executor_result,
-                card,
-                route_name=route_name,
-                consensus_policy=normalized_policy,
-            )
-            review_execution = run_prompt_executor(reviewer_state, [], prompt)
-            if review_execution.status != "completed":
-                reviewer_result = ReviewGateResult(
-                    status="failed",
-                    message=f"Reviewer route '{route_name}' failed before returning a usable review.",
-                    checks=[
-                        {
-                            "name": "reviewer_execution",
-                            "passed": False,
-                            "detail": review_execution.message,
-                        }
-                    ],
-                )
-            else:
-                reviewer_result = _reviewer_result_from_output(route_name, review_execution.output)
+    for route_name, gathered_result in zip(normalized_routes, gathered_results):
+        reviewer_result = (
+            _reviewer_result_from_exception(route_name, gathered_result)
+            if isinstance(gathered_result, Exception)
+            else gathered_result
+        )
         reviewer_results.append((route_name, reviewer_result))
         checks.append(_reviewer_check(route_name, reviewer_result))
 
@@ -533,14 +603,47 @@ def run_consensus_review(
     return ReviewGateResult(status=status, message=message, checks=checks)
 
 
-def run_review_gate(state: TaskState, executor_result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
+def _run_review_gate_sync(coro: Any) -> ReviewGateResult:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    close = getattr(coro, "close", None)
+    if callable(close):
+        close()
+    raise RuntimeError("run_review_gate() cannot be used inside a running event loop; use run_review_gate_async().")
+
+
+def run_consensus_review(
+    state: TaskState,
+    executor_result: ExecutorResult,
+    card: TaskCard,
+    reviewer_routes: list[str],
+    consensus_policy: str,
+) -> ReviewGateResult:
+    return _run_review_gate_sync(
+        run_consensus_review_async(
+            state,
+            executor_result,
+            card,
+            reviewer_routes,
+            consensus_policy,
+        )
+    )
+
+
+async def run_review_gate_async(state: TaskState, executor_result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
     reviewer_routes = _normalized_reviewer_routes(card.reviewer_routes)
     if not reviewer_routes:
         return review_executor_output(executor_result, card)
-    return run_consensus_review(
+    return await run_consensus_review_async(
         state,
         executor_result,
         card,
         reviewer_routes,
         card.consensus_policy,
     )
+
+
+def run_review_gate(state: TaskState, executor_result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
+    return _run_review_gate_sync(run_review_gate_async(state, executor_result, card))

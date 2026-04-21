@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 from pathlib import Path
 
@@ -12,7 +11,7 @@ from .models import (
     ExecutionBudgetPolicyResult,
     RetryPolicyResult,
 )
-from .paths import events_path
+from .store import load_events
 
 
 DEFAULT_TIMEOUT_SECONDS = 20
@@ -28,16 +27,8 @@ def normalize_token_cost_limit(raw_value: object) -> float:
 
 def calculate_task_token_cost(base_dir: Path, task_id: str) -> float:
     """Aggregate token cost across the task lifetime, regardless of which card emitted it."""
-    path = events_path(base_dir, task_id)
-    if not path.exists():
-        return 0.0
-
     total_cost = 0.0
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        payload = json.loads(stripped)
+    for payload in load_events(base_dir, task_id):
         if not isinstance(payload, dict):
             continue
         if str(payload.get("event_type", "")).strip() not in {EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED}:

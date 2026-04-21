@@ -64,6 +64,7 @@ class PlannerTest(unittest.TestCase):
                 "constraints": ["Keep the gate conservative"],
                 "reviewer_routes": ["http-claude", "http-qwen", "http-claude", ""],
                 "consensus_policy": "veto",
+                "reviewer_timeout_seconds": 45,
                 "token_cost_limit": 1.25,
             },
             route_name="local-http",
@@ -75,6 +76,7 @@ class PlannerTest(unittest.TestCase):
         self.assertEqual(len(cards), 1)
         self.assertEqual(cards[0].reviewer_routes, ["http-claude", "http-qwen"])
         self.assertEqual(cards[0].consensus_policy, "veto")
+        self.assertEqual(cards[0].reviewer_timeout_seconds, 45)
         self.assertEqual(cards[0].token_cost_limit, 1.25)
 
     def test_plan_builds_librarian_task_card_for_local_promotion_ready_evidence(self) -> None:

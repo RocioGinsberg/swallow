@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import tempfile
 import threading
 import time
@@ -11,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import ExecutorResult, TaskCard, TaskState
 from swallow.review_gate import ReviewGateResult
-from swallow.subtask_orchestrator import SubtaskOrchestrator, build_subtask_levels
+from swallow.subtask_orchestrator import AsyncSubtaskOrchestrator, SubtaskOrchestrator, build_subtask_levels
 
 
 def _build_card(goal: str, *, subtask_index: int, depends_on: list[str] | None = None) -> TaskCard:
@@ -202,6 +203,57 @@ class SubtaskOrchestratorTest(unittest.TestCase):
         self.assertEqual(result.failed_count, 1)
         self.assertEqual(result.failed_card_ids, [card_b.card_id])
         self.assertEqual(result.records[1].status, "failed")
+
+
+class AsyncSubtaskOrchestratorTest(unittest.IsolatedAsyncioTestCase):
+    async def test_run_executes_independent_cards_concurrently(self) -> None:
+        state = TaskState(
+            task_id="task-parallel-async",
+            title="Parallel async subtasks",
+            goal="Run async subtasks in parallel",
+            workspace_root="/tmp",
+        )
+        card_a = _build_card("A", subtask_index=1)
+        card_b = _build_card("B", subtask_index=2)
+        active_count = 0
+        max_active = 0
+        lock = asyncio.Lock()
+
+        async def execute_card(
+            _base_dir: Path,
+            _state: TaskState,
+            card: TaskCard,
+            _retrieval_items: list[object],
+        ) -> ExecutorResult:
+            nonlocal active_count, max_active
+            async with lock:
+                active_count += 1
+                max_active = max(max_active, active_count)
+            await asyncio.sleep(0.05)
+            async with lock:
+                active_count -= 1
+            return ExecutorResult(
+                executor_name="mock",
+                status="completed",
+                message="ok",
+                output=card.goal,
+            )
+
+        async def review_card(_result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
+            return ReviewGateResult(status="passed", message=f"{card.goal} ok", checks=[])
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = await AsyncSubtaskOrchestrator(execute_card, review_card).run(
+                Path(tmp),
+                state,
+                [card_a, card_b],
+                [],
+            )
+
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.levels, [[card_a.card_id, card_b.card_id]])
+        self.assertEqual(result.max_parallelism, 2)
+        self.assertGreaterEqual(max_active, 2)
 
 
 if __name__ == "__main__":

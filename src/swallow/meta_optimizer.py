@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -10,7 +9,8 @@ from .models import (
     EVENT_TASK_EXECUTION_FALLBACK,
     utc_now,
 )
-from .paths import optimization_proposals_path, tasks_root
+from .paths import optimization_proposals_path
+from .store import iter_recent_task_events
 
 
 @dataclass(slots=True)
@@ -66,21 +66,6 @@ class MetaOptimizerSnapshot:
     proposals: list[str]
 
 
-def _load_json_lines(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-
-    records: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        payload = json.loads(stripped)
-        if isinstance(payload, dict):
-            records.append(payload)
-    return records
-
-
 def _coerce_nonnegative_int(value: object) -> int:
     if isinstance(value, bool):
         return int(value)
@@ -109,27 +94,6 @@ def _coerce_nonnegative_float(value: object) -> float:
     return 0.0
 
 
-def _recent_task_event_paths(base_dir: Path, last_n: int) -> list[tuple[str, Path]]:
-    root = tasks_root(base_dir)
-    if not root.exists():
-        return []
-
-    task_event_paths: list[tuple[str, Path]] = []
-    for entry in root.iterdir():
-        if not entry.is_dir():
-            continue
-        event_path = entry / "events.jsonl"
-        if not event_path.exists():
-            continue
-        task_event_paths.append((entry.name, event_path))
-
-    task_event_paths.sort(
-        key=lambda item: (item[1].stat().st_mtime, item[0]),
-        reverse=True,
-    )
-    return task_event_paths[:last_n]
-
-
 def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOptimizerSnapshot:
     if last_n <= 0:
         raise ValueError("--last-n must be greater than 0")
@@ -139,9 +103,8 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
     scanned_task_ids: list[str] = []
     scanned_event_count = 0
 
-    for task_id, event_path in _recent_task_event_paths(base_dir, last_n):
+    for task_id, events in iter_recent_task_events(base_dir, last_n):
         scanned_task_ids.append(task_id)
-        events = _load_json_lines(event_path)
         scanned_event_count += len(events)
 
         for event in events:
