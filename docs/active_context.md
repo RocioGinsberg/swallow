@@ -7,9 +7,9 @@
 - latest_completed_slice: `Consensus & Policy Guardrails (v0.5.0)`
 - active_track: `Core Loop` (Primary) + `State / Truth` (Secondary)
 - active_phase: `Phase 48`
-- active_slice: `phase48_review_followups_absorbed`
+- active_slice: `closeout`
 - active_branch: `feat/phase48_async-storage`
-- status: `phase48_review_followups_validated_ready_for_human_commit`
+- status: `phase48_closeout_ready_for_human_merge`
 
 ---
 
@@ -17,29 +17,30 @@
 
 Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模型共识门禁、成本护栏及一致性审计等关键能力。
 
-根据 `docs/roadmap.md`，Phase 48 的重点转向 **“存储引擎升级与全异步改造”**。当前 `feat/phase48_async-storage` 已完成五个 slice 的实现与提交：S1（`async-executor`）补齐 executor 异步桥接与异步 HTTP fallback；S2（`async-review-gate`）将多 Reviewer 审查切为 `asyncio.gather(..., return_exceptions=True)` 并发执行；S3（`sqlite-schema`）新增 `SqliteTaskStore`、`TaskStoreProtocol` / `FileTaskStore` 双存储分派、`.swl/swallow.db` 路径与 `SWALLOW_STORE_BACKEND=sqlite|file` 切换，并将 CLI / Web API / Meta-Optimizer / execution budget policy 的 state/event 读取改为统一走 store helper；S4（`async-orchestrator`）补齐 `run_task_async()`、async debate loop / async subtask orchestrator 基础能力、CLI 生命周期兼容壳与事件循环内运行路径；S5（`store-cutover`）将默认 store backend 切换为 SQLite，引入 sqlite primary + file mirror/fallback 的过渡实现，补齐 `swl migrate` 与 `swl doctor sqlite`，并让默认 `swl doctor` 输出包含 SQLite 健康检查。Claude review 已完成；当前分支继续吸收了 4 个 non-blocking concern，并完成定向回归验证，现处于 review follow-up 已验证、等待 Human 审查并提交收口补丁的阶段。
+根据 `docs/roadmap.md`，Phase 48 的重点转向 **“存储引擎升级与全异步改造”**。当前 `feat/phase48_async-storage` 已完成五个 slice 的实现与提交：S1（`async-executor`）补齐 executor 异步桥接与异步 HTTP fallback；S2（`async-review-gate`）将多 Reviewer 审查切为 `asyncio.gather(..., return_exceptions=True)` 并发执行；S3（`sqlite-schema`）新增 `SqliteTaskStore`、`TaskStoreProtocol` / `FileTaskStore` 双存储分派、`.swl/swallow.db` 路径与 `SWALLOW_STORE_BACKEND=sqlite|file` 切换，并将 CLI / Web API / Meta-Optimizer / execution budget policy 的 state/event 读取改为统一走 store helper；S4（`async-orchestrator`）补齐 `run_task_async()`、async debate loop / async subtask orchestrator 基础能力、CLI 生命周期兼容壳与事件循环内运行路径；S5（`store-cutover`）将默认 store backend 切换为 SQLite，引入 sqlite primary + file mirror/fallback 的过渡实现，补齐 `swl migrate` 与 `swl doctor sqlite`，并让默认 `swl doctor` 输出包含 SQLite 健康检查。Claude review 的 4 个 non-blocking concern 已吸收完毕，后续 test harness 干扰点也已通过 `fix(test): runtime guard async to normal test case` 收口；当前 branch 工作树干净，`closeout.md` 已补齐，状态已推进到 **可收口 / 可进入 Human merge gate**。
 
 ---
 
 ## 当前关键文档
 
-当前进入 Phase 48 review follow-up 收口前，优先读取：
+当前进入 Phase 48 closeout / merge gate 前，优先读取：
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/plans/phase48/review_comments.md`
-4. `docs/plans/phase48/commit_summary.md`
-5. `docs/concerns_backlog.md`
-6. `pr.md`
+3. `docs/plans/phase48/closeout.md`
+4. `docs/plans/phase48/review_comments.md`
+5. `pr.md`
+6. `current_state.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase48/commit_summary.md`
+- `docs/concerns_backlog.md`
 - `docs/plans/phase48/design_decision.md`
 - `docs/plans/phase48/risk_assessment.md`
 - `docs/roadmap.md`
 - `docs/plans/phase48/kickoff.md`
 - `docs/plans/phase48/context_brief.md`
-- `current_state.md`
 - `docs/plans/phase47/closeout.md`
 - `docs/architecture_principles.md`
 - `docs/design/STATE_AND_TRUTH_DESIGN.md`
@@ -133,12 +134,19 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
   - `pytest -q tests/test_subtask_orchestrator.py tests/test_review_gate_async.py` → `8 passed`
 - **[Codex]** 已完成 review follow-up 全量验证：
   - `.venv/bin/python -m pytest --tb=short` → `380 selected / 7 deselected`，无失败；`/tmp/phase48_full.xml` 记录 `failures=0 errors=0`
+- **[Human]** 已完成 review follow-up 提交：
+  - `fix(review): absorb phase48 review followups` (`ba37f7a`)
+  - `docs(phase48): sync review followup status` (`350dcbe`)
+- **[Human]** 已完成 test harness 收口提交：
+  - `fix(test): runtime guard async to normal test case` (`6f4106d`)
+- **[Codex]** 已完成 Phase 48 closeout 文档：
+  - 新增 `docs/plans/phase48/closeout.md`，将当前状态推进到 closeout ready / merge gate ready
 
 待执行：
 
-- **[Human]** 审查并提交当前 review follow-up diff（active_context / concerns_backlog / commit_summary + concern absorption patch）。
-- **[Human]** 基于已吸收 concern 的 branch、`review_comments.md` 与 `pr.md` 决定是否进入 merge gate。
-- **[Human]** merge 后打 tag `v0.6.0`（Claude 建议：可打）；届时 **[Codex]** 再同步 README / AGENTS.md。
+- **[Human]** 复核 `docs/plans/phase48/closeout.md`、`review_comments.md` 与当前 branch diff，决定是否直接 merge。
+- **[Human]** merge 后按 Claude 建议决定是否打 tag `v0.6.0`。
+- **[Codex]** 在 merge / tag 完成后同步 README / `AGENTS.md` 的 tag 对齐内容。
 
 ## 当前产出物
 
@@ -148,6 +156,7 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
 - `docs/plans/phase48/design_decision.md` (claude, 2026-04-20)
 - `docs/plans/phase48/risk_assessment.md` (claude, 2026-04-20)
 - `docs/plans/phase48/commit_summary.md` (codex, 2026-04-21)
+- `docs/plans/phase48/closeout.md` (codex, 2026-04-22)
 - `docs/plans/phase48/review_comments.md` (claude, 2026-04-21)
 - `docs/concerns_backlog.md` (claude/codex, 2026-04-21, Phase 48 concern 已登记并吸收)
 - `src/swallow/executor.py` (codex, 2026-04-20)
@@ -173,10 +182,10 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
 
 ## 当前下一步
 
-1. Human 审查并提交当前 review follow-up diff。
-2. Human 基于已吸收 concern 的 branch、`review_comments.md` 与 `pr.md` 决定是否直接进入 merge gate。
-3. merge 到 main 后打 `v0.6.0`，再由 Codex 同步 README / AGENTS.md。
+1. Human 审查 `docs/plans/phase48/closeout.md`、`review_comments.md` 与 `pr.md`，确认进入 merge gate。
+2. Human merge `feat/phase48_async-storage` 到 `main`，并决定是否立即打 `v0.6.0`。
+3. merge / tag 完成后，由 Codex 同步 `AGENTS.md`、`README.md` 与 `README.zh-CN.md`。
 
 当前阻塞项：
 
-- 无硬阻塞；当前等待 Human 审查并提交 review follow-up diff。
+- 无硬阻塞；当前等待 Human 执行 merge gate / tag 决策。

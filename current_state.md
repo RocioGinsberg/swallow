@@ -23,14 +23,14 @@
 - repository_state: `runnable`
 - latest_completed_phase: `Phase 47`
 - latest_completed_slice: `Consensus & Policy Guardrails`
-- checkpoint_type: `phase_closeout`
-- last_checked: `2026-04-20`
+- checkpoint_type: `main_tagged_release`
+- last_checked: `2026-04-22`
 
 说明：
 
 - Phase 47 已完成实现、review、merge 与 tag `v0.5.0`，并已形成新的稳定 checkpoint。
-- `docs/plans/phase47/closeout.md` 与 `docs/plans/phase47/review_comments.md` 已反映当前收口结论。
-- 当前默认不再继续扩张已完成的 Phase 47，而应从 roadmap 重新选择下一轮方向。
+- `docs/plans/phase47/closeout.md` 与 `docs/plans/phase47/review_comments.md` 已反映该 checkpoint 的收口结论。
+- Phase 48 当前已在 feature branch 上完成 closeout 候选，但尚未 merge 回 `main`，因此这里的 latest_completed 仍保持 Phase 47。
 
 ---
 
@@ -38,14 +38,16 @@
 
 当前推荐从以下状态继续：
 
-- active_track: `none_selected`
-- active_phase: `none_selected`
-- active_slice: `fresh_kickoff_required`
+- active_branch: `feat/phase48_async-storage`
+- active_track: `Core Loop` (Primary) + `State / Truth` (Secondary)
+- active_phase: `Phase 48`
+- active_slice: `closeout`
+- workflow_status: `phase48_closeout_ready_for_human_merge`
 
 说明：
 
-- 当前主线已经回到 `main` 的稳定基线。
-- 下一轮工作应先依据 `docs/roadmap.md` 与新设计文档确认 active phase，再生成 kickoff / risk / slice 边界。
+- 当前默认恢复入口不再是“fresh kickoff”，而是 Phase 48 的 closeout 候选分支。
+- `feat/phase48_async-storage` 已完成实现、review concern 吸收、test harness 收口与 pytest/eval 复验；下一步是 Human merge / tag 决策。
 
 ---
 
@@ -55,16 +57,19 @@
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/roadmap.md`
-4. `docs/system_tracks.md`
-5. `current_state.md`
-6. `docs/plans/phase47/closeout.md`
+3. `docs/plans/phase48/closeout.md`
+4. `docs/plans/phase48/review_comments.md`
+5. `pr.md`
+6. `current_state.md`
 
 仅在需要时再读取：
 
+- `docs/plans/phase48/commit_summary.md`
+- `docs/roadmap.md`
+- `docs/system_tracks.md`
+- `docs/plans/phase47/closeout.md`
 - `docs/plans/phase47/review_comments.md`
 - `docs/concerns_backlog.md`
-- `pr.md`
 - 历史 phase closeout / review_comments
 
 ---
@@ -74,9 +79,10 @@
 恢复工作前，建议至少执行以下检查：
 
 ```bash
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest --tb=short
 .venv/bin/python -m pytest -m eval --tb=short
-.venv/bin/python -m swallow.cli --help
+git log --oneline -5
+git status --short
 ```
 
 ---
@@ -84,11 +90,12 @@
 ## 当前已知边界
 
 - Web Control Center 仍保持严格只读；不会写入 `.swl/`，也未引入前端构建工具链。
-- Artifact compare 当前是纯文本双栏 compare，不包含结构化 diff 高亮或批注工作流。
+- SQLite 当前只迁移了 `TaskState` / `EventLog`；知识层、`sqlite-vec` 与向量化检索仍在 Phase 49 范围。
+- 默认 store 已切到 SQLite，但过渡期仍保留 file mirror/fallback；旧 `.swl/` 目录建议通过 `swl migrate` 回填。
+- `CLIAgentExecutor` 尚未切到原生 async subprocess，当前仍通过线程桥接。
 - `meta-optimize` 仍是只读分析入口，不会自动采纳策略提案，也不会直接修改 route policy 或 task state。
-- `ReviewGate` 现已支持多 Reviewer 共识拓扑，但仍是顺序执行，尚未进入 async 并发 reviewer 调度。
-- `TaskCard.token_cost_limit` 当前按 task 全生命周期聚合真实 `token_cost`，而不是按单 card 独立结算。
-- 一致性抽检当前仍是手动、只读入口，不自动进入主任务闭环。
+- `TaskCard.token_cost_limit` 仍按 task 全生命周期聚合真实 `token_cost`，不是按单 card 独立结算。
+- 一致性抽检仍是手动、只读入口，不自动进入主任务闭环。
 - 真实执行环境下的外部网络、代理与 provider 连通性仍受本地环境约束，`swl doctor` 只负责诊断，不负责修复。
 
 ---
