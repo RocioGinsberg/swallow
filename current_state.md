@@ -21,16 +21,17 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 47`
-- latest_completed_slice: `Consensus & Policy Guardrails`
+- latest_completed_phase: `Phase 48`
+- latest_completed_slice: `Storage & Async Engine`
 - checkpoint_type: `main_tagged_release`
+- current_tag: `v0.6.0`
 - last_checked: `2026-04-22`
 
 说明：
 
-- Phase 47 已完成实现、review、merge 与 tag `v0.5.0`，并已形成新的稳定 checkpoint。
-- `docs/plans/phase47/closeout.md` 与 `docs/plans/phase47/review_comments.md` 已反映该 checkpoint 的收口结论。
-- Phase 48 当前已在 feature branch 上完成 closeout 候选，但尚未 merge 回 `main`，因此这里的 latest_completed 仍保持 Phase 47。
+- Phase 48 已完成实现、review concern 吸收、merge 与 tag，当前 `main` 对齐 `v0.6.0` 稳定 checkpoint。
+- `docs/plans/phase48/closeout.md` 与 `docs/plans/phase48/review_comments.md` 已反映本轮收口结论。
+- 当前默认不再继续扩张已完成的 Phase 48，而应转入 Phase 49 kickoff。
 
 ---
 
@@ -38,16 +39,16 @@
 
 当前推荐从以下状态继续：
 
-- active_branch: `feat/phase48_async-storage`
-- active_track: `Core Loop` (Primary) + `State / Truth` (Secondary)
-- active_phase: `Phase 48`
-- active_slice: `closeout`
-- workflow_status: `phase48_closeout_ready_for_human_merge`
+- active_branch: `main`
+- active_track: `Knowledge / RAG` (Primary) + `Capabilities` (Secondary)
+- active_phase: `Phase 49`
+- active_slice: `fresh_kickoff_required`
+- workflow_status: `phase49_kickoff_pending`
 
 说明：
 
-- 当前默认恢复入口不再是“fresh kickoff”，而是 Phase 48 的 closeout 候选分支。
-- `feat/phase48_async-storage` 已完成实现、review concern 吸收、test harness 收口与 pytest/eval 复验；下一步是 Human merge / tag 决策。
+- 当前默认恢复入口已从 Phase 48 closeout 切换为 Phase 49 启动前状态。
+- 现阶段应先产出 `context_brief` / kickoff / design / risk 文档，再由 Human 决定 feature branch 与实现边界。
 
 ---
 
@@ -57,19 +58,15 @@
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/plans/phase48/closeout.md`
-4. `docs/plans/phase48/review_comments.md`
-5. `pr.md`
-6. `current_state.md`
+3. `docs/roadmap.md`
+4. `current_state.md`
+5. `docs/plans/phase48/closeout.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase48/commit_summary.md`
-- `docs/roadmap.md`
-- `docs/system_tracks.md`
-- `docs/plans/phase47/closeout.md`
-- `docs/plans/phase47/review_comments.md`
 - `docs/concerns_backlog.md`
+- `docs/plans/phase48/review_comments.md`
+- `docs/system_tracks.md`
 - 历史 phase closeout / review_comments
 
 ---
@@ -81,8 +78,8 @@
 ```bash
 .venv/bin/python -m pytest --tb=short
 .venv/bin/python -m pytest -m eval --tb=short
-git log --oneline -5
-git status --short
+git show --no-patch --decorate --oneline HEAD
+git log --oneline -3
 ```
 
 ---
@@ -90,8 +87,8 @@ git status --short
 ## 当前已知边界
 
 - Web Control Center 仍保持严格只读；不会写入 `.swl/`，也未引入前端构建工具链。
-- SQLite 当前只迁移了 `TaskState` / `EventLog`；知识层、`sqlite-vec` 与向量化检索仍在 Phase 49 范围。
-- 默认 store 已切到 SQLite，但过渡期仍保留 file mirror/fallback；旧 `.swl/` 目录建议通过 `swl migrate` 回填。
+- SQLite 当前只迁移了 `TaskState` / `EventLog`；知识层、`sqlite-vec` 与向量化检索是 Phase 49 的核心范围。
+- 默认 store 已切到 SQLite，但过渡期仍保留 file mirror/fallback；旧 `.swl/` 目录仍建议通过 `swl migrate` 回填。
 - `CLIAgentExecutor` 尚未切到原生 async subprocess，当前仍通过线程桥接。
 - `meta-optimize` 仍是只读分析入口，不会自动采纳策略提案，也不会直接修改 route policy 或 task state。
 - `TaskCard.token_cost_limit` 仍按 task 全生命周期聚合真实 `token_cost`，不是按单 card 独立结算。

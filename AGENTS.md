@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v0.5.0`** — 多模型共识与策略护栏纪元：N-Reviewer 共识 + TaskCard 成本护栏 + 一致性抽检
+**当前 tag: `v0.6.0`** — Async Era：全异步调度基础 + SQLite 真值层 + 迁移/诊断工具
 
-本仓库已形成稳定运行基线，359 tests passed + 7 eval passed。
+本仓库已形成稳定运行基线，380 tests passed + 7 eval passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -48,6 +48,12 @@
 - 有界 1:N TaskCard planning、DAG subtask orchestration、parent-task artifact/event aggregation
 - 外部会话摄入：ChatGPT / Claude / Open WebUI / Markdown 解析、规则式过滤、`swl ingest` CLI
 - 多轮 Debate Topology：结构化 `ReviewFeedback`、单任务 / 子任务 feedback-driven retry、`waiting_human` 熔断
+- **异步执行主链**：`execute_async()` / `run_review_gate_async()` / `run_task_async()` 已落地，CLI 生命周期仍保留同步兼容壳
+- **异步并发 ReviewGate**：N-Reviewer 审查切为 `asyncio.gather(..., return_exceptions=True)` 并发执行，支持 reviewer timeout 隔离
+- **异步子任务编排**：`AsyncSubtaskOrchestrator` 提供 level-based 并发执行能力，多 card 路径统一走 async orchestration
+- **SQLite 任务真值层**：`.swl/swallow.db` 以 WAL 模式持久化 `TaskState` / `EventLog`，默认 backend 已切为 sqlite primary + file mirror/fallback
+- **迁移与诊断入口**：`swl migrate` 支持 legacy file task → SQLite 幂等回填；`swl doctor sqlite` 与默认 `swl doctor` 输出已包含 SQLite 健康检查
+- **事件循环边界收紧**：同步 `run_task()` 在已有 event loop 中会明确拒绝并提示调用方改用 `await run_task_async(...)`
 - **N-Reviewer 共识门禁**：`TaskCard.reviewer_routes` / `consensus_policy` + `majority` / `veto` 聚合，保持 `_debate_loop_core()` 外部接口不变
 - **TaskCard 级真实成本护栏**：`token_cost_limit` + event log `token_cost` 聚合，预算耗尽统一进入 `waiting_human`，`checkpoint_snapshot` 可见 `human_gate_budget_exhausted`
 - **只读一致性抽检**：`swl task consistency-audit <task-id> --auditor-route <route>` 对既有 artifact 发起跨模型审计，产出 `consistency_audit_*.md` 且不污染 task state

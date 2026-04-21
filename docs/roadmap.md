@@ -7,30 +7,34 @@ status: living-document
 
 ## 一、当前实现与蓝图设计的核心差距 (Gap Analysis)
 
-根据最新收口的 Phase 47 (v0.5.0) 成果，系统已具备了多模型共识审查与初步的财务熔断护栏。当前的差距已从“质量护栏”转向“执行效率与存储架构”：
+根据最新收口并打标的 Phase 48 (`v0.6.0`) 成果，系统已经补齐了 async orchestration 与 SQLite 任务真值层的基础设施。当前最主要的差距，已从“执行效率与存储架构”转向“知识闭环与检索质量”：
 
-### 1. [最紧急] 存储层与执行引擎的并发瓶颈 (Storage & Async Bottlenecks)
-*   **蓝图要求**：支持长周期、高并发的多路子任务与知识对比，具备事务保证。
-*   **当前现状**：调度与执行重度依赖同步阻塞（Synchronous IO）及文件系统（JSON/Markdown）。
-*   **核心差距**：无法支撑真正的高并发拓扑（如 N-Reviewer 的并行执行或多路 Subtask 并行），且文件系统在大负载下缺乏可靠的查询追踪与事务保证。
+### 1. [最紧急] 知识层与 RAG 仍然碎片化 (Knowledge / RAG Fragmentation)
+*   **蓝图要求**：具备统一的知识索引、可追踪引用与本地向量化检索能力。
+*   **当前现状**：`Evidence Store` 与 `Wiki Store` 仍主要依赖 JSON / Markdown 索引与文本匹配；Phase 48 仅迁移了 `TaskState` / `EventLog`，尚未迁移知识层。
+*   **核心差距**：Grounding 与 retrieval 仍缺少原生向量能力，知识对象之间的语义关联与召回质量仍受限。
 
-### 2. 知识库与 RAG 的碎片化 (Fragmented Knowledge Layer)
-*   **蓝图要求**：具备统一的知识索引与检索接口，支持本地向量化。
-*   **当前现状**：知识存储分布在 `Evidence Store` 和 `Wiki Store`，索引机制（JSON/Markdown）查询效率低且难以维护语义关联。
-*   **核心差距**：检索质量受限于低效的文本匹配，缺乏原生向量能力。
+### 2. 动态路由与多维评估尚未形成闭环 (Dynamic Routing & Eval Synergy)
+*   **蓝图要求**：Strategy Router 应基于实时质量反馈（Eval / Audit）和历史性能进行动态决策。
+*   **当前现状**：共识审查、一致性抽检和 Meta-Optimizer 已具备只读分析能力，但质量信号尚未反哺 route policy。
+*   **核心差距**：审计与遥测仍主要停留在 operator-facing 只读层，缺乏受控、可审计的策略闭环。
 
-### 3. 动态路由与多维评估的协同 (Dynamic Routing & Eval Synergy)
-*   **蓝图要求**：Strategy Router 应基于实时质量反馈（Eval）和历史性能进行动态决策。
-*   **当前现状**：共识与审计已落地，但审计结果（Consistency Audit）尚未闭环反馈给路由决策逻辑。
-*   **核心差距**：审计目前是只读的，缺乏自动纠偏路由权重的机制。
+### 3. SQLite 过渡层仍有收口空间 (SQLite Transition Tightening)
+*   **蓝图要求**：真值层集中、查询高效、operator 语义清晰。
+*   **当前现状**：默认 backend 已切到 SQLite，但仍保留 file mirror/fallback 作为过渡层；大体量历史 `.swl/` 目录仍可能触发迁移建议与兼容读取路径。
+*   **核心差距**：过渡层虽然保证了稳定切换，但还未完全收束到知识层与检索层统一消费 SQLite 真值的终局形态。
 
 ---
 
 ## 二、已消化差距 (Digested Gaps)
 
+### [Phase 48] 存储层与执行引擎的并发瓶颈
+*   **解决方式**：实装 `execute_async()`、`run_review_gate_async()`、`run_task_async()`、`AsyncSubtaskOrchestrator`，并引入 SQLite (`.swl/swallow.db`) 作为 `TaskState` / `EventLog` 的默认真值层。
+*   **成果**：系统进入 Async Era (`v0.6.0`)，具备全异步执行基础、并发 reviewer 调度、SQLite 默认存储、`swl migrate` 与 `swl doctor sqlite` operator 入口。
+
 ### [Phase 47] 多模型共识与策略护栏
 *   **解决方式**：实装 `ReviewGate` N-Reviewer 逻辑与 `TaskCard.token_cost_limit` 熔断机制。
-*   **成果**：系统进入 Consensus Era (v0.5.0)，具备了多数票、一票否决以及基于真实 Token 成本的财务护栏。
+*   **成果**：系统进入 Consensus Era (`v0.5.0`)，具备多数票、一票否决以及基于真实 Token 成本的财务护栏。
 
 ### [Phase 46] 单点 CLI 代理与原生 Gateway 的断层
 *   **解决方式**：实装 `HTTPExecutor` 并引入方言适配器，废除品牌硬编码。
@@ -38,49 +42,50 @@ status: living-document
 
 ---
 
-## 三、架构演进 Roadmap (Phases 48-50)
+## 三、架构演进 Roadmap (Phases 49-50)
 
-### Phase 48: 存储引擎升级与全异步改造 (Storage & Async Engine) 🚀 [Next]
-*   **Primary Track**: Core Loop
-*   **Secondary Track**: State / Truth
-*   **目标**：重构系统的 IO 模型与状态存储，支撑高并发任务树。
-*   **核心任务**：
-    - **调度全异步化**：将 Orchestrator、Executor、ReviewGate 的核心链路迁移至 `asyncio`。
-    - **轻量化本地数据库 (SQLite)**：引入 SQLite (WAL 模式) + `sqlite-vec` 向量扩展。
-    - **状态与事件迁移**：将 `TaskState`、`EventLog` 和 RAG 索引迁移至 `.swl/swallow.db`。
-*   **产出价值**：彻底消除并行子任务的 IO 阻塞瓶颈，具备原生语义搜索能力。
-
-### Phase 49: 检索增强与知识层闭环 (RAG & Knowledge Closure)
+### Phase 49: 检索增强与知识层闭环 (RAG & Knowledge Closure) 🚀 [Next]
 *   **Primary Track**: Knowledge / RAG
 *   **Secondary Track**: Capabilities
-*   **目标**：利用 Phase 48 的向量能力，彻底升级知识检索质量。
+*   **目标**：利用 Phase 48 的 SQLite 基础，实装本地向量检索并把知识层拉回统一真值闭环。
 *   **核心任务**：
-    - **向量化 RAG 实装**：基于 `sqlite-vec` 实现本地向量索引。
-    - **知识关联审计**：利用审计机制自动发现并修复过时或冲突的知识点。
-*   **产出价值**：显著提升 Grounding 的准确度，降低长上下文下的幻觉率。
+    - **向量化 RAG 实装**：基于 `sqlite-vec` 或等效能力建立本地向量索引。
+    - **知识层迁移**：评估 `Evidence Store` / `Wiki Store` 的 SQLite 化与统一检索入口。
+    - **知识关联审计**：利用审计机制发现过时、冲突或可合并的知识对象。
+*   **产出价值**：显著提升 grounding 准确度、召回质量与知识复用效率。
+
+### Phase 50: 路由质量闭环与策略收束 (Routing & Eval Closure)
+*   **Primary Track**: Evaluation / Policy
+*   **Secondary Track**: Provider Routing
+*   **目标**：将 audit / eval / telemetry 的质量信号，以可审计、可回滚的方式反馈到 routing 与 policy 层。
+*   **核心任务**：
+    - **审计信号回流**：让 consistency audit / review / optimizer proposal 能进入受控的 route policy 建议流程。
+    - **策略闭环护栏**：为 route policy 提案、试运行与回滚建立 operator-facing gate。
+    - **多维质量聚合**：将成本、失败率、审计质量与 retrieval 成效纳入统一评估视图。
+*   **产出价值**：让系统从“可观测”进化到“可控优化”，减少长期人工调参成本。
 
 ---
 
 ## 四、推荐 Phase 队列与风险批注 (Claude 维护)
 
-> 最近更新：2026-04-20 (Phase 47 收口，Phase 48 启动准备中)
+> 最近更新：2026-04-22 (Phase 48 收口并打标 `v0.6.0`，Phase 49 启动准备中)
 
 ### 队列总览
 
 | 优先级 | Phase | 名称 | Primary Track | Secondary Track | 风险等级 | 备注 |
 |--------|-------|------|---------------|-----------------|----------|------|
-| ~~1~~ | ~~47~~ | ~~多模型共识与策略护栏~~ | ~~Evaluation / Policy~~ | ~~Core Loop~~ | ~~已完成~~ | tag v0.5.0 |
-| **2** | **48** | **存储引擎升级与全异步改造** | **Core Loop** | **State / Truth** | **高** | 当前重点，破坏性重构 |
-| 3 | 49 | 检索增强与知识层闭环 | Knowledge / RAG | Capabilities | 中 | 依赖 Phase 48 向量能力 |
+| ~~1~~ | ~~48~~ | ~~存储引擎升级与全异步改造~~ | ~~Core Loop~~ | ~~State / Truth~~ | ~~已完成~~ | tag `v0.6.0` |
+| **2** | **49** | **检索增强与知识层闭环** | **Knowledge / RAG** | **Capabilities** | **中高** | 当前重点 |
+| 3 | 50 | 路由质量闭环与策略收束 | Evaluation / Policy | Provider Routing | 中 | 依赖 Phase 49 的质量信号沉淀 |
 
-### Phase 48 多维度锚点分析 (Gemini)
+### Phase 49 多维度锚点分析 (Gemini)
 
 | 维度 | 参考源 | 蓝图愿景 | 核心差距 | 局部最优风险预警 |
 | :--- | :--- | :--- | :--- | :--- |
-| **系统级锚点** | `ARCHITECTURE.md` | 基于状态的异步协同，事务性状态流转 | 目前全部是同步阻塞 IO，无事务保证 | 纯 asyncio 改造若不配合数据库事务，可能导致文件状态损坏或竞争 |
-| **领域级卫星** | `STATE_AND_TRUTH` | 集中式真值存储，可查询事件流 | .swl/ 下 JSON 文件散乱，难以回溯 | 若过度依赖数据库，可能丧失 Markdown Artifact 的可读性优势 |
-| **跨界嗅探** | `HARNESS / CLI` | CLI 启动快速，环境无依赖 | `sqlite-vec` 引入了新的二进制依赖 | 若依赖管理不当，将破坏“纯 Python 环境”的易用性 |
+| **系统级锚点** | `ARCHITECTURE.md` | 统一知识真值、可检索、可审计 | 任务真值已 SQLite 化，但知识真值仍分散 | 只做向量索引而不统一知识入口，会形成“双真值层” |
+| **领域级卫星** | `STATE_AND_TRUTH` | grounding / retrieval / promotion 闭环 | `Evidence` / `Wiki` 仍以文本匹配和分散索引为主 | 过快迁移知识层若不保留 Markdown 可读性，operator 可审查性会下降 |
+| **跨界嗅探** | `HARNESS / CLI / doctor` | 本地可恢复、零复杂部署 | `sqlite-vec` 或等效依赖会引入新的环境约束 | 若依赖管理失控，可能破坏“纯 Python + 本地栈”易用性 |
 
 ### Tag 建议
 
-Phase 47 已达成 `v0.5.0`。Phase 48 完成后建议打 `v0.6.0` (Async Era)。
+Phase 48 已达成 `v0.6.0`（Async Era）。Phase 49 是否形成下一次 tag，需待知识层闭环与向量检索能力稳定后再评估。

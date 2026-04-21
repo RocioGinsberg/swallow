@@ -96,11 +96,11 @@ It is about:
 
 ## Current Implementation Snapshot
 
-**Current tag: `v0.5.0`** — Consensus & Policy Guardrails: N-reviewer consensus, task-card token budgets, consistency audit
+**Current tag: `v0.6.0`** — Async Era: async orchestration, parallel review gate, SQLite task truth, migration and doctor tooling
 
 > This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
 
-The stable baseline now stands at `359 tests passed + 7 eval passed`.
+The stable baseline now stands at `380 tests passed + 7 eval passed`.
 
 In practice, the current system includes:
 
@@ -115,6 +115,11 @@ In practice, the current system includes:
 - bounded 1:N `TaskCard` planning, DAG-based subtask orchestration, and parent-task artifact / event aggregation
 - a local external-session ingestion pipeline with format parsers, filtering, staged candidate registration, and `swl ingest`
 - a multi-round Debate Topology with structured `ReviewFeedback`, single-task and per-subtask retry loops, and `waiting_human` circuit breaking
+- an async execution spine: `execute_async()`, `run_review_gate_async()`, `run_task_async()`, and `AsyncSubtaskOrchestrator`, while keeping sync-compatible CLI entrypoints
+- an async parallel review gate: N-reviewer execution now uses `asyncio.gather(..., return_exceptions=True)` with per-reviewer timeout isolation
+- a SQLite-backed task truth layer in `.swl/swallow.db` for `TaskState` and `EventLog`, using WAL mode with sqlite-primary + file mirror/fallback transition semantics
+- operator-facing migration and health tooling: `swl migrate`, `swl doctor sqlite`, and default `swl doctor` output with SQLite diagnostics
+- event-loop-safe runtime boundaries: sync `run_task()` now fails fast inside a running loop and points async callers to `await run_task_async(...)`
 - an N-reviewer consensus gate: `TaskCard.reviewer_routes` + `consensus_policy` support `majority` / `veto` review aggregation without changing `_debate_loop_core()`
 - task-card token-cost guardrails: `TaskCard.token_cost_limit` consumes real executor `token_cost` from task event logs, trips `budget_exhausted`, and routes the task into `waiting_human`
 - a read-only consistency audit entrypoint: `swl task consistency-audit <task-id> --auditor-route <route>` audits existing artifacts and writes `consistency_audit_*.md` without mutating task state
