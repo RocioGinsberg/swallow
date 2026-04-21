@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import sqlite3
 import tempfile
 import unittest
@@ -305,10 +306,13 @@ class SqliteTaskStoreTest(unittest.TestCase):
         self.assertEqual(loaded_paths, ["file-only-task"])
 
 
-class RunTaskRuntimeGuardTest(unittest.IsolatedAsyncioTestCase):
-    async def test_run_task_inside_running_loop_has_actionable_error(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, "Await run_task_async"):
-            run_task(Path("."), "task-in-running-loop")
+class RunTaskRuntimeGuardTest(unittest.TestCase):
+    def test_run_task_inside_running_loop_has_actionable_error(self) -> None:
+        async def exercise() -> None:
+            with self.assertRaisesRegex(RuntimeError, "Await run_task_async"):
+                run_task(Path("."), "task-in-running-loop")
+
+        asyncio.run(exercise())
 
 
 if __name__ == "__main__":

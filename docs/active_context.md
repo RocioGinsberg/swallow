@@ -131,6 +131,8 @@ Phase 47 已正式收口并打标 `v0.5.0`。当前 `main` 分支已吸收多模
   - `pytest -q tests/test_sqlite_store.py tests/test_doctor.py tests/test_run_task_subtasks.py` → `18 passed`
   - `pytest -q tests/test_cli.py tests/test_web_api.py tests/test_meta_optimizer.py tests/test_debate_loop.py tests/test_execution_budget_policy.py` → `222 passed, 5 subtests passed`
   - `pytest -q tests/test_subtask_orchestrator.py tests/test_review_gate_async.py` → `8 passed`
+- **[Codex]** 已完成 review follow-up 全量验证：
+  - `.venv/bin/python -m pytest --tb=short` → `380 selected / 7 deselected`，无失败；`/tmp/phase48_full.xml` 记录 `failures=0 errors=0`
 
 待执行：
 
