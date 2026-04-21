@@ -90,6 +90,7 @@ class SqliteDoctorTest(unittest.TestCase):
         self.assertEqual(result.file_only_task_count, 1)
         self.assertTrue(result.migration_recommended)
         self.assertIn("migration_recommended=yes", formatted)
+        self.assertIn("recommendation=Run `swl migrate`", formatted)
 
     def test_diagnose_sqlite_store_reports_healthy_database(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

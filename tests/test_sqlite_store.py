@@ -15,6 +15,7 @@ from swallow.models import Event, TaskState
 from swallow.orchestrator import create_task, run_task
 from swallow.paths import swallow_db_path
 from swallow.sqlite_store import SqliteTaskStore
+import swallow.store as store_module
 from swallow.store import (
     append_event,
     iter_recent_task_events,
@@ -248,6 +249,66 @@ class SqliteTaskStoreTest(unittest.TestCase):
         self.assertIn(created.task_id, snapshot.scanned_task_ids)
         self.assertTrue(db_exists)
         self.assertTrue(state_file_exists)
+
+    def test_default_backend_recent_events_only_loads_file_only_tasks_from_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            sqlite_state_1 = _sqlite_state("sqlite-task-1")
+            sqlite_state_2 = _sqlite_state("sqlite-task-2")
+            file_only_state = _sqlite_state("file-only-task")
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": ""}, clear=False):
+                save_state(base_dir, sqlite_state_1)
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id=sqlite_state_1.task_id,
+                        event_type="task.created",
+                        message="sqlite 1",
+                        created_at="2026-01-01T00:00:01+00:00",
+                    ),
+                )
+                save_state(base_dir, sqlite_state_2)
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id=sqlite_state_2.task_id,
+                        event_type="task.created",
+                        message="sqlite 2",
+                        created_at="2026-01-01T00:00:02+00:00",
+                    ),
+                )
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_state(base_dir, file_only_state)
+                append_event(
+                    base_dir,
+                    Event(
+                        task_id=file_only_state.task_id,
+                        event_type="task.created",
+                        message="file only",
+                        created_at="2026-01-01T00:00:03+00:00",
+                    ),
+                )
+
+            loaded_paths: list[str] = []
+            original_load_json_lines = store_module._load_json_lines
+
+            def _spy_load_json_lines(path: Path) -> list[dict[str, object]]:
+                loaded_paths.append(path.parent.name)
+                return original_load_json_lines(path)
+
+            with patch("swallow.store._load_json_lines", side_effect=_spy_load_json_lines):
+                recent = iter_recent_task_events(base_dir, 2)
+
+        self.assertEqual([task_id for task_id, _events in recent], ["file-only-task", "sqlite-task-2"])
+        self.assertEqual(loaded_paths, ["file-only-task"])
+
+
+class RunTaskRuntimeGuardTest(unittest.IsolatedAsyncioTestCase):
+    async def test_run_task_inside_running_loop_has_actionable_error(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "Await run_task_async"):
+            run_task(Path("."), "task-in-running-loop")
 
 
 if __name__ == "__main__":

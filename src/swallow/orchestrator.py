@@ -224,9 +224,6 @@ def _execute_task_card(
     return executor.execute(base_dir, state, card, retrieval_items)
 
 
-_ORIGINAL_EXECUTE_TASK_CARD = _execute_task_card
-
-
 async def _resolve_async_result(value: object) -> object:
     if inspect.isawaitable(value):
         return await value
@@ -3020,7 +3017,10 @@ def _run_orchestrator_sync(coro: Awaitable[TaskState]) -> TaskState:
     close = getattr(coro, "close", None)
     if callable(close):
         close()
-    raise RuntimeError("run_task() cannot be used inside a running event loop; use run_task_async().")
+    raise RuntimeError(
+        "run_task() cannot be used inside a running event loop. "
+        "Await run_task_async(...) from async callers such as FastAPI handlers, notebooks, or async tests."
+    )
 
 
 async def run_task_async(
@@ -3235,21 +3235,12 @@ async def run_task_async(
         save_state(base_dir, state)
         _set_phase(base_dir, state, "executing")
         if multi_card_plan:
-            if _execute_task_card is _ORIGINAL_EXECUTE_TASK_CARD:
-                executor_result, review_gate_result, subtask_result, debate_exhausted = await asyncio.to_thread(
-                    _run_subtask_orchestration,
-                    base_dir,
-                    state,
-                    cards,
-                    retrieval_items,
-                )
-            else:
-                executor_result, review_gate_result, subtask_result, debate_exhausted = await _run_subtask_orchestration_async(
-                    base_dir,
-                    state,
-                    cards,
-                    retrieval_items,
-                )
+            executor_result, review_gate_result, subtask_result, debate_exhausted = await _run_subtask_orchestration_async(
+                base_dir,
+                state,
+                cards,
+                retrieval_items,
+            )
         else:
             executor_result, review_gate_result, debate_exhausted = await _run_single_task_with_debate_async(
                 base_dir,

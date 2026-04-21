@@ -217,10 +217,11 @@ def _load_events_file(base_dir: Path, task_id: str) -> list[dict[str, object]]:
     return _load_json_lines(events_path(base_dir, task_id))
 
 
-def _iter_recent_task_events_file(base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
-    if last_n <= 0:
-        return []
-
+def _iter_recent_task_event_paths_file(
+    base_dir: Path,
+    *,
+    include_task_ids: set[str] | None = None,
+) -> list[tuple[str, Path]]:
     root = tasks_root(base_dir)
     if not root.exists():
         return []
@@ -228,6 +229,8 @@ def _iter_recent_task_events_file(base_dir: Path, last_n: int) -> list[tuple[str
     task_event_paths: list[tuple[str, Path]] = []
     for entry in root.iterdir():
         if not entry.is_dir():
+            continue
+        if include_task_ids is not None and entry.name not in include_task_ids:
             continue
         event_path = entry / "events.jsonl"
         if not event_path.exists():
@@ -238,6 +241,14 @@ def _iter_recent_task_events_file(base_dir: Path, last_n: int) -> list[tuple[str
         key=lambda item: (item[1].stat().st_mtime, item[0]),
         reverse=True,
     )
+    return task_event_paths
+
+
+def _iter_recent_task_events_file(base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
+    if last_n <= 0:
+        return []
+
+    task_event_paths = _iter_recent_task_event_paths_file(base_dir)
     return [(task_id, _load_json_lines(path)) for task_id, path in task_event_paths[:last_n]]
 
 
@@ -325,8 +336,14 @@ class DefaultTaskStore:
             task_id: events
             for task_id, events in sqlite_store.iter_recent_task_events(base_dir, last_n)
         }
-        for task_id, events in self._file_store.iter_recent_task_events(base_dir, max(last_n, len(recent_by_task_id) + last_n)):
-            recent_by_task_id.setdefault(task_id, events)
+        file_only_task_ids = {
+            task_id
+            for task_id in iter_file_task_ids(base_dir)
+            if not sqlite_store.task_exists(base_dir, task_id) and sqlite_store.event_count(base_dir, task_id) == 0
+        }
+        if file_only_task_ids:
+            for task_id, path in _iter_recent_task_event_paths_file(base_dir, include_task_ids=file_only_task_ids)[:last_n]:
+                recent_by_task_id.setdefault(task_id, _load_json_lines(path))
         ordered = sorted(
             recent_by_task_id.items(),
             key=lambda item: _event_sort_key(item[0], item[1]),

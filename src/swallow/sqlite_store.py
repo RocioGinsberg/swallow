@@ -76,7 +76,7 @@ class SqliteTaskStore:
         if not db_path.exists():
             return
         with sqlite3.connect(db_path, timeout=5.0) as connection:
-            connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            connection.execute("PRAGMA wal_checkpoint(PASSIVE)")
 
     def save_state(self, base_dir: Path, state: TaskState) -> None:
         self._ensure_layout(base_dir, state.task_id)
