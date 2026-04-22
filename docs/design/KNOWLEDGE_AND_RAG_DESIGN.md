@@ -1,60 +1,241 @@
-# 知识双层架构：LLM Wiki 与 RAG 摄入设计 (Knowledge Architecture: LLM Wiki & RAG)
+# 知识架构设计 (Knowledge Truth & Retrieval Architecture)
 
-## 1. 核心定位：LLM Wiki 认知层与 RAG 证据层的分离
-在处理复杂的软件工程和系统架构任务时，标准的“切块与嵌入”（Chunk & Embed）RAG 模式往往会面临极限。单纯的 RAG 只能解决“找得到资料”的问题，但很难稳定解决：历史决策之间的关系、模块职责边界、某条规则为什么存在、文档代码是否一致，以及长期项目认知的沉淀与复用。
+## 0. 阅读约定
 
-因此，Swallow 构建了**知识双层架构**：
+本文档描述的是 **Swallow 当前主分支的知识架构基线**，并在必要处标注未来方向。
 
-*   **RAG 检索层 (原始证据层)**：建立在代码、README、PR、Issue、外部文档之上的原始资料检索层。负责切块、向量化、混合索引、召回与回源。
-*   **LLM Wiki (结构化认知层)**：建立在 RAG 之上的高层知识组织层。负责沉淀高价值的系统目标、调度器职责、术语、架构边界、决策记录（ADR）、工作流规则与阶段总结。
+当前理解知识层时，应优先使用以下框架：
 
-**核心协同关系**：
-RAG 提供底层的事实依据，LLM Wiki 提供高层的认知摘要。调度系统（及通用编排 Agent）通过动态决策来判断何时查 Wiki 了解全局规范，何时回源到 RAG 寻找具体实现细节。
+- **Knowledge Truth Layer**：知识对象的 authoritative state
+- **Retrieval & Serving Layer**：围绕知识对象组织召回、过滤与证据打包
 
-## 2. LLM Wiki 的写入与管理原则
-LLM Wiki 绝不能成为任由底层大模型自由发散、堆砌形成的“第二知识幻觉层”。它必须遵循极其严苛的守卫规则：
+而不再使用早期那种简单的“LLM Wiki 在上、RAG 在下”的静态叙事。
 
-*   **高门槛准入**：只有高价值、可复用、相对稳定的信息才能进入 Wiki。
-*   **证据追溯**：Wiki 中的每条结论尽量带来源指针（如关联的 PR、文档片段、代码或决策记录）。
-*   **复核机制**：所有对 Wiki 的修改必须经过严格复核。不允许执行级的专项 Agent 或常规任务 Agent 随意直接改写 Wiki。
-*   **图书管理员介入 (Librarian Agent)**：系统知识的沉淀、冲突合并、去重及衰减，由高权限的图书管理员 Agent 结合人类审核来统一收口管理。
+---
 
-## 3. RAG 层的演进：Graph RAG 与全局理解
+## 1. 当前核心定位：知识真值优先，而非向量优先
 
-> **当前状态（v0.3.0）**：当前 RAG 实现基于 vector retrieval + keyword 检索，Graph RAG 与社区发现为远期演进方向，尚未进入实现 roadmap。以下描述为长期设计目标。
+在处理复杂的软件工程、系统设计和长期知识工作时，标准的“切块与嵌入”（Chunk & Embed）RAG 模式很容易碰到边界：
 
-在底层 RAG 证据层，长期设计引入 **Graph RAG (图检索增强生成)** 与混合图谱：
-*   **混合图谱结构**：将图结构的确定性关系（引用、继承、属于）与向量检索的模糊语义匹配相结合，提供具有深度上下文和逻辑链条的检索。
-*   **全局问题回答 (Graph RAG)**：通过社区检测（Community Detection）算法将知识图谱聚类并生成层次化摘要。解决诸如“整个分布式系统的容灾策略是如何演进的？”这类传统向量检索束手无策的跨文档“纵览全局”问题。
+- 找得到相似片段，但找不到当前有效的知识对象
+- 召回了文本，却不清楚它的阶段、来源和复用边界
+- 召回了相似语义，但无法稳定回答“哪个结论是当前规范版本”
+- 回答层不断重复做知识编译，造成 token 浪费和结果漂移
 
-## 4. 领域专属的数据摄入与切块策略 (Domain-Specific RAG Packages)
-底层证据的数据类型多样，必须采用特定的提取与扩展策略：
+因此，Swallow 当前采用的不是“vector-first retrieval”，而是：
 
-*   **代码仓库 (Code & AST)**：
-    *   基于抽象语法树 (AST) 进行解析。按类、函数、接口级别进行切块；提取函数签名、Docstring、输入输出依赖；保留跨文件的导入和调用链。
-*   **长篇文档与学术PDF (Legal/Academic PDFs)**：
-    *   层级化切块 (Hierarchical Chunking)。利用版面分析还原文档树结构（标题 -> 章节 -> 段落）；保留跨页的引用和脚注；生成章节级别的摘要（建立“父块”），保留具体细节作为“子块”。
-*   **事件日志与追踪 (Event Logs)**：
-    *   基于时间线 (Timeline-based) 与因果链切分。提取时间戳、Trace ID 和状态变更；将连续事件流聚合为单个“会话”切块。
+> **truth-first knowledge system with retrieval augmentation**
 
-## 5. 外部AI会话摄入 (External AI Handoff & Ingestion)
-用户常常已经在 ChatGPT 或 Claude Web 界面中进行了初步探索。系统需要无缝继承这些外部上下文。这属于高复杂度的知识摄入，由专门的 **外部会话摄入 Agent (Ingestion Specialist)** 处理。
+也就是：
 
-*   **工作流摄入**：支持导入 ChatGPT/Claude 的对话记录。
-*   **深度提纯**：摄入 Agent 不是简单格式转换，它需要识别有效结论与无效发散，提取隐含决策点和被否决方案（路没走通的记录同样高价值）。
-*   **结构化重组**：提取出上下文 (Context)、约束 (Constraints) 与目标 (Goals)。
-*   **生成权威资产**：提纯后的信息转化为标准化的**“任务交接单” (Task Handoff Note)**，进入知识库暂存区，作为后续编排的指导。
+- 先把知识归一为可治理对象
+- 再围绕这些对象提供检索、召回与服务
 
-### 5.1 Schema Alignment Note
-自 Phase 19 起，外部 AI 会话摄入提纯后的 handoff vocabulary 在代码层统一落到 [src/swallow/models.py](/home/rocio/projects/swallow/src/swallow/models.py:87) 的 `HandoffContractSchema`。
-本节术语映射：`Context` -> `context_pointers`，`Constraints` -> `constraints`，`Goals` -> `goal`。统一 schema 显式补充了 `done` 与 `next_steps`，用于和 orchestration handoff 保持一致。
+---
 
-## 6. Agentic RAG：从静态流水线到自主决策
-对于复杂的系统问题，系统使用 **Agentic RAG** 将检索行为升级为智能体的“决策问题”：
+## 2. 当前双层架构
 
-1.  **动态路由与工具选择 (Routing & Tool Use)**：
-    评估问题后自主选择工具：需要局部细节调用 Vector DB；需要解答宏观全局问题调用 Graph RAG/Wiki；需要精确统计调用执行器。
-2.  **多跳推理与迭代检索 (Multi-hop Reasoning)**：
-    打破“一次提问、一次检索”限制，执行 `检索 -> 阅读 -> 意识到信息缺失 -> 构建新查询 -> 再次检索` 的循环。
-3.  **文档相关性自我反思 (Self-Reflection & Correction)**：
-    判断当前召回质量不足时，主动触发反思机制调整搜索策略，防止强行幻觉。
+### 2.1 Knowledge Truth Layer
+
+知识真值层回答的问题是：
+
+- 什么是当前有效的知识对象
+- 这些知识从哪里来
+- 处于哪个阶段
+- 是否允许复用
+- 是否已经 superseded
+- 谁拥有写权限
+
+当前基线下，这一层包含的核心对象包括：
+
+- `Evidence`
+- `WikiEntry`
+- canonical records / canonical registry
+- staged / task-linked / reusable knowledge
+- promote / reject / dedupe / supersede decisions
+- source traceability / grounding refs
+- Librarian-controlled canonical write boundary
+
+这一层的 authoritative state 当前应理解为：
+
+> **SQLite-backed knowledge truth**
+
+文件镜像、导出文件和索引视图仍然存在，但它们属于辅助视图或 artifact 视图，而不是天然等于知识真值。
+
+### 2.2 Retrieval & Serving Layer
+
+检索服务层的职责不是替代真值层，而是围绕已治理知识对象提供可用召回。
+
+它负责：
+
+- exact / symbolic retrieval
+- metadata / policy-aware filtering
+- relation expansion
+- vector semantic recall
+- text fallback
+- evidence pack assembly
+
+因此，在 Swallow 当前系统中，向量检索的定位应当明确为：
+
+> **semantic retrieval augmentation, not authoritative truth**
+
+embedding 和向量索引不是知识主线，也不应成为默认入口；它们只是对已治理知识对象进行补充召回的能力。
+
+---
+
+## 3. 当前 Wiki 的定位
+
+Wiki 不应再被理解为“RAG 之上的摘要页”。
+
+在当前基线中，Wiki 更适合被理解为：
+
+- 项目级知识编译对象
+- 稳定语义入口
+- 面向人和模型共享的知识组织节点
+- 知识真值层内部的一类重要对象
+
+Wiki 的价值不在于“替代原始证据”，而在于：
+
+- 把高价值、相对稳定、可复用的知识组织成可治理对象
+- 为 exact match、canonical lookup、relation expansion 提供更稳定的入口
+- 减少每次回答都重新从底层文本拼装全局认知的成本
+
+---
+
+## 4. 当前推荐的检索顺序
+
+Swallow 当前更稳的默认检索顺序应是：
+
+1. task-local / canonical / wiki exact match
+2. metadata + policy-aware filtering
+3. relation expansion
+4. vector semantic recall
+5. text fallback
+
+也就是说，系统当前更适合坚持：
+
+> **object-first retrieval, vector-assisted recall**
+
+而不是 raw chunk vector-first retrieval。
+
+这与当前已落地的 `SQLite-primary knowledge truth + optional sqlite-vec fallback` 方向保持一致。
+
+---
+
+## 5. 当前知识写入原则
+
+知识层不是随手写入的记忆池，而是受治理的真值系统。
+
+当前写入原则应明确为：
+
+- 只有高价值、可复用、相对稳定的信息才有晋升资格
+- 所有高阶知识对象都应尽可能带来源指针
+- 并不是所有执行器都能直接写入 canonical knowledge
+- 知识晋升必须经过显式策略边界与复核边界
+- Librarian / review 流程负责冲突合并、去重和污染控制
+
+因此，Swallow 的知识层更接近：
+
+> **knowledge governance system**
+
+而不是“大模型自动累积记忆的地方”。
+
+---
+
+## 6. 外部 AI 会话摄入
+
+用户常常已经在 ChatGPT、Claude Web 或其他外部工具中完成了前期探索。Swallow 当前支持将这些材料作为**原始输入**进入系统，而不是直接把整段外部对话当作长期知识真值。
+
+这一层的职责是：
+
+- 导入外部对话记录
+- 过滤无效发散
+- 保留有效结论、约束和被否决路径
+- 转换为结构化候选对象
+- 先进入 staged / task-linked knowledge，再由后续流程决定是否晋升
+
+因此，外部会话摄入的正确位置是：
+
+**external session → ingestion / extraction / staging → knowledge review / promotion**
+
+而不是：
+
+**external session → direct canonical memory**
+
+### 6.1 Schema Alignment
+
+当前 handoff vocabulary 在代码层已经统一到标准 schema；设计文档中的 `Context`、`Constraints`、`Goals` 等术语，应始终理解为与当前实现的结构化字段对齐，而不是自由文本语义。
+
+---
+
+## 7. 检索适配与数据摄入
+
+Swallow 处理的底层材料类型很多，因此在“原始材料层”仍然需要不同的提取、解析与组织策略。
+
+当前更准确的理解是：
+
+- **原始材料层**：代码、Markdown、README、文档、外部会话、日志、PDF 等
+- **知识对象层**：Evidence / Wiki / canonical / staged candidates
+- **检索服务层**：围绕知识对象和必要的原始材料建立索引与召回
+
+因此，代码仓库、PDF、事件日志等“领域专属包”的意义主要在于：
+
+- 帮助 ingest / parse / extract
+- 帮助形成结构更好的候选知识对象
+- 帮助 retrieval layer 在必要时回源到底层材料
+
+而不是让底层材料直接取代知识对象层。
+
+---
+
+## 8. 关于 Graph RAG 等远期方向
+
+Graph RAG、社区发现、图结构摘要等能力可以继续作为方向保留，但在当前基线下，它们应被明确标记为：
+
+- 远期检索增强方向
+- retrieval orchestration 的候选能力
+- 非当前系统主骨架
+
+它们未来若引入，也应服务于已治理知识对象和关系结构，而不是反向取代知识真值层。
+
+---
+
+## 9. Agentic Retrieval 的正确定位
+
+对于复杂问题，Swallow 允许检索从单次静态流水线，升级为更自主的多轮决策行为。但这里需要注意：
+
+- agentic retrieval 的对象应优先是知识对象与其关系
+- 多轮检索是 retrieval orchestration 的升级，而不是放弃真值层
+- 检索行为再智能，也不能绕过知识晋升和写入边界
+
+因此，系统可逐步支持：
+
+1. 动态工具选择
+2. 多跳推理与多轮检索
+3. 召回质量反思与搜索策略调整
+
+但这些都属于 **retrieval / serving intelligence**，而不是知识真值本身。
+
+---
+
+## 10. 当前对实现者的约束性理解
+
+如果继续推进知识系统，当前最重要的几条约束是：
+
+1. 不要把系统重新拉回纯 RAG 叙事
+2. 不要把向量索引误写成知识 authoritative store
+3. 不要把 Wiki 写成漂浮在真值层之上的展示壳
+4. 不要让外部会话导入绕过 staged / review / promotion 边界
+5. 不要把“底层材料很重要”误解为“底层材料直接等于可复用知识对象”
+
+---
+
+## 11. 一句话总结
+
+Swallow 当前的知识系统，不应理解为：
+
+> 先做 RAG，再在其上叠一个 LLM Wiki
+
+而应理解为：
+
+> 先将知识归一为受治理的 truth objects，再通过 exact retrieval、policy filtering、vector recall 和 text fallback 为任务提供证据服务
