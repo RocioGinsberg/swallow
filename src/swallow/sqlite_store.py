@@ -376,6 +376,24 @@ class SqliteTaskStore:
         finally:
             connection.close()
 
+    def iter_knowledge_task_ids(self, base_dir: Path) -> list[str]:
+        connection = self._connect_existing(base_dir)
+        if connection is None:
+            return []
+        try:
+            evidence_table = _table_exists(connection, "knowledge_evidence")
+            wiki_table = _table_exists(connection, "knowledge_wiki")
+            task_ids: set[str] = set()
+            if evidence_table:
+                rows = connection.execute("SELECT DISTINCT task_id FROM knowledge_evidence").fetchall()
+                task_ids.update(str(row["task_id"]) for row in rows)
+            if wiki_table:
+                rows = connection.execute("SELECT DISTINCT task_id FROM knowledge_wiki").fetchall()
+                task_ids.update(str(row["task_id"]) for row in rows)
+            return sorted(task_ids)
+        finally:
+            connection.close()
+
     def delete_task_knowledge(self, base_dir: Path, task_id: str) -> None:
         with self._connect(base_dir) as connection:
             connection.execute("DELETE FROM knowledge_evidence WHERE task_id = ?", (task_id,))

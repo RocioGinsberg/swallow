@@ -1,15 +1,26 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from pathlib import Path
 from typing import Any
 
 from .canonical_reuse import is_canonical_reuse_visible
+from .knowledge_store import iter_file_knowledge_task_ids, load_task_knowledge_view
 from .knowledge_objects import is_retrieval_reuse_ready
 from .models import RetrievalItem, RetrievalRequest
 from .paths import canonical_reuse_policy_path
-from .retrieval_adapters import select_retrieval_adapter
+from .retrieval_adapters import (
+    SQLITE_VEC_FALLBACK_WARNING,
+    RetrievalSearchDocument,
+    TextFallbackAdapter,
+    VectorRetrievalAdapter,
+    VectorRetrievalUnavailable,
+    score_search_document,
+    select_retrieval_adapter,
+)
+from .sqlite_store import SqliteTaskStore
 
 STOPWORDS = {
     "the",
@@ -56,6 +67,8 @@ TASK_ARTIFACT_MARKDOWN_NAMES = {
     "executor_output.md",
     "executor_prompt.md",
 }
+logger = logging.getLogger(__name__)
+_sqlite_vec_warning_emitted = False
 
 
 def citation_for_lines(relative_path: str, line_start: int, line_end: int) -> str:
@@ -95,40 +108,12 @@ def score_chunk(
     title: str,
     chunk_text: str,
 ) -> tuple[int, dict[str, int], list[str]]:
-    tokens = list(query_plan.get("tokens", []))
-    phrase = str(query_plan.get("phrase", ""))
-    token_bigrams = list(query_plan.get("token_bigrams", []))
-    path_haystack = relative_path.lower()
-    filename_haystack = path_name.lower()
-    title_haystack = title.lower()
-    content_haystack = chunk_text.lower()
-    path_hits = sum(path_haystack.count(token) for token in tokens)
-    filename_hits = sum(filename_haystack.count(token) for token in tokens)
-    title_hits = sum(title_haystack.count(token) for token in tokens)
-    content_hits = sum(content_haystack.count(token) for token in tokens)
-    title_phrase_hits = 1 if phrase and phrase in title_haystack else 0
-    content_phrase_hits = 1 if phrase and phrase in content_haystack else 0
-    bigram_hits = sum(1 for bigram in token_bigrams if bigram in title_haystack or bigram in content_haystack)
-    matched_terms = matched_terms_for(tokens, path_haystack, title_haystack, content_haystack)
-    coverage_hits = len(matched_terms)
-    source_kind_bonus = 2 if relative_path.endswith(".md") and title_hits > 0 else 0
-    rerank_bonus = (coverage_hits * 2) + (title_phrase_hits * 4) + (content_phrase_hits * 3) + bigram_hits + source_kind_bonus
-    score = (title_hits * 5) + (filename_hits * 4) + (path_hits * 2) + content_hits + rerank_bonus
-    return (
-        score,
-        {
-            "path_hits": path_hits,
-            "filename_hits": filename_hits,
-            "title_hits": title_hits,
-            "content_hits": content_hits,
-            "title_phrase_hits": title_phrase_hits,
-            "content_phrase_hits": content_phrase_hits,
-            "bigram_hits": bigram_hits,
-            "coverage_hits": coverage_hits,
-            "source_kind_bonus": source_kind_bonus,
-            "rerank_bonus": rerank_bonus,
-        },
-        matched_terms,
+    return score_search_document(
+        query_plan,
+        relative_path=relative_path,
+        path_name=path_name,
+        title=title,
+        chunk_text=chunk_text,
     )
 
 
@@ -231,6 +216,74 @@ def build_knowledge_item_metadata(
     }
 
 
+def _iter_known_task_ids(workspace_root: Path) -> list[str]:
+    task_ids: set[str] = set(iter_file_knowledge_task_ids(workspace_root))
+    try:
+        task_ids.update(SqliteTaskStore().iter_knowledge_task_ids(workspace_root))
+    except OSError:
+        return sorted(task_ids)
+    return sorted(task_ids)
+
+
+def _warn_sqlite_vec_fallback_once() -> None:
+    global _sqlite_vec_warning_emitted
+    if _sqlite_vec_warning_emitted:
+        return
+    logger.warning(SQLITE_VEC_FALLBACK_WARNING)
+    _sqlite_vec_warning_emitted = True
+
+
+def build_verified_knowledge_documents(
+    workspace_root: Path,
+    request: RetrievalRequest,
+    query_plan: dict[str, Any],
+) -> list[RetrievalSearchDocument]:
+    documents: list[RetrievalSearchDocument] = []
+    allow_current_task = "task" in request.context_layers
+    allow_cross_task = "history" in request.context_layers
+    for task_id in _iter_known_task_ids(workspace_root):
+        if request.current_task_id:
+            if task_id == request.current_task_id and not allow_current_task:
+                continue
+            if task_id != request.current_task_id and not allow_cross_task:
+                continue
+        knowledge_objects = load_task_knowledge_view(workspace_root, task_id)
+        if not knowledge_objects:
+            continue
+
+        relative_path = f".swl/tasks/{task_id}/knowledge_objects.json"
+        for knowledge_object in knowledge_objects:
+            if not isinstance(knowledge_object, dict):
+                continue
+            if not is_retrieval_reuse_ready(knowledge_object):
+                continue
+
+            knowledge_text = str(knowledge_object.get("text", "")).strip()
+            if not knowledge_text:
+                continue
+
+            object_id = str(knowledge_object.get("object_id", "knowledge-object"))
+            title = f"Knowledge {object_id}"
+            documents.append(
+                RetrievalSearchDocument(
+                    path=relative_path,
+                    path_name="knowledge_objects.json",
+                    source_type=KNOWLEDGE_SOURCE_TYPE,
+                    chunk_id=object_id,
+                    title=title,
+                    citation=f"{relative_path}#{object_id}",
+                    text=knowledge_text,
+                    metadata=build_knowledge_item_metadata(
+                        knowledge_object=knowledge_object,
+                        query_plan=query_plan,
+                        knowledge_task_id=task_id,
+                        current_task_id=request.current_task_id,
+                    ),
+                )
+            )
+    return documents
+
+
 def build_canonical_reuse_item_metadata(
     canonical_record: dict[str, Any],
     query_plan: dict[str, Any],
@@ -298,69 +351,54 @@ def iter_verified_knowledge_items(
     query_plan: dict[str, Any],
 ) -> list[RetrievalItem]:
     allowed_sources = set(request.source_types)
-    if KNOWLEDGE_SOURCE_TYPE not in allowed_sources:
+    if KNOWLEDGE_SOURCE_TYPE not in allowed_sources or int(query_plan.get("token_count", 0)) <= 0:
         return []
 
+    documents = build_verified_knowledge_documents(
+        workspace_root=workspace_root,
+        request=request,
+        query_plan=query_plan,
+    )
+    if not documents:
+        return []
+
+    try:
+        matches = VectorRetrievalAdapter().search(
+            documents,
+            query_text=request.query,
+            query_plan=query_plan,
+            limit=request.limit,
+        )
+        retrieval_mode = "vector"
+    except VectorRetrievalUnavailable:
+        _warn_sqlite_vec_fallback_once()
+        matches = TextFallbackAdapter().search(
+            documents,
+            query_plan=query_plan,
+            limit=request.limit,
+        )
+        retrieval_mode = "text_fallback"
+
     items: list[RetrievalItem] = []
-    allow_current_task = "task" in request.context_layers
-    allow_cross_task = "history" in request.context_layers
-    for path in sorted(workspace_root.glob(".swl/tasks/*/knowledge_objects.json")):
-        try:
-            payload = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(payload, list):
-            continue
-
-        relative_path = str(path.relative_to(workspace_root))
-        task_id = path.parent.name
-        if request.current_task_id:
-            if task_id == request.current_task_id and not allow_current_task:
-                continue
-            if task_id != request.current_task_id and not allow_cross_task:
-                continue
-        for knowledge_object in payload:
-            if not isinstance(knowledge_object, dict):
-                continue
-            if not is_retrieval_reuse_ready(knowledge_object):
-                continue
-
-            knowledge_text = str(knowledge_object.get("text", "")).strip()
-            if not knowledge_text:
-                continue
-
-            object_id = str(knowledge_object.get("object_id", "knowledge-object"))
-            title = f"Knowledge {object_id}"
-            score, score_breakdown, matched_terms = score_chunk(
-                query_plan=query_plan,
-                relative_path=relative_path,
-                path_name=path.name,
-                title=title,
-                chunk_text=knowledge_text[:4000],
+    for match in matches:
+        preview = " ".join(match.document.text.split())[:220]
+        metadata = dict(match.document.metadata)
+        metadata["knowledge_retrieval_adapter"] = match.adapter_name
+        metadata["knowledge_retrieval_mode"] = retrieval_mode
+        items.append(
+            RetrievalItem(
+                path=match.document.path,
+                source_type=KNOWLEDGE_SOURCE_TYPE,
+                score=match.score,
+                preview=preview,
+                chunk_id=match.document.chunk_id,
+                title=match.document.title,
+                citation=match.document.citation,
+                matched_terms=match.matched_terms,
+                score_breakdown=match.score_breakdown,
+                metadata=metadata,
             )
-            if score <= 0:
-                continue
-
-            preview = " ".join(knowledge_text.split())[:220]
-            items.append(
-                RetrievalItem(
-                    path=relative_path,
-                    source_type=KNOWLEDGE_SOURCE_TYPE,
-                    score=score,
-                    preview=preview,
-                    chunk_id=object_id,
-                    title=title,
-                    citation=f"{relative_path}#{object_id}",
-                    matched_terms=matched_terms,
-                    score_breakdown=score_breakdown,
-                    metadata=build_knowledge_item_metadata(
-                        knowledge_object=knowledge_object,
-                        query_plan=query_plan,
-                        knowledge_task_id=task_id,
-                        current_task_id=request.current_task_id,
-                    ),
-                )
-            )
+        )
     return items
 
 
