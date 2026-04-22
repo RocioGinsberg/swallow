@@ -30,6 +30,60 @@ Phase 46 的目标是：
 
 完成后，系统将首次具备真实的多模型网络分发能力，且执行器命名符合 Agent Taxonomy 规范。
 
+## 一条关键边界说明：HTTP 受控路径 vs Agent 黑盒路径
+
+为了避免后续混淆，Phase 46 需要明确区分两类不同执行路径。
+
+### A. HTTP 受控路径（Swallow-controlled HTTP path）
+
+典型形态：
+
+`TaskState + RetrievalItems -> Router -> route_model_hint / dialect_hint -> HTTPExecutor -> HTTP API`
+
+在这条路径中，Swallow 自己控制：
+
+- prompt 生成与格式化
+- retrieval context assembly
+- `route_model_hint`
+- `dialect_hint`
+- request payload 结构
+- fallback 逻辑
+- telemetry 与 eval 基线
+
+因此，这条路径上的方言适配器是真正由 Swallow 主导的。只要模型调用仍经过 router + dialect adapters + HTTPExecutor，方言就应按照当前 route/model hint 自动生效。
+
+### B. Agent 黑盒路径（agent black-box path）
+
+典型形态：
+
+`TaskState -> CLIAgentExecutor / external agent -> agent internal model handling -> model/provider`
+
+例如 Aider、Claude Code、Warp/Oz、Cline 等 agent / CLI 工具，一旦在内部自己决定：
+
+- 使用哪个模型
+- 如何拼接 prompt
+- 是否做多轮反思
+- 如何调用工具或子代理
+
+这些内部行为通常不再由 Swallow 精细控制。
+
+在这条路径中，Swallow 更擅长控制的是：
+
+- 任务边界
+- skills / subagents / rules
+- 输入输出契约
+- 升级 / 降级策略
+- 成本、日志与行为观测
+
+而不是像 HTTP 受控路径那样精细控制底层 prompt / dialect。
+
+这意味着：
+
+- **方言适配器主要服务于 HTTP 受控路径**
+- **黑盒 agent 路径主要依赖 executor governance，而不是统一的 prompt/dialect 微控制**
+
+后续若系统接入更多原生 agent 工具，也应优先把它们视为“黑盒执行器”处理，除非某个工具暴露足够稳定、可控的中间协议接口。
+
 ## Slice 拆解
 
 ### S1: 基础设施就绪验证 (Infra Readiness)
@@ -183,6 +237,7 @@ S3 和 S4 之间无强依赖，但建议先 S3 后 S4，因为降级矩阵需要
 - **不实现流式响应 (streaming)**：初版 HTTP 执行器使用同步请求/响应，streaming 留给 Phase 48 的异步改造。
 - **不修改 Orchestrator 主循环**：Phase 46 只替换执行层，不改变编排逻辑。
 - **不引入新的外部依赖**（除 `httpx`）。Cline CLI 作为可选兜底，不作为硬依赖——未安装时跳过该降级层。
+- **不假设黑盒 agent 的内部 prompt / dialect 可被 Swallow 完整接管**：对于 Aider、Claude Code、Warp/Oz 等原生 agent 路径，系统默认只做 executor governance，而不承诺做底层 prompt 微控制。
 
 ## 整体风险评估
 
