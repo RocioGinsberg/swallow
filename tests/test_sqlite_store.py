@@ -12,8 +12,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.execution_budget_policy import calculate_task_token_cost
+from swallow.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
 from swallow.meta_optimizer import build_meta_optimizer_snapshot
-from swallow.knowledge_store import migrate_file_knowledge_to_sqlite
 from swallow.models import Event, TaskState
 from swallow.orchestrator import create_task, run_task
 from swallow.paths import swallow_db_path
@@ -133,7 +133,12 @@ class SqliteTaskStoreTest(unittest.TestCase):
                 },
             ]
 
-            normalized = store.replace_task_knowledge(base_dir, "knowledge-task", payload)
+            normalized = store.replace_task_knowledge(
+                base_dir,
+                "knowledge-task",
+                payload,
+                write_authority=TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+            )
             restored = store.load_task_knowledge_view(base_dir, "knowledge-task")
             has_knowledge = store.task_has_knowledge(base_dir, "knowledge-task")
 
@@ -151,6 +156,24 @@ class SqliteTaskStoreTest(unittest.TestCase):
         self.assertEqual(evidence_count, 1)
         self.assertEqual(wiki_count, 1)
         self.assertEqual(after_delete, [])
+
+    def test_sqlite_task_store_blocks_unauthorized_canonical_knowledge_write(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            store = SqliteTaskStore()
+
+            with self.assertRaisesRegex(PermissionError, "Canonical knowledge SQLite writes require LibrarianAgent"):
+                store.replace_task_knowledge(
+                    base_dir,
+                    "unauthorized-canonical-task",
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Unauthorized canonical write.",
+                            "stage": "canonical",
+                        }
+                    ],
+                )
 
     def test_default_backend_reads_legacy_file_only_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

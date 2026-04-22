@@ -14,11 +14,12 @@ from swallow.canonical_registry import build_canonical_registry_index
 from swallow.canonical_reuse import build_canonical_reuse_summary
 from swallow.knowledge_index import build_knowledge_index
 from swallow.knowledge_partition import build_knowledge_partition
-from swallow.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianExecutor
+from swallow.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianAgent, LibrarianExecutor
 from swallow.models import TaskCard, TaskState, ValidationResult
 from swallow.orchestrator import _apply_librarian_side_effects, create_task, run_task
 from swallow.paths import canonical_registry_index_path, canonical_reuse_policy_path, knowledge_index_path, knowledge_partition_path
 from swallow.store import (
+    append_canonical_record,
     load_state,
     save_canonical_registry_index,
     save_canonical_reuse_policy,
@@ -45,6 +46,9 @@ def _load_json_lines(path: Path) -> list[dict[str, object]]:
 
 
 class LibrarianExecutorIntegrationTest(unittest.TestCase):
+    def test_librarian_agent_is_executor_compatible_entity(self) -> None:
+        self.assertIsInstance(LibrarianExecutor(), LibrarianAgent)
+
     def test_librarian_executor_returns_side_effect_plan_without_persisting(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -96,6 +100,11 @@ class LibrarianExecutorIntegrationTest(unittest.TestCase):
             self.assertEqual(result.status, "completed")
             self.assertEqual(result.executor_name, "librarian")
             self.assertEqual(result.side_effects["kind"], LIBRARIAN_CHANGE_LOG_KIND)
+            payload = json.loads(result.output)
+            self.assertEqual(payload["agent_name"], "librarian")
+            self.assertEqual(payload["write_authority"], "canonical-promotion")
+            self.assertEqual(payload["entries"][0]["source"], "librarian")
+            self.assertTrue(payload["entries"][0]["timestamp"])
             self.assertEqual(len(result.side_effects["knowledge_decision_records"]), 1)
             self.assertEqual(len(result.side_effects["canonical_records"]), 1)
             self.assertEqual(result.side_effects["updated_knowledge_objects"][0]["stage"], "canonical")
@@ -277,6 +286,73 @@ class LibrarianExecutorIntegrationTest(unittest.TestCase):
             self.assertEqual(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"), before_reuse)
             self.assertFalse(list(tmp_path.rglob("*.tmp")))
             self.assertFalse(list(tmp_path.rglob("*.restore")))
+
+    def test_librarian_agent_skips_existing_conflict_and_emits_structured_change_log(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-librarian-conflict"
+            state = TaskState(
+                task_id=task_id,
+                title="Skip explicit canonical conflicts",
+                goal="Detect duplicate canonical keys before promotion",
+                workspace_root=str(tmp_path),
+                executor_name="librarian",
+            )
+            state.knowledge_objects = [
+                {
+                    "object_id": "knowledge-0002",
+                    "text": "Existing canonical wording",
+                    "stage": "verified",
+                    "source_kind": "external_knowledge_capture",
+                    "source_ref": "chat://conflict",
+                    "task_linked": True,
+                    "captured_at": "2026-04-16T00:00:00+00:00",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": f".swl/tasks/{task_id}/artifacts/evidence.md",
+                    "retrieval_eligible": False,
+                    "knowledge_reuse_scope": "task_only",
+                    "canonicalization_intent": "promote",
+                }
+            ]
+            save_state(tmp_path, state)
+            save_knowledge_objects(tmp_path, task_id, state.knowledge_objects)
+            append_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": "canonical-existing",
+                    "canonical_key": f"artifact:.swl/tasks/{task_id}/artifacts/evidence.md",
+                    "source_task_id": "existing-task",
+                    "source_object_id": "knowledge-existing",
+                    "promoted_at": "2026-04-16T00:00:00+00:00",
+                    "decision_note": "existing",
+                    "canonical_status": "active",
+                    "superseded_by": "",
+                    "superseded_at": "",
+                    "text": "Existing canonical wording",
+                },
+            )
+            (tmp_path / ".swl" / "tasks" / task_id / "artifacts" / "evidence.md").write_text(
+                "artifact-backed evidence\n",
+                encoding="utf-8",
+            )
+            card = TaskCard(
+                card_id="card-librarian-conflict",
+                goal="Skip conflicting canonical evidence",
+                executor_type="librarian",
+                route_hint="librarian-local",
+                input_context={"promotion_ready_object_ids": ["knowledge-0002"]},
+                output_schema={"type": "object", "const": {"kind": LIBRARIAN_CHANGE_LOG_KIND}},
+            )
+
+            result = LibrarianAgent().execute(tmp_path, state, card, [])
+            payload = json.loads(result.output)
+
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(payload["promoted_count"], 0)
+        self.assertEqual(payload["skipped_count"], 1)
+        self.assertEqual(payload["entries"][0]["reason"], "conflict_existing_canonical_key")
+        self.assertEqual(result.side_effects["knowledge_decision_records"], [])
+        self.assertEqual(result.side_effects["canonical_records"], [])
 
 
 if __name__ == "__main__":

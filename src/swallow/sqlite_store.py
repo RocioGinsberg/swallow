@@ -5,7 +5,11 @@ import sqlite3
 from pathlib import Path
 from typing import Iterable
 
-from .knowledge_store import normalize_task_knowledge_view, split_task_knowledge_view
+from .knowledge_store import (
+    enforce_canonical_knowledge_write_authority,
+    normalize_task_knowledge_view,
+    split_task_knowledge_view,
+)
 from .models import Event, TaskState, utc_now
 from .paths import app_root, artifacts_dir, swallow_db_path, task_root, tasks_root
 
@@ -228,9 +232,12 @@ class SqliteTaskStore:
         base_dir: Path,
         task_id: str,
         knowledge_objects: list[dict[str, object]],
+        *,
+        write_authority: str = "task-state",
     ) -> list[dict[str, object]]:
         self._ensure_layout(base_dir, task_id)
         normalized_view = normalize_task_knowledge_view(knowledge_objects)
+        enforce_canonical_knowledge_write_authority(normalized_view, write_authority=write_authority)
         evidence_entries, wiki_entries = split_task_knowledge_view(normalized_view)
         sort_order_by_id = {
             _knowledge_entry_id(entry): position

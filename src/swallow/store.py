@@ -492,9 +492,15 @@ def save_task_semantics(base_dir: Path, task_id: str, payload: dict[str, object]
     )
 
 
-def save_knowledge_objects(base_dir: Path, task_id: str, payload: list[dict[str, object]]) -> None:
+def save_knowledge_objects(
+    base_dir: Path,
+    task_id: str,
+    payload: list[dict[str, object]],
+    *,
+    write_authority: str = "task-state",
+) -> None:
     ensure_task_layout(base_dir, task_id)
-    persist_task_knowledge_view(base_dir, task_id, payload)
+    persist_task_knowledge_view(base_dir, task_id, payload, write_authority=write_authority)
 
 
 def load_knowledge_objects(base_dir: Path, task_id: str) -> list[dict[str, object]]:

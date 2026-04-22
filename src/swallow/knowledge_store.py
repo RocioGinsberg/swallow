@@ -15,6 +15,17 @@ from .paths import (
 
 
 WIKI_ONLY_FIELDS = ("promoted_by", "promoted_at", "change_log_ref", "source_evidence_ids")
+LIBRARIAN_AGENT_WRITE_AUTHORITY = "librarian-agent"
+KNOWLEDGE_MIGRATION_WRITE_AUTHORITY = "knowledge-migration"
+OPERATOR_CANONICAL_WRITE_AUTHORITY = "operator-gated"
+TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY = "test-fixture"
+CANONICAL_KNOWLEDGE_WRITE_AUTHORITIES = {
+    LIBRARIAN_AGENT_WRITE_AUTHORITY,
+    KNOWLEDGE_MIGRATION_WRITE_AUTHORITY,
+    OPERATOR_CANONICAL_WRITE_AUTHORITY,
+    "canonical-promotion",
+    TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+}
 
 
 def _sqlite_knowledge_enabled() -> bool:
@@ -87,6 +98,26 @@ def split_task_knowledge_view(knowledge_objects: list[dict[str, object]]) -> tup
         else:
             evidence_entries.append(item)
     return evidence_entries, wiki_entries
+
+
+def is_canonical_knowledge_write_authorized(write_authority: str) -> bool:
+    return str(write_authority or "").strip() in CANONICAL_KNOWLEDGE_WRITE_AUTHORITIES
+
+
+def enforce_canonical_knowledge_write_authority(
+    knowledge_objects: list[dict[str, object]],
+    *,
+    write_authority: str,
+) -> None:
+    _evidence_entries, wiki_entries = split_task_knowledge_view(knowledge_objects)
+    if not wiki_entries:
+        return
+    if is_canonical_knowledge_write_authorized(write_authority):
+        return
+    raise PermissionError(
+        "Canonical knowledge SQLite writes require LibrarianAgent or explicit gated authority "
+        f"(write_authority={write_authority or 'none'})."
+    )
 
 
 def _load_store_entries(store_root: Path) -> list[dict[str, object]]:
@@ -209,10 +240,16 @@ def persist_task_knowledge_view(
     knowledge_objects: list[dict[str, object]],
     *,
     mirror_files: bool = True,
+    write_authority: str = "task-state",
 ) -> list[dict[str, object]]:
     normalized_view = normalize_task_knowledge_view(knowledge_objects)
     if _sqlite_knowledge_enabled():
-        normalized_view = _sqlite_store().replace_task_knowledge(base_dir, task_id, normalized_view)
+        normalized_view = _sqlite_store().replace_task_knowledge(
+            base_dir,
+            task_id,
+            normalized_view,
+            write_authority=write_authority,
+        )
     if mirror_files:
         evidence_entries, wiki_entries = split_task_knowledge_view(normalized_view)
         knowledge_objects_path(base_dir, task_id).parent.mkdir(parents=True, exist_ok=True)
@@ -258,6 +295,7 @@ def persist_wiki_entry_from_record(
     record: dict[str, object],
     *,
     mirror_files: bool = True,
+    write_authority: str = LIBRARIAN_AGENT_WRITE_AUTHORITY,
 ) -> dict[str, object]:
     source_task_id = str(record.get("source_task_id", "")).strip()
     if not source_task_id:
@@ -265,7 +303,13 @@ def persist_wiki_entry_from_record(
 
     wiki_entry = build_wiki_entry_from_canonical_record(record)
     merged_view = _merge_task_knowledge_views(load_task_knowledge_view(base_dir, source_task_id), [wiki_entry])
-    persist_task_knowledge_view(base_dir, source_task_id, merged_view, mirror_files=mirror_files)
+    persist_task_knowledge_view(
+        base_dir,
+        source_task_id,
+        merged_view,
+        mirror_files=mirror_files,
+        write_authority=write_authority,
+    )
     return wiki_entry
 
 
@@ -306,7 +350,12 @@ def migrate_file_knowledge_to_sqlite(
         if dry_run:
             continue
 
-        normalized_view = sqlite_store.replace_task_knowledge(base_dir, task_id, file_view)
+        normalized_view = sqlite_store.replace_task_knowledge(
+            base_dir,
+            task_id,
+            file_view,
+            write_authority=KNOWLEDGE_MIGRATION_WRITE_AUTHORITY,
+        )
         sqlite_store.record_knowledge_migration(
             base_dir,
             task_id,

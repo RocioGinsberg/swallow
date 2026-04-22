@@ -68,6 +68,7 @@ from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retr
 from swallow.retrieval_adapters import select_retrieval_adapter
 from swallow.router import select_route
 from swallow.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
+from swallow.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
 from swallow.store import (
     append_event,
     append_canonical_record,
@@ -5339,6 +5340,7 @@ class CliLifecycleTest(unittest.TestCase):
                         "stage": "canonical",
                     }
                 ],
+                write_authority=OPERATOR_CANONICAL_WRITE_AUTHORITY,
             )
             append_canonical_record(
                 tmp_path,

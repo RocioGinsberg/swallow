@@ -30,7 +30,11 @@ from .doctor import (
     format_sqlite_doctor_result,
 )
 from .ingestion.pipeline import build_ingestion_report, build_ingestion_summary, run_ingestion_pipeline
-from .knowledge_store import migrate_file_knowledge_to_sqlite, persist_wiki_entry_from_record
+from .knowledge_store import (
+    OPERATOR_CANONICAL_WRITE_AUTHORITY,
+    migrate_file_knowledge_to_sqlite,
+    persist_wiki_entry_from_record,
+)
 from .meta_optimizer import run_meta_optimizer
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
@@ -1952,7 +1956,11 @@ def main(argv: list[str] | None = None) -> int:
             decision_note,
         )
         canonical_record = build_stage_canonical_record(updated, refined_text=args.text)
-        persist_wiki_entry_from_record(base_dir, canonical_record)
+        persist_wiki_entry_from_record(
+            base_dir,
+            canonical_record,
+            write_authority=OPERATOR_CANONICAL_WRITE_AUTHORITY,
+        )
         append_canonical_record(base_dir, canonical_record)
         canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
         canonical_index = build_canonical_registry_index(canonical_records)
