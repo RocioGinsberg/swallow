@@ -1,19 +1,28 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from .models import utc_now
 from .paths import (
-    knowledge_evidence_entry_path,
     knowledge_objects_path,
-    knowledge_wiki_entry_path,
     task_knowledge_evidence_root,
     task_knowledge_wiki_root,
 )
 
 
 WIKI_ONLY_FIELDS = ("promoted_by", "promoted_at", "change_log_ref", "source_evidence_ids")
+
+
+def _sqlite_knowledge_enabled() -> bool:
+    return str(os.environ.get("SWALLOW_STORE_BACKEND", "sqlite")).strip().lower() != "file"
+
+
+def _sqlite_store():
+    from .sqlite_store import SqliteTaskStore
+
+    return SqliteTaskStore()
 
 
 def _store_entry_id(payload: dict[str, object]) -> str:
@@ -117,14 +126,35 @@ def _merge_task_knowledge_views(*collections: list[dict[str, object]]) -> list[d
 
 
 def load_task_evidence_entries(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    if _sqlite_knowledge_enabled():
+        sqlite_store = _sqlite_store()
+        if sqlite_store.task_has_knowledge(base_dir, task_id):
+            return [
+                item
+                for item in sqlite_store.load_task_knowledge_view(base_dir, task_id)
+                if str(item.get("stage", "raw")).strip() != "canonical"
+            ]
     return [normalize_evidence_entry(item) for item in _load_store_entries(task_knowledge_evidence_root(base_dir, task_id))]
 
 
 def load_task_wiki_entries(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    if _sqlite_knowledge_enabled():
+        sqlite_store = _sqlite_store()
+        if sqlite_store.task_has_knowledge(base_dir, task_id):
+            return [
+                item
+                for item in sqlite_store.load_task_knowledge_view(base_dir, task_id)
+                if str(item.get("stage", "raw")).strip() == "canonical"
+            ]
     return [normalize_wiki_entry(item) for item in _load_store_entries(task_knowledge_wiki_root(base_dir, task_id))]
 
 
 def load_task_knowledge_view(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    if _sqlite_knowledge_enabled():
+        sqlite_store = _sqlite_store()
+        sqlite_view = sqlite_store.load_task_knowledge_view(base_dir, task_id)
+        if sqlite_view:
+            return sqlite_view
     legacy_entries = normalize_task_knowledge_view(_load_legacy_knowledge_objects(base_dir, task_id))
     evidence_entries = load_task_evidence_entries(base_dir, task_id)
     wiki_entries = load_task_wiki_entries(base_dir, task_id)
@@ -148,11 +178,21 @@ def persist_task_knowledge_view(
     base_dir: Path,
     task_id: str,
     knowledge_objects: list[dict[str, object]],
+    *,
+    mirror_files: bool = True,
 ) -> list[dict[str, object]]:
     normalized_view = normalize_task_knowledge_view(knowledge_objects)
-    evidence_entries, wiki_entries = split_task_knowledge_view(normalized_view)
-    _write_store_entries(task_knowledge_evidence_root(base_dir, task_id), evidence_entries)
-    _write_store_entries(task_knowledge_wiki_root(base_dir, task_id), wiki_entries)
+    if _sqlite_knowledge_enabled():
+        normalized_view = _sqlite_store().replace_task_knowledge(base_dir, task_id, normalized_view)
+    if mirror_files:
+        evidence_entries, wiki_entries = split_task_knowledge_view(normalized_view)
+        knowledge_objects_path(base_dir, task_id).parent.mkdir(parents=True, exist_ok=True)
+        knowledge_objects_path(base_dir, task_id).write_text(
+            json.dumps(normalized_view, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        _write_store_entries(task_knowledge_evidence_root(base_dir, task_id), evidence_entries)
+        _write_store_entries(task_knowledge_wiki_root(base_dir, task_id), wiki_entries)
     return normalized_view
 
 
@@ -184,20 +224,17 @@ def build_wiki_entry_from_canonical_record(record: dict[str, object]) -> dict[st
     )
 
 
-def persist_wiki_entry_from_record(base_dir: Path, record: dict[str, object]) -> dict[str, object]:
+def persist_wiki_entry_from_record(
+    base_dir: Path,
+    record: dict[str, object],
+    *,
+    mirror_files: bool = True,
+) -> dict[str, object]:
     source_task_id = str(record.get("source_task_id", "")).strip()
     if not source_task_id:
         raise ValueError("Canonical record is missing source_task_id.")
 
     wiki_entry = build_wiki_entry_from_canonical_record(record)
-    entry_id = _store_entry_id(wiki_entry)
-    wiki_path = knowledge_wiki_entry_path(base_dir, source_task_id, entry_id)
-    wiki_path.parent.mkdir(parents=True, exist_ok=True)
-    wiki_path.write_text(json.dumps(wiki_entry, indent=2) + "\n", encoding="utf-8")
-
-    object_id = str(wiki_entry.get("object_id", "")).strip()
-    if object_id:
-        evidence_path = knowledge_evidence_entry_path(base_dir, source_task_id, object_id)
-        if evidence_path.exists():
-            evidence_path.unlink()
+    merged_view = _merge_task_knowledge_views(load_task_knowledge_view(base_dir, source_task_id), [wiki_entry])
+    persist_task_knowledge_view(base_dir, source_task_id, merged_view, mirror_files=mirror_files)
     return wiki_entry

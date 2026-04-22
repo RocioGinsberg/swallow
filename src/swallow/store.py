@@ -494,11 +494,7 @@ def save_task_semantics(base_dir: Path, task_id: str, payload: dict[str, object]
 
 def save_knowledge_objects(base_dir: Path, task_id: str, payload: list[dict[str, object]]) -> None:
     ensure_task_layout(base_dir, task_id)
-    normalized_payload = persist_task_knowledge_view(base_dir, task_id, payload)
-    knowledge_objects_path(base_dir, task_id).write_text(
-        json.dumps(normalized_payload, indent=2) + "\n",
-        encoding="utf-8",
-    )
+    persist_task_knowledge_view(base_dir, task_id, payload)
 
 
 def load_knowledge_objects(base_dir: Path, task_id: str) -> list[dict[str, object]]:

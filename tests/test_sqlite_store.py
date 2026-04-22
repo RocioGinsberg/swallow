@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import sqlite3
 import tempfile
 import unittest
@@ -21,10 +22,12 @@ from swallow.store import (
     append_event,
     iter_recent_task_events,
     iter_task_states,
+    load_knowledge_objects,
     load_events,
     load_state,
     migrate_file_tasks_to_sqlite,
     normalize_store_backend,
+    save_knowledge_objects,
     save_state,
 )
 from swallow.web.api import build_task_events_payload, build_tasks_payload
@@ -108,6 +111,46 @@ class SqliteTaskStoreTest(unittest.TestCase):
 
         self.assertEqual(journal_mode, "wal")
 
+    def test_sqlite_task_store_round_trips_task_knowledge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            store = SqliteTaskStore()
+            payload = [
+                {
+                    "object_id": "knowledge-0001",
+                    "text": "Keep this as evidence.",
+                    "stage": "verified",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": ".swl/tasks/knowledge-task/artifacts/evidence.md",
+                },
+                {
+                    "object_id": "knowledge-0002",
+                    "text": "Promoted canonical note.",
+                    "stage": "canonical",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": ".swl/tasks/knowledge-task/artifacts/canonical.md",
+                },
+            ]
+
+            normalized = store.replace_task_knowledge(base_dir, "knowledge-task", payload)
+            restored = store.load_task_knowledge_view(base_dir, "knowledge-task")
+            has_knowledge = store.task_has_knowledge(base_dir, "knowledge-task")
+
+            with sqlite3.connect(swallow_db_path(base_dir)) as connection:
+                evidence_count = int(connection.execute("SELECT COUNT(*) FROM knowledge_evidence").fetchone()[0])
+                wiki_count = int(connection.execute("SELECT COUNT(*) FROM knowledge_wiki").fetchone()[0])
+
+            store.delete_task_knowledge(base_dir, "knowledge-task")
+            after_delete = store.load_task_knowledge_view(base_dir, "knowledge-task")
+
+        self.assertEqual([item["store_type"] for item in normalized], ["evidence", "wiki"])
+        self.assertEqual([item["object_id"] for item in restored], ["knowledge-0001", "knowledge-0002"])
+        self.assertEqual(restored[1]["stage"], "canonical")
+        self.assertTrue(has_knowledge)
+        self.assertEqual(evidence_count, 1)
+        self.assertEqual(wiki_count, 1)
+        self.assertEqual(after_delete, [])
+
     def test_default_backend_reads_legacy_file_only_tasks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
@@ -135,6 +178,44 @@ class SqliteTaskStoreTest(unittest.TestCase):
         self.assertEqual(events[0]["message"], "legacy file write")
         self.assertEqual(states[0].task_id, state.task_id)
         self.assertEqual(recent[0][0], state.task_id)
+
+    def test_default_backend_loads_knowledge_from_sqlite_primary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": ""}, clear=False):
+                save_knowledge_objects(
+                    base_dir,
+                    "sqlite-knowledge-task",
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "SQLite truth payload.",
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/sqlite-knowledge-task/artifacts/evidence.md",
+                        }
+                    ],
+                )
+
+            (base_dir / ".swl" / "tasks" / "sqlite-knowledge-task" / "knowledge_objects.json").write_text(
+                json.dumps(
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Stale file payload.",
+                            "stage": "verified",
+                            "store_type": "evidence",
+                        }
+                    ],
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            loaded = load_knowledge_objects(base_dir, "sqlite-knowledge-task")
+
+        self.assertEqual(loaded[0]["text"], "SQLite truth payload.")
 
     def test_migrate_file_tasks_to_sqlite_dry_run_does_not_create_db(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -50,7 +50,7 @@ from .knowledge_objects import (
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from .knowledge_store import persist_wiki_entry_from_record
+from .knowledge_store import persist_task_knowledge_view, persist_wiki_entry_from_record
 from .knowledge_store import normalize_task_knowledge_view, split_task_knowledge_view
 from .librarian_executor import (
     LIBRARIAN_CHANGE_LOG_KIND,
@@ -378,6 +378,7 @@ def _persist_librarian_atomic_updates(
     updates[canonical_registry_index_path(base_dir)] = json.dumps(canonical_index, indent=2) + "\n"
     updates[canonical_reuse_policy_path(base_dir)] = json.dumps(canonical_reuse_summary, indent=2) + "\n"
     apply_atomic_text_updates(updates, deletes=knowledge_deletes)
+    persist_task_knowledge_view(base_dir, state.task_id, state.knowledge_objects, mirror_files=False)
 
     return knowledge_partition, knowledge_index
 
@@ -412,7 +413,7 @@ def _apply_librarian_side_effects(
         if not isinstance(canonical_record, dict):
             continue
         append_canonical_record(base_dir, canonical_record)
-        persist_wiki_entry_from_record(base_dir, canonical_record)
+        persist_wiki_entry_from_record(base_dir, canonical_record, mirror_files=False)
 
     state.knowledge_objects = [dict(item) for item in updated_knowledge_objects if isinstance(item, dict)]
     knowledge_partition, knowledge_index = _persist_librarian_atomic_updates(

@@ -5,6 +5,7 @@ import sqlite3
 from pathlib import Path
 from typing import Iterable
 
+from .knowledge_store import normalize_task_knowledge_view, split_task_knowledge_view
 from .models import Event, TaskState, utc_now
 from .paths import app_root, artifacts_dir, swallow_db_path, task_root, tasks_root
 
@@ -31,6 +32,45 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE_EVENTS_TASK_INDEX_SQL = "CREATE INDEX IF NOT EXISTS idx_events_task_id ON events(task_id)"
 CREATE_TASKS_STATUS_INDEX_SQL = "CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status)"
+CREATE_KNOWLEDGE_EVIDENCE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS knowledge_evidence (
+    task_id TEXT NOT NULL,
+    object_id TEXT NOT NULL,
+    sort_order INTEGER NOT NULL,
+    entry_json TEXT NOT NULL,
+    stage TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    embedding_blob BLOB,
+    PRIMARY KEY (task_id, object_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+)
+"""
+CREATE_KNOWLEDGE_WIKI_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS knowledge_wiki (
+    task_id TEXT NOT NULL,
+    entry_id TEXT NOT NULL,
+    sort_order INTEGER NOT NULL,
+    entry_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    embedding_blob BLOB,
+    PRIMARY KEY (task_id, entry_id),
+    FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+)
+"""
+CREATE_KNOWLEDGE_EVIDENCE_TASK_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_evidence_task_id ON knowledge_evidence(task_id, sort_order)"
+)
+CREATE_KNOWLEDGE_WIKI_TASK_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_wiki_task_id ON knowledge_wiki(task_id, sort_order)"
+)
+
+
+def _knowledge_entry_id(payload: dict[str, object]) -> str:
+    for key in ("object_id", "source_object_id", "canonical_id"):
+        value = str(payload.get(key, "")).strip()
+        if value:
+            return value
+    return "knowledge-entry"
 
 
 def _table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
@@ -59,6 +99,10 @@ class SqliteTaskStore:
         connection.execute(CREATE_EVENTS_TABLE_SQL)
         connection.execute(CREATE_EVENTS_TASK_INDEX_SQL)
         connection.execute(CREATE_TASKS_STATUS_INDEX_SQL)
+        connection.execute(CREATE_KNOWLEDGE_EVIDENCE_TABLE_SQL)
+        connection.execute(CREATE_KNOWLEDGE_WIKI_TABLE_SQL)
+        connection.execute(CREATE_KNOWLEDGE_EVIDENCE_TASK_INDEX_SQL)
+        connection.execute(CREATE_KNOWLEDGE_WIKI_TASK_INDEX_SQL)
         return connection
 
     def _connect_existing(self, base_dir: Path) -> sqlite3.Connection | None:
@@ -171,6 +215,158 @@ class SqliteTaskStore:
             connection.close()
         return [dict(json.loads(str(row["event_json"]))) for row in rows]
 
+    def replace_task_knowledge(
+        self,
+        base_dir: Path,
+        task_id: str,
+        knowledge_objects: list[dict[str, object]],
+    ) -> list[dict[str, object]]:
+        self._ensure_layout(base_dir, task_id)
+        normalized_view = normalize_task_knowledge_view(knowledge_objects)
+        evidence_entries, wiki_entries = split_task_knowledge_view(normalized_view)
+        sort_order_by_id = {
+            _knowledge_entry_id(entry): position
+            for position, entry in enumerate(normalized_view)
+        }
+        updated_at = utc_now()
+
+        with self._connect(base_dir) as connection:
+            connection.execute("DELETE FROM knowledge_evidence WHERE task_id = ?", (task_id,))
+            connection.execute("DELETE FROM knowledge_wiki WHERE task_id = ?", (task_id,))
+            if evidence_entries:
+                connection.executemany(
+                    """
+                    INSERT INTO knowledge_evidence (
+                        task_id,
+                        object_id,
+                        sort_order,
+                        entry_json,
+                        stage,
+                        updated_at,
+                        embedding_blob
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, NULL)
+                    """,
+                    [
+                        (
+                            task_id,
+                            _knowledge_entry_id(entry),
+                            sort_order_by_id.get(_knowledge_entry_id(entry), 0),
+                            json.dumps(entry, indent=2),
+                            str(entry.get("stage", "raw")).strip() or "raw",
+                            updated_at,
+                        )
+                        for entry in evidence_entries
+                    ],
+                )
+            if wiki_entries:
+                connection.executemany(
+                    """
+                    INSERT INTO knowledge_wiki (
+                        task_id,
+                        entry_id,
+                        sort_order,
+                        entry_json,
+                        updated_at,
+                        embedding_blob
+                    )
+                    VALUES (?, ?, ?, ?, ?, NULL)
+                    """,
+                    [
+                        (
+                            task_id,
+                            _knowledge_entry_id(entry),
+                            sort_order_by_id.get(_knowledge_entry_id(entry), 0),
+                            json.dumps(entry, indent=2),
+                            updated_at,
+                        )
+                        for entry in wiki_entries
+                    ],
+                )
+        self._checkpoint(base_dir)
+        return normalized_view
+
+    def load_task_knowledge_view(self, base_dir: Path, task_id: str) -> list[dict[str, object]]:
+        connection = self._connect_existing(base_dir)
+        if connection is None:
+            return []
+        try:
+            evidence_table = _table_exists(connection, "knowledge_evidence")
+            wiki_table = _table_exists(connection, "knowledge_wiki")
+            if not evidence_table and not wiki_table:
+                return []
+
+            entries: list[tuple[int, dict[str, object]]] = []
+            if evidence_table:
+                evidence_rows = connection.execute(
+                    """
+                    SELECT sort_order, entry_json
+                    FROM knowledge_evidence
+                    WHERE task_id = ?
+                    ORDER BY sort_order ASC, object_id ASC
+                    """,
+                    (task_id,),
+                ).fetchall()
+                entries.extend(
+                    (
+                        int(row["sort_order"]),
+                        dict(json.loads(str(row["entry_json"]))),
+                    )
+                    for row in evidence_rows
+                )
+            if wiki_table:
+                wiki_rows = connection.execute(
+                    """
+                    SELECT sort_order, entry_json
+                    FROM knowledge_wiki
+                    WHERE task_id = ?
+                    ORDER BY sort_order ASC, entry_id ASC
+                    """,
+                    (task_id,),
+                ).fetchall()
+                entries.extend(
+                    (
+                        int(row["sort_order"]),
+                        dict(json.loads(str(row["entry_json"]))),
+                    )
+                    for row in wiki_rows
+                )
+        finally:
+            connection.close()
+        entries.sort(key=lambda item: item[0])
+        return normalize_task_knowledge_view([payload for _, payload in entries])
+
+    def task_has_knowledge(self, base_dir: Path, task_id: str) -> bool:
+        connection = self._connect_existing(base_dir)
+        if connection is None:
+            return False
+        try:
+            evidence_table = _table_exists(connection, "knowledge_evidence")
+            wiki_table = _table_exists(connection, "knowledge_wiki")
+            if evidence_table:
+                row = connection.execute(
+                    "SELECT 1 FROM knowledge_evidence WHERE task_id = ? LIMIT 1",
+                    (task_id,),
+                ).fetchone()
+                if row is not None:
+                    return True
+            if wiki_table:
+                row = connection.execute(
+                    "SELECT 1 FROM knowledge_wiki WHERE task_id = ? LIMIT 1",
+                    (task_id,),
+                ).fetchone()
+                if row is not None:
+                    return True
+            return False
+        finally:
+            connection.close()
+
+    def delete_task_knowledge(self, base_dir: Path, task_id: str) -> None:
+        with self._connect(base_dir) as connection:
+            connection.execute("DELETE FROM knowledge_evidence WHERE task_id = ?", (task_id,))
+            connection.execute("DELETE FROM knowledge_wiki WHERE task_id = ?", (task_id,))
+        self._checkpoint(base_dir)
+
     def iter_recent_task_events(self, base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
         if last_n <= 0:
             return []
@@ -244,6 +440,8 @@ class SqliteTaskStore:
                 connection.row_factory = sqlite3.Row
                 tasks_table = _table_exists(connection, "tasks")
                 events_table = _table_exists(connection, "events")
+                knowledge_evidence_table = _table_exists(connection, "knowledge_evidence")
+                knowledge_wiki_table = _table_exists(connection, "knowledge_wiki")
                 task_count = (
                     int(connection.execute("SELECT COUNT(*) FROM tasks").fetchone()[0])
                     if tasks_table
@@ -254,6 +452,16 @@ class SqliteTaskStore:
                     if events_table
                     else 0
                 )
+                knowledge_evidence_count = (
+                    int(connection.execute("SELECT COUNT(*) FROM knowledge_evidence").fetchone()[0])
+                    if knowledge_evidence_table
+                    else 0
+                )
+                knowledge_wiki_count = (
+                    int(connection.execute("SELECT COUNT(*) FROM knowledge_wiki").fetchone()[0])
+                    if knowledge_wiki_table
+                    else 0
+                )
                 integrity = str(connection.execute("PRAGMA integrity_check").fetchone()[0])
         except sqlite3.Error as exc:
             return {
@@ -262,8 +470,12 @@ class SqliteTaskStore:
                 "schema_ok": False,
                 "tasks_table": False,
                 "events_table": False,
+                "knowledge_evidence_table": False,
+                "knowledge_wiki_table": False,
                 "task_count": 0,
                 "event_count": 0,
+                "knowledge_evidence_count": 0,
+                "knowledge_wiki_count": 0,
                 "integrity_ok": False,
                 "details": str(exc),
             }
@@ -274,8 +486,12 @@ class SqliteTaskStore:
             "schema_ok": tasks_table and events_table,
             "tasks_table": tasks_table,
             "events_table": events_table,
+            "knowledge_evidence_table": knowledge_evidence_table,
+            "knowledge_wiki_table": knowledge_wiki_table,
             "task_count": task_count,
             "event_count": event_count,
+            "knowledge_evidence_count": knowledge_evidence_count,
+            "knowledge_wiki_count": knowledge_wiki_count,
             "integrity_ok": integrity == "ok",
             "details": integrity,
         }
