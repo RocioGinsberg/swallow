@@ -401,7 +401,69 @@ Provider Routing 层的职责，是把上游已经决定好的任务能力需求
 
 因此，Provider Routing 层已经是现实中的系统边界，而不是抽象概念。
 
-### 7.4 当前对默认绑定的理解
+### 7.4 当前两条不同的模型调用路径
+
+为了避免后续混淆，当前需要明确区分两条不同的调用路径：
+
+#### A. Swallow-controlled HTTP path
+
+这条路径的典型形式是：
+
+`TaskState + RetrievalItems -> Router -> route_model_hint / dialect_hint -> HTTPExecutor -> HTTP API`
+
+在这条路径中，Swallow 自己控制：
+
+- prompt 生成与格式化
+- retrieval context assembly
+- `route_model_hint`
+- `dialect_hint`
+- request payload 结构
+- fallback 逻辑
+- telemetry 记录
+
+因此，这条路径上的方言适配器是真正**由 Swallow 控制**的。只要请求仍然经过 router + dialect adapter + HTTPExecutor，模型方言就会按当前 route / model hint 自动生效。
+
+#### B. Agent black-box path
+
+这条路径的典型形式是：
+
+`TaskState -> CLIAgentExecutor / external agent -> agent internal model handling -> model/provider`
+
+例如 Aider、Claude Code、Warp/Oz 这类原生 agent / CLI 工具，一旦在内部自己决定：
+
+- 用哪个模型
+- 如何拼接 prompt
+- 是否做多轮反思
+- 如何调用工具或子代理
+
+那么这些内部策略通常不再由 Swallow 直接控制。
+
+在这条路径里，Swallow 更擅长控制的是：
+
+- 任务边界
+- 输入输出契约
+- subagents / skills / rules
+- 升级 / 降级策略
+- 成本、日志与行为观测
+
+而不是精细控制 agent 内部的具体 prompt 或方言实现。
+
+### 7.5 方言适配器的正确作用域
+
+因此，当前应把 dialect adapter 的主要作用域理解为：
+
+- **Swallow-controlled HTTP path** 的模型协议与提示格式翻译层
+
+而不是：
+
+- 所有 agent 内部行为的统一 prompt 控制器
+
+换句话说：
+
+- 对 HTTP 直连模型，方言适配是主控制手段
+- 对黑盒 agent，方言适配通常退居次要，系统重点应转向 executor governance
+
+### 7.6 当前对默认绑定的理解
 
 当前 provider / backend 层不应再预设一组固定品牌阵容作为永久标准配置。
 
@@ -419,7 +481,7 @@ Provider Routing 层的职责，是把上游已经决定好的任务能力需求
 - 支持并行 worker surface
 - 不让某一组品牌默认阵容反过来绑死系统角色
 
-### 7.5 关于旧文档引用
+### 7.7 关于旧文档引用
 
 早期某些 provider routing 设计文档已经在后续文档整理中被合并进 phase materials、README 和当前实现语义中。今后若引用 provider routing 设计，应以当前 `main` 上存在的文档与实现为准，而不再依赖已合并移除的旧文件名。
 
@@ -459,6 +521,7 @@ Swallow 当前仍然应被理解为：
 - taxonomy-first executor understanding
 - default operator workflow anchored on `Claude Code + Aider + Warp/Oz`
 - parallelism treated as conditional strategy rather than mandatory default
+- explicit separation between controlled HTTP path and black-box agent path
 
 ### 仍属方向（Directional / Future）
 
@@ -483,6 +546,7 @@ Swallow 当前仍然应被理解为：
 5. **不要把“文件仍然存在”误解为“文件永远是唯一真值”**
 6. **不要让 Warp / Oz 这类并行 worker surface 悄悄变成隐藏编排器**
 7. **不要让 Claude Code 长期被低价值重复实现工作稀释**
+8. **不要把黑盒 agent 的内部 prompt 控制能力，误以为等同于 HTTP path 的受控 prompt / dialect 能力**
 
 当前更稳的推进方式是：
 
@@ -490,6 +554,8 @@ Swallow 当前仍然应被理解为：
 - 再扩展 retrieval orchestration
 - 再扩展 provider routing / evaluation / audit
 - 在默认工作流中让 Claude Code / Aider / Warp-Oz 各守其位
+- 对 HTTP path 追求 prompt / dialect / fallback 的强控制
+- 对黑盒 agent path 追求任务边界、skills、subagents、review 与 telemetry 的强治理
 - 最后才考虑 blob backend、remote worker、hosted control plane 等扩张议题
 
 ---
@@ -502,4 +568,4 @@ Swallow 当前的正确理解不是：
 
 而是：
 
-> 一个 local-first、以任务真值和知识真值为中心、通过受控检索与可替换执行器推进真实项目工作的有状态 AI workflow system；其中当前默认工作组合以 Claude Code 处理高复杂高价值任务、Aider 处理高频实现、Warp/Oz 处理并行终端型中间任务
+> 一个 local-first、以任务真值和知识真值为中心、通过受控检索与可替换执行器推进真实项目工作的有状态 AI workflow system；其中当前默认工作组合以 Claude Code 处理高复杂高价值任务、Aider 处理高频实现、Warp/Oz 处理并行终端型中间任务，并明确区分受控 HTTP 调用路径与黑盒 agent 调用路径
