@@ -38,6 +38,8 @@ So it is not:
 
 It is closer to an **AI workbench / AI workflow system** for real project work.
 
+At the current stage, the system should also not be read as a fixed brand lineup. Publicly, the more accurate framing is: **role-first architecture, with a current default operating pattern anchored on Claude Code for high-value/high-complexity tasks, Aider for high-frequency implementation work, and Warp/Oz for terminal-native parallel worker tasks.**
+
 ---
 
 ## Why this project exists
