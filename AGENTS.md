@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v0.6.0`** — Async Era：全异步调度基础 + SQLite 真值层 + 迁移/诊断工具
+**当前 tag: `v0.7.0`** — Knowledge Era：知识层 SQLite SSOT + Librarian Agent + sqlite-vec 可退级 RAG
 
-本仓库已形成稳定运行基线，380 tests passed + 7 eval passed。
+本仓库已形成稳定运行基线，395 tests passed + 8 eval passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -42,7 +42,10 @@
 - 显式 route / topology / dispatch / execution-site / handoff / policy 记录
 - taxonomy 元数据、taxonomy-aware routing guard、operator-facing taxonomy visibility
 - staged knowledge capture、review queue、promote / reject、capability-aware 写入边界
-- Evidence Store + Wiki Store 知识双层、canonical promotion authority、规则驱动 LibrarianExecutor
+- **知识真值 SQLite SSOT**：Evidence / Wiki 知识读取已切换为 SQLite primary，文件系统仅保留 mirror / export / fallback 视图
+- **知识迁移与诊断入口**：`swl knowledge migrate` 支持 dry-run / 实迁 / 幂等回填；`swl doctor sqlite` 已包含知识层健康检查
+- **LibrarianAgent 边界化落地**：`LibrarianExecutor` 升级为 `LibrarianAgent` 主体，结构化 `KnowledgeChangeLog` 与 canonical 写入 authority guard 已成为稳定基线
+- **本地向量 RAG 与平滑退级**：`sqlite-vec` 作为可选依赖接入，可用时走向量检索，不可用时自动回退到文本匹配并输出 WARN
 - canonical registry、reuse visibility、dedupe / supersede audit、regression inspection
 - grounding evidence artifact、locked grounding refs、resume-stable grounding state
 - 有界 1:N TaskCard planning、DAG subtask orchestration、parent-task artifact/event aggregation

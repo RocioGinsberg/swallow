@@ -96,11 +96,11 @@ It is about:
 
 ## Current Implementation Snapshot
 
-**Current tag: `v0.6.0`** — Async Era: async orchestration, parallel review gate, SQLite task truth, migration and doctor tooling
+**Current tag: `v0.7.0`** — Knowledge Era: SQLite knowledge truth, Librarian agent boundaries, and sqlite-vec fallback RAG
 
 > This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
 
-The stable baseline now stands at `380 tests passed + 7 eval passed`.
+The stable baseline now stands at `395 tests passed + 8 eval passed`.
 
 In practice, the current system includes:
 
@@ -109,7 +109,10 @@ In practice, the current system includes:
 - mock-remote dispatch gating and remote-handoff contract visibility without widening into real remote execution
 - taxonomy metadata, taxonomy-aware routing guards, and operator-facing taxonomy visibility
 - staged knowledge capture, review queues, promotion / rejection decisions, and capability-aware write boundaries
-- an Evidence Store + Wiki Store task-knowledge split, canonical-promotion authority checks, and a rule-driven `LibrarianExecutor` with side-effect isolation (executor returns structured payload, orchestrator handles all persistence)
+- a SQLite-primary Evidence Store + Wiki Store task-knowledge truth layer, with file mirrors retained only as export / fallback views
+- operator-facing knowledge migration and diagnostics: `swl knowledge migrate` supports dry-run / idempotent backfill, and `swl doctor sqlite` now reports knowledge-layer health
+- a boundary-aware `LibrarianAgent` / `LibrarianExecutor` compatibility layer with structured knowledge change logs and enforced canonical write authority
+- local reusable-knowledge retrieval with optional `sqlite-vec` vector search, automatic text fallback, visible WARN logging, and eval-backed precision/recall baselines
 - canonical knowledge registry, reuse visibility, dedupe / supersede audit, and regression inspection paths
 - canonical-sourced task grounding evidence artifacts, locked grounding refs, and resume-stable grounding state
 - bounded 1:N `TaskCard` planning, DAG-based subtask orchestration, and parent-task artifact / event aggregation
@@ -135,7 +138,7 @@ In practice, the current system includes:
 - ChatGPT conversation tree restoration: parent-child tree construction, primary path vs. abandoned branch detection, semantic preservation of rejected alternatives
 - `swl ingest --summary`: structured ingestion summaries with Decisions / Constraints / Rejected Alternatives / Statistics sections
 - operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
-- retrieval over repository files and Markdown / Obsidian notes, with reusable knowledge kept explicit and policy-gated
+- retrieval over repository files, Markdown / Obsidian notes, and reusable knowledge records, with policy-gated vector/text fallback ranking
 - **HTTP executor (`HTTPExecutor`)**: httpx-based direct connection to local new-api (OpenAI-compatible), replacing subprocess CLI as the primary LLM path — the system now has real multi-model network dispatch capability
 - **CLI executor debranding (`CLIAgentExecutor`)**: configuration-driven `CLIAgentConfig` with Codex and Cline as named config instances, eliminating brand hardcoding; unknown executor names now raise `UnknownExecutorError` explicitly
 - **multi-model HTTP routes**: `http-claude` (claude_xml) / `http-qwen` (plain_text) / `http-glm` (plain_text) / `http-gemini` (plain_text) / `http-deepseek` (codex_fim) + `local-cline` all registered

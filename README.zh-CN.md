@@ -95,11 +95,11 @@ swallow 长期围绕五层组织：
 
 ## 当前实现概况
 
-**当前 tag: `v0.6.0`** — Async Era：全异步调度基础 + SQLite 真值层 + 迁移/诊断工具
+**当前 tag: `v0.7.0`** — Knowledge Era：知识层 SQLite 真值归一 + Librarian Agent 边界 + sqlite-vec 可退级 RAG
 
 > 本节仅在打新 tag 时更新。实时开发进度请查阅 `docs/active_context.md` 和 `docs/roadmap.md`。
 
-当前稳定验证基线为 `380 tests passed + 7 eval passed`。
+当前稳定验证基线为 `395 tests passed + 8 eval passed`。
 
 当前系统已经具备：
 
@@ -108,7 +108,10 @@ swallow 长期围绕五层组织：
 - mock-remote dispatch gate 与 remote-handoff contract 可视化，但未扩张为真实 remote execution
 - taxonomy 元数据、taxonomy-aware routing guard，以及 operator-facing taxonomy visibility
 - staged knowledge capture、review queue、promote / reject 决策与 capability-aware 写入边界
-- Evidence Store + Wiki Store 双层 task knowledge 结构、canonical promotion authority 校验，以及规则驱动的 `LibrarianExecutor`（side-effect 已收口：executor 只返回结构化 payload，orchestrator 接管全部持久化）
+- 以 SQLite 为主真值的 Evidence Store + Wiki Store 知识层；文件系统仅保留 mirror / export / fallback 视图
+- operator-facing 知识迁移与诊断入口：`swl knowledge migrate` 支持 dry-run / 幂等回填，`swl doctor sqlite` 已覆盖知识层健康检查
+- 边界清晰的 `LibrarianAgent` / `LibrarianExecutor` 兼容层：结构化 knowledge change log + canonical 写入 authority guard 已落地
+- 可选 `sqlite-vec` 的本地可复用知识检索：向量检索不可用时自动回退到文本匹配，并具备显式 WARN 与 eval 基线
 - canonical knowledge registry、reuse visibility、dedupe / supersede audit 与 regression inspection 路径
 - canonical retrieval 命中的 grounding evidence artifact、锁定的 grounding refs，以及可稳定 resume 的 grounding 状态
 - 有界 1:N `TaskCard` 规划、基于 DAG 的 subtask orchestration，以及父任务级 artifact / event 聚合
@@ -134,7 +137,7 @@ swallow 长期围绕五层组织：
 - ChatGPT 对话树还原：parent-child 树构建、主路径/侧枝识别、abandoned branch 语义保留（被否方案记录）
 - `swl ingest --summary`：Decisions / Constraints / Rejected Alternatives / Statistics 结构化摄入摘要
 - inspect / review / control / intake / grounding 等基于持久化任务真相的 operator 入口
-- repo 文件与 Markdown / Obsidian 笔记检索，并将可复用知识保持为显式、policy-gated 结构
+- repo 文件、Markdown / Obsidian 笔记与可复用知识记录检索，并保持 policy-gated 的向量/文本退级排序
 - **HTTP 执行器（HTTPExecutor）**：httpx 直连本地 new-api（OpenAI-compatible），替代 subprocess CLI 成为系统主 LLM 路径，系统首次具备真实多模型网络分发能力
 - **CLI 执行器去品牌化（CLIAgentExecutor）**：配置驱动的 `CLIAgentConfig`，Codex / Cline 作为具名配置实例，消除品牌硬编码；未知 executor name 显式抛出 `UnknownExecutorError`
 - **多模型 HTTP 路由**：`http-claude`（claude_xml）/ `http-qwen`（plain_text）/ `http-glm`（plain_text）/ `http-gemini`（plain_text）/ `http-deepseek`（codex_fim）+ `local-cline` 全部注册

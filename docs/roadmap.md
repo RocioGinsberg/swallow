@@ -7,19 +7,19 @@ status: living-document
 
 ## 一、当前实现与蓝图设计的核心差距 (Gap Analysis)
 
-根据最新收口的 Phase 48 (v0.6.0) 成果，系统已完成全异步化改造与 SQLite 任务真值层落地。通过对全量设计蓝图（Track 1-7）的深度审计，发现当前系统正处于**从“功能堆砌”向“架构闭环”转型的关键临界点**。
+根据最新收口的 Phase 49 (v0.7.0) 成果，系统已完成全异步化改造、SQLite 任务真值层与知识层 SQLite SSOT 落地。通过对全量设计蓝图（Track 1-7）的深度审计，当前系统正从“真值归一”转入**策略闭环与自我优化**阶段。
 
-### 1. [最紧急] 知识真值的“双重真相”风险 (SSOT Consistency)
+### 1. [已消化] 知识真值的“双重真相”风险 (SSOT Consistency)
 *   **蓝图要求**：`STATE_AND_TRUTH_DESIGN` 要求单一事实源 (SSOT)，拒绝线性历史依赖。
-*   **当前现状**：任务状态已 SQLite 化，但知识层（Evidence/Wiki）仍散落在文件系统与临时索引中。Phase 48 引入的 File Mirroring 机制虽然保证了过渡期兼容性，但也引入了逻辑双轨制的复杂度。
-*   **核心差距**：系统尚未实现全量知识的事务性真值闭环，存在“数据库与文件不一致”的潜在架构债。
+*   **当前现状**：Phase 49 已将 Evidence / Wiki 知识读取切换为 SQLite primary，文件系统仅保留 mirror / export / fallback 视图。
+*   **消化结果**：知识层事务性真值闭环已在 `v0.7.0` 落地，后续不应再回退为文件系统主读。
 
 ### 2. [战略级] 专项智能体 (Specialist Agent) 的缺位
 *   **蓝图要求**：`AGENT_TAXONOMY_DESIGN` 定义了正交的 Agent 角色，强调 Librarian、Validator、Meta-Optimizer 等专项角色应具备边界清晰的职责。
 *   **当前现状**：系统逻辑重度依赖通用执行者 (Codex/Claude)。虽然实现了共识审查和审计函数，但尚未落地具备独立生命周期和受控权限的“专项智能体”实体。
 *   **核心差距**：知识沉淀和策略自省仍属于“函数的副作用”，而非“显式的工作流”，导致进化逻辑隐式化、黑盒化。
 
-### 3. [执行级] 闭环反馈数据的“沉寂” (Passive Telemetry)
+### 3. [最紧急] 闭环反馈数据的“沉寂” (Passive Telemetry)
 *   **蓝图要求**：`SELF_EVOLUTION_AND_MEMORY` 要求系统能够通过复盘和遥测实现自我进化。
 *   **当前现状**：系统已具备捕获真实 token 成本、一致性审计结果和降级事件的能力，但这些数据目前仅作为“离线记录”存在。
 *   **核心差距**：缺乏将遥测数据转化为“动态路由建议”或“知识晋升提案”的自动化驱动路径。
@@ -27,6 +27,10 @@ status: living-document
 ---
 
 ## 二、已消化差距 (Digested Gaps)
+
+### [Phase 49] 知识真值归一与向量 RAG (v0.7.0)
+*   **解决方式**：落地知识层 SQLite SSOT、`swl knowledge migrate`、`LibrarianAgent` 与 `sqlite-vec` 可退级检索。
+*   **成果**：系统进入 **Knowledge Era**，消除了知识层“双重真相”风险，并形成本地语义检索基线。
 
 ### [Phase 48] 存储引擎升级与全异步改造 (v0.6.0)
 *   **解决方式**：落地 `SqliteTaskStore` 与全链路 `async/await`，实装 `swl migrate` 过渡入口。
@@ -40,7 +44,7 @@ status: living-document
 
 ## 三、架构演进 Roadmap (Phases 49-51)
 
-### Phase 49: 知识真值归一与向量 RAG (Knowledge SSOT & Vector RAG) 🚀 [Next]
+### Phase 49: 知识真值归一与向量 RAG (Knowledge SSOT & Vector RAG) ✅ [Done]
 *   **Primary Track**: Knowledge / RAG
 *   **Secondary Track**: State / Truth
 *   **目标**：彻底消除知识层的“双重真相”，实装本地向量检索。
@@ -50,7 +54,7 @@ status: living-document
     - **向量化 RAG 与平滑退级**：集成 `sqlite-vec` 提供本地向量能力。强制要求具备“向量 -> 文本模糊匹配”的自动降级机制，确保环境鲁棒性。
 *   **产出价值**：终结碎片化存储，实现具备语义维度的高质量知识闭环。
 
-### Phase 50: 路由策略闭环与专项审计 (Policy Closure & Specialist Audit)
+### Phase 50: 路由策略闭环与专项审计 (Policy Closure & Specialist Audit) 🚀 [Next]
 *   **Primary Track**: Evaluation / Policy
 *   **Secondary Track**: Provider Routing
 *   **目标**：将审计与遥测数据转化为可感知的策略行为，落地 Meta-Optimizer 建议链。
@@ -73,24 +77,24 @@ status: living-document
 
 ## 四、推荐 Phase 队列与风险批注 (Claude 维护)
 
-> 最近更新：2026-04-22 (Phase 48 收口，Gemini 全量刷新)
+> 最近更新：2026-04-22 (Phase 49 收口，Codex post-tag 状态同步)
 
 ### 队列总览
 
 | 优先级 | Phase | 名称 | Primary Track | Secondary Track | 风险等级 | 备注 |
 |--------|-------|------|---------------|-----------------|----------|------|
 | ~~1~~ | ~~48~~ | ~~存储引擎升级与全异步改造~~ | ~~Core Loop~~ | ~~State / Truth~~ | ~~已完成~~ | tag `v0.6.0` |
-| **2** | **49** | **知识真值归一与向量 RAG** | **Knowledge / RAG** | **State / Truth** | **高** | 存储真值彻底切换 |
-| 3 | 50 | 路由策略闭环与专项审计 | Evaluation / Policy | Provider Routing | 中 | 落地 Meta-Optimizer |
+| ~~2~~ | ~~49~~ | ~~知识真值归一与向量 RAG~~ | ~~Knowledge / RAG~~ | ~~State / Truth~~ | ~~已完成~~ | tag `v0.7.0` |
+| **3** | **50** | **路由策略闭环与专项审计** | **Evaluation / Policy** | **Provider Routing** | **中** | 落地 Meta-Optimizer |
 
 ### 全局锚点分析 (Gemini)
 
 | 维度 | 参考源 | 蓝图愿景 | 核心差距 | 局部最优风险预警 |
 | :--- | :--- | :--- | :--- | :--- |
-| **系统级锚点** | `ARCHITECTURE.md` | 基于状态的异步协同，SSOT 事实层 | 知识层真值仍处于“文件 vs DB”双轨制 | **[高危]** 若不完成真值归一，系统的确定性将随知识库增长而迅速崩溃 |
-| **领域级卫星** | `AGENT_TAXONOMY` | 显式的角色认知分工 | 目前所有逻辑均混入通用执行者 Prompt | 导致通用 Agent 上下文过载，且无法实现受控的记忆晋升 |
+| **系统级锚点** | `ARCHITECTURE.md` | 基于状态的异步协同，SSOT 事实层 | 遥测与审计结果尚未进入可执行策略闭环 | **[中高]** 若不完成策略闭环，系统会停留在“记录很多但不主动优化”的阶段 |
+| **领域级卫星** | `AGENT_TAXONOMY` | 显式的角色认知分工 | `LibrarianAgent` 已落地，但 Meta-Optimizer / Validator 等专项角色仍偏函数化 | 通用 Agent 上下文压力降低有限，策略建议仍缺少明确 agent 边界 |
 | **跨界嗅探** | `SELF_EVOLUTION` | 记忆沉淀作为显式工作流 | 遥测数据目前处于“已捕获但未消费”状态 | 浪费了宝贵的反馈信号，导致路由和策略演进滞后于业务实际 |
 
-### Tag 建议
+### Tag 记录
 
-Phase 49 完成后建议打标 `v0.7.0` (Knowledge Era)，标志着知识真值归一与向量检索能力的正式闭环。
+Phase 49 已打标 `v0.7.0` (Knowledge Era)，标志着知识真值归一与向量检索能力的正式闭环。Phase 50 是否形成新 tag，待其 closeout 后再评估。
