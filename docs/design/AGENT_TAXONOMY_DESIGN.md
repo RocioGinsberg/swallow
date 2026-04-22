@@ -1,186 +1,422 @@
 # 智能体分类学设计 (Agent Taxonomy)
 
-## 1. 文档目的与设计理念 (Purpose & Design Principles)
+## 0. 阅读约定
 
-本设计文档定义了 Swallow 系统的**智能体分类学 (Agent Taxonomy)**。由于 Swallow 系统不仅仅是一个单次对话的套壳工具，而是围绕任务编排、上下文检索、执行器集成以及状态持久化构建的复杂工程，因此仅仅称呼某个组件为“Claude Agent”或“记忆 Agent”是远远不够的。
+本文档描述的是 **Swallow 当前主分支的角色分类基线**。
 
-本分类学旨在回答以下核心问题：
-*   系统中应该存在哪些类型的 Agent？
-*   通用执行者（General Executor）与专项智能体（Specialist Agent）的区别何在？
-*   如何超越模型品牌（如 Gemini、Claude）来描述 Agent 的系统角色？
-*   如何定义不同 Agent 的执行权限、记忆权限及部署形态？
-*   如何防止新增的 Agent 意外演变成隐藏的全局编排器（Hidden Orchestrator）或隐式的全局记忆写入者。
+在当前系统中，分类学的首要目标不是给模型起名字，而是回答：
 
-**核心设计原则**：
-*   编排器（Orchestrator）与 Harness 运行时边界必须保持清晰。
-*   能力（Capabilities）应始终作为一等公民对象。
-*   状态（State）、事件（Events）与工件（Artifacts）必须保持分层并具备可观测性。
-*   检索是系统的通用能力，而不是某一个执行者的副作用。
-*   供应商（Provider）、底层后端、执行器族（Executor family）与 Agent 角色绝对不能混为一谈。
-*   知识的晋升（Knowledge Promotion）必须保持显式且受到策略守卫（Policy-gated）。
-*   隐式的全局记忆写入绝不能成为默认行为。
+- 这个实体在系统里承担什么职责
+- 它在哪里运行
+- 它能读写哪些真值面
+- 它是否有权推动主任务前进
 
-因此，本分类学从**三个正交的显式维度**对 Agent 进行划分：
-1.  **系统角色 (System Role)**：该 Agent 在系统中承担什么职责。
-2.  **运行站点 (Execution Site)**：该 Agent 的运行环境或后台支持在哪里。
-3.  **记忆权限 (Memory Authority)**：该 Agent 可以读取或写入哪些范围的记忆与事实源。
+因此，当前文档优先坚持：
+
+> **taxonomy before brand**
+
+品牌、模型族和具体执行器实现，只能作为例子或当前可用实例，不能取代系统角色本身。
 
 ---
 
-## 2. 系统角色 (System Role)
+## 1. 文档目的与核心原则
 
-### 2.1 编排器 (Orchestrator)
-*   **定义**：决定系统“下一步该做什么”。它负责调度能力、拼装上下文、记录执行结果以及处理重试/中断/恢复逻辑。
-*   **核心职责**：垄断**任务进展语义 (Task Progression Semantics)**。
-*   **设计底线**：编排器是唯一的协调层。绝对不能让新增的执行者或专项 Agent 意外获取全局路由的决策权，否则系统将失去可观测性。
+Swallow 不是一个单次对话壳层，而是一个围绕：
 
-### 2.2 通用执行者 (General Executor)
-*   **定义**：在任务流中能够独立完成相对完整或大体量工作切片的 Agent。
-*   **典型职责**：执行代码仓库级工作、文件编辑、命令行操作、拟定结构化计划草案、大跨度任务总结等。
-*   **典型家族**：API Executor、CLI Executor。
-*   **能力边界**：通用执行者可以产出大量核心任务工件（Artifacts），但**无权**重新定义全局路由策略、规范化记忆策略或跨越当前阶段边界。
+- 任务编排
+- 上下文检索
+- 执行器集成
+- 状态持久化
+- 知识治理
 
-### 2.3 专项智能体 (Specialist Agent)
-*   **定义**：拥有**单一且高价值边界职责**的 Agent。
-*   **典型特征**：不试图接管整个任务生命周期。具有极强的输入输出边界、较窄的写权限、明确的成功标准及较低的治理风险。
-*   **典型例子**：记忆提纯者 (Memory Curator)、检索评估者 (Retrieval Evaluation Agent)、失败日志分析者 (Failure Analysis Agent)、移动端交互者等。
+构建的长期工作流系统。
 
-### 2.4 验证者/审查者 (Validator / Reviewer)
-*   **定义**：不生成核心工作产物，主要用于评估、审计和检查其他组件产出质量的 Agent。
-*   **核心职责**：回答“代码偏离设计了吗？”、“知识符合晋升标准吗？”、“请求违规了吗？”等守门问题。
-*   **典型例子**：一致性审查者 (Consistency Review Agent)、安全风险审计者、引用溯源检查者。
+因此，仅仅把某个角色叫做“Claude Agent”或“Gemini Agent”是不够的，因为这种命名会掩盖：
 
-### 2.5 人类操作员 (Human Operator)
-*   **定义**：人类不是 Agent，但在此分类学中是一等公民角色。
-*   **核心职责**：审批设计方向、进行高风险变更的合并及决定知识的最终晋升，解决系统不应自动裁决的歧义。
+- 它在系统中的权责边界
+- 它是否拥有任务推进权
+- 它是否能写入知识对象
+- 它的运行站点与后端形态
 
----
+当前分类学要回答的核心问题是：
 
-## 3. 核心对比：通用执行者 vs 专项智能体 (General Executor vs Specialist Agent)
+1. 系统中应该存在哪些角色
+2. 通用执行者与专项智能体的边界是什么
+3. Provider / backend / executor family 与 system role 如何解耦
+4. 如何防止任何新增实体变成隐藏编排器或隐式全局记忆写入者
 
-如果把每个好用的模型或能力辅助都统称为“Agent”并赋予相同的权限，将导致系统职责的混乱。我们必须明确区分通用执行与专项辅助的界限。
+### 核心设计原则
 
-*   **通用执行者 (General Executor)**：当系统需要一个代理来承担一大块实际工作（如编写代码、执行 CLI 命令、撰写完整设计稿）时使用。它们在**工作广度**上较高，但风险也更高（易出现范围蔓延与过度重构）。
-*   **专项智能体 (Specialist Agent)**：当系统需要对某一局部功能（如压缩上下文、分析检索结果质量）进行深度打磨时使用。它们在**职责范围**上极窄，边界清晰，利于策略拦截。
-
-**判断法则**：
-*   如果可以合理地要求该角色“接管这步任务并产出主要输出”，它是**通用执行者**。
-*   如果任务更偏向于“在一个受限区域内分析、压缩、审计、验证、提纯或提出建议”，它是**专项智能体**。
+- 编排器与运行时边界必须清晰
+- capabilities 始终是一等公民
+- state / event / artifact / knowledge truth 必须显式可观测
+- retrieval 是系统能力，不是某一个 agent 的私有副作用
+- provider、backend、executor family 与 role 绝不能混为一谈
+- knowledge promotion 必须显式且 policy-gated
+- Canonical write 默认禁止，而不是默认开放
 
 ---
 
-## 4. 运行站点 (Execution Site)
+## 2. 三个正交维度
 
-系统角色（Role）不应与部署形态（Site）混淆。同一个角色可以有不同的运行站点。
+Swallow 当前继续使用三个正交维度对实体进行分类：
 
-*   **本地 (Local)**：运行在与主任务环境相同的机器或工作区内。拥有对本地状态的直接访问权和较低延迟。风险与本地执行权限和宿主环境深度耦合。
-*   **云端支持 (Cloud-backed)**：即便调用发生在本地，其能力由远程 API 或服务提供支撑（如强逻辑模型进行的长上下文反思）。优势在于模型能力强，但运行时内部逻辑不透明，更需严格的策略拦截。
-*   **远程计算节点 (Remote Worker)**：在独立的机器或远端站点上执行实际任务（偏向于未来的扩展拓扑），存在较高的网络传输、交接和安全复杂性。
-*   **混合部署 (Hybrid)**：以受治的方式跨越多个站点。例如本地网关接收移动端输入，委派给云端模型解析意图，再返回本地执行指令。
+1. **System Role**：该实体承担什么职责
+2. **Execution Site**：它在什么环境中运行
+3. **Memory Authority**：它能读写哪些范围的真值与记忆
 
----
-
-## 5. 记忆权限 (Memory Authority)
-
-由于 Swallow 严格区分任务状态（Task State）、暂存知识（Staged Knowledge）与规范事实（Canonical Truth），并非所有 Agent 都有权跨越这些记忆边界。
-
-1.  **无状态 (Stateless)**：除明确的入参外，不跨调用保留记忆。最安全的默认选项，适合审查者和单次摘要器。
-2.  **任务状态读写 (Task-State Access)**：允许读取或修改任务执行所依赖的本地状态、事件或运行时产出。通用执行者通常拥有此权限。
-3.  **任务记忆读写 (Task-Memory)**：可以在当前任务或会话周期内写入与读取记忆伪像。适合记忆提纯者、失败分析者等。产出物通常为恢复记录（Resume Note）或局部记忆压缩摘要。
-4.  **暂存知识库读写 (Staged-Knowledge)**：有权生成或修改待审查的“知识候选对象”（Knowledge Candidates）。通常适用于知识摄入 Agent 或研发提议整理助手。
-5.  **规范写入禁止 (Canonical-Write-Forbidden)**：**核心安全标签**。系统内大多数 Agent 默认**被严格限制直接突变核心规范知识真相**。它们只能提建议、打草稿或准备晋升候选对象。
-6.  **规范晋升权限 (Canonical Promotion Authority)**：权限域最窄、最敏感的分类。通常只属于极少数经过严格 Workflow 约束或通过操作员确认的人机协作节点。
+这三个维度应始终先于品牌、模型名、CLI 名称或 API 提供商。
 
 ---
 
-## 6. 标准命名格式与反模式 (Naming Format & Anti-Patterns)
+## 3. 系统角色 (System Role)
 
-### 6.1 推荐命名规范 (Naming Format)
-在系统架构讨论中，每一个 Agent 都必须严格遵循四个字段的显式命名法：
-`[系统角色] / [运行站点] / [记忆权限] / [功能领域]`
-`( [System Role] / [Execution Site] / [Memory Authority] / [Domain] )`
+### 3.1 Orchestrator
 
-**示例**：
-*   `general-executor / local / task-state / codex-cli` (本地终端代码执行者)
-*   `general-executor / cloud-backed / task-state / planning-api` (云端支持的规划与摘要执行者)
-*   `specialist / cloud-backed / task-memory / memory-curator` (云端支持的任务记忆提纯专家)
-*   `validator / cloud-backed / stateless / consistency-review` (无状态的云端架构一致性审查者)
-*   `specialist / hybrid / stateless / mobile-operator-interaction` (跨混合架构的移动端交互解析专家)
+**定义**：决定系统“下一步该做什么”的唯一协调层。
 
-### 6.2 常见反模式 (Anti-Patterns)
-1.  **唯品牌论智能体 (The Brand-Only Agent)**：仅仅将其称呼为“Gemini Agent”或“Claude Agent”，这完全掩盖了其在系统中的权限、角色与记忆范围。
-2.  **隐藏的编排器 (The Hidden Orchestrator)**：一个计划生成、路由辅助或反思类的 Agent，在未被授权的情况下，静默地接管了系统下一步执行走向的决策。这极大地破坏了可观测性。
-3.  **隐式的全局写入者 (The Implicit Global Memory Writer)**：未经严格的验证防线，局部的研究或反思智能体就能直接将其生成的见解写入长期的规范化知识库中，造成事实源污染。
-4.  **全能智能体 (The Everything Agent)**：号称能同时承担计划、执行、审查、路由及提纯记忆的功能。这通常意味着功能定义不足和巨大的治理风险。
+**核心职责**：
 
-### 6.3 默认的安全预设 (Recommended Defaults)
-当为系统引入新的 Agent 实体时，推荐的基准假定应当是：
-*   **系统角色**：默认为 `specialist`。
-*   **运行站点**：选择运维最简单的方式，但绝不以站点指代角色。
-*   **记忆权限**：默认为 `stateless` 或仅限 `task-memory`。
-*   **规范事实权限**：默认 `Canonical-Write-Forbidden`。
-只有在具备充足的工程需求设计时，才可显式地放宽上述限制。
+- 垄断任务进展语义
+- 决定何时拆分子任务
+- 决定何时触发 review gate
+- 决定何时停止自动推进并进入 `waiting_human`
+- 组合 retrieval、execution、policy 与 state truth
+
+**设计底线**：
+
+- 编排器是唯一协调层
+- 任何 executor / specialist / validator 都不应静默接管全局推进语义
+
+### 3.2 General Executor
+
+**定义**：能够承担相对完整或大体量工作切片的执行实体。
+
+**典型职责**：
+
+- 代码仓库级工作
+- 文件编辑
+- 命令行操作
+- 计划草案生成
+- 大跨度任务总结
+
+**能力边界**：
+
+- 可以产出核心 task artifacts
+- 可以在受控边界下影响 task-state
+- 无权重定义全局路由策略
+- 无权越过当前 phase / review / policy 边界
+
+### 3.3 Specialist Agent
+
+**定义**：拥有单一且高价值边界职责的实体。
+
+**典型特征**：
+
+- 输入输出边界强
+- 成功标准清晰
+- 写权限窄
+- 风险比通用执行者更容易治理
+
+**适合的职责类型**：
+
+- ingestion
+- memory curation
+- literature parsing
+- retrieval evaluation
+- failure analysis
+- operator interaction adaptation
+
+### 3.4 Validator / Reviewer
+
+**定义**：用于评估、审计和检查其他组件产出质量的实体。
+
+**关键特点**：
+
+- 不主导任务主链路推进
+- 不代替执行者施工
+- 最好保持无状态或强约束状态
+- 发现问题后返回断言或意见，而不是偷偷修复主链路
+
+### 3.5 Human Operator
+
+**定义**：不是 Agent，但在系统中是一等公民角色。
+
+**核心职责**：
+
+- 批准设计方向
+- 决定高风险变更是否进入主线
+- 对知识晋升做最终把关
+- 在系统不应自动裁决的歧义处作决定
 
 ---
 
-## 7. Swallow 典型角色模式 (Canonical Role Patterns)
+## 4. 通用执行者 vs 专项智能体
 
-结合系统长期的通用代理协作（Claude、Gemini、Codex 作为不同认知层级的通用代理）与不断扩展的专项代理生态，以下是系统中的核心典型角色指派模板：
+如果把所有好用模型或辅助能力都统称为“Agent”，并赋予相同权限，系统很快会失去边界感。
 
-### 7.1 通用代理的认知领域分野 (Cognitive Domains of General Agents)
-这三者在系统中不是互相替代的竞品，而是代表不同的高阶认知模式：
-1.  **施工与执行者 (Implementation Executor / e.g., Codex)**
-    *   `general-executor / local / task-state / implementation`
-    *   **核心认知**：稳健施工。
-    *   **职责**：明确的实现任务、修 bug、补测试、代码修改、终端命令执行。擅长将抽象要求转化为可落地的代码和 Diff。
-2.  **规划与审查者 (Planner & Reviewer / e.g., Claude)**
-    *   `general-executor / cloud-backed / task-state / planning-and-review`
-    *   **核心认知**：方案判断、任务拆解与风险识别。
-    *   **职责**：方案比较、大改动前的约束建模、过程纠偏、复杂的逻辑反思与审查。
-3.  **知识与上下文整合者 (Knowledge & Consistency Agent / e.g., Gemini)**
-    *   `general-executor / cloud-backed / task-state / knowledge-integration`
-    *   **核心认知**：长上下文吸收与一致性维护。
-    *   **职责**：大仓库理解、长历史记录或多文档汇总、Wiki 草稿生成、文档与实现的一致性检查。
+### 通用执行者
+适合承担：
 
-#### 同角色多执行器并存 (Multiple Executors per Cognitive Role)
+- 一整块实际工作
+- 明确主输出
+- 对 task-state / artifacts 有较强影响
 
-同一认知角色可以有多个具体执行器实现并存。系统角色与具体工具是**正交**的：
+### 专项智能体
+适合承担：
 
-```
-general-executor / local / task-state / codex-cli      → Codex CLI
-general-executor / local / task-state / cursor-cli      → Cursor CLI
-general-executor / cloud-backed / task-state / claude-api  → Claude API 直调
-```
+- 一个受限区域内的分析
+- 提纯、审计、验证、结构化抽取
+- 局部建议而非整体接管
 
-在代码层面，所有执行器共享 `ExecutorProtocol` 统一接口。新增执行器只需实现 `execute()` 方法并在 `resolve_executor()` 中注册别名。
+### 判断法则
 
-**路由约束**：由编排层的 Strategy Router 决定为特定任务选择哪个执行器，执行器本身不做竞争性抢活。合理的多执行器场景包括：
+- 如果你可以合理要求它“接管这步任务并产出主要输出”，它更像 **general executor**
+- 如果它更像“在一个窄边界内分析、验证、提纯或提出建议”，它更像 **specialist**
 
-*   **按任务类型路由**：单文件修改 → Codex，多文件重构 → Cursor
-*   **按可用性降级**：首选执行器不可用时 fallback 到备选（由 Strategy Router 的降级策略预判决定）
-*   **按用户偏好**：CLI flag `--executor cursor` 显式指定
+---
 
-**不允许的模式**：同一任务同时发给多个执行器做竞速（Debate / Racing 模式属于 Phase 33+ 的 Debate Topology 范畴，当前明确延后）。
+## 5. 运行站点 (Execution Site)
 
-### 7.2 核心专项智能体 (Core Specialist Agents)
-专项 Agent 应当优先使用低成本 API 或本地模型，处理高度标准化的输入输出。
-1.  **图书管理员 Agent (Librarian Agent)**
-    *   `specialist / cloud-backed / staged-knowledge / memory-curation`
-    *   **职责**：系统记忆质量的守门人。负责任务结束后的降噪摘要提炼、知识库冲突检测与合并仲裁、周期性记忆衰减（归档过时信息）。**权限例外**：允许写入 Staged-Knowledge，但必须生成详细变更日志供审计。
-2.  **外部会话摄入 Agent (Ingestion Specialist)**
-    *   `specialist / cloud-backed / staged-knowledge / conversation-ingestion`
-    *   **职责**：将外部（ChatGPT/Claude Web 等）非结构化脑暴聊天记录转化为结构化的知识资产。负责识别有效结论、提取被否决的路径，并带上来源标注进入知识库暂存区。
-3.  **文献解析 Agent (Literature Specialist)**
-    *   `specialist / cloud-backed / task-memory / domain-rag-parsing`
-    *   **职责**：服务于学术等领域的高级解析器。不是简单总结，而是从批量 PDF 中提取结构化对比表（数据集、模型、指标）、识别引用关系与冲突。需要挂载专门的 Domain RAG Package。
-4.  **编排策略顾问 Agent (Meta-Optimizer)**
-    *   `specialist / cloud-backed / read-only / workflow-optimization`
-    *   **职责**：定期扫描 Event Log 和已归档任务轨迹。识别反复出现的模式以提议新 Workflow、发现脆弱环节提议 Skill 优化、分析模型路由表现以建议策略调整。**输出仅为供人类决定的提案**。
+角色不应与部署形态混淆。同一个角色可以运行在不同站点。
 
-### 7.3 核心验证者 (Core Validators)
-1.  **质量审查 Agent (Quality Reviewer / Validator)**
-    *   `validator / cloud-backed / stateless / artifact-validation`
-    *   **职责**：在关键节点对其他 Agent 产出进行**独立校验**（如：代码脚本是否能跑通、提取表格是否与原文一致）。**绝对无状态**且**无修复能力**（发现问题只返回错误列表打回重做），确保防线干净。
-2.  **一致性审查者 (Consistency Review Agent)**
-    *   `validator / cloud-backed / stateless / consistency-check`
-    *   职责：评估候选知识对象的质量、识别冗余与架构偏离。
+### 5.1 Local
+
+- 与主任务环境同机或同工作区
+- 延迟低
+- 更容易接近 workspace / local state truth
+- 风险与本地执行权限强绑定
+
+### 5.2 Cloud-backed
+
+- 调用发生在本地，但能力由远程 API / 服务提供
+- 能力通常更强
+- 内部过程更不透明
+- 更依赖策略拦截与审查边界
+
+### 5.3 Remote Worker
+
+- 在独立机器或远端站点执行
+- 当前更多属于扩展方向，而不是默认基线
+- 需要额外处理网络、交接、安全和执行位点真值
+
+### 5.4 Hybrid
+
+- 跨多个站点协作
+- 例如本地接收输入、云端理解意图、本地执行动作
+- 只有在边界明确时才适合引入
+
+---
+
+## 6. 记忆权限 (Memory Authority)
+
+Swallow 当前严格区分：
+
+- task state truth
+- task memory / task-local outputs
+- staged knowledge
+- canonical knowledge truth
+
+因此，不同实体不能共享同一记忆权限。
+
+### 6.1 Stateless
+
+- 除明确入参外，不跨调用保留记忆
+- 最安全的默认选项
+- 适合 validator 和单次审查器
+
+### 6.2 Task-State Access
+
+- 可读取或修改任务执行所依赖的 task truth、event truth 或运行时产出
+- 适合 general executors
+
+### 6.3 Task-Memory
+
+- 可在当前任务或当前会话周期内读写局部记忆伪像
+- 常见产物包括 resume note、局部压缩摘要、失败分析结果
+
+### 6.4 Staged-Knowledge
+
+- 有权生成或修改待审查的知识候选对象
+- 适合 ingestion、memory curation、知识整理类 specialist
+
+### 6.5 Canonical-Write-Forbidden
+
+- 当前系统中的关键默认安全标签
+- 大多数实体默认**禁止**直接突变 canonical knowledge truth
+- 它们只能产生草稿、候选对象、建议或 staged changes
+
+### 6.6 Canonical Promotion Authority
+
+- 最窄、最敏感的权限域
+- 只属于少数强约束流程，通常需要 review / operator gate
+
+---
+
+## 7. 推荐命名格式
+
+当前架构讨论中，每个实体都应尽量使用显式四段命名：
+
+`[system role] / [execution site] / [memory authority] / [domain]`
+
+例如：
+
+- `general-executor / local / task-state / implementation`
+- `general-executor / cloud-backed / task-state / planning-and-review`
+- `specialist / cloud-backed / staged-knowledge / conversation-ingestion`
+- `validator / cloud-backed / stateless / consistency-check`
+
+这里的最后一段应优先表示**功能领域**，而不是品牌或产品名。
+
+### 关于品牌与工具名
+
+品牌名、API 名或 CLI 名可以作为：
+
+- 当前实现实例
+- operator-facing alias
+- backend binding information
+
+但它们不应取代 taxonomy 本体。
+
+也就是说：
+
+- `implementation` 是 role-domain
+- `codex-cli` / `cline-cli` / `http-claude` 是 implementation binding
+
+前者属于分类学，后者属于执行后端映射。
+
+---
+
+## 8. 常见反模式
+
+### 8.1 Brand-Only Agent
+
+只把实体叫做“Gemini Agent”或“Claude Agent”，会掩盖：
+
+- 它到底是 executor、specialist 还是 validator
+- 它是不是拥有任务推进权
+- 它的 memory authority 到底是什么
+
+### 8.2 Hidden Orchestrator
+
+某个 planner / reflection / routing helper 在未获授权的情况下，悄悄接管系统下一步执行走向。
+
+这会直接破坏可观测性和任务真值边界。
+
+### 8.3 Implicit Global Memory Writer
+
+某个局部 agent 未经过 review / promotion guard，就把自己的结论直接写入长期 canonical truth。
+
+这会污染知识层，是当前系统必须避免的模式。
+
+### 8.4 Everything Agent
+
+一个实体同时承担计划、执行、审查、路由、记忆提纯和知识晋升。
+
+这通常意味着系统边界没有定义清楚，而不是说明这个实体真的“全能”。
+
+### 8.5 Brand-Leaking Taxonomy
+
+把具体 CLI / API / provider 名称直接写进 taxonomy 主体，久而久之会让角色设计反过来受品牌能力牵引。
+
+当前系统要尽量避免这种反向绑定。
+
+---
+
+## 9. 默认安全预设
+
+当为系统引入新的实体时，当前推荐默认值是：
+
+- **system role**：默认为 `specialist`
+- **execution site**：选运维最简单的方式，但不以站点代替角色
+- **memory authority**：默认为 `stateless` 或 `task-memory`
+- **canonical truth authority**：默认 `Canonical-Write-Forbidden`
+
+只有在工程需求充分明确时，才显式放宽权限。
+
+---
+
+## 10. 当前典型角色模式
+
+### 10.1 General cognitive domains
+
+当前系统中可以保留三类高层认知模式，但应理解为**认知领域**，不是品牌绑定：
+
+1. **Implementation**
+   - 偏稳健施工、代码修改、终端执行、落地实现
+2. **Planning & Review**
+   - 偏方案判断、任务拆解、风险识别、复杂纠偏
+3. **Knowledge Integration**
+   - 偏长上下文消化、跨文档整合、一致性维护、知识草稿整理
+
+这些领域可以由不同 executor implementations 承担，品牌只是当前可选映射。
+
+### 10.2 同角色多执行器并存
+
+同一认知角色可以有多个执行器实现并存。系统角色与具体工具是正交的。
+
+例如：
+
+- `general-executor / local / task-state / implementation`
+  - 可由某个 CLI executor 实现
+- `general-executor / cloud-backed / task-state / planning-and-review`
+  - 可由某个 HTTP/API executor 实现
+- `general-executor / cloud-backed / task-state / knowledge-integration`
+  - 可由另一个 HTTP/API executor 实现
+
+在代码层面，关键是所有执行器共享统一协议与统一 route / executor taxonomy，而不是靠品牌名撑起架构。
+
+### 10.3 核心专项角色
+
+#### Librarian
+- `specialist / cloud-backed / staged-knowledge / memory-curation`
+- 负责知识冲突检测、去重、变更整理与受控写入收口
+- 允许写入 staged knowledge，并受 canonical boundary 约束
+
+#### Ingestion Specialist
+- `specialist / cloud-backed / staged-knowledge / conversation-ingestion`
+- 负责外部会话与外部材料的提纯、抽取和结构化候选对象生成
+
+#### Literature Specialist
+- `specialist / cloud-backed / task-memory / domain-rag-parsing`
+- 负责领域资料的深度解析与结构化比较
+
+#### Meta-Optimizer
+- `specialist / cloud-backed / read-only / workflow-optimization`
+- 负责扫描 event truth、识别模式并提出优化建议
+- 输出应保持提案性质，而不是直接修改主系统策略
+
+### 10.4 核心验证者
+
+#### Quality Reviewer
+- `validator / cloud-backed / stateless / artifact-validation`
+- 用于关键节点的独立校验
+- 不负责偷偷修复主链路
+
+#### Consistency Reviewer
+- `validator / cloud-backed / stateless / consistency-check`
+- 用于识别架构偏离、知识冗余、文档实现不一致
+
+---
+
+## 11. 当前对实现者的约束性理解
+
+如果继续扩展分类学，当前应坚持：
+
+1. 角色先于品牌
+2. provider / backend / executor family 不等于 system role
+3. 绝不允许 specialist 静默变成 hidden orchestrator
+4. 绝不允许大多数实体直接拥有 canonical write authority
+5. taxonomy 应服务于治理和可替换性，而不是服务于“给某家模型安排身份设定”
+
+---
+
+## 12. 一句话总结
+
+Swallow 当前的 Agent Taxonomy，不应理解为：
+
+> 给不同模型品牌分配不同人格和头衔
+
+而应理解为：
+
+> 先用 role、site、memory authority 和 domain 定义系统边界，再把具体 provider、API 或 CLI 实现映射进去的治理框架
