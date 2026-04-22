@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import importlib
+import json
 import re
+import sqlite3
+from hashlib import blake2b
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
 
 
 TEXT_SUFFIXES = {
@@ -23,6 +27,9 @@ TEXT_SUFFIXES = {
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(?P<title>.+?)\s*$")
 REPO_SYMBOL_RE = re.compile(r"^\s*(?:def|class|function)\s+([A-Za-z0-9_]+)")
 REPO_CHUNK_LINE_COUNT = 40
+SEARCH_TOKEN_RE = re.compile(r"[A-Za-z0-9_./-]+")
+VECTOR_EMBEDDING_DIMENSIONS = 64
+SQLITE_VEC_FALLBACK_WARNING = "[WARN] sqlite-vec unavailable, falling back to text search"
 
 
 @dataclass(slots=True)
@@ -55,6 +62,336 @@ class RetrievalSourceAdapter:
     source_type: str
     supported_suffixes: set[str]
     build_chunks: Callable[[Path, str], list[RetrievalChunk]]
+
+
+@dataclass(slots=True)
+class RetrievalSearchDocument:
+    path: str
+    path_name: str
+    source_type: str
+    chunk_id: str
+    title: str
+    citation: str
+    text: str
+    metadata: dict[str, object] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class RetrievalSearchMatch:
+    document: RetrievalSearchDocument
+    score: int
+    score_breakdown: dict[str, int] = field(default_factory=dict)
+    matched_terms: list[str] = field(default_factory=list)
+    adapter_name: str = ""
+
+
+class VectorRetrievalUnavailable(RuntimeError):
+    """Raised when sqlite-vec cannot be used for vector retrieval."""
+
+
+def matched_terms_for(token_list: list[str], *haystacks: str) -> list[str]:
+    return sorted({token for token in token_list if any(haystack.count(token) > 0 for haystack in haystacks)})
+
+
+def score_search_document(
+    query_plan: dict[str, Any],
+    *,
+    relative_path: str,
+    path_name: str,
+    title: str,
+    chunk_text: str,
+) -> tuple[int, dict[str, int], list[str]]:
+    tokens = list(query_plan.get("tokens", []))
+    phrase = str(query_plan.get("phrase", ""))
+    token_bigrams = list(query_plan.get("token_bigrams", []))
+    path_haystack = relative_path.lower()
+    filename_haystack = path_name.lower()
+    title_haystack = title.lower()
+    content_haystack = chunk_text.lower()
+    path_hits = sum(path_haystack.count(token) for token in tokens)
+    filename_hits = sum(filename_haystack.count(token) for token in tokens)
+    title_hits = sum(title_haystack.count(token) for token in tokens)
+    content_hits = sum(content_haystack.count(token) for token in tokens)
+    title_phrase_hits = 1 if phrase and phrase in title_haystack else 0
+    content_phrase_hits = 1 if phrase and phrase in content_haystack else 0
+    bigram_hits = sum(1 for bigram in token_bigrams if bigram in title_haystack or bigram in content_haystack)
+    matched_terms = matched_terms_for(tokens, path_haystack, title_haystack, content_haystack)
+    coverage_hits = len(matched_terms)
+    source_kind_bonus = 2 if relative_path.endswith(".md") and title_hits > 0 else 0
+    rerank_bonus = (coverage_hits * 2) + (title_phrase_hits * 4) + (content_phrase_hits * 3) + bigram_hits + source_kind_bonus
+    score = (title_hits * 5) + (filename_hits * 4) + (path_hits * 2) + content_hits + rerank_bonus
+    return (
+        score,
+        {
+            "path_hits": path_hits,
+            "filename_hits": filename_hits,
+            "title_hits": title_hits,
+            "content_hits": content_hits,
+            "title_phrase_hits": title_phrase_hits,
+            "content_phrase_hits": content_phrase_hits,
+            "bigram_hits": bigram_hits,
+            "coverage_hits": coverage_hits,
+            "source_kind_bonus": source_kind_bonus,
+            "rerank_bonus": rerank_bonus,
+        },
+        matched_terms,
+    )
+
+
+def tokenize_embedding_text(text: str) -> list[str]:
+    return [token.lower() for token in SEARCH_TOKEN_RE.findall(text) if token]
+
+
+def build_local_embedding(text: str, *, dimensions: int = VECTOR_EMBEDDING_DIMENSIONS) -> list[float]:
+    vector = [0.0] * dimensions
+    tokens = tokenize_embedding_text(text)
+    if not tokens:
+        return vector
+
+    weighted_tokens = list(tokens)
+    weighted_tokens.extend(
+        f"{tokens[index]}::{tokens[index + 1]}"
+        for index in range(len(tokens) - 1)
+        if tokens[index] != tokens[index + 1]
+    )
+    for index, token in enumerate(weighted_tokens, start=1):
+        digest = blake2b(token.encode("utf-8"), digest_size=8).digest()
+        bucket = int.from_bytes(digest[:4], "little") % dimensions
+        sign = 1.0 if digest[4] % 2 == 0 else -1.0
+        weight = 1.0 if index <= len(tokens) else 0.5
+        vector[bucket] += sign * weight
+
+    magnitude = sum(component * component for component in vector) ** 0.5
+    if magnitude <= 0.0:
+        return vector
+    return [component / magnitude for component in vector]
+
+
+def cosine_similarity(left: list[float], right: list[float]) -> float:
+    if not left or not right:
+        return 0.0
+    return sum(left[index] * right[index] for index in range(min(len(left), len(right))))
+
+
+def rank_documents_by_local_embedding(
+    documents: list[RetrievalSearchDocument],
+    *,
+    query_text: str,
+    query_plan: dict[str, Any],
+    limit: int,
+    adapter_name: str = "local_embedding",
+    embedding_dimensions: int = VECTOR_EMBEDDING_DIMENSIONS,
+) -> list[RetrievalSearchMatch]:
+    query_embedding = build_local_embedding(query_text, dimensions=embedding_dimensions)
+    matches: list[RetrievalSearchMatch] = []
+    for document in documents:
+        text_score, text_breakdown, matched_terms = score_search_document(
+            query_plan,
+            relative_path=document.path,
+            path_name=document.path_name,
+            title=document.title,
+            chunk_text=document.text[:4000],
+        )
+        similarity = cosine_similarity(
+            query_embedding,
+            build_local_embedding(
+                f"{document.title}\n{document.text}",
+                dimensions=embedding_dimensions,
+            ),
+        )
+        similarity = max(-1.0, min(similarity, 1.0))
+        embedding_bonus = max(1, int(round((similarity + 1.0) * 3)))
+        score_breakdown = dict(text_breakdown)
+        score_breakdown["embedding_bonus"] = embedding_bonus
+        score_breakdown["embedding_similarity_milli"] = int(round(similarity * 1000))
+        matches.append(
+            RetrievalSearchMatch(
+                document=document,
+                score=max(text_score, 0) + embedding_bonus,
+                score_breakdown=score_breakdown,
+                matched_terms=matched_terms,
+                adapter_name=adapter_name,
+            )
+        )
+    matches.sort(key=lambda match: (-match.score, match.document.path, match.document.chunk_id))
+    return matches[:limit]
+
+
+@dataclass(slots=True)
+class TextFallbackAdapter:
+    name: str = "text_fallback"
+
+    def search(
+        self,
+        documents: list[RetrievalSearchDocument],
+        *,
+        query_plan: dict[str, Any],
+        limit: int,
+    ) -> list[RetrievalSearchMatch]:
+        matches: list[RetrievalSearchMatch] = []
+        for document in documents:
+            score, score_breakdown, matched_terms = score_search_document(
+                query_plan,
+                relative_path=document.path,
+                path_name=document.path_name,
+                title=document.title,
+                chunk_text=document.text[:4000],
+            )
+            if score <= 0:
+                continue
+            matches.append(
+                RetrievalSearchMatch(
+                    document=document,
+                    score=score,
+                    score_breakdown=score_breakdown,
+                    matched_terms=matched_terms,
+                    adapter_name=self.name,
+                )
+            )
+        matches.sort(key=lambda match: (-match.score, match.document.path, match.document.chunk_id))
+        return matches[:limit]
+
+
+@dataclass(slots=True)
+class VectorRetrievalAdapter:
+    name: str = "sqlite_vec"
+    module_name: str = "sqlite_vec"
+    embedding_dimensions: int = VECTOR_EMBEDDING_DIMENSIONS
+
+    def _load_module(self) -> Any:
+        try:
+            return importlib.import_module(self.module_name)
+        except ImportError as exc:
+            raise VectorRetrievalUnavailable(str(exc)) from exc
+
+    def _connect(self) -> sqlite3.Connection:
+        module = self._load_module()
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.row_factory = sqlite3.Row
+            if not hasattr(connection, "enable_load_extension"):
+                raise VectorRetrievalUnavailable("sqlite3 extension loading is unavailable in this Python build")
+            connection.enable_load_extension(True)
+            module.load(connection)
+            connection.enable_load_extension(False)
+            connection.execute("SELECT vec_version()").fetchone()
+            return connection
+        except Exception as exc:
+            connection.close()
+            raise VectorRetrievalUnavailable(str(exc)) from exc
+
+    def search(
+        self,
+        documents: list[RetrievalSearchDocument],
+        *,
+        query_text: str,
+        query_plan: dict[str, Any],
+        limit: int,
+    ) -> list[RetrievalSearchMatch]:
+        if not documents:
+            return []
+
+        query_embedding_json = json.dumps(
+            build_local_embedding(query_text, dimensions=self.embedding_dimensions),
+            separators=(",", ":"),
+        )
+        connection = self._connect()
+        try:
+            connection.execute(
+                """
+                CREATE TEMP TABLE swl_retrieval_vectors (
+                    row_id INTEGER PRIMARY KEY,
+                    document_json TEXT NOT NULL,
+                    embedding_json TEXT NOT NULL
+                )
+                """
+            )
+            connection.executemany(
+                """
+                INSERT INTO swl_retrieval_vectors (row_id, document_json, embedding_json)
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (
+                        index,
+                        json.dumps(
+                            {
+                                "path": document.path,
+                                "path_name": document.path_name,
+                                "source_type": document.source_type,
+                                "chunk_id": document.chunk_id,
+                                "title": document.title,
+                                "citation": document.citation,
+                                "text": document.text,
+                                "metadata": document.metadata,
+                            },
+                            separators=(",", ":"),
+                        ),
+                        json.dumps(
+                            build_local_embedding(
+                                f"{document.title}\n{document.text}",
+                                dimensions=self.embedding_dimensions,
+                            ),
+                            separators=(",", ":"),
+                        ),
+                    )
+                    for index, document in enumerate(documents, start=1)
+                ],
+            )
+            rows = connection.execute(
+                """
+                SELECT
+                    document_json,
+                    vec_distance_cosine(vec_f32(embedding_json), vec_f32(?)) AS distance
+                FROM swl_retrieval_vectors
+                ORDER BY distance ASC, row_id ASC
+                LIMIT ?
+                """,
+                (query_embedding_json, limit),
+            ).fetchall()
+        except Exception as exc:
+            raise VectorRetrievalUnavailable(str(exc)) from exc
+        finally:
+            connection.close()
+
+        matches: list[RetrievalSearchMatch] = []
+        for row in rows:
+            payload = json.loads(str(row["document_json"]))
+            document = RetrievalSearchDocument(
+                path=str(payload.get("path", "")),
+                path_name=str(payload.get("path_name", "")),
+                source_type=str(payload.get("source_type", "")),
+                chunk_id=str(payload.get("chunk_id", "")),
+                title=str(payload.get("title", "")),
+                citation=str(payload.get("citation", "")),
+                text=str(payload.get("text", "")),
+                metadata=dict(payload.get("metadata", {}))
+                if isinstance(payload.get("metadata", {}), dict)
+                else {},
+            )
+            text_score, text_breakdown, matched_terms = score_search_document(
+                query_plan,
+                relative_path=document.path,
+                path_name=document.path_name,
+                title=document.title,
+                chunk_text=document.text[:4000],
+            )
+            distance = max(0.0, min(float(row["distance"]), 2.0))
+            vector_bonus = max(1, int(round((2.0 - distance) * 3)))
+            score_breakdown = dict(text_breakdown)
+            score_breakdown["vector_bonus"] = vector_bonus
+            score_breakdown["vector_distance_milli"] = int(round(distance * 1000))
+            matches.append(
+                RetrievalSearchMatch(
+                    document=document,
+                    score=max(text_score, 0) + vector_bonus,
+                    score_breakdown=score_breakdown,
+                    matched_terms=matched_terms,
+                    adapter_name=self.name,
+                )
+            )
+        matches.sort(key=lambda match: (-match.score, match.document.path, match.document.chunk_id))
+        return matches[:limit]
 
 
 def markdown_heading_level(line: str) -> int:

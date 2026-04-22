@@ -23,7 +23,7 @@ from swallow.executor import (
     run_executor_inline,
     run_http_executor,
 )
-from swallow.librarian_executor import LibrarianExecutor
+from swallow.librarian_executor import LibrarianAgent, LibrarianExecutor
 from swallow.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
 
 
@@ -73,6 +73,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(MockExecutor(), ExecutorProtocol)
         self.assertIsInstance(HTTPExecutor(), ExecutorProtocol)
         self.assertIsInstance(CLIAgentExecutor(CODEX_CONFIG), ExecutorProtocol)
+        self.assertIsInstance(LibrarianAgent(), ExecutorProtocol)
         self.assertIsInstance(LibrarianExecutor(), ExecutorProtocol)
 
     def test_resolve_executor_routes_mock_names_to_mock_executor(self) -> None:

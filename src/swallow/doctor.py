@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib import error, request
 
+from .knowledge_store import iter_file_knowledge_task_ids
 from .store import iter_file_task_ids, normalize_store_backend
 
 DEFAULT_NEW_API_BASE_URL = "http://localhost:3000"
@@ -41,13 +42,21 @@ class SqliteDoctorResult:
     db_path: str
     db_exists: bool
     schema_ok: bool
+    knowledge_schema_ok: bool
     integrity_ok: bool
     task_count: int
     event_count: int
+    knowledge_evidence_count: int
+    knowledge_wiki_count: int
+    knowledge_migration_count: int
     file_task_count: int
     file_only_task_count: int
+    file_knowledge_task_count: int
+    file_only_knowledge_task_count: int
     migration_recommended: bool
+    knowledge_migration_recommended: bool
     recommendation: str = ""
+    knowledge_recommendation: str = ""
     details: str = ""
 
 
@@ -215,30 +224,50 @@ def diagnose_sqlite_store(base_dir: Path) -> tuple[int, SqliteDoctorResult]:
     store = SqliteTaskStore()
     health = store.database_health(base_dir)
     file_task_ids = iter_file_task_ids(base_dir)
+    file_knowledge_task_ids = iter_file_knowledge_task_ids(base_dir)
     file_only_task_count = 0
     for task_id in file_task_ids:
         if not store.task_exists(base_dir, task_id) and store.event_count(base_dir, task_id) == 0:
             file_only_task_count += 1
+    file_only_knowledge_task_count = 0
+    for task_id in file_knowledge_task_ids:
+        if not store.task_has_knowledge(base_dir, task_id):
+            file_only_knowledge_task_count += 1
 
     recommendation = ""
     if file_only_task_count > 0:
         recommendation = "Run `swl migrate` to import file-only tasks into SQLite, then clean up stale JSON backups after verification."
+    knowledge_recommendation = ""
+    if file_only_knowledge_task_count > 0:
+        knowledge_recommendation = (
+            "Run `swl knowledge migrate` to import file-based knowledge into SQLite, then verify doctor output before cleaning up stale mirrors."
+        )
 
     result = SqliteDoctorResult(
         backend=backend,
         db_path=str(health.get("db_path", "")),
         db_exists=bool(health.get("db_exists", False)),
         schema_ok=bool(health.get("schema_ok", False)),
+        knowledge_schema_ok=bool(health.get("knowledge_evidence_table", False))
+        and bool(health.get("knowledge_wiki_table", False))
+        and bool(health.get("knowledge_migrations_table", False)),
         integrity_ok=bool(health.get("integrity_ok", False)),
         task_count=int(health.get("task_count", 0) or 0),
         event_count=int(health.get("event_count", 0) or 0),
+        knowledge_evidence_count=int(health.get("knowledge_evidence_count", 0) or 0),
+        knowledge_wiki_count=int(health.get("knowledge_wiki_count", 0) or 0),
+        knowledge_migration_count=int(health.get("knowledge_migration_count", 0) or 0),
         file_task_count=len(file_task_ids),
         file_only_task_count=file_only_task_count,
+        file_knowledge_task_count=len(file_knowledge_task_ids),
+        file_only_knowledge_task_count=file_only_knowledge_task_count,
         migration_recommended=file_only_task_count > 0,
+        knowledge_migration_recommended=file_only_knowledge_task_count > 0,
         recommendation=recommendation,
+        knowledge_recommendation=knowledge_recommendation,
         details=str(health.get("details", "")).strip(),
     )
-    exit_code = 1 if result.db_exists and (not result.schema_ok or not result.integrity_ok) else 0
+    exit_code = 1 if result.db_exists and (not result.schema_ok or not result.knowledge_schema_ok or not result.integrity_ok) else 0
     return exit_code, result
 
 
@@ -314,15 +343,24 @@ def format_sqlite_doctor_result(result: SqliteDoctorResult) -> str:
         f"db_path={result.db_path}",
         f"db_exists={'yes' if result.db_exists else 'no'}",
         f"schema_ok={'yes' if result.schema_ok else 'no'}",
+        f"knowledge_schema_ok={'yes' if result.knowledge_schema_ok else 'no'}",
         f"integrity_ok={'yes' if result.integrity_ok else 'no'}",
         f"task_count={result.task_count}",
         f"event_count={result.event_count}",
+        f"knowledge_evidence_count={result.knowledge_evidence_count}",
+        f"knowledge_wiki_count={result.knowledge_wiki_count}",
+        f"knowledge_migration_count={result.knowledge_migration_count}",
         f"file_task_count={result.file_task_count}",
         f"file_only_task_count={result.file_only_task_count}",
+        f"file_knowledge_task_count={result.file_knowledge_task_count}",
+        f"file_only_knowledge_task_count={result.file_only_knowledge_task_count}",
         f"migration_recommended={'yes' if result.migration_recommended else 'no'}",
+        f"knowledge_migration_recommended={'yes' if result.knowledge_migration_recommended else 'no'}",
     ]
     if result.recommendation:
         lines.append(f"recommendation={result.recommendation}")
+    if result.knowledge_recommendation:
+        lines.append(f"knowledge_recommendation={result.knowledge_recommendation}")
     if result.details:
         lines.append(f"details={result.details}")
     return "\n".join(lines)

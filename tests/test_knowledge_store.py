@@ -5,10 +5,15 @@ import tempfile
 import unittest
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.knowledge_store import load_task_knowledge_view, persist_wiki_entry_from_record
+from swallow.knowledge_store import (
+    OPERATOR_CANONICAL_WRITE_AUTHORITY,
+    load_task_knowledge_view,
+    persist_wiki_entry_from_record,
+)
 from swallow.paths import knowledge_evidence_entry_path, knowledge_objects_path, knowledge_wiki_entry_path
 from swallow.store import save_knowledge_objects
 
@@ -37,6 +42,7 @@ class KnowledgeStoreTest(unittest.TestCase):
                         "artifact_ref": ".swl/tasks/task-store/artifacts/canonical.md",
                     },
                 ],
+                write_authority=OPERATOR_CANONICAL_WRITE_AUTHORITY,
             )
 
             legacy_payload = json.loads(knowledge_objects_path(tmp_path, "task-store").read_text(encoding="utf-8"))
@@ -103,6 +109,46 @@ class KnowledgeStoreTest(unittest.TestCase):
         self.assertEqual(merged_view[0]["stage"], "canonical")
         self.assertEqual(merged_view[0]["promoted_by"], "swl_cli")
         self.assertEqual(merged_view[0]["change_log_ref"], ".swl/staged_knowledge/registry.jsonl#staged-0007")
+
+    def test_load_task_knowledge_view_prefers_sqlite_when_file_view_is_stale(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "sqlite"}, clear=False):
+                save_knowledge_objects(
+                    tmp_path,
+                    "task-sqlite-truth",
+                    [
+                        {
+                            "object_id": "knowledge-0010",
+                            "text": "SQLite-backed knowledge.",
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/task-sqlite-truth/artifacts/evidence.md",
+                        }
+                    ],
+                )
+
+            knowledge_objects_path(tmp_path, "task-sqlite-truth").write_text(
+                json.dumps(
+                    [
+                        {
+                            "object_id": "knowledge-0010",
+                            "text": "Stale file mirror.",
+                            "stage": "verified",
+                            "store_type": "evidence",
+                        }
+                    ],
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            merged_view = load_task_knowledge_view(tmp_path, "task-sqlite-truth")
+
+        self.assertEqual(len(merged_view), 1)
+        self.assertEqual(merged_view[0]["text"], "SQLite-backed knowledge.")
 
 
 if __name__ == "__main__":

@@ -18,6 +18,9 @@ dependencies = [
 dev = [
     "pytest-asyncio>=0.23,<1",
 ]
+vec = [
+    "sqlite-vec>=0.1.9,<0.2",
+]
 
 [project.scripts]
 swl = "swallow.cli:main"
