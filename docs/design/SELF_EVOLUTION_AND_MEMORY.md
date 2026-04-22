@@ -1,72 +1,306 @@
 # 自我进化与记忆沉淀设计 (Self-Evolution & Memory Consolidation)
 
-## 1. 核心理念：拒绝隐式黑盒，拥抱显式工作流
+## 0. 阅读约定
 
-在先进的开发工具（如 Claude Code）中，系统往往能够自动记忆用户的偏好、项目的上下文以及过去的错误。然而，在 Swallow 的多智能体（Multi-Agent）协作架构中，**隐式记忆（Implicit Memory）是系统稳定性的毒药**。如果记忆被隐藏在闭源模型的上下文缓存或不可读的向量库黑盒中，不同的 Agent 将无法实现状态同步，最终导致协作断裂。
+本文档描述的是 **Swallow 当前主分支的自我进化与记忆沉淀基线**。
 
-Swallow 系统的自我改进与整合哲学是：**将记忆沉淀与自我进化显式化、实体化，变成标准的工作流。**
+这里最重要的不是“系统会不会自动变聪明”，而是明确：
 
-*   **调度器保持愚蠢 (Thin Orchestrator)**：系统的总控调度层不负责学习和认知。它只负责在合适的时机触发流程。
-*   **执行器负责认知 (Smart Executors)**：系统分配专职的 Agent 或特殊的 Skill 包去执行记忆提取和经验总结。
-*   **工件承载记忆 (Artifacts as Memory)**：所有的自我进化结果，最终必须固化为可见的、可版本控制的实体资产（如 `LLM Wiki`, 更新后的架构图，或优化的 Prompt 模板）。
+- 记忆沉淀必须显式化
+- 自我改进必须工作流化
+- 知识晋升必须受治理
+- 任何“自进化”都不能绕过 truth layer、review 边界与 human gate
 
----
+本文档应与当前架构文档中的以下原则一起理解：
 
-## 2. 项目级经验沉淀：强制复盘与归档阶段 (Consolidation Phase)
-
-为了确保系统“越用越聪明”且上下文不流失，Swallow 在任务生命周期（Task Lifecycle）的标准结尾，强制植入了一个**自动归档期 (Consolidation Phase)**。
-
-### 2.1 Librarian Agent (图书管理员/知识沉淀专家)
-系统内置一个专职的 `Librarian Agent`。它的唯一职责不是编写业务代码，而是作为整个系统记忆质量的守门人。它的三大核心职责是：
-1.  **降噪摘要提炼**：任务结束后，将冗长的 Event Logs 转化为精炼的结论。
-2.  **冲突检测与合并仲裁**：当两次任务产出了对同一问题的矛盾结论时，它要标记冲突而不是默默覆盖旧知识。
-3.  **周期性记忆衰减**：对长期未被引用的知识条目降权或归档，防止 LLM Wiki 认知层或底层 RAG 被过时信息污染。
-
-**权限特例**：作为守门人，它是系统中少数拥有 **Staged-Knowledge 写入权限** 的 Agent，但其每次写入必须生成详细的变更日志（Change Log），供人类审计或 Review Gate 校验。
-
-### 2.2 自动整合工作流 (Workflow Integration)
-1.  **触发条件**：当主要的业务 Agent（如 Coding Agent）完成了某个复杂需求或修复了顽固 Bug，并将任务标记为完成。
-2.  **派发复盘任务**：调度层暂不将该任务彻底完结，而是自动唤醒 `Librarian Agent`，并将刚刚产生的 Event Logs、修改的 Code Diff 以及最终的 Handoff Note 喂给它。
-3.  **认知与提取**：`Librarian Agent` 分析材料，提取坑位、依赖变化、可复用的组件或模式。
-4.  **实体化存储 (Write-Back)**：将高价值知识，显式地推入暂存区，经过复核后写入 LLM Wiki 认知层。
-5.  **彻底闭环**：当 `Librarian Agent` 提交完“记忆补丁”后，调度层才将该任务正式置为 `completed`。
+- SQLite-primary task truth / knowledge truth
+- truth before retrieval
+- taxonomy before brand
+- Librarian-governed knowledge boundaries
+- explicit separation between controlled HTTP path and black-box agent path
 
 ---
 
-## 3. 系统级自我进化：编排策略顾问 (Meta-Optimizer)
+## 1. 核心理念：拒绝隐式黑盒，拥抱显式改进工作流
 
-除了针对特定项目上下文的记忆沉淀，Swallow 还支持系统自身能力底座（Harness Tools & Skills）和编排策略的演进。
+先进开发工具常常会在内部“记住”用户偏好、上下文与历史错误，但在 Swallow 的体系中，**隐式记忆**仍然是高风险设计。
 
-### 3.1 失败驱动的遥测分析 (Failure-Driven Telemetry)
-*   **日志采样**：系统在运行过程中，会持续监控并记录每个 Tool 或 Skill 的调用失败率、模型路由表现。
-*   **错误指纹聚类**：底层的日志系统会自动对这些异常事件进行聚类，形成“错误指纹”。
+原因并不只是“不透明”，更在于：
 
-### 3.2 Meta-Optimizer Agent (编排策略顾问)
-这是一个专门用于系统自省的专项 Agent。它定期（如每周）被唤醒执行扫描：
+- 不同执行器无法共享一致的隐式状态
+- 记忆污染无法被可靠审计
+- 黑盒 agent 的内部缓存不等于项目长期知识
+- 任何无法显式检查的“自动学习”都可能破坏稳定性
 
-*   **只读权限 (Read-Only)**：与之前的构想不同，Meta-Optimizer 必须是**完全只读**的。它可以读取 Event Log 和 Artifact Store，但**不能**直接写入或修改任何系统配置或代码。它是一个纯粹的建议者。
-*   **四大扫描职责**：
-    1.  识别反复出现的任务模式，提议新的 **Workflow 模板**。
-    2.  发现频繁失败或需要人工干预的环节，提议 **Skill 优化**。
-    3.  分析模型路由的实际表现（如路由给某个小模型的成功率过低），建议 **路由策略调整**。
-    4.  **消费网关层路由遥测 (Gateway Telemetry Consumption)**：读取 Event Log 中带有任务族标签的路由遥测数据（延迟、成本、错误率、降级频次），识别以下模式：
-        *   哪些任务族在哪条物理通道上表现持续恶化
-        *   哪些降级路径被频繁触发，暗示需要引入新的备选通道
-        *   成本/延迟的趋势性漂移是否需要调整 Strategy Router 的默认路由偏好
-*   **输出形态**：它的输出是一份**”系统优化提案 (Proposal)”**（含路由优化时的 `routing_optimization_proposal` Artifact）。这份提案会交由人类开发者（架构师）决定是否采纳。这种机制在保证系统能基于数据自我反思的同时，杜绝了黑盒式的自我变异风险。
+因此，Swallow 当前的基本哲学不是“让系统偷偷学会更多”，而是：
 
-#### 路由遥测 → Meta-Optimizer 的数据接口
+> **把记忆沉淀、自我改进与系统反思显式化、对象化、工作流化。**
 
-网关层写入 Event Log 的路由遥测条目应包含以下最小字段集：
+这意味着：
+
+- 编排层负责触发时机与边界控制
+- 专项角色负责提炼、对齐、总结与提案
+- 最终结果必须沉淀为可见的 truth objects、artifacts 或 proposal artifacts
+
+---
+
+## 2. 当前自我进化的正确边界
+
+Swallow 当前不追求“黑盒自我变异系统”。
+
+更准确的追求是：
+
+- 从 task truth / event truth / artifacts 中提炼可复用认知
+- 从 route telemetry / failure patterns 中提炼优化建议
+- 通过明确的 staged → review → promote 机制管理知识晋升
+- 通过 proposal → human decision 机制管理系统策略优化
+
+因此，当前应明确拒绝以下误解：
+
+- 不是让 orchestrator 自己偷偷学习并修改策略
+- 不是让 executor 自动把自己的经验直接写进长期知识层
+- 不是把向量库或聊天记录当作自然生长的记忆系统
+- 不是让 Meta-Optimizer 自动改系统配置
+
+---
+
+## 3. 项目级记忆沉淀：Librarian 主线
+
+当前项目级记忆沉淀的主线，不应再被理解为“生成一个更聪明的 LLM Wiki 层”，而应理解为：
+
+> **围绕 SQLite-backed knowledge truth、staged knowledge、canonical boundary 与 review/promotion 流程展开的知识治理工作流。**
+
+### 3.1 Librarian 的正确定位
+
+Librarian 不是通用业务执行者，而是：
+
+- 记忆提纯者
+- 知识边界守门人
+- staged/canonical 变化的受控写入收口者
+- 冲突、去重、supersede、change-log 语义的执行者
+
+当前它最重要的职责包括：
+
+1. **降噪提炼**：从 Event Log、artifacts、handoff、已有 knowledge objects 中提取高价值结论
+2. **冲突检测与合并仲裁**：发现相互矛盾或已过期的知识对象，标记而非静默覆盖
+3. **结构化变更生成**：形成 `KnowledgeChangeLog` / `KnowledgeChangeEntry` 等变更痕迹
+4. **受控写入 staged knowledge**：把高价值候选结果送入 staged / reusable / canonical 流程，而不是绕过治理边界直接进入长期真值
+
+### 3.2 Librarian 的权限边界
+
+当前最关键的一点是：
+
+- Librarian 并不是“自动全权写长期记忆”的角色
+- 它是少数拥有受控 knowledge write surface 的专项角色之一
+- 但它仍然受 canonical boundary、review 与 authority guard 约束
+
+因此，Librarian 的正确理解是：
+
+> **knowledge governance specialist**
+
+而不是“系统自动记忆本身”。
+
+---
+
+## 4. 当前记忆沉淀工作流
+
+项目级记忆沉淀当前更适合理解为一个显式闭环，而不是任务结束后顺手做个摘要。
+
+### 4.1 触发条件
+
+较合理的触发条件包括：
+
+- 复杂任务收口后
+- 明显有可复用经验产生时
+- 重要失败模式被识别时
+- 关键任务进入 review / closeout 阶段时
+
+不必要求所有任务都强制进入重型沉淀流程，但高价值任务应优先触发。
+
+### 4.2 处理流程
+
+更稳的主线是：
+
+1. 任务执行产生 task truth、event truth、artifacts、handoff objects
+2. Librarian 或相关专项流程读取这些显式材料
+3. 提炼出：
+   - reusable evidence
+   - staged knowledge candidates
+   - canonical candidate updates
+   - dedupe / supersede / conflict signals
+4. 生成结构化变更记录
+5. 进入 review / promotion / rejection 路径
+6. 最终只让通过治理边界的对象进入更正式的 knowledge truth
+
+### 4.3 为什么不能跳过这条链
+
+因为如果跳过 staged / review / promotion，你就会重新掉回：
+
+- 黑盒记忆自动长出来
+- 执行器把局部经验偷偷写成长久规范
+- 项目级知识被低质量结论污染
+
+这和 Swallow 当前的 truth-first 设计是冲突的。
+
+---
+
+## 5. 记忆沉淀的结果形态
+
+当前“记忆”的结果不应被理解成一个抽象大脑，而应理解成一组明确的对象。
+
+这些对象可以包括：
+
+- Evidence
+- WikiEntry
+- staged knowledge candidates
+- canonical records / canonical updates
+- change logs
+- conflict / supersede markers
+- task closeout summaries
+- operator-facing reusable insights
+
+其中最关键的一点是：
+
+> **记忆结果必须以可见对象存在，而不是藏在某个 agent 的上下文缓存里。**
+
+---
+
+## 6. 系统级自我进化：Meta-Optimizer 主线
+
+除了项目级知识沉淀，Swallow 还需要对自己的工作流与路由行为进行系统级反思。
+
+当前这条线的核心不是“让系统自动改自己”，而是：
+
+> **从 event truth、route telemetry、failure patterns 中读取信号，生成供人类或后续 phase 消费的优化提案。**
+
+### 6.1 Meta-Optimizer 的正确定位
+
+Meta-Optimizer 当前应继续保持：
+
+- **只读**
+- **提案型**
+- **不直接改系统配置**
+- **不直接改 task truth / knowledge truth**
+
+它不是第二个 orchestrator，也不是自动化的系统改写器。
+
+### 6.2 当前核心职责
+
+Meta-Optimizer 适合承担：
+
+1. 识别反复出现的任务模式，提议新的 workflow / slice 模板
+2. 识别频繁失败的环节，提议 skills / validators / review strategy 优化
+3. 识别路由表现退化模式，提议 route preference / fallback / capability floor 调整
+4. 识别人工介入高频点，提议更明确的 handoff、control surface 或 audit 入口
+
+### 6.3 输出形态
+
+Meta-Optimizer 的输出应继续保持为：
+
+- proposal artifacts
+- routing optimization proposal
+- workflow optimization proposal
+- concern / risk / hotspot summaries
+
+这些输出应进入：
+
+- operator review
+- backlog / roadmap / future phase planning
+
+而不应直接进入运行时配置主线。
+
+---
+
+## 7. 路由遥测与系统反思的数据接口
+
+Meta-Optimizer 的有效性，建立在可消费的结构化遥测之上。
+
+当前最重要的最小字段集仍包括：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| `task_family` | string | 任务族标签（planning / review / extraction / retrieval / execution） |
+| `task_family` | string | 任务族标签 |
 | `logical_model` | string | 编排层选定的逻辑模型标识 |
 | `physical_route` | string | 实际使用的物理通道标识 |
 | `latency_ms` | int | 端到端延迟 |
-| `token_cost` | float | 本次调用的 token 成本估算 |
-| `degraded` | bool | 是否经历了执行级降级 |
-| `error_code` | string? | 如有错误，错误码 |
+| `token_cost` | float | 本次调用成本数据 |
+| `degraded` | bool | 是否经历执行级降级 |
+| `error_code` | string? | 错误码 |
 
-Meta-Optimizer 以只读方式扫描这些条目，不直接修改 Event Log 或网关配置。
+当前最关键的约束是：
+
+- 这些数据属于 event truth / telemetry truth
+- Meta-Optimizer 只读消费
+- 不直接改写原始日志与 route config
+
+---
+
+## 8. Self-Evolution 的正确实现方式：Proposal, Not Mutation
+
+Swallow 当前应明确采用：
+
+> **proposal-driven self-evolution**
+
+而不是：
+
+> **mutation-driven self-evolution**
+
+也就是说：
+
+- 系统可以自我观察
+- 系统可以自我总结
+- 系统可以生成建议
+- 系统可以准备知识候选对象
+
+但系统不应在没有 review / authority / human gate 的情况下，自行突变：
+
+- 路由策略
+- 验证阈值
+- canonical knowledge truth
+- 执行规则
+- 工作流主线
+
+这条边界非常关键，因为它决定了 Swallow 是“可靠的可演进系统”，还是“不可预测的黑盒自变系统”。
+
+---
+
+## 9. 与黑盒 agent 的关系
+
+对于 Aider、Claude Code、Warp/Oz 等黑盒执行器，当前尤其需要明确：
+
+- 它们的内部记忆不等于 Swallow 的长期记忆
+- 它们的内部反思不等于系统级自我进化
+- 它们的局部上下文总结，只有进入显式 artifact / staged knowledge / proposal 流程后，才属于系统可复用资产
+
+因此，当前应把这类 agent 看作：
+
+- 可贡献中间结果
+- 可贡献候选经验
+- 可贡献 artifacts / handoffs / reviewable outputs
+
+但不能直接成为系统长期记忆的最终写入者。
+
+---
+
+## 10. 当前对实现者的约束性理解
+
+如果继续扩展 Self-Evolution & Memory 层，当前应坚持：
+
+1. 不要把自我进化理解成隐式自动学习
+2. 不要把聊天记录、上下文缓存或向量召回误当成长久记忆本体
+3. 不要让 Librarian 越权成为自动 canonical writer
+4. 不要让 Meta-Optimizer 从 proposal 角色滑向自动 mutation 角色
+5. 不要让黑盒 agent 的内部经验直接等同于项目长期知识
+6. 不要把“系统会提出建议”误写成“系统会自动改自己”
+
+---
+
+## 11. 一句话总结
+
+Swallow 当前的自我进化与记忆沉淀，不应理解为：
+
+> 一个会在黑盒内部自动累积经验并自动改写自身行为的自学习系统
+
+而应理解为：
+
+> 一个通过 Librarian 主线沉淀项目级知识、通过 Meta-Optimizer 主线生成系统级优化提案，并通过 staged/review/promotion 与 proposal/human-gate 两套显式流程来实现可审计演进的 truth-first workbench system
