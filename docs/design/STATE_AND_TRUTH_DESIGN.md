@@ -1,128 +1,258 @@
 # 状态与事实层设计 (State & Truth Layer)
 
+## 0. 阅读约定
+
+本文档描述的是 **Swallow 当前主分支的状态与事实层基线**。
+
+这里的关键点不是“系统保存了一些状态”，而是：
+
+- 任务推进依赖外部真值，而不是单次对话历史
+- 状态、事件、工件、策略边界都必须可恢复、可审计、可解释
+- 当前真值层已经进入 **SQLite-primary** 阶段，而不是单纯的 JSON / 文件式状态机阶段
+
+---
+
 ## 1. 核心理念 (Core Philosophy)
 
-在传统的 AI Agent 设计中，系统通常高度依赖大语言模型（LLM）的“对话历史（Chat History）”来维持上下文。然而，随着任务复杂度的提升，这种方式暴露出致命缺陷：对话历史是线性的、冗长的、易丢失关键细节的，且极易导致 LLM 产生幻觉。它将“意图”、“执行过程”和“最终结果”混为一谈。
+传统 AI Agent 往往过度依赖对话历史维持上下文。随着任务复杂度提升，这种模式会迅速暴露问题：
 
-**抛弃单纯的对话历史，引入状态机（State Machine）与单一事实源（Single Source of Truth）**是本架构的核心基石。
+- 对话历史线性冗长，关键事实容易被淹没
+- “意图、执行过程、结果”混在一起，不利于恢复与审计
+- 一旦模型上下文偏移，就容易用错误记忆继续推进任务
 
-*   **单一事实源 (Single Source of Truth)**：LLM 不应该依赖其有限的上下文窗口去“记忆”当前代码库的状态或任务进行到了哪一步。所有的客观事实必须托管在外部的、可验证的存储引擎中（Git、数据库、文件系统）。LLM 被降维成一个“无状态的纯函数”，它只负责读取当前的绝对事实，进行推理，并发出改变状态的指令。
-*   **状态机驱动 (State Machine Driven)**：将复杂的工程任务转化为具有明确生命周期的状态机。状态的流转（如“进行中”、“等待人类介入”）不仅为系统提供了极强的可预测性，还使得任务的随时中断、可观测性和灾难恢复成为可能。
+Swallow 的核心选择是：
 
----
+> **把状态与事实托管到外部可验证存储中，让模型从“靠记忆推进流程”退回到“读取事实、做判断、产出动作建议”。**
 
-## 2. 四件套 (The Four Pillars)
+因此，系统真正依赖的是：
 
-为了实现上述理念，系统在底层构建了四个核心组件，统称为“四件套”：
+- task truth
+- event truth
+- artifact truth
+- route / policy / topology truth
+- workspace / git truth
 
-### 2.1 状态库 (State Store)
-
-**职责**：维护和管理任务的全局状态机。它是 Agent 当前到底在“做什么”和“处于什么阶段”的权威数据字典。
-
-**数据结构与流转**：
-状态库通常以结构化的 JSON 格式持久化。任务状态流转包含明确的边界，例如：
-`pending` (排队中) -> `running` (执行中) -> `waiting_human` (等待人类提供输入/授权) -> `running` (恢复执行) -> `completed` (完成) 或 `failed` (失败)。
-
-**JSON 示例**：
-```json
-{
-  "task_id": "tsk_9f8a7b",
-  "status": "waiting_human",
-  "current_phase": "design_review",
-  "context_refs": ["art_112", "git_commit_8f7e2a"],
-  "metadata": {
-    "started_at": "2023-10-25T10:00:00Z",
-    "last_updated": "2023-10-25T10:15:00Z"
-  }
-}
-```
-
-### 2.2 事件流 (Event Log)
-
-**职责**：一个只追加（Append-only）的事件日志库。它记录了系统中发生的所有状态变更、工具调用和决策过程。
-事件流是系统的“黑匣子”，为审计追踪（Auditing）、性能遥测（Telemetry）以及任务重放（Replay/Time-travel）提供基础。借鉴 CQRS 和事件溯源（Event Sourcing）模式。
-
-**事件载荷 (Event Payload) 结构**：
-```json
-{
-  "event_id": "evt_001",
-  "timestamp": "2023-10-25T10:05:22Z",
-  "event_type": "tool_execution",
-  "agent_id": "architect_agent",
-  "payload": {
-    "tool_name": "run_shell_command",
-    "parameters": {"command": "npm run test"}
-  },
-  "diff_or_result": "Test failed: 2 errors found"
-}
-```
-
-### 2.3 工件库 (Artifact Store)
-
-**职责**：专门用于存储、追踪和版本化控制 Agent 产出的“非代码类实体资产”或“中间结构化数据”（如架构设计草案、API 契约文档、搜集到的知识图谱片段等）。
-
-**生命周期与版本控制**：
-工件不应该只是随时被覆写的临时文本，而是有着严格的生命周期：
-*   **Draft (草稿)**：Agent 正在迭代和思考的初步产出。
-*   **Reviewed (已评审)**：经过人类或其他 Reviewer Agent 审查和批准的版本。
-*   **Canonical (规范/最终版)**：被确认为单一事实源并作为后续任务参考基准的最终工件。
-
-### 2.4 Git 事实层 (Git Truth Layer)
-
-**职责**：实现与底层版本控制系统（Git）的深度整合。对于代码和文本类的编辑，文件系统本身不足以作为事实源，带有版本历史的 Git 才是。
-
-**核心机制**：
-*   **自动分支 (Auto Branching)**：Agent 接收到任务后，自动基于主干创建隔离的工作分支（如 `agent/tsk_9f8a7b-fix-login`）。
-*   **检查点提交 (Checkpoint Commits)**：Agent 在执行具有破坏性修改或完成一个子步骤后，自动执行原子性的 WIP (Work In Progress) Commit。
-*   **安全回滚 (Instant Rollback)**：一旦代码测试失败，或检测到 LLM 的幻觉（破坏了语法树），系统可以通过 Git Checkpoint 瞬间将代码恢复到上一个健康状态，无需依赖 LLM 尝试“把代码改回去”。
+而不是聊天记录本身。
 
 ---
 
-## 3. 数据流示例 (Data Flow Example)
+## 2. 当前真值层的核心组成
 
-**场景：修复一个特定的 UI 渲染 Bug**
+### 2.1 Task State
 
-以下是数据如何在“四件套”中流转的典型场景：
+**职责**：表示任务当前推进到了哪里、系统该如何恢复、是否进入等待人工、是否已经 budget exhausted、当前 review / retry / rerun 语义是什么。
 
-1.  **触发阶段**：用户提交 Bug 描述。
-    *   **State Store**：创建一个新任务，状态置为 `pending`。
-    *   **Event Log**：追加一条 `task_created` 事件。
-2.  **准备阶段**：Agent 接手任务。
-    *   **State Store**：状态更新为 `running`。
-    *   **Git Truth Layer**：自动从 `main` 切出一个新分支 `fix/ui-render-bug`。
-3.  **分析与规划阶段**：Agent 通过检索代码库定位问题，并撰写修复方案。
-    *   **Artifact Store**：生成一个修复方案的 `Draft` 工件（包含问题根因和修改计划）。
-    *   **State Store**：状态更新为 `waiting_human`，请求用户确认修复方案。
-4.  **评审阶段**：用户阅读方案并点击“同意”。
-    *   **Artifact Store**：该工件状态流转为 `Reviewed`。
-    *   **State Store**：状态切回 `running`。
-5.  **执行修改**：Agent 依据已评审的方案修改代码。
-    *   **Git Truth Layer**：Agent 修改完成后，触发 `git commit -m "checkpoint: apply UI fix"`。
-    *   **Event Log**：记录 `file_modified` 和 `git_commit_created` 事件。
-6.  **验证与回滚**：Agent 运行本地单元测试。
-    *   *假设测试失败*：**Git Truth Layer** 立即执行 `git reset --hard HEAD~1` 丢弃错误代码，**Event Log** 记录 `rollback_executed`，Agent 重新尝试。
-    *   *假设测试成功*：**Git Truth Layer** 追加 `commit -m "fix: resolve UI render bug"`。
-7.  **完成阶段**：
-    *   **State Store**：状态置为 `completed`。
-    *   **Event Log**：记录 `task_finished`。
-    *   **Artifact Store**：相关文档标记为 `Canonical`。
+当前它不应再被简单理解为一个“任务 JSON blob”，而应理解为：
+
+- 一个持久化任务现场
+- 一个受状态迁移规则约束的运行时真值
+- 一个可与 checkpoint / resume / rerun / waiting_human 联动的状态面
+
+### 2.2 Event Log
+
+**职责**：以 append-oriented 的方式记录系统中发生过什么。
+
+当前事件流不仅用于“黑匣子审计”，还承载：
+
+- executor telemetry
+- route / degraded / latency / token-cost 线索
+- retry / review / fallback 过程痕迹
+- Meta-Optimizer 可消费的行为材料
+
+因此，Event Log 当前应理解为：
+
+- 审计源
+- 遥测源
+- 诊断源
+- 后续策略优化的数据源
+
+### 2.3 Artifacts
+
+**职责**：保存系统显式产出的文件、报告、摘要、比较结果、grounding outputs 等。
+
+在当前基线里，需要特别注意：
+
+- artifact file 仍然重要
+- 但 artifact file 不自动等于唯一真值
+- 结构化 task truth / knowledge truth 已经更多落在 SQLite 中
+
+因此，更准确的理解是：
+
+- **结构化 truth**：在 SQLite 中保存
+- **查看 / 比较 / 导出型产物**：以 artifact 文件形式保存
+
+### 2.4 Route / Policy / Topology Truth
+
+这是当前系统相比早期设计更成熟的一部分。
+
+除了任务状态本身，系统还需要显式保存：
+
+- 路由与执行位点
+- 任务拓扑
+- handoff / remote-handoff contract
+- grounding refs
+- policy 与 capability 边界
+
+这些内容不能继续被视为“运行时偶然存在的附属信息”，它们已经属于当前系统的重要真值面。
+
+### 2.5 Workspace / Git Truth
+
+对代码与文本类材料来说，文件系统和 Git 仍然是外部真值约束的重要组成部分。
+
+但当前更准确的说法是：
+
+- Git / workspace 是代码与文本内容的外部真值环境
+- SQLite 是任务状态与知识状态的主真值层
+- 文件镜像、导出和 artifact 视图围绕两者组织，而不是替代两者
 
 ---
 
-## 4. 状态语义的抽象与差异化下推 (State Abstraction & Push-Down Execution)
+## 3. 当前“单一事实源”的正确理解
 
-为保证系统的持久化层不被特定的模型供应商（Vendor Lock-in）所绑定，状态与事实层在设计上必须与底层的模型能力高度解耦。
+早期可以把 Single Source of Truth 粗略写成“Git + 数据库 + 文件系统”。
 
-### 4.1 统一语义描述 (Universal Semantic Description)
-状态库（State Store）与事件流（Event Log）中记录的所有任务意图、提示语模板（Prompt Templates）以及工具调用的负载参数（Payload），均强制采用与底层模型无关的**统一语义描述**。系统坚决抵制在状态机或工件库中硬编码诸如 OpenAI 的特定 Function Calling 格式，或 Anthropic 特有的结构标志（如 `<tool_name>` 等 XML 标签）。
+在当前基线下，更准确的理解是：
 
-### 4.2 下推差异化执行 (Push-Down Differentiated Execution)
-当系统状态机流转到需要大模型进行推理的环节时，这种“通用语义”才会流转至网络底层的 **能力协商器 (Capability Negotiator)**。协商器负责读取当前的统一状态，并执行**下推差异化执行**。例如：
-*   它将统一的会话状态转化为 Claude 最适合的 XML 结构树。
-*   它利用状态记录中的长文档哈希索引，自动对接 Gemini 的 Context Caching 功能。
-*   它对代码层面的结构修改需求，组装为 Codex 的 FIM (Fill-In-the-Middle) 格式。
+### 3.1 任务与知识真值
+- 以 SQLite 为主
 
-### 4.3 状态驱动的安全兜底 (State-Driven Safety Net)
-当系统由于策略、成本或离线环境退级到较弱的本地/开源模型时，State Store 的单一事实防线和 Schema 校验提供系统级安全兜底：
-1.  **事件审计**：降级操作会被事件流（Event Log）精准捕获，例如标记该次动作为 `tool_execution_degraded`，用于系统后续的模型行为审计。
-2.  **安全兜底**：如果弱模型由于幻觉生成了非法的工具参数，State Store 的 Schema 校验会直接拦截非法状态突变，将任务退回安全状态或挂起至 `waiting_human` 状态。Phase 40 引入的 Debate Topology（多轮对抗审查 + 熔断机制）进一步强化了这条防线。
+### 3.2 代码与工作区内容真值
+- 以 workspace / Git 为主
+
+### 3.3 导出与审阅型文件产物
+- 以 artifact files / mirrors 为主
+
+也就是说，Swallow 当前不是“只有一个物理存储”，而是：
+
+> **不同真值域各自有明确 authoritative store，并由 orchestrator/runtime 统一解释。**
+
+这比“所有东西都放一个 JSON 或一个文件夹里”更符合当前实现。
+
+---
+
+## 4. 当前状态迁移的意义
+
+Swallow 不是把任务当作“单轮请求”，而是把任务当作一个具有生命周期的运行实体。
+
+因此，状态流转的意义不只是 UI 展示，而是直接影响：
+
+- 是否允许运行下一步
+- 是否需要人类介入
+- 是否允许 retry / rerun / resume
+- 是否触发 review gate
+- 是否应停止自动推进
+
+当前状态设计最重要的价值是：
+
+- 提高任务可预测性
+- 支持中断与恢复
+- 把“无法自动裁决”的情况显式送入 `waiting_human`
+- 防止模型在事实不完整时继续假装推进
+
+---
+
+## 5. 数据流示例（按当前语义重写）
+
+**场景：修复一个具体 Bug 并留下可恢复轨迹**
+
+1. **任务创建**
+   - Task truth 中创建任务记录
+   - Event Log 记录 `task_created`
+
+2. **任务运行**
+   - Task truth 进入 `running`
+   - route / executor / topology 元数据被记录
+
+3. **分析与计划**
+   - 检索当前 workspace、知识对象与已有 artifacts
+   - 生成计划或分析产物，写入 artifact surface
+   - 如需人工批准，则状态转为 `waiting_human`
+
+4. **人工确认后恢复执行**
+   - Task truth 切回 `running`
+   - Event Log 记录恢复行为
+
+5. **代码或文档修改**
+   - workspace / Git 成为内容层真值约束
+   - 相关产出记录为 artifacts
+   - 相关过程继续写入 event log
+
+6. **验证 / 审查 / 降级 / fallback**
+   - review gate 与 executor telemetry 共同写入事件流
+   - 若 route degraded、budget exhausted 或质量不过关，则显式进入对应状态或 attention surface
+
+7. **完成或失败**
+   - Task truth 更新为 `completed` 或 `failed`
+   - Event Log 完整保留推进轨迹
+   - Artifacts 成为 inspect / compare / recovery 的后续入口
+
+这个过程说明：
+
+> Swallow 当前依赖的是“结构化 truth + artifact surfaces + external workspace truth”的组合，而不是“靠模型记住前面干了什么”。
+
+---
+
+## 6. 当前与模型方言 / 执行后端的关系
+
+状态与事实层必须继续与底层模型品牌和协议保持解耦。
+
+这意味着：
+
+- 状态层不应硬编码某个厂商的 prompt 协议
+- route、dialect、executor family 应作为显式元数据存在
+- 具体方言适配应下沉到 provider routing / execution backend 层
+
+因此，状态层记录的是：
+
+- 任务意图
+- route truth
+- policy boundary
+- execution context
+
+而不是某一家的原生协议格式本身。
+
+---
+
+## 7. 当前安全兜底语义
+
+当系统发生以下情况时，状态与事实层承担最终安全兜底：
+
+- 模型输出不可靠
+- route degraded
+- review 不通过
+- fallback 触发
+- 参数不符 schema
+- 自动推进不再可信
+
+这时系统不应“继续猜”，而应通过显式状态与策略边界处理，例如：
+
+- 拦截非法状态突变
+- 记录 degraded / failure 事件
+- 停止推进并转入 `waiting_human`
+- 保留可恢复检查点和轨迹
+
+这也是为什么真值层比“让模型自己修正自己”更重要。
+
+---
+
+## 8. 当前对实现者的约束性理解
+
+如果继续扩展状态与事实层，当前应坚持：
+
+1. 不要把状态层重新退化成 prompt memory 的附属品
+2. 不要把 artifact file 误写成所有真值的唯一来源
+3. 不要忽略 route / policy / topology truth 这类较新的真值面
+4. 不要让模型方言渗透进状态层 schema
+5. 不要把 SQLite-primary current baseline 又退回成纯 JSON 文件式理解
+
+---
+
+## 9. 一句话总结
+
+Swallow 当前的状态与事实层，不应理解为：
+
+> 一个给 Agent 存聊天上下文和几个 JSON 文件的地方
+
+而应理解为：
+
+> 一个以 SQLite 为主、联合 workspace / Git / artifact surfaces 共同构成的多真值域运行时底座，用来支撑任务推进、恢复、审计、策略边界与执行可解释性
