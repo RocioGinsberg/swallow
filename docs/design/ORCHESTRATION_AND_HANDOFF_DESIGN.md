@@ -1,117 +1,363 @@
 # 多智能体协同与编排设计 (Orchestration & Handoff)
 
-## 1. 核心理念：自建调度引擎与基于状态的异步通信
+## 0. 阅读约定
 
-在传统的多智能体（Multi-Agent）框架中，Agent 之间通常采用“群聊机制”，或者系统彻底依附于某一家厂商的“原生 Agent”来实现调度。这在长周期软件工程任务中会导致上下文污染或系统被厂商绑定。
+本文档描述的是 **Swallow 当前主分支的编排与交接基线**。
 
-Swallow 系统的第 2 层（编排层）确立了**统一调度中枢**与**“基于状态的异步协同”**原则：
-**系统自建轻量级的 Runtime (Router / Planner / Subtask Orchestrator / Review Gate)，厂商原生 Agent 仅作为外部执行器 (Executor) 接入。Agent 之间绝对不直接对话。它们通过修改底层状态机、生成标准化工件（Artifacts）和结构化交接单来完成协作。**
+这里最重要的不是把系统理解成“很多 Agent 在聊天”，而是明确：
 
----
+- 编排层是唯一的任务推进协调层
+- 执行器只是受控的外部执行单元
+- Agent 之间不直接对话，而通过 task truth、artifacts、review feedback 和 handoff objects 协作
+- handoff 是 task semantics 的显式延续，而不是聊天记录堆叠
 
-## 2. 调度引擎核心组件
+本文档应与当前架构文档中的以下原则一起理解：
 
-Swallow 的调度引擎 (Runtime) 由以下关键节点构成：
-
-### 2.1 Strategy Router (策略路由)
-
-Strategy Router 是编排层的入口判断节点。它在任务被分派到具体执行器之前，完成所有**策略层面**的路由决策。
-
-核心职责：
-
-*   **任务域判断**：识别当前任务域（工程 / 研究 / 日常 / 批处理）。
-*   **复杂度评估**：决定应该分配给模型 API、厂商原生 Agent，还是低成本专项 Agent。
-*   **能力级别选定**：根据任务性质确定所需的逻辑能力级别（如"强推理"、"长上下文"、"代码补全"），并将该逻辑标识下推至模型网关层（第 6 层）进行物理路由。
-*   **能力下限断言 (Capability Floor Assertion)**：对高风险任务类别设置模型能力硬底线。例如：架构调整计划类任务**禁止**分配给推理能力不足的模型（如本地 7B 模型），即使该模型是当前唯一可用的通道。当所有满足能力底线的通道均不可用时，Strategy Router 应将任务挂起至 `waiting_human` 而非勉强降级。
-*   **降级策略预判**：当网关层上报物理通道不可用时，Strategy Router 负责决定应对策略：
-    *   缩小任务粒度（如将大 Diff 拆为逐块修改）
-    *   启用上下文压缩（如要求 Librarian Agent 缩小 RAG 召回窗口，依赖 Wiki 摘要层替代全量阅读）
-    *   触发人工介入（挂起至 `waiting_human`）
-
-**设计边界**：Strategy Router 只做策略判断，不处理物理通道健康探测、endpoint 切换或方言适配——那些是模型网关层的职责。
-
-### 2.2 Planner (任务分解)
-*   负责将宏大的用户意图拆解为可操作的任务卡 (Task Cards)。
-*   定义每个子任务的输入、输出 Schema、权限约束与置信度阈值。
-
-### 2.3 Subtask Orchestrator (平台级子代理编排)
-*   **平台级 Subagents (Platform-level Subagents)**：这是 Swallow 系统的核心。它在外部控制多个任务的并行下发、执行与最终的汇聚复核（例如：并发抓取多篇论文并提取摘要）。
-*   *对比：执行器原生 Subagents (Executor-native Subagents)*：某些外部执行器（如厂商 CLI）自带的内部拆解能力。系统仅将其视为局部的“黑盒增强”，系统级协同不依赖于此。
-
-### 2.4 Review Gate (审查门禁)
-*   所有执行器的产出在合并或写入知识库前，必须通过审查门禁。
-*   负责 Schema 校验、置信度判断、知识库冲突检测。如果失败，触发重试或升级（向强模型或人类抛出）。
-
-#### 2.4.1 降级场景下的 Review Gate 联动
-
-当模型网关层发生执行级降级（首选通道不可用，切换至备选通道）时，Review Gate 应自动应用以下强化规则：
-
-*   **置信度阈值上调**：降级通道的产出默认视为"低置信度"，Review Gate 的通过阈值自动提升一档。
-*   **强制人类确认范围扩大**：如果降级发生在高风险任务（如架构调整、知识库写入）上，Review Gate 应强制要求人类确认，即使产出通过了自动化校验。
-*   **降级事件标注**：Review Gate 在审查记录中标注 `execution_degraded` 标签，确保 Event Log 中可追踪哪些产出是在降级条件下生成的。
-
-> 设计意图：降级是网关层的执行行为，但降级后的**信任校准**是编排层的策略行为。两者不应混淆。
+- local-first
+- SQLite-primary truth
+- taxonomy before brand
+- truth before retrieval
+- explicit separation between controlled HTTP path and black-box agent path
 
 ---
 
-## 3. 结构化交接单 (Structured Handoff Notes)
+## 1. 核心理念：自建编排中枢与基于状态的异步协同
 
-为了解决接手任务时上下文爆炸的问题，系统强制引入了“提纯交接”机制。
+传统多智能体系统常采用：
 
-### 3.1 告别“堆叠聊天记录”
-当 Agent A 完成阶段性工作，准备将任务流转给 Agent B 时，必须在退出前调用专用的 Harness 工具，将冗余信息进行自我压缩与提纯，生成一份结构化的**任务交接单 (Handoff Note)**。
+- 群聊式协作
+- 厂商原生 Agent 内部的黑盒分工
+- 共享长对话上下文作为协作介质
 
-### 3.2 交接单的四大要素 (Goal / Done / Next / Pointers)
-一份合格的 Handoff Note 必须作为不可变的 Artifact 持久化存储，其内容格式强制包含：
-*   **Goal (总目标)**：这个 Task 最终要解决的核心问题是什么。
-*   **Done (已完成与踩坑记录)**：我已经尝试了什么？排除了哪些错误路线？
-*   **Next_Steps (后续行动指南)**：接手者接下来应该优先处理哪几个 TODO。
-*   **Context_Pointers (上下文指针)**：**核心精髓**。交接单绝不携带大段源码或原文档，只传递资源的**引用指针 (References)**（例如：`git_commit_hash: 8f7e2a`，`obsidian_note: #1024`）。接手的 Agent 根据指针自行去加载所需的最小上下文，保持 Prompt 绝对干净。
+这在长周期软件工程与知识工作中会带来两个问题：
 
-#### Schema Alignment Note
-自 Phase 19 起，代码层对 handoff vocabulary 的 authoritative 定义统一收敛到 [src/swallow/models.py](/home/rocio/projects/swallow/src/swallow/models.py:87) 中的 `HandoffContractSchema`。
-映射：`Goal` -> `goal`，`Done` -> `done`，`Next_Steps` -> `next_steps`，`Context_Pointers` -> `context_pointers`。
-（本设计文档未单独列出的约束集合，在统一 schema 中使用 `constraints` 表达，以便与 interaction / knowledge ingestion 侧保持同一交接契约。）
+- 上下文污染严重
+- 系统边界被厂商原生工作流绑死
+
+Swallow 当前的核心选择是：
+
+> **系统自建轻量级的编排中枢（Router / Planner / Subtask Orchestrator / Review Gate / Task Runtime），厂商原生 agent 或其他执行器仅作为外部执行单元接入。Agent 之间绝不直接对话。它们通过 task truth、artifacts、review feedback、event truth 与结构化 handoff objects 完成协作。**
+
+因此，Swallow 的协同方式本质上是：
+
+> **state-based asynchronous collaboration**
+
+而不是 group-chat-based collaboration。
 
 ---
 
-## 4. 多智能体协同拓扑 (Collaboration Topologies)
+## 2. 当前编排层的核心职责
 
-在多模型生态下，协同不仅是”多个 Agent”，而是”**不同认知角色**的接力”。
+Swallow 的编排层是唯一可以决定“任务下一步如何推进”的层。
 
-### 4.1 角色驱动的认知分工
+它至少负责：
 
-协同以**系统角色**（而非品牌名称）为单位组织。品牌只是角色的默认预设之一，可随时替换（详见 `AGENT_TAXONOMY_DESIGN.md` 和 `HARNESS_AND_CAPABILITIES.md` §2.1 三层解耦原则）。
+- 把模糊意图收束成可执行 task semantics
+- 决定是否拆分子任务
+- 决定交给哪个 executor / worker surface
+- 决定何时触发 review / retry / rerun / waiting_human
+- 决定哪些结果只是中间产物，哪些结果可以进入更正式的 truth surfaces
 
-| 认知角色 | 职责 | 当前默认预设 |
-|---------|------|------------|
-| **Knowledge Integrator** | 读全局：生成知识底稿、Wiki 草稿、梳理长历史上下文 | Gemini（长上下文优势）|
-| **Planner / Reviewer** | 做判断：任务拆解、风险建模、利弊分析、结构化审查 | Claude（推理优势）|
-| **Executor** | 干脏活：写代码、修 bug、补测试、生成执行脚本 | Codex / 本地 CLI |
+因此，当前必须坚持以下边界：
 
-预设可以被覆盖：例如 Planner 角色可由任何强推理模型承担，Executor 可由 Cline 等 open-runtime 替代。系统不应假设”只有 Claude 能做规划”。
+- **编排层是唯一协调层**
+- 执行器不可静默接管全局推进语义
+- 审查者不可静默替 executor 施工
+- 黑盒 agent 不可演化成 hidden orchestrator
 
-### 4.2 典型工作流拓扑
+---
 
-#### 4.2.1 工程链路接力
-Knowledge Integrator 读全局并校验文档一致性 → Planner 拆解子任务并生成 Handoff Note → Executor 施工生成 Diff → Reviewer 复核代码逻辑 → Human 决定 PR 合并。
+## 3. 调度引擎核心组件
 
-#### 4.2.2 研究/日常链路 (平台级并行)
-Planner 接到宏大目标（如跨领域调研） → Subtask Orchestrator 拆出多个并行检索子任务 → 分发给多个**低成本专项 Agent (Literature Specialist)** 并行抓取并提取结构化表格 → Knowledge Integrator 汇总表格生成关联图谱草稿 → 写入 LLM Wiki。
+### 3.1 Strategy Router
 
-#### 4.2.3 对抗审查拓扑 (Debate Topology)
-保障系统产出质量下限的架构级机制（Phase 40 实现）。
+Strategy Router 是编排层的入口判断节点。它在任务进入具体执行路径前完成所有**策略层面**的路由判断。
 
-1.  Executor 产出结果，触发 ReviewGate 审查。
-2.  ReviewGate 执行 schema 校验、输出非空检查等规则式审查。
-3.  如果审查通过，正常完成。
-4.  如果审查失败且 Executor 状态为 completed（产出有内容但不合格）：
-    - ReviewGate 生成结构化 `ReviewFeedback` artifact（失败项 + 改进建议 + 原始输出片段）。
-    - Feedback 注入 Executor prompt，触发重试。
-    - 循环重复，最多 3 轮（`DEBATE_MAX_ROUNDS = 3`）。
-5.  如果 3 轮后仍未通过，触发**熔断**：任务升级为 `waiting_human`，写入 `debate_exhausted` artifact 和 `task.debate_circuit_breaker` 事件。
-6.  Reviewer **绝对不自行修改产出**，只通过 feedback 引导 Executor 自行修正。
+当前核心职责包括：
 
-子任务路径同样适用：每个子任务有独立的 debate loop（per-card 隔离），互不干扰。
+- **任务域判断**：工程 / 研究 / 日常 / 批处理等
+- **复杂度评估**：决定当前更适合走 Claude Code、Aider、Warp/Oz worker，还是受控 HTTP path
+- **能力级别选定**：确定所需能力级别，如强推理、长上下文、实现导向、并行调查导向等
+- **能力下限断言 (Capability Floor Assertion)**：高风险任务不允许被错误地下放给能力不足的路径
+- **降级策略预判**：在 route 不可用、执行器不可靠或结果不收敛时，决定是缩小任务粒度、切换执行路径、增强 review 还是进入 `waiting_human`
 
-> 详见 `review_gate.py`（ReviewFeedback / build_review_feedback）和 `orchestrator.py`（_debate_loop_core）。
+**设计边界**：
+
+Strategy Router 只做策略判断，不负责：
+
+- endpoint 健康探测
+- HTTP payload 级方言适配
+- provider 侧物理通道切换
+
+这些属于 Provider Routing / Execution Backend 层。
+
+### 3.2 Planner
+
+Planner 负责把较大的用户意图拆成可以操作的 task cards / execution slices。
+
+它当前更适合承担：
+
+- 定义子任务边界
+- 明确输入/输出期望
+- 明确约束条件
+- 定义 review points 与 handoff points
+- 帮助决定哪些部分可以交给黑盒 agent，哪些必须保留给更强执行器或更受控路径
+
+Planner 不是“品牌人格”，而是编排层中的一个系统职责。
+
+### 3.3 Subtask Orchestrator
+
+Subtask Orchestrator 负责平台级的子任务并行与汇聚。
+
+当前必须明确区分两类“subagents”：
+
+#### A. 平台级 subtask orchestration
+这是 Swallow 自己控制的系统级并行：
+
+- 子任务由编排层创建
+- 边界由编排层定义
+- 汇总与收口由编排层控制
+- review 与 waiting_human 语义由系统统一管理
+
+#### B. Executor-native subagents
+这是某些执行器（如 Claude Code、Warp/Oz 或其他原生 agent）内部自带的子代理机制。
+
+系统对它们的正确态度是：
+
+- 可以利用
+- 但不能依赖它们承担系统级协同主线
+- 应视为某个执行器内部的黑盒增强，而不是系统总编排能力本身
+
+### 3.4 Review Gate
+
+Review Gate 负责在结果进入下一阶段前做结构化审查。
+
+当前职责包括：
+
+- schema / structure 校验
+- 基本质量断言
+- 一致性检查
+- 决定通过、反馈重试或转入 `waiting_human`
+- 为后续 consistency audit、operator review 和风险追溯提供结构化痕迹
+
+Review Gate 不负责：
+
+- 直接改写 executor 产出
+- 静默接管主链路施工
+
+### 3.5 Debate / feedback-driven retry
+
+当前系统中的 debate 机制，更准确地说应理解为：
+
+> **feedback-driven retry topology**
+
+其关键原则是：
+
+1. Executor 先产出结果
+2. Review Gate 做规则式与结构化审查
+3. 若不通过，则生成 `ReviewFeedback`
+4. Feedback 注入下一轮执行尝试
+5. 超过阈值仍不收敛，则熔断进入 `waiting_human`
+
+这里最重要的边界是：
+
+- Reviewer 不负责替 executor 直接修
+- Debate 不是多个强 agent 无边界争论
+- 它本质上是由编排层控制的一种反馈重试机制
+
+---
+
+## 4. 当前默认执行路径与编排策略
+
+结合当前默认工作组合，Swallow 的编排层现在更适合按下面的模式工作：
+
+### 4.1 Claude Code
+
+默认用于：
+
+- 高价值任务
+- 高复杂度任务
+- 架构级修改
+- 高错误成本任务
+- 复杂变更的最终收口
+
+### 4.2 Aider
+
+默认用于：
+
+- 高频实现
+- 边界清晰的小到中等复杂度任务
+- 已明确目标的 edit loop
+
+### 4.3 Warp / Oz worker surface
+
+默认用于：
+
+- 中等复杂度但可拆分的任务
+- 多终端并行调查
+- 测试矩阵、环境准备、日志分析、中间结果生产
+
+### 4.4 HTTP controlled path
+
+默认用于：
+
+- 你希望精细控制 prompt / dialect / retrieval assembly / fallback 的场景
+- 更偏“受控模型调用”而不是“黑盒 agent 施工”的场景
+
+因此，编排层当前的重要职责之一是：
+
+> **决定某个任务该走 executor governance path，还是 model invocation control path。**
+
+也就是：
+
+- 黑盒 agent path：偏治理、边界、skills、review
+- 受控 HTTP path：偏 prompt、dialect、route、fallback
+
+---
+
+## 5. 结构化交接 (Structured Handoff)
+
+Swallow 当前不接受“把整段聊天记录交给下一个执行器”这种粗放交接方式。
+
+当前 handoff 的正确定位是：
+
+> **在任务推进链上，把已经发生的工作压缩成可继续执行的 task semantics continuation object。**
+
+### 5.1 告别堆叠聊天记录
+
+当一个阶段结束，或任务需要流转给：
+
+- 下一个 executor
+- 下一个子任务
+- review / human operator
+- ingestion / knowledge-side process
+
+交接内容都应被提纯，而不是把所有聊天历史原封不动塞给下一段执行。
+
+### 5.2 handoff object 的核心要素
+
+一个合格的 handoff 应尽量包含：
+
+- **Goal**：总目标是什么
+- **Done**：已完成了什么，踩过哪些坑
+- **Next Steps**：下一步最应该做什么
+- **Context Pointers**：最小必要上下文指针，而不是大段原文复制
+- **Constraints**：当前仍然生效的边界条件
+
+这里最关键的是 `Context Pointers`：
+
+Swallow 更鼓励传递：
+
+- artifact references
+- task refs
+- route / topology refs
+- file / note / commit / citation pointers
+
+而不是把大段源码或长篇聊天记录整块塞入下一轮 prompt。
+
+### 5.3 handoff 与 artifact / truth 的关系
+
+handoff 不应被误解为“某种孤立的文本备忘录”。
+
+它当前更适合被理解为：
+
+- task truth 的显式延续对象
+- artifact surface 的一种结构化产物
+- 帮助恢复、接力、审查和继续推进的中间控制对象
+
+也就是说，handoff 可以被持久化为 artifact，但它的价值不止于“存了一段文本”，而在于它被编排层与恢复机制真正消费。
+
+### 5.4 Schema Alignment Note
+
+当前 handoff vocabulary 继续以统一 schema 为 authoritative 定义。
+
+映射：
+
+- `Goal` -> `goal`
+- `Done` -> `done`
+- `Next_Steps` -> `next_steps`
+- `Context_Pointers` -> `context_pointers`
+- `Constraints` -> `constraints`
+
+这些字段不应再被某个单独 surface 随意改写成不兼容私有格式。
+
+---
+
+## 6. 多执行器协同拓扑：角色先于品牌
+
+当前协同应以**系统角色**为单位组织，而不是以品牌名称直接组织。
+
+品牌只是当前默认绑定，不是架构本体。
+
+### 6.1 当前更准确的默认绑定
+
+| 系统职责 | 当前默认绑定 | 说明 |
+|---|---|---|
+| 高复杂度主执行与复杂收口 | Claude Code | 高价值、高复杂度任务主路径 |
+| 高频实现施工 | Aider | 默认 implementation executor |
+| 并行 worker / terminal operations | Warp / Oz | 中等复杂度并行任务与中间结果生产 |
+| 受控模型调用 | HTTP path | prompt/dialect/fallback 可控 |
+
+### 6.2 典型拓扑
+
+#### 工程链路接力
+Planner / Strategy Router 判断任务复杂度 → Claude Code 做高层方案或复杂修改 → Aider 承担局部高频施工 → Review Gate / validator 复核 → Human 决定最终合并或继续推进。
+
+#### 并行调查链路
+Planner 拆出多个独立子问题 → Subtask Orchestrator 把它们分发给 Warp/Oz worker surface 或其他边界清晰的执行路径 → 汇总中间结果 → 更强执行者或 human 收口。
+
+#### 受控模型调用链路
+任务进入 HTTP controlled path → Router 指定 model hint / dialect → HTTPExecutor 发起请求 → 结果进入 review / artifact / handoff 路径。
+
+#### feedback-driven retry 链路
+Executor 产出 → Review Gate 失败 → 生成 ReviewFeedback → 重试 → 超阈值后 `waiting_human`。
+
+---
+
+## 7. 编排层与知识层、交互层的关系
+
+当前编排层必须同时与上、下两侧严格解耦：
+
+### 对上：Interaction & Workbench
+
+- 交互层负责形成 task object、展示状态、提供 control surface
+- 编排层负责真正推进任务
+- 聊天面板不能替代编排层
+- Control Center 不能替代编排层
+
+### 对下：Knowledge / State / Provider
+
+- 知识层负责 truth objects 与 retrieval
+- 状态层负责 task truth / event truth / artifacts
+- Provider Routing 负责物理路由、方言与 fallback
+- 编排层不应越权接管 provider 物理层细节
+
+因此，编排层的正确位置是：
+
+> **连接 Interaction、Execution、Knowledge、State 与 Provider 的唯一任务推进中枢。**
+
+---
+
+## 8. 当前对实现者的约束性理解
+
+如果继续扩展 Orchestration & Handoff 层，当前应坚持：
+
+1. 不要把系统重新写成多 agent 群聊协同
+2. 不要让黑盒 executor-native subagents 冒充平台级编排能力
+3. 不要让 Review Gate 变成偷偷施工的第二执行器
+4. 不要让 handoff 退化成长聊天记录堆叠
+5. 不要用品牌名直接定义系统职责
+6. 不要让聊天面板或 Control Center 绕过编排层直接推进任务
+7. 不要混淆 executor governance path 与 HTTP controlled path
+
+---
+
+## 9. 一句话总结
+
+Swallow 当前的编排与交接层，不应理解为：
+
+> 多个 Agent 直接对话、互相转发长上下文的协作网络
+
+而应理解为：
+
+> 一个由 Swallow 自建的唯一编排中枢：它通过 Strategy Router、Planner、Subtask Orchestrator、Review Gate 与结构化 handoff objects，围绕 task truth、artifacts 与 review feedback 协调受控执行路径和黑盒执行器路径的异步协同
