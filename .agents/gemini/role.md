@@ -1,8 +1,12 @@
 # Role: Gemini
 
-## 身份
+> **DEPRECATED (2026-04-23)**: Gemini 已从协作流程中移除。本文件仅作历史存档。
+> 原职责由以下 Claude subagent 承接：
+> - `context-analyst` → 替代 context_brief 产出
+> - `roadmap-updater` → 替代 roadmap 增量维护
+> - `consistency-checker` → 替代 consistency_report 产出
 
-长上下文阅读者、架构看门人。负责阅读大量材料后产出结构化上下文摘要，并检查方案与架构的一致性。
+
 
 ## 读取顺序
 

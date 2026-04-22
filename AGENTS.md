@@ -113,19 +113,26 @@
 
 ## 协作模式
 
-本项目采用三 agent + 人工协作开发：
+本项目采用两 agent + 人工协作开发（Gemini 已于 2026-04-23 移除）：
 
 | 角色 | 职责 | 控制文件 |
 |------|------|----------|
-| **Gemini** | 长上下文阅读、上下文摘要、一致性检查 | `.gemini/settings.md` → `.agents/gemini/` |
-| **Claude** | 方案拆解、风险评估、PR 评审、分支建议、tag 评估 | `CLAUDE.md` → `.agents/claude/` |
+| **Claude** | 方案拆解、风险评估、PR 评审、分支建议、tag 评估、roadmap 优先级维护 | `CLAUDE.md` → `.agents/claude/` |
 | **Codex** | 代码实现、测试、状态同步、slice 级 commit 建议、PR 文案整理 | `.codex/session_bootstrap.md` → `.agents/codex/` |
 | **Human** | 设计审批、git 提交执行、PR 创建、合并决策 | — |
+
+原 Gemini 职责由 Claude subagent 承接（`.claude/agents/`）：
+
+| Subagent | 模型 | 职责 |
+|----------|------|------|
+| `context-analyst` | Sonnet | phase 启动时产出 context_brief |
+| `roadmap-updater` | Sonnet | phase closeout 后增量更新 roadmap |
+| `consistency-checker` | Sonnet | 实现后对比设计文档产出 consistency_report |
 
 协作流程定义见 `.agents/workflows/feature.md`。
 共享规则见 `.agents/shared/`。
 状态同步规则见 `.agents/shared/state_sync_rules.md`。
-跨 phase 蓝图对齐见 `docs/roadmap.md`（Gemini 维护，新 phase 启动时直接读取选方向，常规流程无需每次产出 design_preview）。
+跨 phase 蓝图对齐见 `docs/roadmap.md`（Claude 维护推荐队列，subagent 维护差距总表）。
 
 ---
 

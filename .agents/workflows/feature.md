@@ -2,18 +2,20 @@
 
 标准的多角色 feature delivery 流程。每个新 phase/slice 的实现默认使用此流程。
 
+> **注意**：Gemini 已从协作流程中移除（2026-04-23）。原 Gemini 步骤由 Claude subagent 承接。
+
 ---
 
 ## 流程总览
 
 ```
-Gemini: Roadmap Check (Phase Transition)
+[subagent: roadmap-updater]: Roadmap Incremental Update (Phase Transition)
         ↓
 Claude: Roadmap Priority Review
         ↓
  Human: Direction Gate ⛔
         ↓
-Gemini: Context Analysis
+[subagent: context-analyst]: Context Analysis
         ↓
 Claude: Design Decomposition
         ↓
@@ -21,28 +23,29 @@ Claude: Design Decomposition
         ↓
  Codex: Implementation
         ↓
-Claude: PR Review
+Claude: PR Review  (可选: [subagent: consistency-checker] 先行)
         ↓
  Human: Merge Gate ⛔
+        ↓
+Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
+        ↓
+[subagent: roadmap-updater]: Post-Phase Roadmap Update
 ```
 
 ⛔ = 人工 gate，必须由人工审批后才能继续。
 
 ---
 
-## Step 0: Gemini, Claude & Human — Phase Transition & Direction Gate ⛔
+## Step 0: Claude (subagent + main) & Human — Phase Transition & Direction Gate ⛔
 
 **触发条件**：上一个 phase 已经完成 closeout 收口并合入主线。
 
 ### 常规流程（roadmap 已存在且无需刷新）
 
-**Gemini 输入**：
-- `docs/roadmap.md`（跨 phase 蓝图对齐活文档）
-- `docs/plans/<prev-phase>/closeout.md`
-
-**Gemini 动作**：
-1. 增量更新 `docs/roadmap.md` 的差距总表（消化已完成差距、补充新差距）
-2. 更新 `docs/active_context.md`，通知 Claude 进行优先级评审
+**subagent `roadmap-updater` 动作**：
+1. 读取 `docs/plans/<prev-phase>/closeout.md` 和当前 `docs/roadmap.md`
+2. 增量更新差距总表（消化已完成差距、补充新差距）
+3. 更新 roadmap 中已完成 phase 的状态标记
 
 **Claude 动作**：
 1. 读取更新后的 `docs/roadmap.md`
@@ -51,39 +54,28 @@ Claude: PR Review
 
 **人工动作 (Direction Gate ⛔)**：
 - 阅读 `docs/roadmap.md` 的推荐 phase 队列（含 Claude 的优先级判断与风险批注）
-- 选择下一个方向（如：”启动 Phase 28, R2-1”）
+- 选择下一个方向（如：”启动 Phase 50”）
 
 ### 全量刷新流程（roadmap 不存在或蓝图发生重大变更）
 
-**Gemini 输入**：
-- `docs/system_tracks.md`
-- `ARCHITECTURE.md` + `docs/design/*.md`
-- `current_state.md`
-
-**Gemini 产出**：
-- `docs/plans/<new-phase>/design_preview.md`（演进方向决策书）
-- 据此全量更新 `docs/roadmap.md` 的差距总表
-
-**Claude 动作**：
-1. 读取更新后的 roadmap + design_preview
-2. 评审并更新推荐 phase 队列的优先级排序与风险批注
+**Claude 动作**（直接由 Claude 主线处理，不用 subagent）：
+1. 读取 `docs/system_tracks.md` + `docs/design/*.md` + `current_state.md`
+2. 产出 `docs/plans/<new-phase>/design_preview.md`（演进方向决策书）
+3. 全量更新 `docs/roadmap.md` 的差距总表
+4. 评审并更新推荐 phase 队列的优先级排序与风险批注
 
 **人工动作 (Direction Gate ⛔)**：
 - 阅读 design_preview + roadmap（含 Claude 批注），选定方向
 
-**完成后**：
-- Gemini 在接收到明确选择后更新 `docs/active_context.md`，继续执行 Step 1。
-
 ---
 
-## Step 1: Gemini — Context Analysis
+## Step 1: subagent `context-analyst` — Context Analysis
 
 **触发条件**：人工已在 Direction Gate 中明确选定下一阶段的方向。
 
 **输入**：
 - 人工在 Step 0 指定的阶段目标决策
 - `docs/roadmap.md`（差距 ID 和上下文）
-- `docs/plans/<new-phase>/design_preview.md`（仅在全量刷新流程中存在）
 - `docs/design/*.md`（仅阅读 roadmap 指向的相关设计文档）
 - 相关 git history
 
@@ -91,7 +83,7 @@ Claude: PR Review
 - `docs/plans/<phase>/context_brief.md`
 
 **完成后**：
-- 更新 `docs/active_context.md`：登记产出物，下一步设为"Claude 进行方案拆解"
+- 更新 `docs/active_context.md`：登记产出物，下一步设为”Claude 进行方案拆解”
 
 ---
 
@@ -183,7 +175,7 @@ Claude: PR Review
 - `docs/plans/<phase>/context_brief.md`（按需）
 
 **附加输入**（可选）：
-- Gemini 的 consistency_report.md（如果在 Step 4 后执行了一致性检查）
+- `consistency_report.md`（如果在 Step 4 后执行了一致性检查）
 
 **产出**：
 - `docs/plans/<phase>/review_comments.md`
@@ -225,11 +217,45 @@ Claude: PR Review
 
 ---
 
-## 可选步骤：Gemini — Post-Implementation Consistency Check
+## Step 7: Claude & Human — Tag Evaluation Gate
+
+**触发条件**：phase 已 merge 到 main，`current_state.md` 和 `AGENTS.md` 已由 Codex 完成 post-merge 同步。
+
+**Claude 动作（`tag-evaluate` skill）**：
+评估当前 main 是否构成一个有意义的能力里程碑，给出明确建议：
+
+- **打 tag**：自上一个 tag 以来有用户可感知的能力增量，且 main 处于稳定状态
+- **不打 tag**：增量较小，建议等下一个 phase 合并后再打
+- **等待**：存在即将消化的 concern 可能改变公共 API，建议 concern 消化后再打
+
+评估时必须考虑：
+- 自上一个 tag 以来的能力增量（对照 `docs/concerns_backlog.md` 中的 Open 项）
+- 当前 main 稳定性（无进行中的重构或已知破坏性问题）
+- 待消化 concern 是否影响公共 API
+
+在 `docs/active_context.md` 记录 tag 建议（打 / 不打 / 等待，附理由）。
+
+**人工动作 (Tag Gate)**：
+- 阅读 Claude 的 tag 建议
+- 决策：打 tag → 执行 `git tag -a v0.x.0 -m "<tag message>"` 并 push
+- 决策：不打 → 在 `docs/active_context.md` 标注"tag deferred"
+
+**Codex 动作（仅在打 tag 后触发）**：
+- 更新 `README.md` / `README.zh-CN.md` 的"当前实现概况"章节与新 tag 对齐
+- 更新 `AGENTS.md` 的"当前系统能力"章节与新 tag 对齐
+- 更新 `AGENTS.md` 顶部的 `当前 tag` 引用
+
+**完成后**：
+- 更新 `docs/active_context.md`：标注 tag 状态，下一步设为"进入下一轮 phase 规划"
+- 运行 `roadmap-updater` subagent 完成本 phase 的 roadmap 增量更新
+
+---
+
+## 可选步骤：subagent `consistency-checker` — Post-Implementation Consistency Check
 
 在 Step 4 和 Step 5 之间可插入：
 
-- Gemini 阅读 diff + 设计文档，产出 `consistency_report.md`
+- `consistency-checker` 阅读 diff + 设计文档，产出 `consistency_report.md`
 - Claude 在 Step 5 的 review 中参考此报告
 
 此步骤不是必须的，建议在高风险 slice 或跨模块改动时使用。
@@ -242,7 +268,7 @@ Claude: PR Review
 → 回到 Step 4，Codex 修改后重新提交，Claude 重新 review
 
 ### 人工在 Design Gate 打回
-→ 回到 Step 2，Claude 修改 design_decision，可能需要 Gemini 更新 context_brief
+→ 回到 Step 2，Claude 修改 design_decision，必要时重新运行 `context-analyst` subagent 更新 context_brief
 
 ### 人工在 Merge Gate 打回
 → 根据打回原因决定回到 Step 4（实现问题）或 Step 2（设计问题）

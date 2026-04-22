@@ -32,11 +32,15 @@
 
 ## 当前协作模式
 
-本项目采用三 agent 协作开发：
-- **Gemini**：长上下文阅读、上下文摘要、一致性检查
-- **Claude**：方案拆解、风险评估、PR 评审、分支建议
-- **Codex（你）**：代码实现、测试、状态同步、slice 级 commit 建议、PR 文案维护
-- **Human**：git 执行、提交、开 PR、最终审批与合并
+本项目采用两 agent 协作开发（Gemini 已移除）：
+- **Claude**：方案拆解、风险评估、PR 评审、分支建议、tag 评估、roadmap 优先级维护
+- **Codex（你）**：代码实现、测试、状态同步、slice 级 commit 建议、PR 文案维护、tag 后文档同步
+- **Human**：git 执行、提交、开 PR、最终审批与合并、tag 决策与执行
+
+原 Gemini 职责由 Claude subagent 承接（`.claude/agents/`）：
+- `context-analyst` — phase 启动时产出 context_brief
+- `roadmap-updater` — phase closeout 后增量更新 roadmap
+- `consistency-checker` — 实现后对比设计文档产出 consistency_report
 
 协作流程见 `.agents/workflows/feature.md`。
 
@@ -48,3 +52,4 @@
 - 需要开 PR 时，使用 `.agents/templates/pr_body.md` 模板整理内容并写入仓库根目录 `./pr.md`
 - 人工完成 commit / PR 操作后，再更新 `docs/active_context.md`
 - 不自行 merge 到 main，等待人工审批
+- **Tag 后同步**：Human 打完 tag 后，由你更新 `README.md`、`README.zh-CN.md`、`AGENTS.md` 中的 tag 引用与系统能力描述
