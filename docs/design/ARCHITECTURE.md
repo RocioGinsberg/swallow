@@ -1,180 +1,383 @@
 # Swallow Architecture
 
-**Swallow** 是一个面向**高复杂度知识工作者**（如学术研究人员、法律工作者、架构师、咨询策略人员等）的 AI 工作流编排平台。它的核心目标是完成从“单次对话（Chatbot）”到“长周期任务编排、有状态执行、多源知识融合、持续沉淀积累”的跨越。
+**Swallow** 是一个面向真实项目工作的、**local-first 的有状态 AI workflow system**。
 
-本文档定义了 Swallow 的核心系统架构，综合了 7 层架构模型、状态与事实层、Harness 能力模型，以及增强 RAG 和 LLM Wiki 的知识分层体系。
+它不是单次对话聊天器，也不是某个厂商 Agent 的外壳，而是一个围绕以下目标构建的系统：
 
----
-
-## 1. 系统愿景与定位
-
-Swallow 的架构遵循 **本地优先，统一调度系统 (Local-first Unified Scheduling System)** 的原则。
-这使得 Swallow 不仅仅是一个“多模型聊天器”或外部 Agent 的启动器，而是拥有自己的 Runtime、知识层和编排能力的系统核心。强大的模型和厂商原生 Agent 只作为可路由的**执行资源**。
-
-系统专门为以下工作形态设计：
-- **资料密集型**：处理多源异构数据（代码仓库、Git 记录、Obsidian 笔记、文献 PDF 等）。
-- **任务链条长**：单任务需拆解为检索、提取、对比、综合、产出等多阶段结构化执行。
-- **知识资产沉淀与开放生态**：任务执行过程可追踪，中间结论不丢失；同时拥抱外部 AI 生态，允许将外部工具的对话记录无缝导入为核心资产。
+- 让任务能跨多轮、多阶段和多会话持续推进
+- 让代码工作与知识工作进入同一条任务链路
+- 让执行过程留下可恢复、可审计、可复用的状态与工件
+- 让外部 AI 工具产生的结论进入系统，但不污染长期知识真值
+- 让执行器保持可替换，而不是和某个模型品牌绑定
 
 ---
 
-## 2. 整体 7 层架构模型 (The 7-Layer Model)
+## 0. 阅读约定
 
-Swallow 采用自上而下的分层设计，每一层职责界限清晰：**上层决定“做什么”，中层决定“谁来做”，下层决定“怎么接模型”，侧边决定“如何找历史信息与沉淀成果”。**
+本文档**优先描述当前主分支 (`main`) 的架构基线**，仅在单独小节中讨论方向性演进。
+
+- **Current Baseline**：已经在 `main` 上成立，或者已经被 README / active context 视为当前稳定基线的部分
+- **Directional / Future**：仍属于后续 phase 的方向，不应被当作已实现能力
+
+如果本文档与 phase 历史设计材料存在表述差异，应以当前基线和最近 tag 对齐理解，而不是回退到旧的概念框架。
+
+---
+
+## 1. 当前系统定位
+
+Swallow 当前应被理解为：
+
+- 一个 **任务工作台 / 工作流系统**
+- 一个 **有状态 runtime**
+- 一个 **知识对象治理系统**
+- 一个 **可替换执行器编排系统**
+
+它当前**不是**：
+
+- 纯聊天产品
+- 纯 RAG 项目
+- 单一代码 Agent 的包装层
+- 默认走 hosted / distributed worker 的平台系统
+
+当前基线坚持三条原则：
+
+1. **Local-first**：单用户、本地工作区与本地状态真值优先
+2. **Truth before retrieval**：先定义任务真值与知识真值，再提供检索与召回
+3. **Taxonomy before brand**：先定义系统角色，再绑定具体执行器或模型品牌
+
+---
+
+## 2. 当前架构总览
+
+从当前 `main` 的实现出发，Swallow 最适合用下面五个长期层来理解：
 
 ```mermaid
 graph TD
-    %% 交互层
-    UI["1. 交互与工作台层 (Interaction)<br/>CLI / UI Panel / IDE / Obsidian"]
+    UI["1. Interaction / Workbench<br/>CLI / Control Surface / Review Surface"]
+    ORCH["2. Orchestrator<br/>Strategy Router / Planner / Review Gate / Subtask Orchestrator"]
+    EXEC["3. Execution & Capabilities<br/>General Executor / Specialist Agent / Validator / Tools / Skills / Workflows"]
+    KNOW["4. Knowledge Truth & Retrieval<br/>Evidence / Wiki / Canonical / Retrieval Orchestration"]
+    STATE["5. State / Event / Artifact / Route Truth<br/>TaskState / EventLog / Artifacts / Policy / Topology"]
+    PROVIDER["6. Provider Routing & Execution Backends<br/>Route Registry / Dialect Adapters / HTTP / CLI / Fallback"]
 
-    %% 编排层
-    Orch["2. 任务编排与调度层 (Orchestrator)<br/>Strategy Router / Planner / Subtask Orchestrator / Review Gate"]
-
-    %% Agent层
-    subgraph AgentLayer ["3. Agent 执行层 (Execution / Taxonomy)"]
-        direction LR
-        General["通用代理 (认知模式)<br/>(Executor / Planner / Knowledge)"]
-        Specialist["专项 Agent<br/>(Librarian / Ingestion / Literature)"]
-        Validator["无状态审查者<br/>(Quality / Consistency Review)"]
-    end
-
-    %% 检索与记忆层
-    subgraph MemoryLayer ["4. 检索与记忆层 (Retrieval & Memory)"]
-        direction TB
-        Wiki["LLM Wiki (结构化认知层)"]
-        RAG["Enhanced RAG (原始证据层)"]
-        TaskMemory["任务与会话记忆"]
-        Wiki --> RAG
-    end
-
-    %% 状态与工件层
-    subgraph TruthLayer ["5. 状态与工件层 (State & Truth)"]
-        direction LR
-        State["State Store"]
-        Event["Event Log"]
-        Artifact["Artifact Store"]
-        Git["Git Truth Layer"]
-    end
-
-    %% 网关层
-    Gateway["6. 模型网关层 (Model Gateway)<br/>Route Resolver / Dialect Adapters / Execution Fallback / Observability"]
-
-    %% 供应层
-    Supply["7. 外部模型与工具执行层 (Infrastructure)<br/>LLM Providers / 防污染命令映射 (Harness Sandbox)"]
-
-    %% 核心扩展层
-    Harness["Harness Capabilities<br/>(Tools / Skills / Profiles / Workflows)"]
-
-    UI --> Orch
-    Orch --> AgentLayer
-    Orch <--> MemoryLayer
-    Orch --> Harness
-    AgentLayer <--> Harness
-    AgentLayer <--> TruthLayer
-    AgentLayer <--> MemoryLayer
-    Orch --> Gateway
-    AgentLayer -.->|via Strategy Router| Gateway
-    Gateway --> Supply
-
-    classDef core fill:#f9f9f9,stroke:#333,stroke-width:2px;
-    class UI,Orch,Gateway,Supply core;
+    UI --> ORCH
+    ORCH --> EXEC
+    ORCH <--> KNOW
+    EXEC <--> KNOW
+    EXEC <--> STATE
+    ORCH --> PROVIDER
+    EXEC --> PROVIDER
 ```
 
-### 每一层核心职责简述：
+上图比早期的“RAG 层 + Wiki 层”说法更贴近当前基线，因为现在系统中真正居中的并不是向量检索，而是：
 
-1. **交互与工作台层**：统一的用户调度入口，拒绝频繁在外部厂商界面间切换。
-2. **任务编排与调度层**：负责策略路由（Strategy Router，决定任务所需的能力级别与模型族）、任务分解（Planner）、平台级并行子任务编排（Subtask Orchestrator）及质量门禁（Review Gate）。策略约束（如模型能力下限断言）在此层完成，不下沉到网关层。
-3. **Agent 执行层**：处理具体的认知决策、标准化工种执行及审查。通用 Agent 负责高层判断，专项 Agent 负责特定标准输出。
-4. **检索与记忆层**：分离为 RAG 证据层与 LLM Wiki 认知层，决定系统的长期记忆质量。
-5. **状态与工件层**：维护系统运行中的事实基础与审计日志。
-6. **模型网关层**：任务语义与外部供应商波动之间的稳定操作边界。负责逻辑模型到物理路由的映射、方言适配、执行级降级与路由遥测。不做策略判断，只做执行翻译。
-7. **外部模型与工具层**：底层大模型供应商，以及经过安全映射的本地隔离执行环境。
+- 任务真值
+- 知识真值
+- 受控检索与受控写入
 
 ---
 
-## 3. 核心子系统解析
+## 3. 各层当前职责
 
-### 3.1 状态与事实层 (State & Truth Layer)
+### 3.1 Interaction / Workbench
 
-这是 Swallow 区别于普通 Multi-Agent Demo 的核心关键设计。系统从根本上扬弃了单纯的内存状态，依赖一组持久化的“四件套”来记录行动轨迹：
+当前交互层以 CLI 和 operator-facing inspection / review / control surfaces 为主。
 
-*   **State Store (状态库)**：保存任务当前“现场”（如进行到哪一步、等待谁确认）。安全中断和恢复的基础。
-*   **Event Log (事件流)**：保存“发生过什么”。Append-only 的动作记录，用于审计溯源与过程复盘。
-*   **Artifact Store (工件库)**：保存“真正产出了什么”（Diff、报告、JSON），数据库仅做索引。
-*   **Git Truth Layer (Git Truth)**：负责代码及纯文本文件的绝对真相来源。提供版本 checkpoint 与安全回滚防线。
+它的职责不是“和模型聊天”，而是：
 
-### 3.2 增强 Agentic RAG 与 LLM Wiki 知识双层架构
+- 创建任务
+- 运行任务
+- 检查状态、工件、路由、拓扑、策略和 grounding
+- 进行 retry / rerun / resume / review / control
 
-Swallow 认为单纯的 RAG 只能解决“找得到资料”的问题，为了沉淀长期认知，系统将检索层拆分为两层：
+这一层应被理解为 **task workbench**，而不是 chatbot shell。
 
-*   **原始资料与 RAG 证据层 (Raw Evidence & RAG)**：包含代码、Issue、外部文档及其向量索引。负责提供客观的底层证据，支持领域专属 RAG 扩展包（如 PDF 解析切块）。
-*   **LLM Wiki 认知层 (Cognitive Layer)**：建立在 RAG 之上的高层结构化知识层。负责沉淀系统的核心术语、职责边界、决策记录（ADR）与工作流规则。**知识写回原则极严**：仅允许高价值、经过复核的相对稳定信息带着来源指针进入 Wiki，禁止通用 Agent 自由发散改写。
-*   **外部 AI 会话摄入 (Ingestion)**：允许导入外部 AI 工具的对话记录，通过专项摄入 Agent 解析提取有效结论，融入知识库暂存区。
+### 3.2 Orchestrator
 
-### 3.3 智能体分类学与认知视野 (Agent Taxonomy & Cognitive Roles)
+编排层决定：
 
-系统中的 Agent 不按模型品牌直接划分能力，而是被定义为具体的系统角色，随后才绑定合适的 Runtime 与模型。
+- 当前任务要做什么
+- 哪些子任务需要拆分
+- 何时触发审查
+- 何时进入等待人工
+- 哪种能力级别适合当前任务
 
-*   **通用代理的三阶认知模式**：不应理解为谁最强，而是代表不同的不可替代功能：
-    *   **执行与施工 (Executor - e.g. Codex)**：稳健施工、补测试、代码修改、终端执行。
-    *   **规划与审查 (Planner/Reviewer - e.g. Claude)**：任务拆解、风险识别、利弊分析、复杂纠偏。
-    *   **知识与上下文整合 (Knowledge/Integration - e.g. Gemini)**：大仓库理解、长上下文消化、Wiki 草稿生成、一致性核对。
-*   **专项 Agent (Specialist)**：使用低成本/本地模型，边界极清晰（如 OCR 提取、文献拆解比对、外部会话梳理）。专门干脏活累活，**绝不允许接管整个任务或干涉路由**。
-*   **审查与门禁 (Validators)**：无状态、无修复能力的独立评估者，专门在关键节点做断言。
+编排层负责策略判断，但**不直接承担供应商路由的物理细节**。
 
-### 3.4 工具执行的防污染隔离机制 (Safe Execution Harness)
+当前与编排层紧密相关的核心构件包括：
 
-*   **终端命令安全映射 (Command Mapping)**：Agent 发出的终端命令不会直接下发，而是经过一层拦截与语义映射。拦截具有破坏性的系统级命令。
-*   **沙盒与虚拟化隔离 (Sandboxed Execution)**：尽可能在隔离的虚拟环境中执行代码测试、依赖安装。
-*   **任务卡制度 (Task Card)**：每个任务的执行严格遵循声明式的约束、置信度阈值和权限边界，出现越界或低置信度时自动向上级（强模型或人工）抛出升级请求。
+- Strategy Router
+- Planner / TaskCard planning
+- Review Gate / consensus policy
+- DAG-based subtask orchestration
+- waiting_human / retry / rerun / resume semantics
 
-### 3.5 模型网关与执行通道 (Model Gateway & Execution Channels)
+### 3.3 Execution & Capabilities
 
-#### 设计定位
+执行层的核心不是某个品牌，而是系统角色。
 
-模型网关层是 Swallow 系统中**任务策略与外部供应商波动之间的稳定操作边界**。
+当前应按以下 taxonomy 理解：
 
-其核心职责不是”选择最好的模型”——那是编排层 Strategy Router 的工作。网关层的职责是：在编排层已经决定”需要什么级别的能力”之后，将该请求**翻译为可执行的物理路由调用**，并在执行过程中吸收供应商侧的不稳定性（价格变动、通道故障、区域限制、API 变更）。
+- **General Executor**：承担广义任务推进与状态变更
+- **Specialist Agent**：承担边界清晰的专项子系统工作
+- **Validator / Reviewer**：只做审查与断言，不负责主链路推进
 
-三条核心原则：
+角色先于品牌，品牌只是当前可用实现的例子，而不是架构本体。
 
-1. **业务语义留在上游，供应商复杂度留在下游**——上层系统用任务语言（planning / review / extraction）描述意图，网关层翻译为具体的 endpoint 调用
-2. **逻辑模型 ≠ 物理路由**——同一个逻辑能力（如”强推理模型”）可以经由多条物理通道到达，网关负责在这些通道间做健康探测和切换
-3. **可观测性对齐任务语义**——路由遥测不仅记录原始流量指标，还关联任务族和路由类别，供 Meta-Optimizer 消费
+同样，执行层不只包含模型调用，还包含：
 
-#### 网关核心组件
+- tools
+- skills
+- profiles
+- workflows
+- validators
 
-*   **Route Resolver (路由解析器)**：将编排层下发的逻辑模型标识映射为当前可用的最优物理通道。维护通道健康状态、延迟基线和成本权重。
-*   **Dialect Adapters (方言适配器)**：在发包前将统一语义请求转化为目标模型的原生最优形态（Claude XML 标签体系、Gemini Context Caching、Code Model FIM 等）。详见 `docs/design/PROVIDER_ROUTER_AND_NEGOTIATION.md` §3。
-*   **Execution Fallback (执行级降级)**：当首选物理通道不可用时，切换到备选通道。注意：执行级降级只处理”通道不通”，不处理”能力不足”——后者由编排层的 Strategy Router 在任务分派时预判。
-*   **双轨执行器 (Dual-Track Executors)**：
-    *   模型执行器 (Model Executors)：标准 API 调用
-    *   Agent 执行器 (Agent Executors)：将厂商原生 CLI/Agent 视为高级黑盒执行工具，不赋予系统总控权限
-*   **路由遥测 (Route Telemetry)**：记录每次路由的延迟、成本、错误率、降级事件，标注任务族标签，写入 Event Log 供 Meta-Optimizer 周期性扫描。
+也就是说，Swallow 的执行层是 **executor + capability runtime**，而不仅仅是“谁来生成一句回答”。
 
-#### 与编排层的职责边界
+---
 
-| 关注点 | 编排层 (Strategy Router) | 网关层 (Gateway) |
+## 4. 当前真值层：State / Event / Artifact / Route Truth
+
+这是 Swallow 与普通 agent demo 的核心区别之一。
+
+系统当前不是依赖单次 prompt 内存推进，而是依赖一组持久化真值：
+
+- **TaskState**：当前任务现场与推进位置
+- **EventLog**：过程事件与审计线索
+- **Artifacts**：报告、diff、summary、grounding outputs 等显式产物
+- **Route / Policy / Topology records**：路由、执行位点、拓扑与策略边界
+- **Git truth / workspace truth**：对代码与工作区内容的外部真值约束
+
+这里需要特别区分两件事：
+
+1. **truth records**：系统必须可靠恢复和解释的结构化状态
+2. **file outputs / large artifacts**：给人查看、比较、导出的文件产物
+
+在当前基线下，task truth 和 knowledge truth 已经是 **SQLite-primary**；文件镜像、导出文件和 artifact 文件视图仍然保留，但它们不再天然等于 authoritative truth。
+
+---
+
+## 5. 当前知识架构：Knowledge Truth Layer + Retrieval & Serving Layer
+
+这是当前最需要与旧设计语言区分开的部分。
+
+### 5.1 为什么要修正旧叙事
+
+早期可以把知识层粗略理解为：
+
+- Raw Evidence / RAG
+- LLM Wiki / Cognitive Layer
+
+但在当前基线下，这种说法已经不够精确，因为系统中真正的中心不再是“向量先召回”，而是 **先知识真值归一，再检索服务**。
+
+### 5.2 Knowledge Truth Layer
+
+当前知识真值层回答的问题是：
+
+- 什么是有效知识对象
+- 这些知识从哪里来
+- 处于什么阶段
+- 是否允许复用
+- 是否已被 supersede
+- 谁拥有写权限
+
+这一层当前包含的核心对象与边界包括：
+
+- Evidence
+- WikiEntry
+- canonical records / canonical registry
+- staged / task-linked / reusable knowledge
+- promote / reject / dedupe / supersede decisions
+- source traceability / grounding refs
+- Librarian-controlled canonical write authority
+
+当前基线中，知识真值层的 authoritative state 应被理解为 **SQLite-backed knowledge truth**。
+
+### 5.3 Retrieval & Serving Layer
+
+检索层的职责不是取代真值层，而是围绕已治理知识对象提供可用召回。
+
+它负责：
+
+- exact / symbolic retrieval
+- metadata / policy-aware filtering
+- relation expansion
+- vector semantic recall
+- text fallback
+- evidence pack assembly
+
+因此，向量检索在当前系统中的定位应当是：
+
+> **semantic retrieval augmentation, not authoritative truth**
+
+embedding 和向量索引不是知识源头，也不应成为系统默认入口；它们只是对已治理知识对象进行补充召回的能力。
+
+### 5.4 Wiki 在当前系统中的定位
+
+Wiki 不应再被理解为“RAG 之上的总结页”。
+
+在当前基线中，Wiki 更适合被理解为：
+
+- 项目级知识编译对象
+- 稳定语义入口
+- 面向人和模型共享的知识组织节点
+
+Wiki 属于知识真值层的一部分，而不是一个飘在向量检索之上的展示壳。
+
+### 5.5 当前推荐的检索顺序
+
+当前设计上更合理的默认顺序应是：
+
+1. task-local / canonical / wiki exact match
+2. metadata + policy filtering
+3. relation expansion
+4. vector semantic recall
+5. text fallback
+
+也就是说，Swallow 当前更适合坚持：
+
+> **object-first retrieval, vector-assisted recall**
+
+而不是 vector-first retrieval。
+
+---
+
+## 6. 当前知识写入边界
+
+Swallow 当前知识系统的另一个关键点，是**写入权力被显式收束**。
+
+原则上：
+
+- 并不是所有执行器都能直接写 canonical knowledge
+- 高价值、可复用、相对稳定的信息才允许晋升
+- 写入需要来源、阶段与复核边界
+- Librarian / review 机制负责知识污染控制
+
+这意味着系统追求的不是“记住越多越好”，而是：
+
+- 明确来源
+- 明确阶段
+- 明确复用边界
+- 明确写权限
+
+因此，Swallow 的知识层更接近 **knowledge governance system**，而不是松散的记忆池。
+
+---
+
+## 7. Provider Routing & Execution Backends
+
+### 7.1 当前定位
+
+Provider Routing 层的职责，是把上游已经决定好的任务能力需求，翻译成可执行的物理调用路径。
+
+它当前主要负责：
+
+- route registry / route metadata
+- logical model → physical route mapping
+- dialect adaptation
+- backend selection
+- fallback execution path
+- route telemetry
+
+### 7.2 当前职责边界
+
+当前需要明确区分两层决策：
+
+| 问题 | 编排层 | Provider Routing |
 |---|---|---|
-| 这个任务需要什么级别的能力？ | **是** | 否 |
-| 弱模型能否承担此任务？ | **是**（能力下限断言） | 否 |
-| 哪条物理通道当前最健康？ | 否 | **是** |
-| 通道故障时切换到哪？ | 否 | **是**（执行级降级） |
-| 降级后是否需要提升置信度阈值？ | **是**（Review Gate 联动） | 否 |
+| 任务需要什么级别的能力 | 是 | 否 |
+| 任务是否需要 review / waiting_human | 是 | 否 |
+| 当前哪条物理路由可用 | 否 | 是 |
+| 这次请求如何适配为目标方言 | 否 | 是 |
+| 通道异常后切到哪条 fallback | 否 | 是 |
 
-### 3.6 自我进化与记忆沉淀 (Self-Evolution & Memory)
+### 7.3 当前执行后端
 
-Swallow 强调系统在长期运行中的“自我进化”与工作流记忆的沉淀：
+当前系统已经拥有多种执行后端，而不是单一路径：
 
-*   **图书管理员 Agent (Librarian Agent)**：系统记忆质量的守门人。负责任务结束后的降噪摘要提炼、知识库冲突检测与合并仲裁，以及周期性的记忆衰减控制。
-*   **编排策略顾问 Agent (Meta-Optimizer)**：定期的观察者。扫描 Event Log 与历史工件，识别模式以提议新的 Workflow 模板、优化 Skill 或调整路由策略。
-*   **严格的知识晋升防线**：默认新 Agent 被标记为 `Canonical-Write-Forbidden`，防范隐式记忆污染。
+- HTTP executor path
+- CLI executor path
+- route-level fallback
+- dialect-aware request formatting
+
+因此，Provider Routing 层已经是现实中的系统边界，而不是抽象概念。
+
+### 7.4 关于旧文档引用
+
+早期某些 provider routing 设计文档已经在后续文档整理中被合并进 phase materials、README 和当前实现语义中。今后若引用 provider routing 设计，应以当前 `main` 上存在的文档与实现为准，而不再依赖已合并移除的旧文件名。
 
 ---
 
-## 4. 落地与演进模式 (Deployment & Evolution)
-产品路线图围绕“可伸缩边界”稳步推进：
+## 8. 当前对对象存储 / 远程执行的立场
 
-1. **Phase 1 (自建 Runtime v0 与核心验证)**：打通统一调度的 Router / Planner / Review Gate，搭建双层执行器接口，引入无状态的质量审查 Agent。
-2. **Phase 2 (知识层构建与专项 Agent)**：引入 LLM Wiki、图书管理员 Agent、文献解析与外部会话摄入 Agent。确立严格的知识写回机制。
-3. **Phase 3 (长线优化与控制面)**：引入编排策略顾问 (Meta-Optimizer)，自托管远程控制台，解锁高并发 Subagents 平台级调度。
+Swallow 当前仍然应被理解为：
+
+- local-first
+- single-user-first
+- non-hosted-by-default
+
+因此，当前不应把对象存储或远程 worker 当作知识主真值层。
+
+更合理的分层是：
+
+- **本地文件系统**：原始材料、导出文件、大型 artifact、镜像视图
+- **SQLite**：task truth、event truth、knowledge truth、治理状态
+- **可选 blob backend（未来）**：S3 / OSS / MinIO 等，仅作为附件 / artifact / archive 的后续扩展
+
+也就是说，未来即使引入对象存储，它也应是 **blob backend**，而不是知识 authoritative store。
+
+---
+
+## 9. 当前与未来：哪些已经成立，哪些仍属方向
+
+### 已经成立（Current Baseline）
+
+- local-first task runtime
+- SQLite-primary task truth
+- SQLite-primary knowledge truth
+- Librarian-governed knowledge boundaries
+- optional vector retrieval with fallback semantics
+- route / topology / policy visibility
+- HTTP + CLI execution backends
+- taxonomy-first executor understanding
+
+### 仍属方向（Directional / Future）
+
+- real remote execution / multi-machine transport
+- object-storage-backed blob layer as a first-class extension
+- broader hosted control plane
+- larger-scale distributed worker model
+- more advanced provider negotiation layers beyond current route registry + fallback model
+
+方向性的东西可以继续设计，但不应倒过来定义当前系统是什么。
+
+---
+
+## 10. 对实现者的约束性理解
+
+如果要继续推进 Swallow，当前最重要的几条理解是：
+
+1. **不要把系统重新拉回纯 RAG 叙事**
+2. **不要把向量层误写成知识真值层**
+3. **不要让品牌映射重新污染 taxonomy**
+4. **不要让未来 hosted / remote 设想反向支配当前 local-first 边界**
+5. **不要把“文件仍然存在”误解为“文件永远是唯一真值”**
+
+当前更稳的推进方式是：
+
+- 先巩固 truth layer
+- 再扩展 retrieval orchestration
+- 再扩展 provider routing / evaluation / audit
+- 最后才考虑 blob backend、remote worker、hosted control plane 等扩张议题
+
+---
+
+## 11. 一句话总结
+
+Swallow 当前的正确理解不是：
+
+> 一个建立在向量 RAG 之上的多 Agent 平台
+
+而是：
+
+> 一个 local-first、以任务真值和知识真值为中心、通过受控检索与可替换执行器推进真实项目工作的有状态 AI workflow system
