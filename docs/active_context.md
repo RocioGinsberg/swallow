@@ -19,6 +19,8 @@
 
 结合 `docs/plans/phase49/closeout.md` 与 `docs/roadmap.md` 的后续队列，系统已完成 **Phase 49: 知识真值归一与向量 RAG**，并正式进入 `v0.7.0 (Knowledge Era)`。下一轮默认入口切换为 **Phase 50: 路由策略闭环与专项审计**，重点转向 Meta-Optimizer 提案链、质量信号反哺路由与自动化专项审计。
 
+同时，`docs/design/ARCHITECTURE.md` 已在 `main` 上完成一次**设计文档去时差**刷新：当前统一以 `Truth Layer first / Retrieval Layer second`、`taxonomy before brand`、`current baseline before future direction` 解释系统结构，避免旧的 RAG/Wiki 叙事继续牵引后续设计。
+
 ---
 
 ## 当前关键文档
@@ -39,6 +41,7 @@
 - `docs/design/STATE_AND_TRUTH_DESIGN.md`
 - `docs/design/KNOWLEDGE_AND_RAG_DESIGN.md`
 - `docs/design/AGENT_TAXONOMY_DESIGN.md`
+- `docs/design/ARCHITECTURE.md`
 
 ---
 
@@ -58,6 +61,7 @@
 - **[Claude]** 已完成 Phase 49 review：`0 BLOCK / 2 CONCERN / 可以合并`，concern 已登记 backlog。
 - **[Human]** 已完成 Phase 49 merge 到 `main` 并打 tag `v0.7.0`。
 - **[Codex]** 已完成 Phase 49 post-merge/tag 同步：`closeout.md`、`current_state.md`、`AGENTS.md`、`README*.md`。
+- **[Human]** 已完成 `docs/design/ARCHITECTURE.md` 去时差刷新并同步到当前基线语义。
 
 待执行：
 
@@ -75,6 +79,7 @@
 - `AGENTS.md` (codex, 2026-04-22, v0.7.0 tag alignment)
 - `README.md` (codex, 2026-04-22, v0.7.0 snapshot)
 - `README.zh-CN.md` (codex, 2026-04-22, v0.7.0 snapshot)
+- `docs/design/ARCHITECTURE.md` (human, 2026-04-22, architecture de-skew refresh)
 
 ## 当前下一步
 
