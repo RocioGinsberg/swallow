@@ -134,6 +134,105 @@ graph TD
 
 也就是说，Swallow 的执行层是 **executor + capability runtime**，而不仅仅是“谁来生成一句回答”。
 
+### 3.4 当前默认工作组合（default operating pattern）
+
+在当前单用户、local-first 的实际工作流中，系统不再预设一组固定品牌阵容作为“永久标准编队”。
+
+更贴近当前使用现实的方式是：
+
+- **Claude Code**：高价值、高复杂度任务的主执行者与复杂收口者
+- **Aider**：日常高频实现的默认施工 executor
+- **Warp / Oz Agents**：终端原生的并行 worker surface，用于中等复杂度、可拆分的并行任务与环境控制
+
+这三个默认绑定的意义不是取代 taxonomy，而是为当前 operator 提供更高效的默认工作组合。
+
+### 3.5 默认分工原则
+
+#### Claude Code
+适合：
+
+- 高错误成本任务
+- 高不确定性任务
+- 架构改动、复杂重构、疑难排障
+- 需要较强判断与方案取舍的工作
+- 最终需要高质量收口与 review 的复杂变更
+
+不适合长期被低价值、重复、机械性的实现工作占满。
+
+#### Aider
+适合：
+
+- 日常高频实现
+- 局部修改
+- 明确目标后的 edit loop
+- 小到中等复杂度的施工任务
+- 已经知道要改什么，只需要高频快速落地的工作
+
+它在当前更适合被理解为 **default implementation executor**。
+
+#### Warp / Oz Agents
+适合：
+
+- 多终端管理
+- 中等复杂度、可拆分的并行任务
+- 批量检查、环境准备、日志分析、测试矩阵、并行调查
+- 中间结果生产，而不是高代价主设计裁决
+
+它在当前更适合被理解为 **terminal-native parallel worker layer**，而不是主编排器。
+
+### 3.6 并行不是默认常态，而是条件触发
+
+Swallow 当前并不把“多 agent 并行”视为默认高级形态。
+
+更稳的默认模式是：
+
+- 一个主执行者负责主叙事
+- 一个或多个辅助 worker 在边界清晰时并行提供中间结果
+- 最终由主执行者或 operator 完成收口
+
+因此，并行更适合在这些场景触发：
+
+- 独立子任务可以清晰拆分
+- 需要并行调查多个候选方向
+- 需要并行收集日志、测试、环境与中间证据
+- 需要一个主执行者 + 一个只读 reviewer / validator
+
+而不适合在高价值复杂任务上让多个强执行者同时争夺主语义。
+
+### 3.7 当前推荐的升级 / 降级路径
+
+更贴近实际使用的默认策略是：
+
+- **简单 / 高频实现** → 默认走 Aider
+- **中等复杂、可拆分并行任务** → 默认交给 Warp / Oz worker surface
+- **高复杂 / 高价值 / 高错误成本任务** → 升级到 Claude Code
+
+更具体地说：
+
+#### Aider 升级到 Claude Code
+当满足任一条件时更适合升级：
+
+- 改动明显扩散
+- 需求开始模糊
+- 两轮迭代仍不收敛
+- 涉及架构边界或高风险设计取舍
+- 需要高质量方案说明或复杂 review
+
+#### Warp / Oz 升级到 Claude Code
+当满足任一条件时更适合升级：
+
+- 并行结果互相冲突
+- 子任务不再独立
+- 中间调查上升为设计问题
+- 需要统一全局语义和最终裁决
+
+#### Claude Code 降到 Aider
+当满足任一条件时更适合降级：
+
+- 方案已经定型
+- 后续只剩机械实现
+- 改动可明确拆成一组低风险子修改
+
 ---
 
 ## 4. 当前真值层：State / Event / Artifact / Route Truth
@@ -302,7 +401,25 @@ Provider Routing 层的职责，是把上游已经决定好的任务能力需求
 
 因此，Provider Routing 层已经是现实中的系统边界，而不是抽象概念。
 
-### 7.4 关于旧文档引用
+### 7.4 当前对默认绑定的理解
+
+当前 provider / backend 层不应再预设一组固定品牌阵容作为永久标准配置。
+
+更合适的理解是：
+
+- 系统保留可替换执行器框架
+- taxonomy 决定角色槽位
+- operator 根据真实工作流选择当前默认绑定
+- `Claude Code + Aider + Warp/Oz` 是当前更贴近实际使用的默认组合，而不是唯一合法实现
+
+因此，provider 设计的目标是：
+
+- 保持可替换性
+- 支持升级 / 降级 / fallback
+- 支持并行 worker surface
+- 不让某一组品牌默认阵容反过来绑死系统角色
+
+### 7.5 关于旧文档引用
 
 早期某些 provider routing 设计文档已经在后续文档整理中被合并进 phase materials、README 和当前实现语义中。今后若引用 provider routing 设计，应以当前 `main` 上存在的文档与实现为准，而不再依赖已合并移除的旧文件名。
 
@@ -340,6 +457,8 @@ Swallow 当前仍然应被理解为：
 - route / topology / policy visibility
 - HTTP + CLI execution backends
 - taxonomy-first executor understanding
+- default operator workflow anchored on `Claude Code + Aider + Warp/Oz`
+- parallelism treated as conditional strategy rather than mandatory default
 
 ### 仍属方向（Directional / Future）
 
@@ -362,12 +481,15 @@ Swallow 当前仍然应被理解为：
 3. **不要让品牌映射重新污染 taxonomy**
 4. **不要让未来 hosted / remote 设想反向支配当前 local-first 边界**
 5. **不要把“文件仍然存在”误解为“文件永远是唯一真值”**
+6. **不要让 Warp / Oz 这类并行 worker surface 悄悄变成隐藏编排器**
+7. **不要让 Claude Code 长期被低价值重复实现工作稀释**
 
 当前更稳的推进方式是：
 
 - 先巩固 truth layer
 - 再扩展 retrieval orchestration
 - 再扩展 provider routing / evaluation / audit
+- 在默认工作流中让 Claude Code / Aider / Warp-Oz 各守其位
 - 最后才考虑 blob backend、remote worker、hosted control plane 等扩张议题
 
 ---
@@ -380,4 +502,4 @@ Swallow 当前的正确理解不是：
 
 而是：
 
-> 一个 local-first、以任务真值和知识真值为中心、通过受控检索与可替换执行器推进真实项目工作的有状态 AI workflow system
+> 一个 local-first、以任务真值和知识真值为中心、通过受控检索与可替换执行器推进真实项目工作的有状态 AI workflow system；其中当前默认工作组合以 Claude Code 处理高复杂高价值任务、Aider 处理高频实现、Warp/Oz 处理并行终端型中间任务
