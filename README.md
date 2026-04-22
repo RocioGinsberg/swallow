@@ -1,423 +1,249 @@
 # swallow
 
-[中文](./README.zh-CN.md) | English
+[中文](#中文版) | English
 
-**A stateful AI workflow system for real project work.**
+A stateful AI workflow system for real project work.
 
-swallow is not aimed at one-shot chat, and it is not only a wrapper around a code agent.  
-It is meant to bring the following capabilities into one system that can sustain real work over time:
-
-- task orchestration
-- retrieval and context organization
-- executor integration
-- state, event, and artifact persistence
-- review, recovery, and retry
-- reusable capabilities and knowledge-object management
+swallow sustains multi-step, multi-session tasks by combining task orchestration, context retrieval, executor integration, state persistence, review/recovery, and knowledge-object management into a single local-first system.
 
 ---
 
-## Positioning
+## Core Capabilities
 
-swallow is built for **real project workflows**, not single-turn interaction.
-
-It is concerned with questions like:
-
-- can a task continue across multiple steps and sessions
-- can relevant context be retrieved from the workspace, not only from the current prompt
-- can code work and knowledge work live in the same task flow
-- can execution be recorded as state, events, and artifacts
-- can external planning and external knowledge enter the system without polluting long-term memory
-- can executors remain replaceable instead of being tied to one platform
-
-So it is not:
-
-- a generic chatbot
-- a pure RAG project
-- a thin wrapper around one executor
-- a multi-agent demo for its own sake
-
-It is closer to an **AI workbench / AI workflow system** for real project work.
-
-At the current stage, the system should also not be read as a fixed brand lineup. Publicly, the more accurate framing is: **role-first architecture, with a current default operating pattern anchored on Claude Code for high-value/high-complexity tasks, Aider for high-frequency implementation work, and Warp/Oz for terminal-native parallel worker tasks.**
+- **Stateful task runtime** — tasks persist across steps and sessions with explicit state, events, artifacts, checkpoints, resume, retry, and rerun.
+- **Knowledge governance** — SQLite-backed knowledge truth with staged → review → promote workflow, not implicit global memory.
+- **Replaceable executors** — role-first architecture; executors are bound by system role, not brand identity.
+- **Multi-model routing** — HTTP routes with dialect adapters, layered fallback matrix, and real token-cost telemetry.
+- **Review & recovery** — structured review gates, feedback-driven retry, waiting_human circuit breaking, and operator-facing control surfaces.
+- **Read-only web dashboard** — `swl serve` provides inspection, artifact comparison, subtask trees, and execution timelines without mutating state.
 
 ---
 
-## Why this project exists
+## Architecture at a Glance
 
-Real project context is usually scattered across many places:
+```mermaid
+graph TD
+    UI["① Interaction / Workbench<br/>CLI · Control Center · Chat Panel"]
+    ORCH["② Orchestrator<br/>Strategy Router · Planner · Review Gate"]
+    EXEC["③ Execution & Capabilities<br/>Executors · Tools · Skills · Workflows · Validators"]
+    KNOW["④ Knowledge Truth & Retrieval<br/>Evidence · Wiki · Canonical · Retrieval"]
+    STATE["⑤ State / Event / Artifact Truth<br/>TaskState · EventLog · Artifacts · Route/Policy"]
+    PROVIDER["⑥ Provider Routing<br/>Route Registry · Dialect Adapters · Fallback"]
 
-- code repositories and Git history
-- Markdown / Obsidian notes
-- task summaries, phase notes, and recovery docs
-- retrieval outputs, test logs, and execution artifacts
-- planning discussions and knowledge distilled from external AI tools
-
-The problem is usually not that information does not exist. The problem is:
-
-> **the right information is hard to retrieve, act on, and consolidate at the right moment.**
-
-Many AI tools are already strong at single responses, but they are still weak at:
-
-- sustaining multi-step task progress
-- working across code and knowledge material
-- preserving recoverable task state
-- leaving inspectable execution artifacts
-- turning past work into reusable future knowledge
-
-swallow is built to address that layer.
-
----
-
-## System Overview
-
-swallow is organized around five long-running layers:
-
-- **Orchestrator**: decides what to do and in what order
-- **Harness Runtime**: runs retrieval, executor calls, recording, and artifact generation
-- **Capabilities**: reusable tools, skills, profiles, workflows, and validators
-- **State / Memory / Artifacts**: task truth, event history, memory, and outputs
-- **Provider Routing**: route, executor family, backend, and capability fit
-
-At the agent and execution layer, the system enforces a strict taxonomy based on system role, rather than model brand:
-
-- **General Executor**: performs broad, substantial task work (e.g., repository edits, API planning).
-- **Specialist Agent**: performs bounded, high-value subsystem work (e.g., memory curation, knowledge intake).
-- **Validator / Reviewer**: audits and checks outputs without mutating main task state.
-- **Orchestrator**: strictly coordinates progression and prevents any agent from becoming a hidden router.
-
-In other words, swallow is not only about “which model to call.”  
-It is about:
-
-- how a task progresses
-- how execution is constrained
-- how results are recorded
-- how knowledge becomes reusable
-- how an operator can inspect and recover work
-
----
-
-## Current Implementation Snapshot
-
-**Current tag: `v0.7.0`** — Knowledge Era: SQLite knowledge truth, Librarian agent boundaries, and sqlite-vec fallback RAG
-
-> This section is updated only when a new tag is created. For real-time development progress, see `docs/active_context.md` and `docs/roadmap.md`.
-
-The stable baseline now stands at `395 tests passed + 8 eval passed`.
-
-In practice, the current system includes:
-
-- a local-first task loop with explicit state, events, artifacts, checkpoints, resume, retry, and rerun semantics
-- explicit route, topology, dispatch, execution-site, handoff, and policy records
-- mock-remote dispatch gating and remote-handoff contract visibility without widening into real remote execution
-- taxonomy metadata, taxonomy-aware routing guards, and operator-facing taxonomy visibility
-- staged knowledge capture, review queues, promotion / rejection decisions, and capability-aware write boundaries
-- a SQLite-primary Evidence Store + Wiki Store task-knowledge truth layer, with file mirrors retained only as export / fallback views
-- operator-facing knowledge migration and diagnostics: `swl knowledge migrate` supports dry-run / idempotent backfill, and `swl doctor sqlite` now reports knowledge-layer health
-- a boundary-aware `LibrarianAgent` / `LibrarianExecutor` compatibility layer with structured knowledge change logs and enforced canonical write authority
-- local reusable-knowledge retrieval with optional `sqlite-vec` vector search, automatic text fallback, visible WARN logging, and eval-backed precision/recall baselines
-- canonical knowledge registry, reuse visibility, dedupe / supersede audit, and regression inspection paths
-- canonical-sourced task grounding evidence artifacts, locked grounding refs, and resume-stable grounding state
-- bounded 1:N `TaskCard` planning, DAG-based subtask orchestration, and parent-task artifact / event aggregation
-- a local external-session ingestion pipeline with format parsers, filtering, staged candidate registration, and `swl ingest`
-- a multi-round Debate Topology with structured `ReviewFeedback`, single-task and per-subtask retry loops, and `waiting_human` circuit breaking
-- an async execution spine: `execute_async()`, `run_review_gate_async()`, `run_task_async()`, and `AsyncSubtaskOrchestrator`, while keeping sync-compatible CLI entrypoints
-- an async parallel review gate: N-reviewer execution now uses `asyncio.gather(..., return_exceptions=True)` with per-reviewer timeout isolation
-- a SQLite-backed task truth layer in `.swl/swallow.db` for `TaskState` and `EventLog`, using WAL mode with sqlite-primary + file mirror/fallback transition semantics
-- operator-facing migration and health tooling: `swl migrate`, `swl doctor sqlite`, and default `swl doctor` output with SQLite diagnostics
-- event-loop-safe runtime boundaries: sync `run_task()` now fails fast inside a running loop and points async callers to `await run_task_async(...)`
-- an N-reviewer consensus gate: `TaskCard.reviewer_routes` + `consensus_policy` support `majority` / `veto` review aggregation without changing `_debate_loop_core()`
-- task-card token-cost guardrails: `TaskCard.token_cost_limit` consumes real executor `token_cost` from task event logs, trips `budget_exhausted`, and routes the task into `waiting_human`
-- a read-only consistency audit entrypoint: `swl task consistency-audit <task-id> --auditor-route <route>` audits existing artifacts and writes `consistency_audit_*.md` without mutating task state
-- a capability-aware Strategy Router with `RouteRegistry`, four-tier candidate matching (exact → family+site → capability → summary fallback), and route-level binary fallback
-- Claude XML and Codex FIM dialect adapters with a shared `dialect_data` prompt collection layer and FIM marker escaping
-- structured executor event telemetry (`task_family`, `logical_model`, `physical_route`, `latency_ms`, `degraded`, `error_code`)
-- a read-only Meta-Optimizer that scans task event logs and emits route health, failure fingerprint, and degradation trend proposals
-- atomic Librarian persistence for `state / knowledge / index` files with rollback-safe batch replace semantics
-- a shared debate loop core that unifies single-task and subtask retry control flow without changing event/artifact semantics
-- fallback token-cost accounting and debate-retry telemetry isolation in the Meta-Optimizer route stats layer
-- a read-only Web Control Center (`swl serve`): FastAPI JSON API + single-page HTML dashboard + dual-pane artifact review, subtask tree view, artifact compare endpoint, execution timeline charts, zero writes to `.swl/`, no frontend build toolchain
-- Eval-Driven Development infrastructure: `tests/eval/` with `@pytest.mark.eval` isolation, ingestion quality baseline (precision/recall on golden datasets), Meta-Optimizer proposal quality baseline (scenario-based coverage), and consensus majority / veto / budget-exhaustion baselines
-- ChatGPT conversation tree restoration: parent-child tree construction, primary path vs. abandoned branch detection, semantic preservation of rejected alternatives
-- `swl ingest --summary`: structured ingestion summaries with Decisions / Constraints / Rejected Alternatives / Statistics sections
-- operator-facing inspect / review / control / intake / grounding surfaces over the same persisted task truth
-- retrieval over repository files, Markdown / Obsidian notes, and reusable knowledge records, with policy-gated vector/text fallback ranking
-- **HTTP executor (`HTTPExecutor`)**: httpx-based direct connection to local new-api (OpenAI-compatible), replacing subprocess CLI as the primary LLM path — the system now has real multi-model network dispatch capability
-- **CLI executor debranding (`CLIAgentExecutor`)**: configuration-driven `CLIAgentConfig` with Codex and Cline as named config instances, eliminating brand hardcoding; unknown executor names now raise `UnknownExecutorError` explicitly
-- **multi-model HTTP routes**: `http-claude` (claude_xml) / `http-qwen` (plain_text) / `http-glm` (plain_text) / `http-gemini` (plain_text) / `http-deepseek` (codex_fim) + `local-cline` all registered
-- **layered fallback matrix**: `http-claude → http-qwen → http-glm → local-cline → local-summary` with cycle detection; HTTP 429 rate-limit routes to retry rather than immediate fallback
-- **self-built telemetry layer**: HTTPExecutor captures real token usage from API response `usage` fields, replacing static cost estimation; Meta-Optimizer now consumes real cost data
-
-The current `main` should be treated as the stable baseline corresponding to the latest tag.
-
----
-
-## Documentation Structure
-
-The repository documentation is organized into five layers.
-
-### 1. Public documentation
-- `README.md`
-- `README.zh-CN.md`
-
-Used for:
-- project positioning
-- structure overview
-- quickstart
-
-### 2. Current execution layer
-- `AGENTS.md`
-- `docs/active_context.md`
-- `current_state.md`
-
-Used for:
-- `AGENTS.md`: entry control surface and long-lived rules
-- `docs/active_context.md`: the only high-frequency status document
-- `current_state.md`: recovery entrypoint
-
-### 3. Phase planning layer
-- `docs/plans/<phase>/kickoff.md`
-- `docs/plans/<phase>/breakdown.md`
-- `docs/plans/<phase>/closeout.md`
-- `docs/plans/<phase>/commit_summary.md` (optional)
-- `docs/plans/<phase>/context_brief.md`
-- `docs/plans/<phase>/design_decision.md`
-- `docs/plans/<phase>/risk_assessment.md`
-- `docs/plans/<phase>/review_comments.md`
-- `docs/plans/<phase>/consistency_report.md` (optional)
-
-Used for:
-- phase goals
-- phase breakdown
-- phase closeout
-
-### 4. Multi-agent control layer
-- `.agents/shared/`
-- `.agents/codex/`
-- `.agents/claude/`
-- `.agents/gemini/`
-- `.agents/workflows/`
-- `.agents/templates/`
-
-Used for:
-- shared rules, state sync, and workflow definitions
-- role-specific responsibilities and write boundaries
-- shared templates and collaboration flow
-
-### 5. Tool-native entrypoints
-- `CLAUDE.md`
-- `.codex/session_bootstrap.md`
-- `.gemini/settings.md`
-
-Used for:
-- thin pointers into the `.agents/` control layer
-- tool-specific loading entrypoints rather than duplicated rules
-
----
-
-## Recommended Working Style
-
-The repository follows this default rhythm:
-
-- **phase** defines development cadence
-- **track** defines long-running system direction
-- **slice** defines the current semantic goal
-- **feature branch** carries the current phase
-- **small commits** record slice-level progress
-
-The default documentation and Git rhythm is:
-
-- high-frequency state goes only into `docs/active_context.md`
-- `current_state.md` is updated only when closeout or recovery semantics change
-- `AGENTS.md` is updated only when entry rules or active direction change
-- README files are updated only when the public structure or user-visible workflow changes
-
-New work should no longer default to new `post-phase-*` naming.  
-New work should be organized as:
-
-- a formal phase
-- a clear track
-- a clear slice
-
----
-
-## Quickstart
-
-Install in editable mode:
-
-```bash
-python3 -m pip install -e .
+    UI --> ORCH
+    ORCH --> EXEC
+    ORCH <--> KNOW
+    EXEC <--> STATE
+    ORCH --> PROVIDER
 ```
 
-Create a task:
+For detailed design, see the [Design Documents](#design-documents) section below.
 
-```bash id="77sowp"
+---
+
+## Default Operating Pattern
+
+The system is role-first — executors are assigned by capability, not brand:
+
+| Role | Default Binding | Best For |
+|---|---|---|
+| High-value / complex tasks | Claude Code | Architecture changes, complex refactoring, final review |
+| High-frequency implementation | Aider | Clear-scope edits, daily implementation loops |
+| Parallel terminal tasks | Warp / Oz | Multi-terminal investigation, test matrices, environment prep |
+
+---
+
+## Quick Start
+
+```bash
+# Install
+python3 -m pip install -e .
+
+# Create a task
 swl task create \
   --title "Design orchestrator" \
   --goal "Tighten the harness runtime boundary" \
-  --workspace-root . \
-  --capability profile:baseline_local \
-  --capability workflow:task_loop \
-  --executor local
-```
+  --workspace-root .
 
-Run a task:
-
-```bash id="5e7lgb"
+# Run a task
 swl task run <task-id>
-swl task run <task-id> --capability validator:strict_validation
-swl task run <task-id> --executor codex
-```
 
-Inspect tasks and artifacts:
-
-```bash id="n08n7n"
-swl task list
-swl task queue
+# Inspect results
 swl task inspect <task-id>
-swl task review <task-id>
-swl task control <task-id>
 swl task artifacts <task-id>
-swl task summarize <task-id>
-swl task resume-note <task-id>
-swl task route <task-id>
-swl task topology <task-id>
-swl task handoff <task-id>
-swl task remote-handoff <task-id>
-swl task grounding <task-id>
-swl task policy <task-id>
-swl task memory <task-id>
 ```
 
-Recovery and retry entrypoints:
-
-```bash id="ga9xot"
-swl task checkpoint <task-id>
-swl task resume <task-id>
-swl task retry <task-id>
-swl task rerun <task-id>
-```
-
-Planning and knowledge intake:
-
-```bash id="0iww4p"
-swl task planning-handoff <task-id> --planning-source chat://session-1 --constraint "Keep task semantics explicit"
-swl task knowledge-capture <task-id> --knowledge-stage candidate --knowledge-source chat://session-2 --knowledge-item "Imported knowledge should remain staged first."
-swl task intake <task-id>
-```
-
-Knowledge review and promotion:
-
-```bash id="q2m9kb"
-swl task knowledge-review-queue <task-id>
-swl task knowledge-promote <task-id> <object-id> --target reuse --note "Promote for retrieval reuse."
-swl task knowledge-promote <task-id> <object-id> --target canonical --note "Promote to canonical after review."
-swl task knowledge-reject <task-id> <object-id> --target reuse --note "Keep task-linked only."
-swl task knowledge-decisions <task-id>
-```
-
-Canonical registry inspection:
-
-```bash id="p13ckr"
-swl task canonical-registry <task-id>
-swl task canonical-registry-json <task-id>
-swl task canonical-registry-index <task-id>
-swl task canonical-reuse <task-id>
-swl task canonical-reuse-json <task-id>
-swl task canonical-reuse-evaluate <task-id> --citation <citation> --judgment useful
-swl task canonical-reuse-eval <task-id>
-swl task canonical-reuse-regression <task-id>
-swl task canonical-reuse-regression-json <task-id>
-```
-
-Grounding inspection:
-
-```bash id="gnd27a"
-swl task grounding <task-id>
-```
-
-Meta-optimizer (read-only event log analysis):
-
-```bash
-swl meta-optimize
-swl meta-optimize --last-n 50
-```
-
-Control Center (read-only web dashboard):
-
-```bash
-swl serve
-swl serve --port 8037 --host 127.0.0.1
-```
-
-Canonical registry records are explicit persisted outputs for promoted canonical knowledge. They are not automatic global memory and do not automatically enable broad retrieval reuse.
-
-Canonical reuse remains policy-gated. `canonical-reuse` shows which active canonical records are currently reuse-visible, while superseded canonical records stay excluded by default.
-
-Canonical reuse evaluation also remains explicit and operator-driven. `canonical-reuse-evaluate` records a task-local judgment, `canonical-reuse-eval` shows the evaluation summary, and `canonical-reuse-regression` compares the saved regression baseline against the current evaluation summary so an operator can quickly spot drift or stale baseline state.
-
-Canonical reuse regression control also remains operator-facing rather than automatic. Queue, control, inspect, and review now surface regression mismatch attention and point back to `canonical-reuse-regression` instead of mutating policy or blocking task flow automatically.
-
-Execution topology now also keeps remote handoff contract truth explicit and operator-facing. `remote-handoff` shows the task-local remote handoff contract baseline, while execution-site, dispatch, handoff, control, and inspect surface the same readiness summary so an operator can see when a route has crossed into a remote-candidate boundary.
-
-This remains a contract baseline, not real remote execution support. It does not implement cross-machine transport, remote worker dispatch, or hosted orchestration.
-
-Run the test suite:
-
-```bash id="w0d5ha"
-.venv/bin/python -m pytest
-```
+For the full CLI reference (40+ subcommands covering recovery, knowledge management, canonical registry, grounding, and meta-optimization), see `docs/cli_reference.md`.
 
 ---
 
-## Current CLI Shape
+## Design Documents
 
-The current CLI should be understood as:
+| Document | Covers |
+|---|---|
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | System overview, global principles, glossary, reading order |
+| [`STATE_AND_TRUTH.md`](./STATE_AND_TRUTH_DESIGN.md) | Task state, event log, artifacts, route/policy truth |
+| [`KNOWLEDGE.md`](./KNOWLEDGE_AND_RAG_DESIGN.md) | Knowledge truth layer, retrieval & serving, write boundaries |
+| [`AGENT_TAXONOMY.md`](./AGENT_TAXONOMY_DESIGN.md) | System roles, execution sites, memory authority |
+| [`ORCHESTRATION.md`](./ORCHESTRATION_AND_HANDOFF_DESIGN.md) | Scheduling engine, structured handoff, collaboration topology |
+| [`HARNESS.md`](./HARNESS_AND_CAPABILITIES.md) | Execution environment, capability hierarchy (tools → skills → workflows → validators) |
+| [`PROVIDER_ROUTER.md`](./PROVIDER_ROUTER_AND_NEGOTIATION.md) | Model routing, dialect adapters, fallback, telemetry |
+| [`SELF_EVOLUTION.md`](./SELF_EVOLUTION_AND_MEMORY.md) | Librarian knowledge consolidation, Meta-Optimizer proposals |
+| [`INTERACTION.md`](./INTERACTION_AND_WORKBENCH.md) | CLI, Control Center, chat panel, multi-surface matrix |
 
-* a task workbench
-* an artifact inspection surface
-* an operator control layer
-* a recovery and comparison entrypoint set
+Recommended reading order: ARCHITECTURE → STATE_AND_TRUTH → KNOWLEDGE → AGENT_TAXONOMY → PROVIDER_ROUTER → ORCHESTRATION → HARNESS → SELF_EVOLUTION → INTERACTION.
 
-Detailed current working boundaries are documented in:
+---
 
-* `AGENTS.md`
-* `docs/active_context.md`
-* `current_state.md`
+## Current Version
+
+**Tag: `v0.7.0`** — Knowledge Era: SQLite knowledge truth, Librarian agent boundaries, sqlite-vec fallback RAG.
+
+Stable baseline: `395 tests passed + 8 eval passed`.
+
+For implementation details, see `CHANGELOG.md` and `docs/active_context.md`.
 
 ---
 
 ## Non-Goals
 
-Unless a phase explicitly requires them, the project does not currently prioritize:
+Unless a phase explicitly requires them:
 
-* multi-tenant architecture
-* distributed worker clusters
-* large-scale hosted infrastructure
-* broad plugin marketplaces
-* implicit global memory
-* automatic knowledge promotion
-* unbounded workbench UI expansion
-* platform-level complexity introduced only because it may be useful later
+- Multi-tenant / distributed worker clusters
+- Implicit global memory or automatic knowledge promotion
+- Unbounded workbench UI expansion
+- Platform complexity introduced only because it may be useful later
 
-The immediate priority is:
-
-> **make the single-user workflow genuinely useful while preserving clean boundaries for later expansion.**
-
----
-
-## Terminology
-
-* **task semantics**: explicit task-intent and planning-handoff objects that carry execution intent and constraints
-* **knowledge objects**: staged knowledge records used for imported knowledge, reusable evidence, and later retrieval
-* **resume note**: a hand-off note written after a run so the next session can continue correctly
-* **handoff**: an explicit record of execution boundary, ownership, and next operator action
-* **checkpoint**: a compact recovery snapshot reviewed before resume, retry, or rerun
-* **general executor**: an agent role designed for broad task execution and state mutation
-* **specialist agent**: an agent role designed for bounded subsystem work, strictly constrained from owning overall task progression
-* **memory authority**: the explicit read/write scope granted to an agent (e.g., stateless, task-state, staged-knowledge)
+Priority: **make the single-user workflow genuinely useful while preserving clean boundaries for later expansion.**
 
 ---
 
 ## License
 
 TBD
+
+---
+
+<a name="中文版"></a>
+
+# swallow（中文版）
+
+**面向真实项目工作的有状态 AI 工作流系统。**
+
+swallow 把任务编排、上下文检索、执行器接入、状态持久化、审阅/恢复和知识对象管理整合到一个 local-first 的系统中，支撑跨多步、多会话的持续任务推进。
+
+---
+
+## 核心能力
+
+- **有状态任务运行时**——任务跨步骤和会话持久化，支持显式 state / events / artifacts / checkpoint / resume / retry / rerun。
+- **知识治理**——SQLite-backed 知识真值层，staged → review → promote 工作流，而不是隐式全局记忆。
+- **可替换执行器**——role-first 架构，执行器按系统角色绑定，而非品牌绑定。
+- **多模型路由**——HTTP 路由 + 方言适配器 + 分层降级矩阵 + 真实 token 成本遥测。
+- **审查与恢复**——结构化 review gate、feedback-driven retry、waiting_human 熔断与 operator-facing 控制面。
+- **只读 Web 仪表盘**——`swl serve` 提供检查、artifact 对比、子任务树与执行时间线，不修改状态。
+
+---
+
+## 架构概览
+
+```mermaid
+graph TD
+    UI["① 交互 / 工作台<br/>CLI · 控制中心 · 聊天面板"]
+    ORCH["② 编排层<br/>Strategy Router · Planner · Review Gate"]
+    EXEC["③ 执行与能力层<br/>执行器 · Tools · Skills · Workflows · Validators"]
+    KNOW["④ 知识真值与检索<br/>Evidence · Wiki · Canonical · Retrieval"]
+    STATE["⑤ 状态 / 事件 / 工件真值<br/>TaskState · EventLog · Artifacts · Route/Policy"]
+    PROVIDER["⑥ 模型路由<br/>Route Registry · 方言适配 · Fallback"]
+
+    UI --> ORCH
+    ORCH --> EXEC
+    ORCH <--> KNOW
+    EXEC <--> STATE
+    ORCH --> PROVIDER
+```
+
+详细设计见下方[设计文档](#设计文档)。
+
+---
+
+## 默认工作组合
+
+系统坚持 role-first——执行器按能力分配，不按品牌：
+
+| 角色 | 默认绑定 | 适用场景 |
+|---|---|---|
+| 高价值 / 高复杂度任务 | Claude Code | 架构改动、复杂重构、最终收口 |
+| 高频实现 | Aider | 边界清晰的日常编辑 |
+| 并行终端任务 | Warp / Oz | 多终端调查、测试矩阵、环境准备 |
+
+---
+
+## 快速开始
+
+```bash
+# 安装
+python3 -m pip install -e .
+
+# 创建任务
+swl task create \
+  --title "设计编排器" \
+  --goal "收紧 harness runtime 边界" \
+  --workspace-root .
+
+# 运行任务
+swl task run <task-id>
+
+# 查看结果
+swl task inspect <task-id>
+swl task artifacts <task-id>
+```
+
+完整 CLI 参考（40+ 子命令，覆盖恢复、知识管理、canonical registry、grounding、meta-optimization 等）见 `docs/cli_reference.md`。
+
+---
+
+## <a name="设计文档"></a>设计文档
+
+| 文档 | 内容 |
+|---|---|
+| [`ARCHITECTURE.md`](./ARCHITECTURE.md) | 系统全景、全局原则、术语表、阅读顺序 |
+| [`STATE_AND_TRUTH.md`](./STATE_AND_TRUTH_DESIGN.md) | 任务状态、事件日志、工件、路由/策略真值 |
+| [`KNOWLEDGE.md`](./KNOWLEDGE_AND_RAG_DESIGN.md) | 知识真值层、检索服务、写入边界 |
+| [`AGENT_TAXONOMY.md`](./AGENT_TAXONOMY_DESIGN.md) | 系统角色、运行站点、记忆权限 |
+| [`ORCHESTRATION.md`](./ORCHESTRATION_AND_HANDOFF_DESIGN.md) | 调度引擎、结构化交接、协同拓扑 |
+| [`HARNESS.md`](./HARNESS_AND_CAPABILITIES.md) | 执行环境、能力分层（tools → skills → workflows → validators） |
+| [`PROVIDER_ROUTER.md`](./PROVIDER_ROUTER_AND_NEGOTIATION.md) | 模型路由、方言适配、降级、遥测 |
+| [`SELF_EVOLUTION.md`](./SELF_EVOLUTION_AND_MEMORY.md) | Librarian 知识沉淀、Meta-Optimizer 优化提案 |
+| [`INTERACTION.md`](./INTERACTION_AND_WORKBENCH.md) | CLI、控制中心、聊天面板、多入口矩阵 |
+
+推荐阅读顺序：ARCHITECTURE → STATE_AND_TRUTH → KNOWLEDGE → AGENT_TAXONOMY → PROVIDER_ROUTER → ORCHESTRATION → HARNESS → SELF_EVOLUTION → INTERACTION。
+
+---
+
+## 当前版本
+
+**Tag: `v0.7.0`** — Knowledge Era：知识层 SQLite 真值归一 + Librarian Agent 边界 + sqlite-vec 可退级 RAG。
+
+稳定基线：`395 tests passed + 8 eval passed`。
+
+实现细节见 `CHANGELOG.md` 和 `docs/active_context.md`。
+
+---
+
+## 非目标
+
+除非某一 phase 明确要求：
+
+- 多租户 / 分布式 worker 集群
+- 隐式全局记忆或自动 knowledge promotion
+- 无边界 workbench UI 扩张
+- 仅因"未来可能需要"而引入的平台型复杂度
+
+首要目标：**单用户场景稳定可用，并为后续扩展保留清晰边界。**
+
+---
+
+## 许可证
+
+待定
