@@ -37,6 +37,26 @@ Phase 49 `Knowledge SSOT & Vector RAG` 已完成实现、验证、review、merge
 - `dce4d7a` `docs(phase49):close out and review confirm`
 - `3323c4b` `merge: Knowledge SSOT & Vector RAG`
 
+## 最终解释修订（post-closeout clarification）
+
+Phase 49 的实现完成后，系统对“知识双层架构”的最终解释应明确修订为：
+
+- **Knowledge Truth Layer**：以 SQLite-backed Evidence / Wiki / canonical records 为 authoritative state
+- **Retrieval & Serving Layer**：围绕这些已治理知识对象提供 exact retrieval、policy filtering、vector recall 与 text fallback
+
+也就是说，Phase 49 不应被理解为“先做向量 RAG，再叠一个 Wiki 层”，而应被理解为：
+
+> **先把知识归一为受治理的 truth objects，再把向量检索作为 retrieval augmentation 接入。**
+
+因此，本轮中 `sqlite-vec` 的正确定位是：
+
+- retrieval 侧可选增强能力
+- 不是知识主真值
+- 不是系统默认入口
+- 不取代 canonical / staged / evidence / wiki 等知识对象治理边界
+
+这一定义用于约束后续 phase，避免系统被重新拉回 vector-first 的旧叙事。
+
 ## 与 kickoff 完成条件对照
 
 ### 已完成
