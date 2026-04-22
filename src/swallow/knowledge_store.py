@@ -7,8 +7,10 @@ from pathlib import Path
 from .models import utc_now
 from .paths import (
     knowledge_objects_path,
+    swallow_db_path,
     task_knowledge_evidence_root,
     task_knowledge_wiki_root,
+    tasks_root,
 )
 
 
@@ -125,6 +127,36 @@ def _merge_task_knowledge_views(*collections: list[dict[str, object]]) -> list[d
     return [merged[key] for key in order]
 
 
+def load_task_knowledge_view_from_files(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    legacy_entries = normalize_task_knowledge_view(_load_legacy_knowledge_objects(base_dir, task_id))
+    evidence_entries = [normalize_evidence_entry(item) for item in _load_store_entries(task_knowledge_evidence_root(base_dir, task_id))]
+    wiki_entries = [normalize_wiki_entry(item) for item in _load_store_entries(task_knowledge_wiki_root(base_dir, task_id))]
+    return _merge_task_knowledge_views(legacy_entries, evidence_entries, wiki_entries)
+
+
+def iter_file_knowledge_task_ids(base_dir: Path) -> list[str]:
+    task_ids: set[str] = set()
+
+    task_root = tasks_root(base_dir)
+    if task_root.exists():
+        for entry in task_root.iterdir():
+            if not entry.is_dir():
+                continue
+            if knowledge_objects_path(base_dir, entry.name).exists():
+                task_ids.add(entry.name)
+
+    for root in (task_knowledge_evidence_root(base_dir, ""), task_knowledge_wiki_root(base_dir, "")):
+        if not root.exists():
+            continue
+        for entry in root.iterdir():
+            if not entry.is_dir():
+                continue
+            if any(entry.glob("*.json")):
+                task_ids.add(entry.name)
+
+    return sorted(task_ids)
+
+
 def load_task_evidence_entries(base_dir: Path, task_id: str) -> list[dict[str, object]]:
     if _sqlite_knowledge_enabled():
         sqlite_store = _sqlite_store()
@@ -155,10 +187,7 @@ def load_task_knowledge_view(base_dir: Path, task_id: str) -> list[dict[str, obj
         sqlite_view = sqlite_store.load_task_knowledge_view(base_dir, task_id)
         if sqlite_view:
             return sqlite_view
-    legacy_entries = normalize_task_knowledge_view(_load_legacy_knowledge_objects(base_dir, task_id))
-    evidence_entries = load_task_evidence_entries(base_dir, task_id)
-    wiki_entries = load_task_wiki_entries(base_dir, task_id)
-    return _merge_task_knowledge_views(legacy_entries, evidence_entries, wiki_entries)
+    return load_task_knowledge_view_from_files(base_dir, task_id)
 
 
 def _write_store_entries(store_root: Path, entries: list[dict[str, object]]) -> None:
@@ -238,3 +267,74 @@ def persist_wiki_entry_from_record(
     merged_view = _merge_task_knowledge_views(load_task_knowledge_view(base_dir, source_task_id), [wiki_entry])
     persist_task_knowledge_view(base_dir, source_task_id, merged_view, mirror_files=mirror_files)
     return wiki_entry
+
+
+def migrate_file_knowledge_to_sqlite(
+    base_dir: Path,
+    *,
+    dry_run: bool = False,
+) -> dict[str, object]:
+    sqlite_store = _sqlite_store()
+    scanned_task_ids = iter_file_knowledge_task_ids(base_dir)
+    migrated_task_ids: list[str] = []
+    skipped_task_ids: list[str] = []
+    failed_task_ids: list[str] = []
+    errors: dict[str, str] = {}
+    knowledge_object_count_migrated = 0
+    knowledge_object_count_skipped = 0
+    knowledge_object_count_failed = 0
+
+    for task_id in scanned_task_ids:
+        try:
+            file_view = load_task_knowledge_view_from_files(base_dir, task_id)
+        except (OSError, json.JSONDecodeError, ValueError, TypeError) as exc:
+            failed_task_ids.append(task_id)
+            errors[task_id] = str(exc)
+            continue
+
+        if not file_view:
+            skipped_task_ids.append(task_id)
+            continue
+
+        if sqlite_store.task_has_knowledge(base_dir, task_id):
+            skipped_task_ids.append(task_id)
+            knowledge_object_count_skipped += len(file_view)
+            continue
+
+        migrated_task_ids.append(task_id)
+        knowledge_object_count_migrated += len(file_view)
+        if dry_run:
+            continue
+
+        normalized_view = sqlite_store.replace_task_knowledge(base_dir, task_id, file_view)
+        sqlite_store.record_knowledge_migration(
+            base_dir,
+            task_id,
+            {
+                "task_id": task_id,
+                "object_count": len(normalized_view),
+                "source": "file_knowledge",
+            },
+        )
+
+    for task_id in failed_task_ids:
+        try:
+            knowledge_object_count_failed += len(load_task_knowledge_view_from_files(base_dir, task_id))
+        except Exception:
+            continue
+
+    return {
+        "db_path": str(swallow_db_path(base_dir)),
+        "dry_run": dry_run,
+        "task_count_scanned": len(scanned_task_ids),
+        "task_count_migrated": len(migrated_task_ids),
+        "task_count_skipped": len(skipped_task_ids),
+        "task_count_failed": len(failed_task_ids),
+        "knowledge_object_count_migrated": knowledge_object_count_migrated,
+        "knowledge_object_count_skipped": knowledge_object_count_skipped,
+        "knowledge_object_count_failed": knowledge_object_count_failed,
+        "migrated_task_ids": migrated_task_ids,
+        "skipped_task_ids": skipped_task_ids,
+        "failed_task_ids": failed_task_ids,
+        "errors": errors,
+    }

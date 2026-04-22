@@ -63,6 +63,13 @@ CREATE_KNOWLEDGE_EVIDENCE_TASK_INDEX_SQL = (
 CREATE_KNOWLEDGE_WIKI_TASK_INDEX_SQL = (
     "CREATE INDEX IF NOT EXISTS idx_knowledge_wiki_task_id ON knowledge_wiki(task_id, sort_order)"
 )
+CREATE_KNOWLEDGE_MIGRATIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS knowledge_migrations (
+    task_id TEXT PRIMARY KEY,
+    migration_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+"""
 
 
 def _knowledge_entry_id(payload: dict[str, object]) -> str:
@@ -103,6 +110,7 @@ class SqliteTaskStore:
         connection.execute(CREATE_KNOWLEDGE_WIKI_TABLE_SQL)
         connection.execute(CREATE_KNOWLEDGE_EVIDENCE_TASK_INDEX_SQL)
         connection.execute(CREATE_KNOWLEDGE_WIKI_TASK_INDEX_SQL)
+        connection.execute(CREATE_KNOWLEDGE_MIGRATIONS_TABLE_SQL)
         return connection
 
     def _connect_existing(self, base_dir: Path) -> sqlite3.Connection | None:
@@ -367,6 +375,35 @@ class SqliteTaskStore:
             connection.execute("DELETE FROM knowledge_wiki WHERE task_id = ?", (task_id,))
         self._checkpoint(base_dir)
 
+    def record_knowledge_migration(
+        self,
+        base_dir: Path,
+        task_id: str,
+        payload: dict[str, object],
+    ) -> None:
+        migration_payload = dict(payload)
+        migration_payload.setdefault("task_id", task_id)
+        migration_payload.setdefault("updated_at", utc_now())
+        updated_at = str(migration_payload.get("updated_at", "")).strip() or utc_now()
+        migration_payload["updated_at"] = updated_at
+
+        with self._connect(base_dir) as connection:
+            connection.execute(
+                """
+                INSERT INTO knowledge_migrations (task_id, migration_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(task_id) DO UPDATE SET
+                    migration_json = excluded.migration_json,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    task_id,
+                    json.dumps(migration_payload, indent=2),
+                    updated_at,
+                ),
+            )
+        self._checkpoint(base_dir)
+
     def iter_recent_task_events(self, base_dir: Path, last_n: int) -> list[tuple[str, list[dict[str, object]]]]:
         if last_n <= 0:
             return []
@@ -442,6 +479,7 @@ class SqliteTaskStore:
                 events_table = _table_exists(connection, "events")
                 knowledge_evidence_table = _table_exists(connection, "knowledge_evidence")
                 knowledge_wiki_table = _table_exists(connection, "knowledge_wiki")
+                knowledge_migrations_table = _table_exists(connection, "knowledge_migrations")
                 task_count = (
                     int(connection.execute("SELECT COUNT(*) FROM tasks").fetchone()[0])
                     if tasks_table
@@ -462,6 +500,11 @@ class SqliteTaskStore:
                     if knowledge_wiki_table
                     else 0
                 )
+                knowledge_migration_count = (
+                    int(connection.execute("SELECT COUNT(*) FROM knowledge_migrations").fetchone()[0])
+                    if knowledge_migrations_table
+                    else 0
+                )
                 integrity = str(connection.execute("PRAGMA integrity_check").fetchone()[0])
         except sqlite3.Error as exc:
             return {
@@ -472,10 +515,12 @@ class SqliteTaskStore:
                 "events_table": False,
                 "knowledge_evidence_table": False,
                 "knowledge_wiki_table": False,
+                "knowledge_migrations_table": False,
                 "task_count": 0,
                 "event_count": 0,
                 "knowledge_evidence_count": 0,
                 "knowledge_wiki_count": 0,
+                "knowledge_migration_count": 0,
                 "integrity_ok": False,
                 "details": str(exc),
             }
@@ -488,10 +533,12 @@ class SqliteTaskStore:
             "events_table": events_table,
             "knowledge_evidence_table": knowledge_evidence_table,
             "knowledge_wiki_table": knowledge_wiki_table,
+            "knowledge_migrations_table": knowledge_migrations_table,
             "task_count": task_count,
             "event_count": event_count,
             "knowledge_evidence_count": knowledge_evidence_count,
             "knowledge_wiki_count": knowledge_wiki_count,
+            "knowledge_migration_count": knowledge_migration_count,
             "integrity_ok": integrity == "ok",
             "details": integrity,
         }

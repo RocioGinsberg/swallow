@@ -30,7 +30,7 @@ from .doctor import (
     format_sqlite_doctor_result,
 )
 from .ingestion.pipeline import build_ingestion_report, build_ingestion_summary, run_ingestion_pipeline
-from .knowledge_store import persist_wiki_entry_from_record
+from .knowledge_store import migrate_file_knowledge_to_sqlite, persist_wiki_entry_from_record
 from .meta_optimizer import run_meta_optimizer
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
@@ -289,6 +289,29 @@ def format_store_migration_summary(summary: dict[str, object]) -> str:
         f"event_count_skipped={summary.get('event_count_skipped', 0)}",
         "migrated_task_ids=" + ",".join(str(item) for item in migrated_task_ids),
         "skipped_task_ids=" + ",".join(str(item) for item in skipped_task_ids),
+    ]
+    return "\n".join(lines)
+
+
+def format_knowledge_migration_summary(summary: dict[str, object]) -> str:
+    migrated_task_ids = summary.get("migrated_task_ids", [])
+    skipped_task_ids = summary.get("skipped_task_ids", [])
+    failed_task_ids = summary.get("failed_task_ids", [])
+    error_items = summary.get("errors", {})
+    lines = [
+        f"db_path={summary.get('db_path', '')}",
+        f"dry_run={'yes' if summary.get('dry_run', False) else 'no'}",
+        f"task_count_scanned={summary.get('task_count_scanned', 0)}",
+        f"task_count_migrated={summary.get('task_count_migrated', 0)}",
+        f"task_count_skipped={summary.get('task_count_skipped', 0)}",
+        f"task_count_failed={summary.get('task_count_failed', 0)}",
+        f"knowledge_object_count_migrated={summary.get('knowledge_object_count_migrated', 0)}",
+        f"knowledge_object_count_skipped={summary.get('knowledge_object_count_skipped', 0)}",
+        f"knowledge_object_count_failed={summary.get('knowledge_object_count_failed', 0)}",
+        "migrated_task_ids=" + ",".join(str(item) for item in migrated_task_ids),
+        "skipped_task_ids=" + ",".join(str(item) for item in skipped_task_ids),
+        "failed_task_ids=" + ",".join(str(item) for item in failed_task_ids),
+        "errors=" + "; ".join(f"{task_id}:{message}" for task_id, message in sorted(error_items.items())),
     ]
     return "\n".join(lines)
 
@@ -1220,6 +1243,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Audit canonical registry health.",
         description="Audit canonical registry health.",
     )
+    knowledge_migrate_parser = knowledge_subparsers.add_parser(
+        "migrate",
+        help="Backfill file-based knowledge into the SQLite knowledge store.",
+        description="Backfill legacy file-based knowledge objects into the SQLite knowledge store.",
+    )
+    knowledge_migrate_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Scan file-based knowledge and report migration candidates without writing SQLite records.",
+    )
 
     create_parser = task_subparsers.add_parser("create", help="Create a task.")
     create_parser.add_argument("--title", required=True, help="Short task title.")
@@ -1946,6 +1979,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "knowledge" and args.knowledge_command == "canonical-audit":
         canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
         print(build_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "migrate":
+        print(format_knowledge_migration_summary(migrate_file_knowledge_to_sqlite(base_dir, dry_run=args.dry_run)))
         return 0
 
     if args.command == "meta-optimize":

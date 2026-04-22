@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.doctor import diagnose_local_stack, diagnose_sqlite_store, format_sqlite_doctor_result
 from swallow.models import Event, TaskState
-from swallow.store import append_event, save_state
+from swallow.store import append_event, save_knowledge_objects, save_state
 
 
 def _completed(args: list[str], returncode: int = 0, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess[str]:
@@ -91,6 +91,37 @@ class SqliteDoctorTest(unittest.TestCase):
         self.assertTrue(result.migration_recommended)
         self.assertIn("migration_recommended=yes", formatted)
         self.assertIn("recommendation=Run `swl migrate`", formatted)
+        self.assertIn("knowledge_schema_ok=no", formatted)
+        self.assertIn("knowledge_migration_recommended=no", formatted)
+
+    def test_diagnose_sqlite_store_reports_file_only_knowledge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_knowledge_objects(
+                    base_dir,
+                    "legacy-knowledge-task",
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Legacy knowledge.",
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/legacy-knowledge-task/artifacts/evidence.md",
+                        }
+                    ],
+                )
+
+            exit_code, result = diagnose_sqlite_store(base_dir)
+            formatted = format_sqlite_doctor_result(result)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(result.file_knowledge_task_count, 1)
+        self.assertEqual(result.file_only_knowledge_task_count, 1)
+        self.assertTrue(result.knowledge_migration_recommended)
+        self.assertIn("file_knowledge_task_count=1", formatted)
+        self.assertIn("knowledge_migration_recommended=yes", formatted)
+        self.assertIn("knowledge_recommendation=Run `swl knowledge migrate`", formatted)
 
     def test_diagnose_sqlite_store_reports_healthy_database(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -115,18 +146,37 @@ class SqliteDoctorTest(unittest.TestCase):
                         payload={"status": "created"},
                     ),
                 )
+                save_knowledge_objects(
+                    base_dir,
+                    "sqlite-task",
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "SQLite knowledge.",
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/sqlite-task/artifacts/evidence.md",
+                        }
+                    ],
+                )
 
             exit_code, result = diagnose_sqlite_store(base_dir)
 
         self.assertEqual(exit_code, 0)
         self.assertTrue(result.db_exists)
         self.assertTrue(result.schema_ok)
+        self.assertTrue(result.knowledge_schema_ok)
         self.assertTrue(result.integrity_ok)
         self.assertEqual(result.task_count, 1)
         self.assertEqual(result.event_count, 1)
+        self.assertEqual(result.knowledge_evidence_count, 1)
+        self.assertEqual(result.knowledge_wiki_count, 0)
         self.assertEqual(result.file_task_count, 1)
         self.assertEqual(result.file_only_task_count, 0)
+        self.assertEqual(result.file_knowledge_task_count, 1)
+        self.assertEqual(result.file_only_knowledge_task_count, 0)
         self.assertFalse(result.migration_recommended)
+        self.assertFalse(result.knowledge_migration_recommended)
 
     def test_diagnose_local_stack_treats_tensorzero_as_optional(self) -> None:
         response = MagicMock()

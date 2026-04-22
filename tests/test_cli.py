@@ -71,6 +71,7 @@ from swallow.staged_knowledge import StagedCandidate, load_staged_candidates, su
 from swallow.store import (
     append_event,
     append_canonical_record,
+    load_knowledge_objects,
     load_state,
     save_knowledge_objects,
     save_remote_handoff_contract,
@@ -6231,6 +6232,66 @@ class CliLifecycleTest(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn("dry_run=no", output)
         self.assertIn("task_count_migrated=1", output)
+
+    def test_knowledge_migrate_dry_run_reports_candidates_without_writing_db(self) -> None:
+        stdout = StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_knowledge_objects(
+                    base_dir,
+                    "legacy-knowledge",
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Dry-run knowledge candidate",
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/legacy-knowledge/artifacts/evidence.md",
+                        }
+                    ],
+                )
+            with redirect_stdout(stdout):
+                exit_code = main(["--base-dir", str(base_dir), "knowledge", "migrate", "--dry-run"])
+            db_exists = swallow_db_path(base_dir).exists()
+
+        self.assertEqual(exit_code, 0)
+        self.assertFalse(db_exists)
+        output = stdout.getvalue()
+        self.assertIn("dry_run=yes", output)
+        self.assertIn("task_count_migrated=1", output)
+        self.assertIn("knowledge_object_count_migrated=1", output)
+
+    def test_knowledge_migrate_imports_file_knowledge_into_sqlite(self) -> None:
+        stdout = StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_knowledge_objects(
+                    base_dir,
+                    "legacy-knowledge",
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Migrate sqlite knowledge",
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/legacy-knowledge/artifacts/evidence.md",
+                        }
+                    ],
+                )
+            with redirect_stdout(stdout):
+                exit_code = main(["--base-dir", str(base_dir), "knowledge", "migrate"])
+            db_exists = swallow_db_path(base_dir).exists()
+            migrated_knowledge = load_knowledge_objects(base_dir, "legacy-knowledge")
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(db_exists)
+        self.assertEqual(migrated_knowledge[0]["text"], "Migrate sqlite knowledge")
+        output = stdout.getvalue()
+        self.assertIn("dry_run=no", output)
+        self.assertIn("task_count_migrated=1", output)
+        self.assertIn("knowledge_object_count_migrated=1", output)
 
     def test_task_run_artifact_paths_include_executor_streams(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

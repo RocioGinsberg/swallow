@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.execution_budget_policy import calculate_task_token_cost
 from swallow.meta_optimizer import build_meta_optimizer_snapshot
+from swallow.knowledge_store import migrate_file_knowledge_to_sqlite
 from swallow.models import Event, TaskState
 from swallow.orchestrator import create_task, run_task
 from swallow.paths import swallow_db_path
@@ -273,6 +274,64 @@ class SqliteTaskStoreTest(unittest.TestCase):
         self.assertEqual(restored.task_id, state.task_id)
         self.assertEqual(len(sqlite_events), 1)
         self.assertTrue(state_file_exists)
+
+    def test_migrate_file_knowledge_to_sqlite_dry_run_does_not_create_db(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_knowledge_objects(
+                    base_dir,
+                    "knowledge-dry-run",
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Dry-run candidate.",
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/knowledge-dry-run/artifacts/evidence.md",
+                        }
+                    ],
+                )
+
+            summary = migrate_file_knowledge_to_sqlite(base_dir, dry_run=True)
+            db_exists = swallow_db_path(base_dir).exists()
+
+        self.assertEqual(summary["task_count_scanned"], 1)
+        self.assertEqual(summary["task_count_migrated"], 1)
+        self.assertEqual(summary["knowledge_object_count_migrated"], 1)
+        self.assertFalse(db_exists)
+
+    def test_migrate_file_knowledge_to_sqlite_is_idempotent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            with patch.dict("os.environ", {"SWALLOW_STORE_BACKEND": "file"}, clear=False):
+                save_knowledge_objects(
+                    base_dir,
+                    "knowledge-migrate",
+                    [
+                        {
+                            "object_id": "knowledge-0001",
+                            "text": "Migrate me.",
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": ".swl/tasks/knowledge-migrate/artifacts/evidence.md",
+                        }
+                    ],
+                )
+
+            first = migrate_file_knowledge_to_sqlite(base_dir)
+            second = migrate_file_knowledge_to_sqlite(base_dir)
+            migrated = load_knowledge_objects(base_dir, "knowledge-migrate")
+            health = SqliteTaskStore().database_health(base_dir)
+
+        self.assertEqual(first["task_count_migrated"], 1)
+        self.assertEqual(first["knowledge_object_count_migrated"], 1)
+        self.assertEqual(second["task_count_migrated"], 0)
+        self.assertEqual(second["task_count_skipped"], 1)
+        self.assertEqual(second["knowledge_object_count_skipped"], 1)
+        self.assertEqual(migrated[0]["text"], "Migrate me.")
+        self.assertEqual(health["knowledge_evidence_count"], 1)
+        self.assertEqual(health["knowledge_migration_count"], 1)
 
     def test_sqlite_backend_keeps_event_only_budget_scans_working(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
