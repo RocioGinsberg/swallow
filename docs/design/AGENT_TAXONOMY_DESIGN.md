@@ -351,22 +351,122 @@ Swallow 当前严格区分：
 
 这些领域可以由不同 executor implementations 承担，品牌只是当前可选映射。
 
-### 10.2 同角色多执行器并存
+### 10.2 当前默认角色绑定（default role bindings）
+
+在当前单用户、local-first 的真实工作流中，更贴近实际的默认绑定是：
+
+#### Claude Code
+更适合绑定为：
+
+- `general-executor / cloud-backed-or-hybrid / task-state / planning-and-review`
+- 在复杂实现任务中，也可承担高价值的 `implementation` 收口职责
+
+当前建议把它理解为：
+
+- 高价值任务主执行者
+- 高复杂度任务主执行者
+- 复杂变更的最终收口者
+
+它不适合长期承担大量重复、简单、机械性的实现工作；这类工作应下放给子执行器或更高频的实现工具。
+
+#### Aider
+更适合绑定为：
+
+- `general-executor / local / task-state / implementation`
+
+当前建议把它理解为：
+
+- 日常高频实现入口
+- 默认施工 executor
+- 小到中等复杂度 edit loop 的主力
+
+当需求已经明确、边界已经清晰时，优先使用 Aider 比把所有工作都升级到高阶执行器更稳。
+
+#### Warp / Oz Agents
+更适合绑定为：
+
+- `specialist-or-general-executor / local / task-memory-or-task-state / terminal-parallel-operations`
+
+当前建议把它理解为：
+
+- terminal-native worker surface
+- 多终端管理层
+- 中等复杂度、可拆分任务的并行处理层
+- 环境准备、日志调查、测试矩阵、批量分析与中间结果生产层
+
+Warp / Oz 的价值不在于成为第二个主编排器，而在于成为：
+
+> **parallel worker and terminal control plane**
+
+### 10.3 同角色多执行器并存
 
 同一认知角色可以有多个执行器实现并存。系统角色与具体工具是正交的。
 
 例如：
 
 - `general-executor / local / task-state / implementation`
-  - 可由某个 CLI executor 实现
+  - 可由 Aider 或其他 CLI executor 实现
 - `general-executor / cloud-backed / task-state / planning-and-review`
-  - 可由某个 HTTP/API executor 实现
+  - 可由 Claude Code 或某个 HTTP/API executor 实现
 - `general-executor / cloud-backed / task-state / knowledge-integration`
   - 可由另一个 HTTP/API executor 实现
 
 在代码层面，关键是所有执行器共享统一协议与统一 route / executor taxonomy，而不是靠品牌名撑起架构。
 
-### 10.3 核心专项角色
+### 10.4 当前推荐的升级 / 降级矩阵
+
+#### 默认分配
+
+- **简单 / 高频实现** → Aider
+- **中等复杂、可拆分并行任务** → Warp / Oz
+- **高复杂 / 高价值 / 高错误成本任务** → Claude Code
+
+#### Aider 升级到 Claude Code
+
+当满足任一条件时更适合升级：
+
+- 改动范围明显扩散
+- 需求开始模糊
+- 两轮以上 edit loop 仍不收敛
+- 涉及架构边界或高风险设计取舍
+- 需要高质量方案说明或复杂 review
+
+#### Warp / Oz 升级到 Claude Code
+
+当满足任一条件时更适合升级：
+
+- 并行结果互相冲突
+- 子任务不再独立
+- 中间调查上升为设计问题
+- 需要统一全局语义和最终裁决
+
+#### Claude Code 降到 Aider
+
+当满足任一条件时更适合降级：
+
+- 方案已定型
+- 后续主要是机械实现
+- 改动可拆为一组明确低风险子修改
+
+### 10.5 并行的默认边界
+
+当前不应把多 agent 并行视为默认高级形态。
+
+更稳的做法是：
+
+- 一个主执行者拥有主叙事
+- 其他并行 worker 只在边界清晰时承担子任务
+- 最终由主执行者或 human operator 完成收口
+
+因此，Warp / Oz 等并行 surface 适合：
+
+- 平行调查多个候选方向
+- 批量收集日志、测试与环境证据
+- 生成中间结果或候选 patch
+
+但不应在没有明确边界时接管复杂任务主线，否则会滑向 hidden orchestrator 反模式。
+
+### 10.6 核心专项角色
 
 #### Librarian
 - `specialist / cloud-backed / staged-knowledge / memory-curation`
@@ -386,7 +486,7 @@ Swallow 当前严格区分：
 - 负责扫描 event truth、识别模式并提出优化建议
 - 输出应保持提案性质，而不是直接修改主系统策略
 
-### 10.4 核心验证者
+### 10.7 核心验证者
 
 #### Quality Reviewer
 - `validator / cloud-backed / stateless / artifact-validation`
@@ -408,6 +508,8 @@ Swallow 当前严格区分：
 3. 绝不允许 specialist 静默变成 hidden orchestrator
 4. 绝不允许大多数实体直接拥有 canonical write authority
 5. taxonomy 应服务于治理和可替换性，而不是服务于“给某家模型安排身份设定”
+6. 不要让 Claude Code 长期被低价值重复实现工作稀释
+7. 不要让 Warp / Oz 在没有清晰边界时演化成第二编排器
 
 ---
 
@@ -419,4 +521,4 @@ Swallow 当前的 Agent Taxonomy，不应理解为：
 
 而应理解为：
 
-> 先用 role、site、memory authority 和 domain 定义系统边界，再把具体 provider、API 或 CLI 实现映射进去的治理框架
+> 先用 role、site、memory authority 和 domain 定义系统边界，再把具体 provider、API 或 CLI 实现映射进去；当前默认工作组合以 Claude Code 处理高复杂高价值任务、Aider 处理高频实现、Warp/Oz 处理并行终端型中间任务
