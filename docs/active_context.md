@@ -2,34 +2,37 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Knowledge / RAG` (Primary) + `State / Truth` (Secondary)
-- latest_completed_phase: `Phase 49`
-- latest_completed_slice: `Knowledge SSOT & Vector RAG (v0.7.0)`
-- active_track: `Evaluation / Policy` (Primary) + `Provider Routing` (Secondary)
-- active_phase: `Phase 50`
-- active_slice: `review_complete_pr_sync_ready`
-- active_branch: `feat/phase50-policy-closure`
-- status: `phase50_pr_sync_ready`
+- latest_completed_track: `Evaluation / Policy` (Primary) + `Provider Routing` (Secondary)
+- latest_completed_phase: `Phase 50`
+- latest_completed_slice: `Policy Closure & Specialist Audit (v0.7.0+)`
+- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
+- active_phase: `Phase 51`
+- active_slice: `awaiting_kickoff`
+- active_branch: `main`
+- status: `phase50_merged_awaiting_phase51_kickoff`
 
 ---
 
 ## 当前状态说明
 
-`main` 已吸收 Phase 49 `Knowledge SSOT & Vector RAG` 的全部实现，Human 已完成 merge、tag 与远端 push；当前对外稳定 checkpoint 为 `v0.7.0`。
+`main` 已吸收 Phase 50 `Policy Closure & Specialist Audit` 的全部实现，Human 已完成 merge（commit `434a56c`）与 closeout 同步（commit `fc8b7d3`）。Phase 50 实现了 Meta-Optimizer 提案链、一致性审计自动化触发、路由质量权重调整等核心能力，系统从"有感遥测"进化到"主动优化"。当前对外稳定 checkpoint 为 `v0.7.0+`（Phase 50 merge 后）。
 
-Phase 50 design gate 已通过，当前已切到 `feat/phase50-policy-closure` 完成实现态。S1 / S2 / S3 已分别完成独立 commit：`5b2ebb0 feat(meta-optimizer): structure optimization proposals`、`0004a74 feat(audit): add auto consistency audit policy`、`8dde2e7 feat(router): add route quality weights`。Claude PR review 已完成，结论为 `0 BLOCK / 2 CONCERN / 可以合并`；两个 concern 已登记 backlog。当前进入 `pr.md` 同步完成后的 PR sync ready 状态，等待 Human push branch 并创建 / 更新 PR。
+Phase 50 已完成，当前进入 Phase 51 kickoff 准备阶段。Phase 51 目标为"平台级多路并行与复杂拓扑"，重点是全异步执行器升级与多路子任务并行编排。
 
 ---
 
 ## 当前关键文档
 
-Phase 50 设计文档：
+Phase 50 已完成，相关文档：
 
 1. `docs/plans/phase50/context_brief.md` — 上下文摘要（claude, 2026-04-23）
 2. `docs/plans/phase50/kickoff.md` — phase 边界与 slice 拆解（claude, 2026-04-23）
 3. `docs/plans/phase50/design_decision.md` — 方案设计（claude, 2026-04-23）
 4. `docs/plans/phase50/risk_assessment.md` — 风险评估（claude, 2026-04-23）
 5. `docs/plans/phase50/review_comments.md` — PR review 结论（claude, 2026-04-23）
+6. `docs/plans/phase50/closeout.md` — phase 收口（codex, 2026-04-23）
+
+Phase 51 准备中（待 kickoff）。
 
 ---
 

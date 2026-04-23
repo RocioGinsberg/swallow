@@ -110,7 +110,32 @@ Agent 内部的模型选择、prompt 组织、工具调用和 subagent 行为不
 | backend kind | HTTP / CLI / local |
 | transport kind | 传输方式 |
 | fallback route | 降级目标 |
+| quality_weight | operator 可调整的质量权重（1.0=正常，<1.0=降权，0.0=禁用） |
+| unsupported_task_types | 该 route 明确不支持的任务类型列表（如 `image_generation`、`audio_synthesis`） |
 | cost / latency / reliability traits | 成本、延迟与可靠性画像 |
+
+### 5.1.1 能力画像（Route Capability Profile）
+
+Route metadata 的长期演进方向是支持**能力画像评分**——在 quality_weight 之上，为每条 route 维护任务维度的能力评分（如 reasoning / code_edit / long_context），用于多候选时的评分匹配，替代纯规则的确定性选择。
+
+能力画像的维护原则：
+- **隐式信号优先**：从 event truth 自动聚合（成功率、review gate 通过率、retry 次数、成本）
+- **外部知识摄入**：官网/文档对模型能力边界的描述（如"不支持生图"）通过 `swl ingest` 管道以 `source=model-intel` 标签进入 staged knowledge，operator 确认后 promote 为 route metadata 更新提案
+- **Proposal over mutation**（P7 原则）：画像更新以提案形式产出，operator 确认后应用，不自动突变
+- **Meta-Optimizer 消费**：Meta-Optimizer 扫描遥测数据后可产出能力画像更新提案，与路由优化提案共享同一 proposal 机制
+
+### 5.1.2 能力边界守卫（Capability Boundary Guard）
+
+`unsupported_task_types` 字段服务于**第一层规则匹配**（零 LLM 成本）：Strategy Router 在路由决策前检测任务类型与 route 的不支持列表是否冲突，冲突时直接拒绝并建议替换 route，不进入后续匹配逻辑。
+
+设计动机：模型能力边界是相对稳定的事实（Opus 不能生图、纯文本模型不能处理音频），不需要每次路由时调用 LLM 判断。把这类知识静态维护在 route metadata 里，比第三层 LLM 辅助路由更轻、更可靠、更可维护。
+
+`unsupported_task_types` 的维护路径：
+1. 官网/文档描述 → `swl ingest --source model-intel` → staged knowledge
+2. operator review → promote → route metadata 更新提案
+3. `swl route weights apply` 或专用 CLI 应用更新
+
+当前实现（Phase 50）：quality_weight 字段已落地，多候选按权重排序。`unsupported_task_types` 与能力画像评分为未来扩展方向，不在当前 phase 实现。
 
 ### 5.2 选择关注点
 

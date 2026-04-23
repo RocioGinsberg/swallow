@@ -77,17 +77,31 @@ graph LR
 
 Review Gate **不**直接改写 executor 产出，也不静默接管主链路施工。
 
-### 2.5 Feedback-Driven Retry
+### 2.5 Feedback-Driven Retry 与 Debate 模式
 
-当 Review Gate 判定不通过时的反馈重试机制：
+编排层支持两种基于反馈的执行拓扑，共享 `DebateConfig` 配置结构：
 
-1. Executor 产出结果
-2. Review Gate 做结构化审查
-3. 不通过 → 生成 `ReviewFeedback`
-4. Feedback 注入下一轮执行尝试
-5. 超过阈值仍不收敛 → 熔断进入 `waiting_human`
+**收敛模式（默认）**：目标是把已有产出改好。
 
-关键边界：Reviewer 不替 executor 直接修复；这不是无边界争论，而是编排层控制的反馈重试机制。
+```
+Executor 产出 → Review Gate 审查 → ReviewFeedback → 重试 → 超阈值 → waiting_human
+```
+
+**发散→收敛模式（Brainstorm）**：目标是在开放式探索阶段产生多视角方案，再收口。适用于架构选型、技术方向讨论、红蓝对抗式审查。
+
+```
+N 个参与者并行发言（每轮累积上下文）→ 仲裁者收口 → 综合方案 artifact → waiting_human 或 auto-approve
+```
+
+Brainstorm 模式的核心机制是**发言上下文累积传递**——每个参与者调用时，前面所有人的发言作为 context 传入。角色定义通过 prompt prefix 注入，不引入新的角色系统。
+
+Brainstorm 硬性约束（防止 token 成本失控）：
+- 轮数上限：默认 2 轮，最大 3 轮
+- 参与者上限：最多 4 个
+- 仲裁收口必须存在：最后一轮由仲裁者产出结构化综合 artifact
+- 产出是 artifact，不是聊天记录——进入 task truth，不作为长对话历史存在
+
+两种模式的关键边界：Reviewer / 仲裁者不替 executor 直接修复；这不是无边界争论，而是编排层控制的反馈机制。
 
 ---
 
@@ -158,6 +172,26 @@ Planner 拆出独立子问题 → Subtask Orchestrator 分发给 Warp/Oz → 汇
 ```
 Executor 产出 → Review Gate 失败 → ReviewFeedback → 重试 → 超阈值 → waiting_human
 ```
+
+### 5.5 Brainstorm 链路
+
+```
+N 参与者（各带角色 prompt）→ 轮次内顺序发言（累积上下文）→ 仲裁者收口 → 综合方案 artifact
+```
+
+适用场景：架构选型、技术方向讨论、红蓝对抗式审查（proposer + attacker + arbitrator）、多模型交叉验证。
+
+与"多模型竞争评估"的区别：竞争评估是各自独立执行、人工比较结果；Brainstorm 是参与者互相看到对方发言后再补充，目标是产生新方案而非选出最优产出。
+
+### 5.6 Fan-out / Fan-in 并行链路
+
+```
+Planner 拆出独立任务 → asyncio.gather 并发执行 → 汇总 summary artifact → Human 或 Review Gate 收口
+```
+
+适用场景：无依赖关系的独立子任务批量执行（批量文件处理、多环境测试、并行调查）。
+
+与 DAG 编排的区别：fan-out 无中间同步点、无依赖图；DAG 编排用于子任务间存在显式依赖的场景，由 Planner 判断后触发，标记为高级功能。
 
 ---
 
