@@ -414,6 +414,9 @@ class OptimizationProposal:
     description: str
     suggested_action: str
     suggested_weight: float | None = None
+    task_family: str | None = None
+    suggested_task_family_score: float | None = None
+    mark_task_family_unsupported: bool = False
     proposal_id: str = ""
     priority: str = ""
     rationale: str = ""
@@ -432,8 +435,27 @@ class OptimizationProposal:
                 suggested_weight = float(raw_weight)
             except (TypeError, ValueError):
                 suggested_weight = None
+        raw_task_family_score = data.get("suggested_task_family_score")
+        suggested_task_family_score: float | None
+        if raw_task_family_score in {"", None}:
+            suggested_task_family_score = None
+        else:
+            try:
+                suggested_task_family_score = max(float(raw_task_family_score), 0.0)
+            except (TypeError, ValueError):
+                suggested_task_family_score = None
         route_name = data.get("route_name")
         normalized_route_name = None if route_name in {"", None} else str(route_name)
+        task_family = data.get("task_family")
+        normalized_task_family = None if task_family in {"", None} else str(task_family).strip().lower()
+        mark_task_family_unsupported = data.get("mark_task_family_unsupported", False)
+        if not isinstance(mark_task_family_unsupported, bool):
+            mark_task_family_unsupported = str(mark_task_family_unsupported).strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
         return cls(
             proposal_type=str(data.get("proposal_type", "")).strip(),
             severity=str(data.get("severity", "")).strip(),
@@ -441,6 +463,9 @@ class OptimizationProposal:
             description=str(data.get("description", "")).strip(),
             suggested_action=str(data.get("suggested_action", "")).strip(),
             suggested_weight=suggested_weight,
+            task_family=normalized_task_family,
+            suggested_task_family_score=suggested_task_family_score,
+            mark_task_family_unsupported=mark_task_family_unsupported,
             proposal_id=str(data.get("proposal_id", "")).strip(),
             priority=str(data.get("priority", "")).strip(),
             rationale=str(data.get("rationale", "")).strip(),

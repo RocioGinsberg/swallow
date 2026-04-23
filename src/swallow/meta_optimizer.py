@@ -26,9 +26,18 @@ from .paths import (
     optimization_proposal_bundle_path,
     optimization_proposal_review_path,
     optimization_proposals_path,
+    route_capabilities_path,
     route_weights_path,
 )
-from .router import apply_route_weights, current_route_weights, route_by_name, save_route_weights
+from .router import (
+    apply_route_capability_profiles,
+    apply_route_weights,
+    current_route_weights,
+    load_route_capability_profiles,
+    route_by_name,
+    save_route_capability_profiles,
+    save_route_weights,
+)
 from .store import iter_recent_task_events
 
 
@@ -135,6 +144,22 @@ class TaskFamilyTelemetryStats:
 
 
 @dataclass(slots=True)
+class RouteTaskFamilyTelemetryStats:
+    route_name: str
+    task_family: str
+    success_count: int = 0
+    failure_count: int = 0
+    degraded_count: int = 0
+    event_count: int = 0
+
+    def success_rate(self) -> float:
+        return self.success_count / self.event_count if self.event_count else 0.0
+
+    def degraded_rate(self) -> float:
+        return self.degraded_count / self.event_count if self.event_count else 0.0
+
+
+@dataclass(slots=True)
 class MetaOptimizerSnapshot:
     generated_at: str
     task_limit: int
@@ -214,6 +239,7 @@ class ProposalReviewEntry:
     proposal_id: str
     proposal_type: str
     route_name: str | None
+    task_family: str | None
     decision: str
     description: str
     suggested_action: str
@@ -222,6 +248,8 @@ class ProposalReviewEntry:
     priority: str = ""
     rationale: str = ""
     suggested_weight: float | None = None
+    suggested_task_family_score: float | None = None
+    mark_task_family_unsupported: bool = False
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -237,12 +265,32 @@ class ProposalReviewEntry:
                 suggested_weight = float(raw_weight)
             except (TypeError, ValueError):
                 suggested_weight = None
+        raw_task_family_score = data.get("suggested_task_family_score")
+        suggested_task_family_score: float | None
+        if raw_task_family_score in {"", None}:
+            suggested_task_family_score = None
+        else:
+            try:
+                suggested_task_family_score = max(float(raw_task_family_score), 0.0)
+            except (TypeError, ValueError):
+                suggested_task_family_score = None
         route_name = data.get("route_name")
         normalized_route_name = None if route_name in {"", None} else str(route_name)
+        task_family = data.get("task_family")
+        normalized_task_family = None if task_family in {"", None} else str(task_family).strip().lower()
+        mark_task_family_unsupported = data.get("mark_task_family_unsupported", False)
+        if not isinstance(mark_task_family_unsupported, bool):
+            mark_task_family_unsupported = str(mark_task_family_unsupported).strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
         return cls(
             proposal_id=str(data.get("proposal_id", "")).strip(),
             proposal_type=str(data.get("proposal_type", "")).strip(),
             route_name=normalized_route_name,
+            task_family=normalized_task_family,
             decision=str(data.get("decision", "deferred")).strip() or "deferred",
             description=str(data.get("description", "")).strip(),
             suggested_action=str(data.get("suggested_action", "")).strip(),
@@ -251,6 +299,8 @@ class ProposalReviewEntry:
             priority=str(data.get("priority", "")).strip(),
             rationale=str(data.get("rationale", "")).strip(),
             suggested_weight=suggested_weight,
+            suggested_task_family_score=suggested_task_family_score,
+            mark_task_family_unsupported=mark_task_family_unsupported,
         )
 
 
@@ -305,10 +355,15 @@ class ProposalApplicationEntry:
     proposal_id: str
     proposal_type: str
     route_name: str | None
+    task_family: str | None
     status: str
     detail: str
     before_weight: float | None = None
     after_weight: float | None = None
+    before_task_family_score: float | None = None
+    after_task_family_score: float | None = None
+    before_task_family_unsupported: bool | None = None
+    after_task_family_unsupported: bool | None = None
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
@@ -323,7 +378,9 @@ class OptimizationProposalApplicationRecord:
     noop_count: int
     skipped_count: int
     route_weights_path: str
+    route_capabilities_path: str
     rollback_weights: dict[str, float]
+    rollback_capability_profiles: dict[str, dict[str, object]]
     entries: list[ProposalApplicationEntry]
     kind: str = PROPOSAL_APPLICATION_KIND
 
@@ -337,7 +394,12 @@ class OptimizationProposalApplicationRecord:
             "noop_count": self.noop_count,
             "skipped_count": self.skipped_count,
             "route_weights_path": self.route_weights_path,
+            "route_capabilities_path": self.route_capabilities_path,
             "rollback_weights": dict(sorted(self.rollback_weights.items())),
+            "rollback_capability_profiles": {
+                route_name: profile
+                for route_name, profile in sorted(self.rollback_capability_profiles.items())
+            },
             "entries": [entry.to_dict() for entry in self.entries],
         }
 
@@ -403,6 +465,15 @@ def _coerce_nonnegative_float(value: object) -> float:
     return 0.0
 
 
+def _normalize_task_family_name(value: object) -> str:
+    return str(value or "").strip().lower()
+
+
+def _suggest_task_family_score(stats: RouteTaskFamilyTelemetryStats) -> float:
+    suggested = stats.success_rate() - (stats.degraded_rate() * 0.25)
+    return round(min(max(suggested, 0.0), 1.0), 2)
+
+
 def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOptimizerSnapshot:
     if last_n <= 0:
         raise ValueError("--last-n must be greater than 0")
@@ -410,6 +481,7 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
     route_stats_by_name: dict[str, RouteTelemetryStats] = {}
     failure_fingerprints_by_key: dict[tuple[str, str], FailureFingerprint] = {}
     task_family_stats_by_name: dict[str, TaskFamilyTelemetryStats] = {}
+    route_task_family_stats_by_key: dict[tuple[str, str], RouteTaskFamilyTelemetryStats] = {}
     scanned_task_ids: list[str] = []
     scanned_event_count = 0
 
@@ -427,13 +499,18 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
                 route_name = str(payload.get("physical_route") or payload.get("route_name") or "unknown").strip()
                 route_name = route_name or "unknown"
                 route_stats = route_stats_by_name.setdefault(route_name, RouteTelemetryStats(route_name=route_name))
-                task_family = str(payload.get("task_family", "")).strip()
+                task_family = _normalize_task_family_name(payload.get("task_family", ""))
                 token_cost = _coerce_nonnegative_float(payload.get("token_cost", 0.0))
                 family_stats = None
+                route_task_family_stats = None
                 if task_family:
                     family_stats = task_family_stats_by_name.setdefault(
                         task_family,
                         TaskFamilyTelemetryStats(task_family=task_family),
+                    )
+                    route_task_family_stats = route_task_family_stats_by_key.setdefault(
+                        (route_name, task_family),
+                        RouteTaskFamilyTelemetryStats(route_name=route_name, task_family=task_family),
                     )
                     family_stats.total_cost += token_cost
                     family_stats.cost_samples.append(token_cost)
@@ -450,12 +527,20 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
                 route_stats.event_count += 1
                 if family_stats is not None:
                     family_stats.executor_event_count += 1
+                if route_task_family_stats is not None:
+                    route_task_family_stats.event_count += 1
                 if bool(payload.get("degraded", False)):
                     route_stats.degraded_count += 1
+                    if route_task_family_stats is not None:
+                        route_task_family_stats.degraded_count += 1
                 if event_type == EVENT_EXECUTOR_COMPLETED:
                     route_stats.success_count += 1
+                    if route_task_family_stats is not None:
+                        route_task_family_stats.success_count += 1
                 else:
                     route_stats.failure_count += 1
+                    if route_task_family_stats is not None:
+                        route_task_family_stats.failure_count += 1
                     failure_kind = str(payload.get("failure_kind", "")).strip() or "unknown"
                     error_code = str(payload.get("error_code", "")).strip() or failure_kind
                     fingerprint = failure_fingerprints_by_key.setdefault(
@@ -496,6 +581,10 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
     )
     degraded_event_count = sum(item.degraded_count for item in route_stats)
     task_family_stats = sorted(task_family_stats_by_name.values(), key=lambda item: item.task_family)
+    route_task_family_stats = sorted(
+        route_task_family_stats_by_key.values(),
+        key=lambda item: (item.route_name, item.task_family),
+    )
 
     return MetaOptimizerSnapshot(
         generated_at=utc_now(),
@@ -506,14 +595,22 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
         failure_fingerprints=failure_fingerprints,
         degraded_event_count=degraded_event_count,
         task_family_stats=task_family_stats,
-        proposals=build_optimization_proposals(route_stats, failure_fingerprints, task_family_stats),
+        proposals=build_optimization_proposals(
+            base_dir,
+            route_stats,
+            failure_fingerprints,
+            task_family_stats,
+            route_task_family_stats,
+        ),
     )
 
 
 def build_optimization_proposals(
+    base_dir: Path,
     route_stats: list[RouteTelemetryStats],
     failure_fingerprints: list[FailureFingerprint],
     task_family_stats: list[TaskFamilyTelemetryStats],
+    route_task_family_stats: list[RouteTaskFamilyTelemetryStats],
 ) -> list[OptimizationProposal]:
     proposals: list[OptimizationProposal] = []
     for stats in route_stats:
@@ -692,6 +789,7 @@ def build_optimization_proposals(
                     )
                 )
 
+    proposals.extend(_build_route_capability_proposals(base_dir, route_task_family_stats))
     if not proposals and route_stats:
         proposals.append(
             OptimizationProposal(
@@ -705,6 +803,82 @@ def build_optimization_proposals(
             )
         )
     return _ensure_proposal_metadata(proposals)
+
+
+def _build_route_capability_proposals(
+    base_dir: Path,
+    route_task_family_stats: list[RouteTaskFamilyTelemetryStats],
+) -> list[OptimizationProposal]:
+    current_profiles = load_route_capability_profiles(base_dir)
+    proposals: list[OptimizationProposal] = []
+    for stats in route_task_family_stats:
+        if stats.event_count < 2:
+            continue
+        if route_by_name(stats.route_name) is None:
+            continue
+
+        current_profile = current_profiles.get(stats.route_name, {})
+        current_scores = current_profile.get("task_family_scores", {})
+        current_score = None
+        if isinstance(current_scores, dict):
+            raw_score = current_scores.get(stats.task_family)
+            if isinstance(raw_score, int | float):
+                current_score = round(max(float(raw_score), 0.0), 2)
+        unsupported_task_types = current_profile.get("unsupported_task_types", [])
+        unsupported = False
+        if isinstance(unsupported_task_types, list):
+            unsupported = stats.task_family in {
+                _normalize_task_family_name(item)
+                for item in unsupported_task_types
+            }
+
+        if stats.success_count == 0 and stats.failure_count >= 2:
+            if unsupported:
+                continue
+            proposals.append(
+                OptimizationProposal(
+                    proposal_type="route_capability",
+                    severity="warn",
+                    route_name=stats.route_name,
+                    task_family=stats.task_family,
+                    description=(
+                        f"Capability boundary suggestion for `{stats.route_name}` on task_family "
+                        f"`{stats.task_family}`: mark unsupported after {stats.failure_count} failures "
+                        f"and 0 successful executor events."
+                    ),
+                    suggested_action=(
+                        "Mark this task family unsupported so the strategy router can reject the route earlier."
+                    ),
+                    mark_task_family_unsupported=True,
+                )
+            )
+            continue
+
+        if stats.success_count <= 0:
+            continue
+
+        suggested_score = _suggest_task_family_score(stats)
+        if not unsupported and current_score is not None and abs(current_score - suggested_score) < 0.15:
+            continue
+        proposals.append(
+            OptimizationProposal(
+                proposal_type="route_capability",
+                severity="info" if suggested_score >= 0.75 else "warn",
+                route_name=stats.route_name,
+                task_family=stats.task_family,
+                description=(
+                    f"Capability score suggestion for `{stats.route_name}` on task_family "
+                    f"`{stats.task_family}`: set score to {suggested_score:.2f} "
+                    f"(success_rate={stats.success_rate():.0%}, degraded_rate={stats.degraded_rate():.0%}, "
+                    f"events={stats.event_count})."
+                ),
+                suggested_action=(
+                    "Persist the suggested capability score so task-family-aware routing can rank this route accurately."
+                ),
+                suggested_task_family_score=suggested_score,
+            )
+        )
+    return proposals
 
 
 def extract_route_weight_proposals_from_report(report_text: str) -> list[OptimizationProposal]:
@@ -886,6 +1060,7 @@ def review_optimization_proposals(
                 proposal_id=proposal.proposal_id,
                 proposal_type=proposal.proposal_type,
                 route_name=proposal.route_name,
+                task_family=proposal.task_family,
                 decision=entry_decision,
                 description=proposal.description,
                 suggested_action=proposal.suggested_action,
@@ -894,6 +1069,8 @@ def review_optimization_proposals(
                 priority=proposal.priority or proposal.severity or "info",
                 rationale=proposal.rationale or proposal.description,
                 suggested_weight=proposal.suggested_weight,
+                suggested_task_family_score=proposal.suggested_task_family_score,
+                mark_task_family_unsupported=proposal.mark_task_family_unsupported,
             )
         )
 
@@ -937,9 +1114,11 @@ def build_optimization_proposal_review_report(review_record: OptimizationProposa
         return "\n".join(lines) + "\n"
 
     for entry in review_record.entries:
+        task_family_suffix = f" task_family={entry.task_family}" if entry.task_family else ""
         lines.append(
             f"- {entry.proposal_id}: decision={entry.decision} type={entry.proposal_type} "
-            f"route={entry.route_name or 'global'} priority={entry.priority or entry.severity or 'info'}"
+            f"route={entry.route_name or 'global'}{task_family_suffix} "
+            f"priority={entry.priority or entry.severity or 'info'}"
         )
     return "\n".join(lines) + "\n"
 
@@ -955,24 +1134,156 @@ def apply_reviewed_optimization_proposals(
 
     apply_route_weights(base_dir)
     updated_weights = current_route_weights()
+    existing_profiles = load_route_capability_profiles(base_dir)
+    updated_profiles = {
+        route_name: {
+            "task_family_scores": dict(profile.get("task_family_scores", {}))
+            if isinstance(profile.get("task_family_scores", {}), dict)
+            else {},
+            "unsupported_task_types": list(profile.get("unsupported_task_types", []))
+            if isinstance(profile.get("unsupported_task_types", []), list)
+            else [],
+        }
+        for route_name, profile in existing_profiles.items()
+    }
 
     for entry in approved_entries:
-        if entry.proposal_type != "route_weight":
-            continue
         route_name = str(entry.route_name or "").strip()
-        if not route_name:
-            raise ValueError(f"Approved route_weight proposal is missing route_name: {entry.proposal_id}")
-        if route_by_name(route_name) is None:
-            raise ValueError(f"Unknown route in approved proposal: {route_name}")
-        if entry.suggested_weight is None:
-            raise ValueError(f"Approved route_weight proposal is missing suggested_weight: {entry.proposal_id}")
+        if entry.proposal_type == "route_weight":
+            if not route_name:
+                raise ValueError(f"Approved route_weight proposal is missing route_name: {entry.proposal_id}")
+            if route_by_name(route_name) is None:
+                raise ValueError(f"Unknown route in approved proposal: {route_name}")
+            if entry.suggested_weight is None:
+                raise ValueError(f"Approved route_weight proposal is missing suggested_weight: {entry.proposal_id}")
+            continue
+        if entry.proposal_type == "route_capability":
+            if not route_name:
+                raise ValueError(f"Approved route_capability proposal is missing route_name: {entry.proposal_id}")
+            if route_by_name(route_name) is None:
+                raise ValueError(f"Unknown route in approved proposal: {route_name}")
+            task_family = _normalize_task_family_name(entry.task_family)
+            if not task_family:
+                raise ValueError(f"Approved route_capability proposal is missing task_family: {entry.proposal_id}")
+            if not entry.mark_task_family_unsupported and entry.suggested_task_family_score is None:
+                raise ValueError(
+                    f"Approved route_capability proposal is missing suggested_task_family_score: {entry.proposal_id}"
+                )
 
     entries: list[ProposalApplicationEntry] = []
     rollback_weights: dict[str, float] = {}
+    rollback_capability_profiles: dict[str, dict[str, object]] = {}
     applied_count = 0
     noop_count = 0
     skipped_count = 0
     for entry in approved_entries:
+        if entry.proposal_type == "route_capability":
+            route_name = str(entry.route_name or "").strip()
+            task_family = _normalize_task_family_name(entry.task_family)
+            profile = updated_profiles.setdefault(
+                route_name,
+                {"task_family_scores": {}, "unsupported_task_types": []},
+            )
+            task_family_scores = dict(profile.get("task_family_scores", {}))
+            unsupported_task_types = {
+                _normalize_task_family_name(item)
+                for item in profile.get("unsupported_task_types", [])
+                if _normalize_task_family_name(item)
+            }
+            before_score_raw = task_family_scores.get(task_family)
+            before_score = round(float(before_score_raw), 6) if isinstance(before_score_raw, int | float) else None
+            before_unsupported = task_family in unsupported_task_types
+            rollback_capability_profiles.setdefault(
+                route_name,
+                {
+                    "task_family_scores": dict(task_family_scores),
+                    "unsupported_task_types": sorted(unsupported_task_types),
+                },
+            )
+
+            if entry.mark_task_family_unsupported:
+                if before_unsupported:
+                    noop_count += 1
+                    entries.append(
+                        ProposalApplicationEntry(
+                            proposal_id=entry.proposal_id,
+                            proposal_type=entry.proposal_type,
+                            route_name=route_name,
+                            task_family=task_family,
+                            status="noop",
+                            detail="Task family is already marked unsupported for this route.",
+                            before_task_family_score=before_score,
+                            after_task_family_score=before_score,
+                            before_task_family_unsupported=before_unsupported,
+                            after_task_family_unsupported=before_unsupported,
+                        )
+                    )
+                    continue
+                unsupported_task_types.add(task_family)
+                task_family_scores.pop(task_family, None)
+                applied_count += 1
+                updated_profiles[route_name] = {
+                    "task_family_scores": task_family_scores,
+                    "unsupported_task_types": sorted(unsupported_task_types),
+                }
+                entries.append(
+                    ProposalApplicationEntry(
+                        proposal_id=entry.proposal_id,
+                        proposal_type=entry.proposal_type,
+                        route_name=route_name,
+                        task_family=task_family,
+                        status="applied",
+                        detail="Marked the task family unsupported in the persisted route capability profile.",
+                        before_task_family_score=before_score,
+                        after_task_family_score=None,
+                        before_task_family_unsupported=before_unsupported,
+                        after_task_family_unsupported=True,
+                    )
+                )
+                continue
+
+            after_score = round(float(entry.suggested_task_family_score or 0.0), 6)
+            if before_score is not None and abs(before_score - after_score) <= 1e-9 and not before_unsupported:
+                noop_count += 1
+                entries.append(
+                    ProposalApplicationEntry(
+                        proposal_id=entry.proposal_id,
+                        proposal_type=entry.proposal_type,
+                        route_name=route_name,
+                        task_family=task_family,
+                        status="noop",
+                        detail="Suggested capability score already matches the current persisted value.",
+                        before_task_family_score=before_score,
+                        after_task_family_score=after_score,
+                        before_task_family_unsupported=before_unsupported,
+                        after_task_family_unsupported=before_unsupported,
+                    )
+                )
+                continue
+
+            task_family_scores[task_family] = after_score
+            unsupported_task_types.discard(task_family)
+            updated_profiles[route_name] = {
+                "task_family_scores": task_family_scores,
+                "unsupported_task_types": sorted(unsupported_task_types),
+            }
+            applied_count += 1
+            entries.append(
+                ProposalApplicationEntry(
+                    proposal_id=entry.proposal_id,
+                    proposal_type=entry.proposal_type,
+                    route_name=route_name,
+                    task_family=task_family,
+                    status="applied",
+                    detail="Persisted the approved route capability score.",
+                    before_task_family_score=before_score,
+                    after_task_family_score=after_score,
+                    before_task_family_unsupported=before_unsupported,
+                    after_task_family_unsupported=False,
+                )
+            )
+            continue
+
         if entry.proposal_type != "route_weight":
             skipped_count += 1
             entries.append(
@@ -980,6 +1291,7 @@ def apply_reviewed_optimization_proposals(
                     proposal_id=entry.proposal_id,
                     proposal_type=entry.proposal_type,
                     route_name=entry.route_name,
+                    task_family=entry.task_family,
                     status="skipped",
                     detail="No automatic apply handler is registered for this proposal type.",
                 )
@@ -997,6 +1309,7 @@ def apply_reviewed_optimization_proposals(
                     proposal_id=entry.proposal_id,
                     proposal_type=entry.proposal_type,
                     route_name=route_name,
+                    task_family=entry.task_family,
                     status="noop",
                     detail="Suggested quality weight already matches the current persisted value.",
                     before_weight=before_weight,
@@ -1012,6 +1325,7 @@ def apply_reviewed_optimization_proposals(
                 proposal_id=entry.proposal_id,
                 proposal_type=entry.proposal_type,
                 route_name=route_name,
+                task_family=entry.task_family,
                 status="applied",
                 detail="Persisted the approved route quality weight.",
                 before_weight=before_weight,
@@ -1026,6 +1340,13 @@ def apply_reviewed_optimization_proposals(
     }
     save_route_weights(base_dir, persisted_weights)
     apply_route_weights(base_dir)
+    persisted_profiles = {
+        route_name: profile
+        for route_name, profile in updated_profiles.items()
+        if profile.get("task_family_scores") or profile.get("unsupported_task_types")
+    }
+    save_route_capability_profiles(base_dir, persisted_profiles)
+    apply_route_capability_profiles(base_dir)
 
     applied_at = utc_now()
     application_record = OptimizationProposalApplicationRecord(
@@ -1036,7 +1357,9 @@ def apply_reviewed_optimization_proposals(
         noop_count=noop_count,
         skipped_count=skipped_count,
         route_weights_path=str(route_weights_path(base_dir)),
+        route_capabilities_path=str(route_capabilities_path(base_dir)),
         rollback_weights=rollback_weights,
+        rollback_capability_profiles=rollback_capability_profiles,
         entries=entries,
     )
     application_path = optimization_proposal_application_path(base_dir, application_record.application_id)
@@ -1057,6 +1380,7 @@ def build_optimization_proposal_application_report(
         f"- noop_count: {application_record.noop_count}",
         f"- skipped_count: {application_record.skipped_count}",
         f"- route_weights_path: {application_record.route_weights_path}",
+        f"- route_capabilities_path: {application_record.route_capabilities_path}",
         "",
         "## Entries",
     ]
@@ -1068,9 +1392,14 @@ def build_optimization_proposal_application_report(
         detail = entry.detail
         if entry.before_weight is not None and entry.after_weight is not None:
             detail = f"{detail} ({entry.before_weight:.6f} -> {entry.after_weight:.6f})"
+        if entry.before_task_family_score is not None or entry.after_task_family_score is not None:
+            before_score = "-" if entry.before_task_family_score is None else f"{entry.before_task_family_score:.6f}"
+            after_score = "-" if entry.after_task_family_score is None else f"{entry.after_task_family_score:.6f}"
+            detail = f"{detail} ({before_score} -> {after_score})"
         lines.append(
             f"- {entry.proposal_id}: status={entry.status} type={entry.proposal_type} "
-            f"route={entry.route_name or 'global'} detail={detail}"
+            f"route={entry.route_name or 'global'}"
+            f"{f' task_family={entry.task_family}' if entry.task_family else ''} detail={detail}"
         )
     return "\n".join(lines) + "\n"
 

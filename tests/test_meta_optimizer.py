@@ -37,9 +37,10 @@ from swallow.orchestrator import create_task, run_task
 from swallow.paths import (
     latest_optimization_proposal_bundle_path,
     optimization_proposals_path,
+    route_capabilities_path,
     route_weights_path,
 )
-from swallow.router import apply_route_weights, route_by_name
+from swallow.router import apply_route_capability_profiles, apply_route_weights, route_by_name
 from swallow.store import load_state
 
 
@@ -274,6 +275,206 @@ class MetaOptimizerTest(unittest.TestCase):
                 self.assertEqual(replay_record.noop_count, 1)
         finally:
             route.quality_weight = original_weight
+
+    def test_meta_optimizer_generates_route_capability_score_proposal(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_dir = base_dir / ".swl" / "tasks" / "capability-score-task"
+            _write_events(
+                task_dir,
+                [
+                    {
+                        "task_id": "capability-score-task",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "HTTP route completed review task.",
+                        "payload": {
+                            "physical_route": "local-http",
+                            "logical_model": "http-default",
+                            "task_family": "review",
+                            "latency_ms": 10,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                        },
+                    },
+                    {
+                        "task_id": "capability-score-task",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "HTTP route completed another review task.",
+                        "payload": {
+                            "physical_route": "local-http",
+                            "logical_model": "http-default",
+                            "task_family": "review",
+                            "latency_ms": 12,
+                            "token_cost": 0.0,
+                            "degraded": True,
+                        },
+                    },
+                ],
+            )
+
+            snapshot = build_meta_optimizer_snapshot(base_dir, last_n=100)
+
+        proposal = next(
+            proposal
+            for proposal in snapshot.proposals
+            if proposal.proposal_type == "route_capability"
+            and proposal.route_name == "local-http"
+            and proposal.task_family == "review"
+            and not proposal.mark_task_family_unsupported
+        )
+        self.assertAlmostEqual(proposal.suggested_task_family_score or 0.0, 0.88, places=2)
+
+    def test_review_and_apply_approved_route_capability_score_proposals(self) -> None:
+        route = route_by_name("local-http")
+        self.assertIsNotNone(route)
+        assert route is not None
+        original_scores = dict(route.task_family_scores)
+        original_unsupported = list(route.unsupported_task_types)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base_dir = Path(tmp)
+                task_dir = base_dir / ".swl" / "tasks" / "capability-apply-task"
+                _write_events(
+                    task_dir,
+                    [
+                        {
+                            "task_id": "capability-apply-task",
+                            "event_type": EVENT_EXECUTOR_COMPLETED,
+                            "message": "HTTP route completed review task.",
+                            "payload": {
+                                "physical_route": "local-http",
+                                "logical_model": "http-default",
+                                "task_family": "review",
+                                "latency_ms": 10,
+                                "token_cost": 0.0,
+                                "degraded": False,
+                            },
+                        },
+                        {
+                            "task_id": "capability-apply-task",
+                            "event_type": EVENT_EXECUTOR_COMPLETED,
+                            "message": "HTTP route completed another review task.",
+                            "payload": {
+                                "physical_route": "local-http",
+                                "logical_model": "http-default",
+                                "task_family": "review",
+                                "latency_ms": 12,
+                                "token_cost": 0.0,
+                                "degraded": False,
+                            },
+                        },
+                    ],
+                )
+
+                snapshot, _artifact_path, _report = run_meta_optimizer(base_dir, last_n=100)
+                proposal = next(
+                    proposal
+                    for proposal in snapshot.proposals
+                    if proposal.proposal_type == "route_capability"
+                    and proposal.route_name == "local-http"
+                    and proposal.task_family == "review"
+                    and not proposal.mark_task_family_unsupported
+                )
+                bundle_path = latest_optimization_proposal_bundle_path(base_dir)
+                review_record, review_path = review_optimization_proposals(
+                    base_dir,
+                    bundle_path,
+                    "approved",
+                    proposal_ids=[proposal.proposal_id],
+                    note="Apply route capability score.",
+                )
+                self.assertEqual(review_record.entries[0].task_family, "review")
+
+                application_record, _application_path = apply_reviewed_optimization_proposals(base_dir, review_path)
+
+                self.assertEqual(application_record.applied_count, 1)
+                self.assertEqual(application_record.route_capabilities_path, str(route_capabilities_path(base_dir)))
+                persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
+                self.assertAlmostEqual(
+                    persisted_profiles["local-http"]["task_family_scores"]["review"],
+                    proposal.suggested_task_family_score or 0.0,
+                    places=2,
+                )
+                apply_route_capability_profiles(base_dir)
+                self.assertAlmostEqual(route.task_family_scores["review"], proposal.suggested_task_family_score or 0.0, places=2)
+        finally:
+            route.task_family_scores = original_scores
+            route.unsupported_task_types = original_unsupported
+
+    def test_review_and_apply_approved_route_capability_boundary_proposals(self) -> None:
+        route = route_by_name("local-codex")
+        self.assertIsNotNone(route)
+        assert route is not None
+        original_scores = dict(route.task_family_scores)
+        original_unsupported = list(route.unsupported_task_types)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base_dir = Path(tmp)
+                task_dir = base_dir / ".swl" / "tasks" / "capability-boundary-task"
+                _write_events(
+                    task_dir,
+                    [
+                        {
+                            "task_id": "capability-boundary-task",
+                            "event_type": EVENT_EXECUTOR_FAILED,
+                            "message": "Codex failed review task.",
+                            "payload": {
+                                "physical_route": "local-codex",
+                                "logical_model": "codex",
+                                "task_family": "review",
+                                "latency_ms": 11,
+                                "token_cost": 0.0,
+                                "degraded": False,
+                                "failure_kind": "execution_error",
+                                "error_code": "execution_error",
+                            },
+                        },
+                        {
+                            "task_id": "capability-boundary-task",
+                            "event_type": EVENT_EXECUTOR_FAILED,
+                            "message": "Codex failed review task again.",
+                            "payload": {
+                                "physical_route": "local-codex",
+                                "logical_model": "codex",
+                                "task_family": "review",
+                                "latency_ms": 9,
+                                "token_cost": 0.0,
+                                "degraded": False,
+                                "failure_kind": "execution_error",
+                                "error_code": "execution_error",
+                            },
+                        },
+                    ],
+                )
+
+                snapshot, _artifact_path, _report = run_meta_optimizer(base_dir, last_n=100)
+                proposal = next(
+                    proposal
+                    for proposal in snapshot.proposals
+                    if proposal.proposal_type == "route_capability"
+                    and proposal.route_name == "local-codex"
+                    and proposal.task_family == "review"
+                    and proposal.mark_task_family_unsupported
+                )
+                bundle_path = latest_optimization_proposal_bundle_path(base_dir)
+                _review_record, review_path = review_optimization_proposals(
+                    base_dir,
+                    bundle_path,
+                    "approved",
+                    proposal_ids=[proposal.proposal_id],
+                    note="Apply route capability boundary.",
+                )
+
+                application_record, _application_path = apply_reviewed_optimization_proposals(base_dir, review_path)
+
+                self.assertEqual(application_record.applied_count, 1)
+                persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
+                self.assertEqual(persisted_profiles["local-codex"]["unsupported_task_types"], ["review"])
+                apply_route_capability_profiles(base_dir)
+                self.assertEqual(route.unsupported_task_types, ["review"])
+        finally:
+            route.task_family_scores = original_scores
+            route.unsupported_task_types = original_unsupported
 
     def test_meta_optimizer_agent_execute_returns_structured_snapshot_payload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

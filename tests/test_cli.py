@@ -5125,6 +5125,115 @@ class CliLifecycleTest(unittest.TestCase):
         finally:
             route.quality_weight = original_weight
 
+    def test_proposal_apply_cli_persists_route_capability_profile(self) -> None:
+        route = route_by_name("local-http")
+        self.assertIsNotNone(route)
+        assert route is not None
+        original_scores = dict(route.task_family_scores)
+        original_unsupported = list(route.unsupported_task_types)
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base_dir = Path(tmp)
+                task_dir = base_dir / ".swl" / "tasks" / "cli-capability-task"
+                task_dir.mkdir(parents=True, exist_ok=True)
+                (task_dir / "events.jsonl").write_text(
+                    "".join(
+                        json.dumps(record) + "\n"
+                        for record in [
+                            {
+                                "task_id": "cli-capability-task",
+                                "event_type": "executor.completed",
+                                "message": "HTTP route completed review task.",
+                                "payload": {
+                                    "physical_route": "local-http",
+                                    "logical_model": "http-default",
+                                    "task_family": "review",
+                                    "latency_ms": 12,
+                                    "token_cost": 0.0,
+                                    "degraded": False,
+                                },
+                            },
+                            {
+                                "task_id": "cli-capability-task",
+                                "event_type": "executor.completed",
+                                "message": "HTTP route completed another review task.",
+                                "payload": {
+                                    "physical_route": "local-http",
+                                    "logical_model": "http-default",
+                                    "task_family": "review",
+                                    "latency_ms": 9,
+                                    "token_cost": 0.0,
+                                    "degraded": False,
+                                },
+                            },
+                        ]
+                    ),
+                    encoding="utf-8",
+                )
+
+                optimize_stdout = StringIO()
+                with redirect_stdout(optimize_stdout):
+                    exit_code = main(["--base-dir", str(base_dir), "meta-optimize", "--last-n", "100"])
+                self.assertEqual(exit_code, 0)
+
+                bundle_path = latest_optimization_proposal_bundle_path(base_dir)
+                bundle = load_optimization_proposal_bundle(bundle_path)
+                capability_proposal = next(
+                    proposal
+                    for proposal in bundle.proposals
+                    if proposal.proposal_type == "route_capability"
+                    and proposal.route_name == "local-http"
+                    and proposal.task_family == "review"
+                    and not proposal.mark_task_family_unsupported
+                )
+
+                review_stdout = StringIO()
+                with redirect_stdout(review_stdout):
+                    exit_code = main(
+                        [
+                            "--base-dir",
+                            str(base_dir),
+                            "proposal",
+                            "review",
+                            str(bundle_path),
+                            "--decision",
+                            "approved",
+                            "--proposal-id",
+                            capability_proposal.proposal_id,
+                            "--note",
+                            "CLI review approval for route capability.",
+                        ]
+                    )
+                self.assertEqual(exit_code, 0)
+                review_record_path = next(
+                    line.removeprefix("record: ").strip()
+                    for line in review_stdout.getvalue().splitlines()
+                    if line.startswith("record: ")
+                )
+
+                apply_stdout = StringIO()
+                with redirect_stdout(apply_stdout):
+                    exit_code = main(
+                        [
+                            "--base-dir",
+                            str(base_dir),
+                            "proposal",
+                            "apply",
+                            review_record_path,
+                        ]
+                    )
+                self.assertEqual(exit_code, 0)
+                self.assertIn("applied_count: 1", apply_stdout.getvalue())
+                persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
+                self.assertAlmostEqual(
+                    persisted_profiles["local-http"]["task_family_scores"]["review"],
+                    capability_proposal.suggested_task_family_score or 0.0,
+                    places=2,
+                )
+        finally:
+            route.task_family_scores = original_scores
+            route.unsupported_task_types = original_unsupported
+
     def test_route_capabilities_update_and_show_cli_flow(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
