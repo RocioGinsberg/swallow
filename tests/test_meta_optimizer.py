@@ -99,6 +99,8 @@ class MetaOptimizerTest(unittest.TestCase):
             snapshot, artifact_path, report = run_meta_optimizer(base_dir, last_n=100)
             self.assertEqual(len(snapshot.scanned_task_ids), 2)
             self.assertEqual(snapshot.scanned_event_count, 4)
+            self.assertTrue(snapshot.proposals)
+            self.assertEqual(snapshot.proposals[0].proposal_type, "route")
             self.assertEqual(artifact_path, optimization_proposals_path(base_dir))
             self.assertTrue(artifact_path.exists())
             self.assertIn("## Route Health", report)
@@ -208,6 +210,7 @@ class MetaOptimizerTest(unittest.TestCase):
             expensive_route = next(stats for stats in snapshot.route_stats if stats.route_name == "api-claude-review")
             self.assertAlmostEqual(expensive_route.total_cost, 1.2)
             self.assertAlmostEqual(expensive_route.average_cost(), 0.3)
+            self.assertTrue(any(proposal.severity == "warn" for proposal in snapshot.proposals))
             self.assertIn("api-claude-review: total_cost=$1.200000 avg_cost=$0.300000 task_families=review", report)
             self.assertIn(
                 "Review route `api-claude-review`: average estimated cost is $0.30/task across 4 executor events.",
@@ -280,6 +283,88 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertAlmostEqual(previous_route.total_cost, 0.25)
             self.assertEqual(previous_route.cost_samples, [0.0, 0.25])
             self.assertAlmostEqual(previous_route.average_cost(), 0.25)
+
+    def test_run_meta_optimizer_generates_workflow_proposals_from_task_family_signals(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_dir = base_dir / ".swl" / "tasks" / "workflow-audit"
+            _write_events(
+                task_dir,
+                [
+                    {
+                        "task_id": "workflow-audit",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Initial review finished.",
+                        "payload": {
+                            "physical_route": "http-claude",
+                            "logical_model": "claude",
+                            "task_family": "review",
+                            "latency_ms": 24,
+                            "token_cost": 0.12,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                    {
+                        "task_id": "workflow-audit",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Retry review finished.",
+                        "payload": {
+                            "physical_route": "http-claude",
+                            "logical_model": "claude",
+                            "task_family": "review",
+                            "latency_ms": 26,
+                            "token_cost": 0.18,
+                            "degraded": False,
+                            "error_code": "",
+                            "review_feedback": "Needs another pass.",
+                        },
+                    },
+                    {
+                        "task_id": "workflow-audit",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Retry review finished again.",
+                        "payload": {
+                            "physical_route": "http-qwen",
+                            "logical_model": "qwen",
+                            "task_family": "review",
+                            "latency_ms": 18,
+                            "token_cost": 0.2,
+                            "degraded": False,
+                            "error_code": "",
+                            "review_feedback": "Still needs another pass.",
+                        },
+                    },
+                    {
+                        "task_id": "workflow-audit",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Execution completed cheaply.",
+                        "payload": {
+                            "physical_route": "local-summary",
+                            "logical_model": "local",
+                            "task_family": "execution",
+                            "latency_ms": 4,
+                            "token_cost": 0.01,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                ],
+            )
+
+            snapshot = build_meta_optimizer_snapshot(base_dir, last_n=100)
+            workflow_descriptions = [
+                proposal.description for proposal in snapshot.proposals if proposal.proposal_type == "workflow"
+            ]
+
+            self.assertIn(
+                "Review workflow for task_family `review`: debate retry rate is 67% over 3 attempts.",
+                workflow_descriptions,
+            )
+            self.assertIn(
+                "Review workflow cost for task_family `review`: average estimated cost is $0.17/attempt versus median $0.01.",
+                workflow_descriptions,
+            )
 
     def test_run_meta_optimizer_isolates_debate_retry_from_route_health(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

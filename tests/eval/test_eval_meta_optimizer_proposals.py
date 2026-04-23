@@ -75,7 +75,7 @@ def test_meta_optimizer_eval_scenarios_cover_expected_proposals(eval_fixtures_ro
             records = _load_jsonl(scenarios_root / f"{scenario_name}.jsonl")
             _write_scenario(base_dir, scenario_name, records)
             snapshot = build_meta_optimizer_snapshot(base_dir, last_n=100)
-            proposals_blob = "\n".join(snapshot.proposals)
+            proposals_blob = "\n".join(proposal.description for proposal in snapshot.proposals)
 
         scenario_ok = all(item in proposals_blob for item in expectation["expected"])
         scenario_ok = scenario_ok and all(item not in proposals_blob for item in expectation["forbidden"])

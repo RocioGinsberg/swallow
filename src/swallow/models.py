@@ -398,6 +398,19 @@ class TelemetryFields:
 
 
 @dataclass(slots=True)
+class OptimizationProposal:
+    proposal_type: str
+    severity: str
+    route_name: str | None
+    description: str
+    suggested_action: str
+    suggested_weight: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
 class RetrievalRequest:
     query: str
     source_types: list[str] = field(default_factory=lambda: ["repo", "notes"])
