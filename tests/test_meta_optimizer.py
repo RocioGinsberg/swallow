@@ -13,7 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from swallow.cli import main
 from swallow.meta_optimizer import build_meta_optimizer_snapshot, run_meta_optimizer
 from swallow.models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED, EVENT_TASK_EXECUTION_FALLBACK
-from swallow.paths import optimization_proposals_path
+from swallow.paths import optimization_proposals_path, route_weights_path
+from swallow.router import apply_route_weights, route_by_name
 
 
 def _write_events(task_dir: Path, records: list[dict[str, object]]) -> None:
@@ -425,6 +426,73 @@ class MetaOptimizerTest(unittest.TestCase):
                 report,
             )
 
+    def test_run_meta_optimizer_generates_route_weight_proposal_for_unhealthy_route(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_dir = base_dir / ".swl" / "tasks" / "weight-proposal"
+            _write_events(
+                task_dir,
+                [
+                    {
+                        "task_id": "weight-proposal",
+                        "event_type": EVENT_EXECUTOR_FAILED,
+                        "message": "Primary route failed.",
+                        "payload": {
+                            "physical_route": "local-codex",
+                            "logical_model": "codex",
+                            "task_family": "execution",
+                            "latency_ms": 12,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "failure_kind": "launch_error",
+                            "error_code": "launch_error",
+                        },
+                    },
+                    {
+                        "task_id": "weight-proposal",
+                        "event_type": EVENT_EXECUTOR_FAILED,
+                        "message": "Primary route failed again.",
+                        "payload": {
+                            "physical_route": "local-codex",
+                            "logical_model": "codex",
+                            "task_family": "execution",
+                            "latency_ms": 10,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "failure_kind": "launch_error",
+                            "error_code": "launch_error",
+                        },
+                    },
+                    {
+                        "task_id": "weight-proposal",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Primary route recovered once.",
+                        "payload": {
+                            "physical_route": "local-codex",
+                            "logical_model": "codex",
+                            "task_family": "execution",
+                            "latency_ms": 8,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                ],
+            )
+
+            snapshot, _artifact_path, report = run_meta_optimizer(base_dir, last_n=100)
+            route_weight_proposals = [
+                proposal for proposal in snapshot.proposals if proposal.proposal_type == "route_weight"
+            ]
+
+            self.assertEqual(len(route_weight_proposals), 1)
+            self.assertEqual(route_weight_proposals[0].route_name, "local-codex")
+            self.assertAlmostEqual(route_weight_proposals[0].suggested_weight or 0.0, 0.33, places=2)
+            self.assertIn(
+                "Route weight suggestion for `local-codex`: set quality weight to 0.33 based on failure rate 67%.",
+                report,
+            )
+
     def test_run_meta_optimizer_handles_empty_task_registry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
@@ -476,6 +544,98 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertEqual(state_path.read_text(encoding="utf-8"), original_state)
             self.assertEqual(events_path.read_text(encoding="utf-8"), original_events)
             self.assertTrue(artifact_path.exists())
+
+    def test_cli_route_weights_apply_uses_meta_optimizer_proposal_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_dir = base_dir / ".swl" / "tasks" / "apply-weight"
+            _write_events(
+                task_dir,
+                [
+                    {
+                        "task_id": "apply-weight",
+                        "event_type": EVENT_EXECUTOR_FAILED,
+                        "message": "Primary route failed.",
+                        "payload": {
+                            "physical_route": "local-codex",
+                            "logical_model": "codex",
+                            "task_family": "execution",
+                            "latency_ms": 12,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "failure_kind": "launch_error",
+                            "error_code": "launch_error",
+                        },
+                    },
+                    {
+                        "task_id": "apply-weight",
+                        "event_type": EVENT_EXECUTOR_FAILED,
+                        "message": "Primary route failed again.",
+                        "payload": {
+                            "physical_route": "local-codex",
+                            "logical_model": "codex",
+                            "task_family": "execution",
+                            "latency_ms": 10,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "failure_kind": "launch_error",
+                            "error_code": "launch_error",
+                        },
+                    },
+                    {
+                        "task_id": "apply-weight",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Primary route recovered once.",
+                        "payload": {
+                            "physical_route": "local-codex",
+                            "logical_model": "codex",
+                            "task_family": "execution",
+                            "latency_ms": 8,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "error_code": "",
+                        },
+                    },
+                ],
+            )
+
+            _, artifact_path, _report = run_meta_optimizer(base_dir, last_n=100)
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "--base-dir",
+                        str(base_dir),
+                        "route",
+                        "weights",
+                        "apply",
+                        str(artifact_path),
+                    ]
+                )
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(route_weights_path(base_dir).exists())
+            persisted = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
+            self.assertEqual(persisted["local-codex"], 0.33)
+            self.assertIn("local-codex: 0.330000", stdout.getvalue())
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "--base-dir",
+                        str(base_dir),
+                        "route",
+                        "weights",
+                        "show",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("local-codex: 0.330000", stdout.getvalue())
+            self.assertAlmostEqual(route_by_name("local-codex").quality_weight, 0.33, places=2)
+
+        with tempfile.TemporaryDirectory() as reset_tmp:
+            apply_route_weights(Path(reset_tmp))
 
 
 if __name__ == "__main__":

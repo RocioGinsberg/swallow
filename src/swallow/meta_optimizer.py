@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
+import re
 from statistics import median_low
 
 from .models import (
@@ -13,6 +14,12 @@ from .models import (
 )
 from .paths import optimization_proposals_path
 from .store import iter_recent_task_events
+
+
+ROUTE_WEIGHT_PROPOSAL_PATTERN = re.compile(
+    r"Route weight suggestion for `(?P<route_name>[^`]+)`: set quality weight to (?P<suggested_weight>\d+(?:\.\d+)?)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(slots=True)
@@ -243,6 +250,20 @@ def build_optimization_proposals(
                     suggested_action="Inspect recent executor failures and fallback coverage for this route.",
                 )
             )
+            suggested_weight = round(max(0.1, 1.0 - stats.failure_rate()), 2)
+            proposals.append(
+                OptimizationProposal(
+                    proposal_type="route_weight",
+                    severity="critical" if stats.failure_rate() >= 0.5 else "warn",
+                    route_name=stats.route_name,
+                    description=(
+                        f"Route weight suggestion for `{stats.route_name}`: set quality weight to "
+                        f"{suggested_weight:.2f} based on failure rate {stats.failure_rate():.0%}."
+                    ),
+                    suggested_action="Apply the lower quality weight if the route should be demoted without disabling it.",
+                    suggested_weight=suggested_weight,
+                )
+            )
         if stats.fallback_rate() >= 0.15:
             description = (
                 f"Review route `{stats.route_name}`: fallback rate is {stats.fallback_rate():.0%}, "
@@ -400,6 +421,24 @@ def build_optimization_proposals(
                     "No immediate route, fallback, degradation, or cost anomalies crossed the current heuristic thresholds."
                 ),
                 suggested_action="Keep collecting telemetry until a stronger signal appears.",
+            )
+        )
+    return proposals
+
+
+def extract_route_weight_proposals_from_report(report_text: str) -> list[OptimizationProposal]:
+    proposals: list[OptimizationProposal] = []
+    for match in ROUTE_WEIGHT_PROPOSAL_PATTERN.finditer(report_text or ""):
+        route_name = match.group("route_name").strip()
+        suggested_weight = round(float(match.group("suggested_weight")), 2)
+        proposals.append(
+            OptimizationProposal(
+                proposal_type="route_weight",
+                severity="warn",
+                route_name=route_name,
+                description=match.group(0),
+                suggested_action="Apply the suggested quality weight from the report.",
+                suggested_weight=suggested_weight,
             )
         )
     return proposals

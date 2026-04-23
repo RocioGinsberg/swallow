@@ -851,6 +851,7 @@ class RouteSpec:
     model_hint: str
     dialect_hint: str = ""
     fallback_route_name: str = ""
+    quality_weight: float = 1.0
     executor_family: str = "cli"
     execution_site: str = "local"
     remote_capable: bool = False

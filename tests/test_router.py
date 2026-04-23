@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
 from pathlib import Path
 import sys
@@ -8,7 +9,17 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
-from swallow.router import RouteRegistry, build_detached_route, route_by_name, route_for_executor, route_for_mode, select_route
+from swallow.router import (
+    RouteRegistry,
+    apply_route_weights,
+    build_detached_route,
+    current_route_weights,
+    route_by_name,
+    route_for_executor,
+    route_for_mode,
+    save_route_weights,
+    select_route,
+)
 
 
 def _route(
@@ -258,6 +269,67 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(selection.route.name, "http-deepseek")
         self.assertEqual(selection.route.dialect_hint, "codex_fim")
         self.assertIn("model hint", selection.reason)
+
+    def test_candidate_routes_prioritizes_higher_quality_weight(self) -> None:
+        registry = RouteRegistry(
+            [
+                _route(
+                    name="http-low",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    execution_site="local",
+                    executor_family="api",
+                ),
+                _route(
+                    name="http-high",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    execution_site="local",
+                    executor_family="api",
+                ),
+            ]
+        )
+        registry.get("http-low").quality_weight = 0.4
+        registry.get("http-high").quality_weight = 1.0
+
+        candidates, match_kind = registry.candidate_routes(executor_name="http")
+
+        self.assertEqual(match_kind, "exact_executor")
+        self.assertEqual([route.name for route in candidates], ["http-high", "http-low"])
+
+    def test_apply_route_weights_loads_persisted_values_for_registry(self) -> None:
+        registry = RouteRegistry(
+            [
+                _route(
+                    name="http-claude",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    execution_site="local",
+                    executor_family="api",
+                ),
+                _route(
+                    name="local-summary",
+                    executor_name="local",
+                    backend_kind="local_summary",
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            save_route_weights(
+                base_dir,
+                {
+                    "http-claude": 0.55,
+                },
+            )
+
+            applied = apply_route_weights(base_dir, registry)
+            current = current_route_weights(registry)
+
+        self.assertEqual(applied["http-claude"], 0.55)
+        self.assertEqual(current["http-claude"], 0.55)
+        self.assertEqual(current["local-summary"], 1.0)
 
 
 if __name__ == "__main__":

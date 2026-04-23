@@ -40,7 +40,7 @@ from .knowledge_store import (
     migrate_file_knowledge_to_sqlite,
     persist_wiki_entry_from_record,
 )
-from .meta_optimizer import run_meta_optimizer
+from .meta_optimizer import extract_route_weight_proposals_from_report, run_meta_optimizer
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .models import LIBRARIAN_MEMORY_AUTHORITY
@@ -83,7 +83,13 @@ from .paths import (
     topology_path,
 )
 from .staged_knowledge import StagedCandidate, load_staged_candidates, update_staged_candidate
-from .router import route_by_name
+from .router import (
+    apply_route_weights,
+    build_route_weights_report,
+    current_route_weights,
+    route_by_name,
+    save_route_weights,
+)
 from .store import (
     append_canonical_record,
     iter_task_states,
@@ -1200,6 +1206,20 @@ def build_parser() -> argparse.ArgumentParser:
         help="Route name used for automatic consistency audits.",
     )
 
+    route_parser = subparsers.add_parser("route", help="Route registry and operator weight commands.")
+    route_subparsers = route_parser.add_subparsers(dest="route_command", required=True)
+    route_weights_parser = route_subparsers.add_parser(
+        "weights",
+        help="Inspect or apply per-route quality weights.",
+    )
+    route_weights_subparsers = route_weights_parser.add_subparsers(dest="route_weights_command", required=True)
+    route_weights_subparsers.add_parser("show", help="Print current route quality weights.")
+    route_weights_apply_parser = route_weights_subparsers.add_parser(
+        "apply",
+        help="Apply route_weight proposals from a meta-optimizer proposal file.",
+    )
+    route_weights_apply_parser.add_argument("proposal_file", help="Path to a meta-optimizer proposal markdown file.")
+
     task_parser = subparsers.add_parser("task", help="Task workbench and lifecycle commands.")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
     knowledge_parser = subparsers.add_parser("knowledge", help="Global staged knowledge review commands.")
@@ -1962,6 +1982,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     base_dir = Path(args.base_dir).resolve()
+    apply_route_weights(base_dir)
 
     if args.command == "knowledge" and args.knowledge_command == "stage-list":
         candidates = load_staged_candidates(base_dir)
@@ -2084,6 +2105,35 @@ def main(argv: list[str] | None = None) -> int:
             policy.auditor_route = auditor_route
         save_audit_trigger_policy(base_dir, policy)
         print(build_audit_trigger_policy_report(policy), end="")
+        return 0
+
+    if args.command == "route" and args.route_command == "weights" and args.route_weights_command == "show":
+        print(build_route_weights_report(base_dir), end="")
+        return 0
+
+    if args.command == "route" and args.route_command == "weights" and args.route_weights_command == "apply":
+        proposal_path = Path(args.proposal_file).resolve()
+        proposals = extract_route_weight_proposals_from_report(proposal_path.read_text(encoding="utf-8"))
+        if not proposals:
+            raise ValueError(f"No route_weight proposals found in {proposal_path}")
+
+        updated_weights = current_route_weights()
+        for proposal in proposals:
+            route_name = str(proposal.route_name or "").strip()
+            if not route_name:
+                continue
+            if route_by_name(route_name) is None:
+                raise ValueError(f"Unknown route in proposal file: {route_name}")
+            updated_weights[route_name] = float(proposal.suggested_weight or 1.0)
+
+        persisted_weights = {
+            route_name: weight
+            for route_name, weight in updated_weights.items()
+            if abs(weight - 1.0) > 1e-9
+        }
+        save_route_weights(base_dir, persisted_weights)
+        apply_route_weights(base_dir)
+        print(build_route_weights_report(base_dir), end="")
         return 0
 
     if args.command == "ingest":

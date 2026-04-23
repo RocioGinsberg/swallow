@@ -117,7 +117,7 @@ from .paths import (
     validation_path,
 )
 from .retrieval import build_retrieval_request
-from .router import fallback_route_for, normalize_route_mode, select_route
+from .router import apply_route_weights, fallback_route_for, normalize_route_mode, select_route
 from .planner import plan
 from .review_gate import (
     ReviewFeedback,
@@ -2322,6 +2322,7 @@ def acknowledge_task(base_dir: Path, task_id: str, *, route_mode: str = "summary
     previous_phase = state.phase
     state.executor_name = "local"
     state.route_mode = normalize_route_mode(route_mode)
+    apply_route_weights(base_dir)
     route_selection = select_route(state, route_mode_override=state.route_mode)
     _apply_route_spec_to_state(
         state,
@@ -2451,6 +2452,7 @@ def create_task(
         capability_assembly=capability_assembly.to_dict(),
         route_mode=normalize_route_mode(route_mode),
     )
+    apply_route_weights(base_dir)
     initial_route = select_route(state, route_mode_override=state.route_mode)
     _apply_route_spec_to_state(state, initial_route.route, initial_route.reason, update_executor_name=False)
     state.executor_name = normalize_executor_name(executor_name)
@@ -3124,6 +3126,7 @@ async def run_task_async(
         save_capability_manifest(base_dir, task_id, state.capability_manifest)
         save_capability_assembly(base_dir, task_id, state.capability_assembly)
     state.route_mode = normalize_route_mode(route_mode or state.route_mode)
+    apply_route_weights(base_dir)
     route_selection = select_route(state, executor_name, route_mode)
     original_route_capabilities = _apply_route_spec_to_state(state, route_selection.route, route_selection.reason)
     applied_constraints = _apply_capability_enforcement(state)
