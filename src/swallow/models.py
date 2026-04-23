@@ -24,6 +24,8 @@ MEMORY_AUTHORITIES: tuple[str, ...] = (
 
 LIBRARIAN_SYSTEM_ROLE = "specialist"
 LIBRARIAN_MEMORY_AUTHORITY = "canonical-promotion"
+META_OPTIMIZER_SYSTEM_ROLE = "specialist"
+META_OPTIMIZER_MEMORY_AUTHORITY = "canonical-write-forbidden"
 
 
 @dataclass(slots=True)
@@ -127,6 +129,13 @@ def build_librarian_taxonomy_profile() -> TaxonomyProfile:
     return TaxonomyProfile(
         system_role=LIBRARIAN_SYSTEM_ROLE,
         memory_authority=LIBRARIAN_MEMORY_AUTHORITY,
+    )
+
+
+def build_meta_optimizer_taxonomy_profile() -> TaxonomyProfile:
+    return TaxonomyProfile(
+        system_role=META_OPTIMIZER_SYSTEM_ROLE,
+        memory_authority=META_OPTIMIZER_MEMORY_AUTHORITY,
     )
 
 

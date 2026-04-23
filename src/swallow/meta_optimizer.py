@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import json
+import asyncio
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 import re
 from statistics import median_low
+import time
 
 from .models import (
     EVENT_EXECUTOR_COMPLETED,
     EVENT_EXECUTOR_FAILED,
     EVENT_TASK_EXECUTION_FALLBACK,
+    ExecutorResult,
+    META_OPTIMIZER_MEMORY_AUTHORITY,
+    META_OPTIMIZER_SYSTEM_ROLE,
     OptimizationProposal,
+    TaskCard,
+    TaskState,
     utc_now,
 )
 from .paths import (
@@ -29,6 +36,9 @@ ROUTE_WEIGHT_PROPOSAL_PATTERN = re.compile(
     r"Route weight suggestion for `(?P<route_name>[^`]+)`: set quality weight to (?P<suggested_weight>\d+(?:\.\d+)?)",
     re.IGNORECASE,
 )
+META_OPTIMIZER_EXECUTOR_NAME = "meta-optimizer"
+META_OPTIMIZER_AGENT_NAME = META_OPTIMIZER_EXECUTOR_NAME
+META_OPTIMIZER_SNAPSHOT_KIND = "meta_optimizer_snapshot_v0"
 PROPOSAL_BUNDLE_KIND = "meta_optimizer_proposal_bundle_v1"
 PROPOSAL_REVIEW_KIND = "meta_optimizer_proposal_review_v1"
 PROPOSAL_APPLICATION_KIND = "meta_optimizer_proposal_application_v1"
@@ -67,6 +77,20 @@ class RouteTelemetryStats:
     def average_cost(self) -> float:
         return round(self.total_cost / self.cost_event_count(), 6) if self.cost_event_count() else 0.0
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "route_name": self.route_name,
+            "success_count": self.success_count,
+            "failure_count": self.failure_count,
+            "debate_retry_count": self.debate_retry_count,
+            "fallback_trigger_count": self.fallback_trigger_count,
+            "degraded_count": self.degraded_count,
+            "total_latency_ms": self.total_latency_ms,
+            "total_cost": self.total_cost,
+            "event_count": self.event_count,
+            "task_families": sorted(self.task_families),
+        }
+
 
 @dataclass(slots=True)
 class FailureFingerprint:
@@ -74,6 +98,14 @@ class FailureFingerprint:
     error_code: str
     count: int = 0
     routes: set[str] = field(default_factory=set)
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "failure_kind": self.failure_kind,
+            "error_code": self.error_code,
+            "count": self.count,
+            "routes": sorted(self.routes),
+        }
 
 
 @dataclass(slots=True)
@@ -93,6 +125,14 @@ class TaskFamilyTelemetryStats:
     def average_cost(self) -> float:
         return round(self.total_cost / self.total_attempt_count(), 6) if self.total_attempt_count() else 0.0
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "task_family": self.task_family,
+            "executor_event_count": self.executor_event_count,
+            "debate_retry_count": self.debate_retry_count,
+            "total_cost": self.total_cost,
+        }
+
 
 @dataclass(slots=True)
 class MetaOptimizerSnapshot:
@@ -105,6 +145,19 @@ class MetaOptimizerSnapshot:
     degraded_event_count: int
     task_family_stats: list[TaskFamilyTelemetryStats]
     proposals: list[OptimizationProposal]
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "generated_at": self.generated_at,
+            "task_limit": self.task_limit,
+            "scanned_task_ids": list(self.scanned_task_ids),
+            "scanned_event_count": self.scanned_event_count,
+            "route_stats": [item.to_dict() for item in self.route_stats],
+            "failure_fingerprints": [item.to_dict() for item in self.failure_fingerprints],
+            "degraded_event_count": self.degraded_event_count,
+            "task_family_stats": [item.to_dict() for item in self.task_family_stats],
+            "proposals": [proposal.to_dict() for proposal in self.proposals],
+        }
 
 
 @dataclass(slots=True)
@@ -1020,6 +1073,104 @@ def build_optimization_proposal_application_report(
             f"route={entry.route_name or 'global'} detail={detail}"
         )
     return "\n".join(lines) + "\n"
+
+
+class MetaOptimizerAgent:
+    """Stateful specialist entity for read-only optimization telemetry analysis."""
+
+    agent_name = META_OPTIMIZER_AGENT_NAME
+    system_role = META_OPTIMIZER_SYSTEM_ROLE
+    memory_authority = META_OPTIMIZER_MEMORY_AUTHORITY
+
+    def _resolve_last_n(self, card: TaskCard) -> int:
+        raw_last_n = card.input_context.get("last_n", 100)
+        if isinstance(raw_last_n, bool):
+            raise ValueError("MetaOptimizerAgent input_context.last_n must be a positive integer.")
+        try:
+            last_n = int(raw_last_n)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("MetaOptimizerAgent input_context.last_n must be a positive integer.") from exc
+        if last_n <= 0:
+            raise ValueError("MetaOptimizerAgent input_context.last_n must be greater than 0.")
+        return last_n
+
+    def _build_prompt(self, state: TaskState, card: TaskCard, *, last_n: int) -> str:
+        return "\n".join(
+            [
+                "# Meta-Optimizer Agent Task",
+                "",
+                f"- task_id: {state.task_id}",
+                f"- agent_name: {self.agent_name}",
+                f"- executor_role: {self.system_role}",
+                f"- memory_authority: {self.memory_authority}",
+                f"- task_limit: {last_n}",
+                f"- route_name: {state.route_name or 'pending'}",
+                f"- executor_name: {state.executor_name or self.agent_name}",
+                f"- goal: {card.goal or state.goal}",
+                "- workflow: scan recent task telemetry, summarize route and workflow signals, emit structured proposals, persist read-only proposal artifacts",
+            ]
+        )
+
+    def execute(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[object],
+    ) -> ExecutorResult:
+        del retrieval_items
+
+        last_n = self._resolve_last_n(card)
+        prompt = self._build_prompt(state, card, last_n=last_n)
+        started_at = time.perf_counter()
+        snapshot, artifact_path, _report = run_meta_optimizer(base_dir, last_n=last_n)
+        bundle_path = latest_optimization_proposal_bundle_path(base_dir)
+        bundle = load_optimization_proposal_bundle(bundle_path)
+        output_payload = {
+            "kind": META_OPTIMIZER_SNAPSHOT_KIND,
+            "agent_name": self.agent_name,
+            "system_role": self.system_role,
+            "memory_authority": self.memory_authority,
+            "report_artifact": str(artifact_path),
+            "bundle_path": str(bundle_path),
+            "bundle_id": bundle.bundle_id,
+            "snapshot": snapshot.to_dict(),
+        }
+        proposal_count = len(snapshot.proposals)
+        scanned_task_count = len(snapshot.scanned_task_ids)
+        latency_ms = int(round((time.perf_counter() - started_at) * 1000))
+        return ExecutorResult(
+            executor_name=META_OPTIMIZER_EXECUTOR_NAME,
+            status="completed",
+            message=(
+                f"MetaOptimizerAgent generated {proposal_count} proposal(s) from "
+                f"{scanned_task_count} scanned task(s)."
+            ),
+            output=json.dumps(output_payload, indent=2, sort_keys=True) + "\n",
+            prompt=prompt,
+            dialect="plain_text",
+            latency_ms=max(latency_ms, 0),
+            side_effects={
+                "kind": META_OPTIMIZER_SNAPSHOT_KIND,
+                "bundle_path": str(bundle_path),
+                "report_artifact": str(artifact_path),
+                "proposal_count": proposal_count,
+                "scanned_task_count": scanned_task_count,
+            },
+        )
+
+    async def execute_async(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[object],
+    ) -> ExecutorResult:
+        return await asyncio.to_thread(self.execute, base_dir, state, card, retrieval_items)
+
+
+class MetaOptimizerExecutor(MetaOptimizerAgent):
+    """Compatibility wrapper that preserves the historical executor name while delegating to MetaOptimizerAgent."""
 
 
 def run_meta_optimizer(base_dir: Path, last_n: int = 100) -> tuple[MetaOptimizerSnapshot, Path, str]:

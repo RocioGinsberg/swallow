@@ -24,6 +24,7 @@ from swallow.executor import (
     run_http_executor,
 )
 from swallow.librarian_executor import LibrarianAgent, LibrarianExecutor
+from swallow.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
 from swallow.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
 
 
@@ -75,6 +76,8 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(CLIAgentExecutor(CODEX_CONFIG), ExecutorProtocol)
         self.assertIsInstance(LibrarianAgent(), ExecutorProtocol)
         self.assertIsInstance(LibrarianExecutor(), ExecutorProtocol)
+        self.assertIsInstance(MetaOptimizerAgent(), ExecutorProtocol)
+        self.assertIsInstance(MetaOptimizerExecutor(), ExecutorProtocol)
 
     def test_resolve_executor_routes_mock_names_to_mock_executor(self) -> None:
         self.assertIsInstance(resolve_executor("cli", "mock"), MockExecutor)
@@ -92,6 +95,10 @@ class ExecutorProtocolTest(unittest.TestCase):
     def test_resolve_executor_routes_librarian_type_to_librarian_executor(self) -> None:
         self.assertIsInstance(resolve_executor("librarian", "local"), LibrarianExecutor)
         self.assertIsInstance(resolve_executor("cli", "librarian"), LibrarianExecutor)
+
+    def test_resolve_executor_routes_meta_optimizer_type_to_meta_optimizer_executor(self) -> None:
+        self.assertIsInstance(resolve_executor("meta-optimizer", "local"), MetaOptimizerExecutor)
+        self.assertIsInstance(resolve_executor("cli", "meta-optimizer"), MetaOptimizerExecutor)
 
     def test_local_cli_executor_delegates_to_harness_run_execution(self) -> None:
         state = TaskState(
