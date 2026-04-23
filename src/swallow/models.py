@@ -889,6 +889,8 @@ class RouteSpec:
     dialect_hint: str = ""
     fallback_route_name: str = ""
     quality_weight: float = 1.0
+    task_family_scores: dict[str, float] = field(default_factory=dict)
+    unsupported_task_types: list[str] = field(default_factory=list)
     executor_family: str = "cli"
     execution_site: str = "local"
     remote_capable: bool = False
@@ -914,6 +916,11 @@ class RouteSpec:
         payload = asdict(self)
         payload["capabilities"] = self.capabilities.to_dict()
         payload["taxonomy"] = self.taxonomy.to_dict()
+        payload["task_family_scores"] = {
+            str(task_family): float(score)
+            for task_family, score in sorted(self.task_family_scores.items())
+        }
+        payload["unsupported_task_types"] = sorted({str(item).strip() for item in self.unsupported_task_types if str(item).strip()})
         return payload
 
 

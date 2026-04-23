@@ -65,6 +65,7 @@ from swallow.paths import (
     knowledge_wiki_entry_path,
     latest_optimization_proposal_bundle_path,
     remote_handoff_contract_path,
+    route_capabilities_path,
     route_weights_path,
     swallow_db_path,
 )
@@ -5123,6 +5124,46 @@ class CliLifecycleTest(unittest.TestCase):
                 )
         finally:
             route.quality_weight = original_weight
+
+    def test_route_capabilities_update_and_show_cli_flow(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+
+            update_stdout = StringIO()
+            with redirect_stdout(update_stdout):
+                exit_code = main(
+                    [
+                        "--base-dir",
+                        str(base_dir),
+                        "route",
+                        "capabilities",
+                        "update",
+                        "local-http",
+                        "--task-type",
+                        "review",
+                        "--score",
+                        "0.75",
+                        "--mark-unsupported",
+                        "execution",
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            persisted = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
+            self.assertEqual(persisted["local-http"]["task_family_scores"]["review"], 0.75)
+            self.assertEqual(persisted["local-http"]["unsupported_task_types"], ["execution"])
+            self.assertIn("local-http", update_stdout.getvalue())
+            self.assertIn("task_family_scores: review=0.750000", update_stdout.getvalue())
+            self.assertIn("unsupported_task_types: execution", update_stdout.getvalue())
+
+            show_stdout = StringIO()
+            with redirect_stdout(show_stdout):
+                exit_code = main(["--base-dir", str(base_dir), "route", "capabilities", "show"])
+
+            self.assertEqual(exit_code, 0)
+            self.assertIn("# Route Capability Profiles", show_stdout.getvalue())
+            self.assertIn("local-http", show_stdout.getvalue())
+            self.assertIn("task_family_scores: review=0.750000", show_stdout.getvalue())
 
     def test_task_help_includes_capability_commands(self) -> None:
         stdout = StringIO()

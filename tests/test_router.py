@@ -9,14 +9,18 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
+from swallow.paths import route_capabilities_path
 from swallow.router import (
     RouteRegistry,
+    apply_route_capability_profiles,
     apply_route_weights,
     build_detached_route,
+    current_route_capability_profiles,
     current_route_weights,
     route_by_name,
     route_for_executor,
     route_for_mode,
+    save_route_capability_profiles,
     save_route_weights,
     select_route,
 )
@@ -34,6 +38,8 @@ def _route(
     executor_family: str = "cli",
     execution_kind: str = "artifact_generation",
     supports_tool_loop: bool = False,
+    task_family_scores: dict[str, float] | None = None,
+    unsupported_task_types: list[str] | None = None,
 ) -> RouteSpec:
     return RouteSpec(
         name=name,
@@ -42,6 +48,8 @@ def _route(
         model_hint=model_hint or executor_name,
         dialect_hint=dialect_hint,
         fallback_route_name=fallback_route_name,
+        task_family_scores=dict(task_family_scores or {}),
+        unsupported_task_types=list(unsupported_task_types or []),
         executor_family=executor_family,
         execution_site=execution_site,
         remote_capable=execution_site == "remote",
@@ -296,6 +304,112 @@ class RouteRegistryTest(unittest.TestCase):
 
         self.assertEqual(match_kind, "exact_executor")
         self.assertEqual([route.name for route in candidates], ["http-high", "http-low"])
+
+    def test_candidate_routes_prioritizes_higher_task_family_score(self) -> None:
+        registry = RouteRegistry(
+            [
+                _route(
+                    name="http-review-low",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    execution_site="local",
+                    executor_family="api",
+                    task_family_scores={"review": 0.2},
+                ),
+                _route(
+                    name="http-review-high",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    execution_site="local",
+                    executor_family="api",
+                    task_family_scores={"review": 0.9},
+                ),
+            ]
+        )
+
+        candidates, match_kind = registry.candidate_routes(executor_name="http", task_family="review")
+
+        self.assertEqual(match_kind, "exact_executor")
+        self.assertEqual([route.name for route in candidates], ["http-review-high", "http-review-low"])
+
+    def test_select_route_skips_routes_marked_unsupported_for_task_family(self) -> None:
+        registry = RouteRegistry(
+            [
+                _route(
+                    name="http-review-blocked",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    execution_site="local",
+                    executor_family="api",
+                    unsupported_task_types=["review"],
+                ),
+                _route(
+                    name="http-review-ok",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    execution_site="local",
+                    executor_family="api",
+                    task_family_scores={"review": 0.4},
+                ),
+                _route(
+                    name="local-summary",
+                    executor_name="local",
+                    backend_kind="local_summary",
+                ),
+            ]
+        )
+        state = TaskState(
+            task_id="unsupported-review-001",
+            title="Review route guard",
+            goal="Avoid routes that explicitly do not support review work",
+            workspace_root="/tmp",
+            executor_name="http",
+            route_executor_family="api",
+            route_execution_site="local",
+            task_semantics={"source_kind": "review"},
+        )
+
+        with patch("swallow.router.ROUTE_REGISTRY", registry):
+            selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "http-review-ok")
+
+    def test_apply_route_capability_profiles_loads_persisted_values_for_registry(self) -> None:
+        registry = RouteRegistry(
+            [
+                _route(
+                    name="http-claude",
+                    executor_name="http",
+                    backend_kind="http_api",
+                    execution_site="local",
+                    executor_family="api",
+                ),
+                _route(
+                    name="local-summary",
+                    executor_name="local",
+                    backend_kind="local_summary",
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            save_route_capability_profiles(
+                base_dir,
+                {
+                    "http-claude": {
+                        "task_family_scores": {"review": 0.85},
+                        "unsupported_task_types": ["execution"],
+                    }
+                },
+            )
+
+            applied = apply_route_capability_profiles(base_dir, registry)
+            current = current_route_capability_profiles(registry)
+
+        self.assertEqual(applied["http-claude"]["task_family_scores"]["review"], 0.85)
+        self.assertEqual(current["http-claude"]["unsupported_task_types"], ["execution"])
+        self.assertTrue(route_capabilities_path(base_dir).name.endswith("route_capabilities.json"))
 
     def test_apply_route_weights_loads_persisted_values_for_registry(self) -> None:
         registry = RouteRegistry(

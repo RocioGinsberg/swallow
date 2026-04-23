@@ -7,9 +7,9 @@
 - latest_completed_slice: `Policy Closure & Specialist Audit (v0.7.0+)`
 - active_track: `Evaluation / Policy + Agent Taxonomy` (Primary) + `Provider Routing` (Secondary)
 - active_phase: `Phase 51`
-- active_slice: `s2_meta_optimizer_agent`
+- active_slice: `s3_route_capability_profile`
 - active_branch: `feat/phase51-specialist-lifecycle`
-- status: `phase51_s2_ready_for_review`
+- status: `phase51_s3_ready_for_review`
 
 ---
 
@@ -32,7 +32,7 @@ Phase 50 已完成，相关文档：
 5. `docs/plans/phase50/review_comments.md` — PR review 结论（claude, 2026-04-23）
 6. `docs/plans/phase50/closeout.md` — phase 收口（codex, 2026-04-23）
 
-Phase 51 文档已就绪，当前进入 S1 实现。
+Phase 51 文档已就绪，当前已完成 S1-S2，并进入 S3 `route capability profile` 收口态。
 
 ---
 
@@ -50,11 +50,14 @@ Phase 51 文档已就绪，当前进入 S1 实现。
 - **[Human]** 已完成 S1 commit：`799e35a feat(meta-optimizer): add proposal review and apply workflow`。
 - **[Codex]** 已完成 S2：`MetaOptimizerAgent` / `MetaOptimizerExecutor` 生命周期、`resolve_executor(...)` 接线、同步/异步执行与 `run_task(...)` 集成测试。
 - **[Codex]** 已验证 S2：`.venv/bin/python -m pytest tests/test_meta_optimizer.py --tb=short` 15 passed；`.venv/bin/python -m pytest tests/test_executor_protocol.py --tb=short` 18 passed；`.venv/bin/python -m pytest tests/test_librarian_executor.py --tb=short` 5 passed；`.venv/bin/python -m pytest tests/test_cli.py --tb=short` 202 passed。
+- **[Human]** 已完成 S2 commit：`5407cc1 feat(meta-optimizer): add specialist agent lifecycle`。
+- **[Codex]** 已完成 S3：`RouteSpec.unsupported_task_types` / `task_family_scores`、`.swl/route_capabilities.json` 持久化、`swl route capabilities show/update` CLI、route selection task-family guard。
+- **[Codex]** 已验证 S3：`.venv/bin/python -m pytest tests/test_router.py --tb=short` 15 passed；`.venv/bin/python -m pytest tests/test_cli.py --tb=short` 203 passed；`.venv/bin/python -m pytest tests/test_meta_optimizer.py tests/test_librarian_executor.py tests/test_router.py --tb=short` 35 passed。
 
 待执行：
 
-- **[Human]** 审阅 S2 diff 并执行 slice commit。
-- **[Codex]** 在 S2 提交后继续推进 Phase 51 后续 slice（优先收紧 planner / route capability profile 边界，或按你指定顺序继续）。
+- **[Human]** 审阅 S3 diff 并执行 slice commit。
+- **[Codex]** 在 S3 提交后继续推进 Phase 51 后续 slice。
 
 当前阻塞项：
 
@@ -86,12 +89,19 @@ Phase 51 规划产出物：
 - `src/swallow/models.py` (codex, 2026-04-23, S2 meta-optimizer taxonomy constants)
 - `tests/test_meta_optimizer.py` (codex, 2026-04-23, S2 agent execute/execute_async/run_task integration coverage)
 - `tests/test_executor_protocol.py` (codex, 2026-04-23, S2 executor protocol + resolver coverage)
+- `src/swallow/router.py` (codex, 2026-04-23, S3 route capability profile persistence + task-family guard)
+- `src/swallow/paths.py` (codex, 2026-04-23, S3 route capability profile path)
+- `src/swallow/cli.py` (codex, 2026-04-23, S3 `swl route capabilities show/update` CLI)
+- `src/swallow/models.py` (codex, 2026-04-23, S3 RouteSpec capability profile fields)
+- `src/swallow/orchestrator.py` (codex, 2026-04-23, S3 route capability profile apply before route selection)
+- `tests/test_router.py` (codex, 2026-04-23, S3 task-family scoring/unsupported guard/persistence coverage)
+- `tests/test_cli.py` (codex, 2026-04-23, S3 route capabilities CLI coverage)
 
 ## 当前下一步
 
-1. **[Human]** 审阅当前 S2 diff，并按 slice 执行提交。
-2. **[Codex]** 在 Human 完成 S2 提交后，继续推进 Phase 51 后续 slice。
+1. **[Human]** 审阅当前 S3 diff，并按 slice 执行提交。
+2. **[Codex]** 在 Human 完成 S3 提交后，继续推进 Phase 51 后续 slice。
 
 当前阻塞项：
 
-- 等待人工审批: Phase 51 S2 `MetaOptimizerAgent` 生命周期 diff 与 slice commit。
+- 等待人工审批: Phase 51 S3 `route capability profile` diff 与 slice commit。

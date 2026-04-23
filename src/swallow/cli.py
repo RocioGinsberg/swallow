@@ -92,10 +92,14 @@ from .paths import (
 )
 from .staged_knowledge import StagedCandidate, load_staged_candidates, update_staged_candidate
 from .router import (
+    apply_route_capability_profiles,
     apply_route_weights,
+    build_route_capability_profiles_report,
     build_route_weights_report,
     current_route_weights,
+    load_route_capability_profiles,
     route_by_name,
+    save_route_capability_profiles,
     save_route_weights,
 )
 from .store import (
@@ -1227,6 +1231,48 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply route_weight proposals from a meta-optimizer proposal file.",
     )
     route_weights_apply_parser.add_argument("proposal_file", help="Path to a meta-optimizer proposal markdown file.")
+    route_capabilities_parser = route_subparsers.add_parser(
+        "capabilities",
+        help="Inspect or update per-route capability profiles.",
+    )
+    route_capabilities_subparsers = route_capabilities_parser.add_subparsers(
+        dest="route_capabilities_command",
+        required=True,
+    )
+    route_capabilities_subparsers.add_parser("show", help="Print current route capability profiles.")
+    route_capabilities_update_parser = route_capabilities_subparsers.add_parser(
+        "update",
+        help="Update a route capability profile entry.",
+    )
+    route_capabilities_update_parser.add_argument("route_name", help="Route name to update.")
+    route_capabilities_update_parser.add_argument(
+        "--task-type",
+        default=None,
+        help="Task family whose capability score should be updated.",
+    )
+    route_capabilities_update_parser.add_argument(
+        "--score",
+        type=float,
+        default=None,
+        help="Capability score for --task-type. Must be non-negative.",
+    )
+    route_capabilities_update_parser.add_argument(
+        "--clear-task-type",
+        default=None,
+        help="Remove a persisted capability score for the given task family.",
+    )
+    route_capabilities_update_parser.add_argument(
+        "--mark-unsupported",
+        action="append",
+        default=[],
+        help="Mark a task family as unsupported for the route. Repeat to add multiple values.",
+    )
+    route_capabilities_update_parser.add_argument(
+        "--clear-unsupported",
+        action="append",
+        default=[],
+        help="Remove a task family from the unsupported list. Repeat to clear multiple values.",
+    )
 
     task_parser = subparsers.add_parser("task", help="Task workbench and lifecycle commands.")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
@@ -2024,6 +2070,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     base_dir = Path(args.base_dir).resolve()
     apply_route_weights(base_dir)
+    apply_route_capability_profiles(base_dir)
 
     if args.command == "knowledge" and args.knowledge_command == "stage-list":
         candidates = load_staged_candidates(base_dir)
@@ -2197,6 +2244,73 @@ def main(argv: list[str] | None = None) -> int:
         save_route_weights(base_dir, persisted_weights)
         apply_route_weights(base_dir)
         print(build_route_weights_report(base_dir), end="")
+        return 0
+
+    if args.command == "route" and args.route_command == "capabilities" and args.route_capabilities_command == "show":
+        print(build_route_capability_profiles_report(base_dir), end="")
+        return 0
+
+    if args.command == "route" and args.route_command == "capabilities" and args.route_capabilities_command == "update":
+        route_name = args.route_name.strip()
+        if not route_name:
+            raise ValueError("route_name must be a non-empty route name.")
+        if route_by_name(route_name) is None:
+            raise ValueError(f"Unknown route: {route_name}")
+
+        profiles = load_route_capability_profiles(base_dir)
+        profile = dict(profiles.get(route_name, {}))
+        task_family_scores = dict(profile.get("task_family_scores", {}))
+        unsupported_task_types = {
+            str(item).strip().lower()
+            for item in profile.get("unsupported_task_types", [])
+            if str(item).strip()
+        }
+
+        updated = False
+        if args.task_type is not None or args.score is not None:
+            if args.task_type is None or args.score is None:
+                raise ValueError("--task-type and --score must be provided together.")
+            task_type = args.task_type.strip().lower()
+            if not task_type:
+                raise ValueError("--task-type must be a non-empty task family.")
+            if args.score < 0:
+                raise ValueError("--score must be non-negative.")
+            task_family_scores[task_type] = float(args.score)
+            unsupported_task_types.discard(task_type)
+            updated = True
+
+        if args.clear_task_type is not None:
+            task_type = args.clear_task_type.strip().lower()
+            if not task_type:
+                raise ValueError("--clear-task-type must be a non-empty task family.")
+            task_family_scores.pop(task_type, None)
+            updated = True
+
+        for task_type in args.mark_unsupported:
+            normalized_task_type = task_type.strip().lower()
+            if not normalized_task_type:
+                raise ValueError("--mark-unsupported must contain non-empty task families.")
+            unsupported_task_types.add(normalized_task_type)
+            task_family_scores.pop(normalized_task_type, None)
+            updated = True
+
+        for task_type in args.clear_unsupported:
+            normalized_task_type = task_type.strip().lower()
+            if not normalized_task_type:
+                raise ValueError("--clear-unsupported must contain non-empty task families.")
+            unsupported_task_types.discard(normalized_task_type)
+            updated = True
+
+        if not updated:
+            raise ValueError("No route capability profile changes requested.")
+
+        profiles[route_name] = {
+            "task_family_scores": task_family_scores,
+            "unsupported_task_types": sorted(unsupported_task_types),
+        }
+        save_route_capability_profiles(base_dir, profiles)
+        apply_route_capability_profiles(base_dir)
+        print(build_route_capability_profiles_report(base_dir), end="")
         return 0
 
     if args.command == "ingest":
