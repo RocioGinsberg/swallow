@@ -12,7 +12,12 @@ from .canonical_reuse_eval import (
     compare_canonical_reuse_regression,
 )
 from .canonical_audit import audit_canonical_registry, build_canonical_audit_report
-from .consistency_audit import run_consistency_audit
+from .consistency_audit import (
+    build_audit_trigger_policy_report,
+    load_audit_trigger_policy,
+    run_consistency_audit,
+    save_audit_trigger_policy,
+)
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .canonical_registry import (
@@ -78,6 +83,7 @@ from .paths import (
     topology_path,
 )
 from .staged_knowledge import StagedCandidate, load_staged_candidates, update_staged_candidate
+from .router import route_by_name
 from .store import (
     append_canonical_record,
     iter_task_states,
@@ -1140,6 +1146,60 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    audit_parser = subparsers.add_parser("audit", help="Consistency audit policy and operator commands.")
+    audit_subparsers = audit_parser.add_subparsers(dest="audit_command", required=True)
+    audit_policy_parser = audit_subparsers.add_parser(
+        "policy",
+        help="Inspect or update the automatic consistency-audit trigger policy.",
+    )
+    audit_policy_subparsers = audit_policy_parser.add_subparsers(dest="audit_policy_command", required=True)
+    audit_policy_subparsers.add_parser("show", help="Print the current audit trigger policy.")
+    audit_policy_set_parser = audit_policy_subparsers.add_parser(
+        "set",
+        help="Update the automatic consistency-audit trigger policy.",
+    )
+    audit_policy_set_parser.set_defaults(enabled=None, trigger_on_degraded=None)
+    audit_policy_set_parser.add_argument(
+        "--enabled",
+        dest="enabled",
+        action="store_true",
+        help="Enable automatic consistency-audit triggering.",
+    )
+    audit_policy_set_parser.add_argument(
+        "--disabled",
+        dest="enabled",
+        action="store_false",
+        help="Disable automatic consistency-audit triggering.",
+    )
+    audit_policy_set_parser.add_argument(
+        "--trigger-on-degraded",
+        dest="trigger_on_degraded",
+        action="store_true",
+        help="Trigger audits when the latest executor event is degraded.",
+    )
+    audit_policy_set_parser.add_argument(
+        "--no-trigger-on-degraded",
+        dest="trigger_on_degraded",
+        action="store_false",
+        help="Stop triggering audits on degraded executor events.",
+    )
+    audit_policy_set_parser.add_argument(
+        "--trigger-on-cost-above",
+        type=float,
+        default=None,
+        help="Trigger audits when the latest executor event token_cost meets or exceeds this threshold.",
+    )
+    audit_policy_set_parser.add_argument(
+        "--clear-trigger-on-cost-above",
+        action="store_true",
+        help="Clear any configured token_cost threshold.",
+    )
+    audit_policy_set_parser.add_argument(
+        "--auditor-route",
+        default=None,
+        help="Route name used for automatic consistency audits.",
+    )
+
     task_parser = subparsers.add_parser("task", help="Task workbench and lifecycle commands.")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
     knowledge_parser = subparsers.add_parser("knowledge", help="Global staged knowledge review commands.")
@@ -1999,6 +2059,33 @@ def main(argv: list[str] | None = None) -> int:
         print(f"artifact: {artifact_path}")
         return 0
 
+    if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "show":
+        print(build_audit_trigger_policy_report(load_audit_trigger_policy(base_dir)), end="")
+        return 0
+
+    if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "set":
+        policy = load_audit_trigger_policy(base_dir)
+        if args.enabled is not None:
+            policy.enabled = bool(args.enabled)
+        if args.trigger_on_degraded is not None:
+            policy.trigger_on_degraded = bool(args.trigger_on_degraded)
+        if args.clear_trigger_on_cost_above:
+            policy.trigger_on_cost_above = None
+        elif args.trigger_on_cost_above is not None:
+            if args.trigger_on_cost_above < 0:
+                raise ValueError("--trigger-on-cost-above must be non-negative.")
+            policy.trigger_on_cost_above = float(args.trigger_on_cost_above)
+        if args.auditor_route is not None:
+            auditor_route = args.auditor_route.strip()
+            if not auditor_route:
+                raise ValueError("--auditor-route must be a non-empty route name.")
+            if route_by_name(auditor_route) is None:
+                raise ValueError(f"Unknown auditor route: {auditor_route}")
+            policy.auditor_route = auditor_route
+        save_audit_trigger_policy(base_dir, policy)
+        print(build_audit_trigger_policy_report(policy), end="")
+        return 0
+
     if args.command == "ingest":
         result = run_ingestion_pipeline(
             base_dir,
@@ -2347,7 +2434,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         artifact_ref = result.audit_artifact or "-"
         print(
-            f"{result.task_id} consistency_audit status={result.status} route={result.auditor_route} artifact={artifact_ref}"
+            f"{result.task_id} consistency_audit status={result.status} verdict={result.verdict} route={result.auditor_route} artifact={artifact_ref}"
         )
         return 0
 

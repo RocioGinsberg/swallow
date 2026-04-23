@@ -28,6 +28,12 @@ from .canonical_reuse_eval import (
 )
 from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from .capability_enforcement import CapabilityConstraint, enforce_capability_constraints
+from .consistency_audit import (
+    evaluate_audit_trigger,
+    load_audit_trigger_policy,
+    load_latest_executor_event_payload,
+    schedule_consistency_audit,
+)
 from .cost_estimation import estimate_cost
 from .execution_budget_policy import evaluate_token_cost_budget, normalize_token_cost_limit
 from .executor import normalize_executor_name, resolve_dialect_name, resolve_executor
@@ -217,6 +223,42 @@ def _dispatch_status_for_transport(transport_kind: str) -> str:
     if transport_kind == "local_detached_process":
         return "detached_dispatched"
     return "local_dispatched"
+
+
+def _maybe_schedule_consistency_audit(base_dir: Path, state: TaskState) -> None:
+    policy = load_audit_trigger_policy(base_dir)
+    executor_payload = load_latest_executor_event_payload(base_dir, state.task_id)
+    trigger_reasons = evaluate_audit_trigger(policy, executor_payload)
+    if not trigger_reasons:
+        return
+
+    thread_name = schedule_consistency_audit(
+        base_dir,
+        state.task_id,
+        auditor_route=policy.auditor_route,
+        sample_artifact_path="executor_output.md",
+    )
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type="task.consistency_audit_scheduled",
+            message="Consistency audit scheduled in the background by audit trigger policy.",
+            payload={
+                "auditor_route": policy.auditor_route,
+                "trigger_reasons": trigger_reasons,
+                "policy_enabled": policy.enabled,
+                "policy_trigger_on_degraded": policy.trigger_on_degraded,
+                "policy_trigger_on_cost_above": policy.trigger_on_cost_above,
+                "observed_degraded": bool(executor_payload.get("degraded", False)),
+                "observed_token_cost": float(executor_payload.get("token_cost", 0.0) or 0.0),
+                "executor_route_name": str(
+                    executor_payload.get("physical_route") or executor_payload.get("route_name") or ""
+                ).strip(),
+                "thread_name": thread_name,
+            },
+        ),
+    )
 
 
 def _execute_task_card(
@@ -3460,6 +3502,7 @@ async def run_task_async(
             ),
         )
     else:
+        _maybe_schedule_consistency_audit(base_dir, state)
         append_event(
             base_dir,
             Event(
