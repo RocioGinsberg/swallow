@@ -398,6 +398,58 @@ class TelemetryFields:
 
 
 @dataclass(slots=True)
+class OptimizationProposal:
+    proposal_type: str
+    severity: str
+    route_name: str | None
+    description: str
+    suggested_action: str
+    suggested_weight: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class AuditTriggerPolicy:
+    enabled: bool = False
+    trigger_on_degraded: bool = True
+    trigger_on_cost_above: float | None = None
+    auditor_route: str = "http-claude"
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "AuditTriggerPolicy":
+        enabled = data.get("enabled", False)
+        if not isinstance(enabled, bool):
+            enabled = str(enabled).strip().lower() in {"1", "true", "yes", "on"}
+
+        trigger_on_degraded = data.get("trigger_on_degraded", True)
+        if not isinstance(trigger_on_degraded, bool):
+            trigger_on_degraded = str(trigger_on_degraded).strip().lower() in {"1", "true", "yes", "on"}
+
+        raw_cost_threshold = data.get("trigger_on_cost_above")
+        trigger_on_cost_above: float | None
+        if raw_cost_threshold in {"", None}:
+            trigger_on_cost_above = None
+        else:
+            try:
+                trigger_on_cost_above = max(float(raw_cost_threshold), 0.0)
+            except (TypeError, ValueError):
+                trigger_on_cost_above = None
+
+        auditor_route = str(data.get("auditor_route", "http-claude")).strip() or "http-claude"
+        return cls(
+            enabled=enabled,
+            trigger_on_degraded=trigger_on_degraded,
+            trigger_on_cost_above=trigger_on_cost_above,
+            auditor_route=auditor_route,
+        )
+
+
+@dataclass(slots=True)
 class RetrievalRequest:
     query: str
     source_types: list[str] = field(default_factory=lambda: ["repo", "notes"])
@@ -799,6 +851,7 @@ class RouteSpec:
     model_hint: str
     dialect_hint: str = ""
     fallback_route_name: str = ""
+    quality_weight: float = 1.0
     executor_family: str = "cli"
     execution_site: str = "local"
     remote_capable: bool = False

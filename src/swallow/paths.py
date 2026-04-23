@@ -170,6 +170,14 @@ def optimization_proposals_path(base_dir: Path) -> Path:
     return meta_optimizer_root(base_dir) / "optimization_proposals.md"
 
 
+def audit_policy_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "audit_policy.json"
+
+
+def route_weights_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "route_weights.json"
+
+
 def canonical_registry_path(base_dir: Path) -> Path:
     return canonical_registry_root(base_dir) / "registry.jsonl"
 

@@ -1,22 +1,37 @@
 from __future__ import annotations
 
+import json
+import re
+import threading
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from .executor import run_prompt_executor
-from .models import TaskState
-from .paths import artifacts_dir
+from .models import AuditTriggerPolicy, EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED, TaskState
+from .paths import artifacts_dir, audit_policy_path
 from .router import route_by_name
-from .store import load_state, write_artifact
+from .store import apply_atomic_text_updates, load_events, load_state, write_artifact
 
 
 AUDIT_INPUT_CHAR_LIMIT = 12000
+_VERDICT_PATTERN = re.compile(r"^\s*-\s*verdict:\s*(pass|fail|inconclusive)\b", re.IGNORECASE | re.MULTILINE)
+_FAIL_SIGNAL_PATTERNS = (
+    re.compile(r"\binconsistent\b", re.IGNORECASE),
+    re.compile(r"\bcritical\b", re.IGNORECASE),
+    re.compile(r"\bfail(?:ed|ure)?\b", re.IGNORECASE),
+)
+_PASS_SIGNAL_PATTERNS = (
+    re.compile(r"\bconsistent\b", re.IGNORECASE),
+    re.compile(r"\bno issues?\b", re.IGNORECASE),
+    re.compile(r"\bpass(?:ed)?\b", re.IGNORECASE),
+)
 
 
 @dataclass(slots=True)
 class ConsistencyAuditResult:
     status: str
+    verdict: str
     message: str
     task_id: str
     auditor_route: str
@@ -124,6 +139,7 @@ def _build_audit_prompt(
 def _build_audit_report(
     *,
     status: str,
+    verdict: str,
     message: str,
     task_id: str,
     auditor_route: str,
@@ -134,6 +150,7 @@ def _build_audit_report(
         "# Consistency Audit",
         "",
         f"- status: {status}",
+        f"- verdict: {verdict}",
         f"- message: {message}",
         f"- task_id: {task_id}",
         f"- auditor_route: {auditor_route}",
@@ -146,6 +163,130 @@ def _build_audit_report(
     else:
         lines.append("(no auditor output)")
     return "\n".join(lines) + "\n"
+
+
+def parse_consistency_audit_verdict(raw_output: str) -> str:
+    match = _VERDICT_PATTERN.search(raw_output or "")
+    if match is not None:
+        return match.group(1).strip().lower()
+
+    normalized_output = raw_output or ""
+    if any(pattern.search(normalized_output) for pattern in _FAIL_SIGNAL_PATTERNS):
+        return "fail"
+    if any(pattern.search(normalized_output) for pattern in _PASS_SIGNAL_PATTERNS):
+        return "pass"
+    return "inconclusive"
+
+
+def load_audit_trigger_policy(base_dir: Path) -> AuditTriggerPolicy:
+    path = audit_policy_path(base_dir)
+    if not path.exists():
+        return AuditTriggerPolicy()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return AuditTriggerPolicy()
+    if not isinstance(payload, dict):
+        return AuditTriggerPolicy()
+    return AuditTriggerPolicy.from_dict(payload)
+
+
+def save_audit_trigger_policy(base_dir: Path, policy: AuditTriggerPolicy) -> Path:
+    path = audit_policy_path(base_dir)
+    apply_atomic_text_updates({path: json.dumps(policy.to_dict(), indent=2) + "\n"})
+    return path
+
+
+def build_audit_trigger_policy_report(policy: AuditTriggerPolicy) -> str:
+    threshold = f"{policy.trigger_on_cost_above:.6f}" if policy.trigger_on_cost_above is not None else "-"
+    return "\n".join(
+        [
+            "# Audit Trigger Policy",
+            "",
+            f"- enabled: {'yes' if policy.enabled else 'no'}",
+            f"- trigger_on_degraded: {'yes' if policy.trigger_on_degraded else 'no'}",
+            f"- trigger_on_cost_above: {threshold}",
+            f"- auditor_route: {policy.auditor_route}",
+        ]
+    ) + "\n"
+
+
+def _coerce_nonnegative_float(value: object) -> float:
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, int | float):
+        return max(float(value), 0.0)
+    if isinstance(value, str):
+        try:
+            return max(float(value.strip()), 0.0)
+        except ValueError:
+            return 0.0
+    return 0.0
+
+
+def load_latest_executor_event_payload(base_dir: Path, task_id: str) -> dict[str, object]:
+    for event in reversed(load_events(base_dir, task_id)):
+        event_type = str(event.get("event_type", "")).strip()
+        if event_type not in {EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED}:
+            continue
+        payload = event.get("payload", {})
+        return payload if isinstance(payload, dict) else {}
+    return {}
+
+
+def evaluate_audit_trigger(policy: AuditTriggerPolicy, executor_payload: dict[str, object]) -> list[str]:
+    if not policy.enabled or not executor_payload:
+        return []
+
+    reasons: list[str] = []
+    if policy.trigger_on_degraded and bool(executor_payload.get("degraded", False)):
+        reasons.append("degraded")
+
+    threshold = policy.trigger_on_cost_above
+    token_cost = _coerce_nonnegative_float(executor_payload.get("token_cost", 0.0))
+    if threshold is not None and token_cost >= threshold:
+        reasons.append("cost")
+    return reasons
+
+
+def _run_consistency_audit_background(
+    base_dir: Path,
+    task_id: str,
+    *,
+    auditor_route: str,
+    sample_artifact_path: str,
+) -> None:
+    try:
+        run_consistency_audit(
+            base_dir,
+            task_id,
+            auditor_route=auditor_route,
+            sample_artifact_path=sample_artifact_path,
+        )
+    except Exception:
+        return
+
+
+def schedule_consistency_audit(
+    base_dir: Path,
+    task_id: str,
+    *,
+    auditor_route: str,
+    sample_artifact_path: str = "executor_output.md",
+) -> str:
+    thread = threading.Thread(
+        target=_run_consistency_audit_background,
+        kwargs={
+            "base_dir": base_dir,
+            "task_id": task_id,
+            "auditor_route": auditor_route,
+            "sample_artifact_path": sample_artifact_path,
+        },
+        daemon=True,
+        name=f"swallow-audit-{task_id[:8]}",
+    )
+    thread.start()
+    return thread.name
 
 
 def run_consistency_audit(
@@ -163,6 +304,7 @@ def run_consistency_audit(
     except FileNotFoundError:
         return ConsistencyAuditResult(
             status="failed",
+            verdict="inconclusive",
             message=f"Task state is missing for task_id: {task_id}",
             task_id=task_id,
             auditor_route=auditor_route,
@@ -172,6 +314,7 @@ def run_consistency_audit(
     except Exception as exc:
         return ConsistencyAuditResult(
             status="failed",
+            verdict="inconclusive",
             message=f"Task state could not be loaded for task_id {task_id}: {exc}",
             task_id=task_id,
             auditor_route=auditor_route,
@@ -187,6 +330,7 @@ def run_consistency_audit(
             audit_artifact_name,
             _build_audit_report(
                 status="failed",
+                verdict="inconclusive",
                 message=message,
                 task_id=task_id,
                 auditor_route=auditor_route,
@@ -196,6 +340,7 @@ def run_consistency_audit(
         )
         return ConsistencyAuditResult(
             status="failed",
+            verdict="inconclusive",
             message=message,
             task_id=task_id,
             auditor_route=auditor_route,
@@ -214,6 +359,7 @@ def run_consistency_audit(
             audit_artifact_name,
             _build_audit_report(
                 status="failed",
+                verdict="inconclusive",
                 message=error_message,
                 task_id=task_id,
                 auditor_route=auditor_route,
@@ -223,6 +369,7 @@ def run_consistency_audit(
         )
         return ConsistencyAuditResult(
             status="failed",
+            verdict="inconclusive",
             message=error_message,
             task_id=task_id,
             auditor_route=auditor_route,
@@ -240,10 +387,12 @@ def run_consistency_audit(
     execution = run_prompt_executor(auditor_state, [], prompt)
     if execution.status == "completed":
         status = "completed"
+        verdict = parse_consistency_audit_verdict(execution.output)
         message = "Consistency audit completed."
         raw_output = execution.output
     else:
         status = "failed"
+        verdict = "inconclusive"
         message = execution.message or "Consistency audit failed before producing an auditor response."
         raw_output = execution.output or execution.stderr
 
@@ -253,6 +402,7 @@ def run_consistency_audit(
         audit_artifact_name,
         _build_audit_report(
             status=status,
+            verdict=verdict,
             message=message,
             task_id=task_id,
             auditor_route=auditor_route,
@@ -262,6 +412,7 @@ def run_consistency_audit(
     )
     return ConsistencyAuditResult(
         status=status,
+        verdict=verdict,
         message=message,
         task_id=task_id,
         auditor_route=auditor_route,

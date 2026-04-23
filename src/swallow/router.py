@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Iterable
+from pathlib import Path
 
 from .executor import DEFAULT_EXECUTOR, normalize_executor_name
 from .models import RouteCapabilities, RouteSelection, RouteSpec, TaskState, TaxonomyProfile
+from .paths import route_weights_path
 
 
 CAPABILITY_MATCH_FIELDS = (
@@ -44,6 +47,24 @@ def _registered_executor_name(raw_name: str | None) -> str:
     if raw and normalized == DEFAULT_EXECUTOR and raw != DEFAULT_EXECUTOR:
         return raw
     return normalized
+
+
+def _normalize_quality_weight(value: object) -> float:
+    if isinstance(value, bool):
+        return float(int(value))
+    if isinstance(value, int | float):
+        return max(float(value), 0.0)
+    if isinstance(value, str):
+        try:
+            return max(float(value.strip()), 0.0)
+        except ValueError:
+            return 1.0
+    return 1.0
+
+
+def _sort_routes_by_quality(routes: Iterable[RouteSpec]) -> list[RouteSpec]:
+    route_list = list(routes)
+    return sorted(route_list, key=lambda route: route.quality_weight, reverse=True)
 
 
 class RouteRegistry:
@@ -99,8 +120,8 @@ class RouteRegistry:
         if exact_executor_matches:
             model_matches = _filter_model_hint_matches(exact_executor_matches, model_hint)
             if model_matches:
-                return model_matches, "exact_executor_model_hint"
-            return exact_executor_matches, "exact_executor"
+                return _sort_routes_by_quality(model_matches), "exact_executor_model_hint"
+            return _sort_routes_by_quality(exact_executor_matches), "exact_executor"
 
         family_site_matches = [
             route
@@ -110,13 +131,13 @@ class RouteRegistry:
         if family_site_matches:
             capability_matches = _filter_capability_matches(family_site_matches, required_capabilities)
             if capability_matches:
-                return capability_matches, "family_site"
+                return _sort_routes_by_quality(capability_matches), "family_site"
             if not required_capabilities:
-                return family_site_matches, "family_site"
+                return _sort_routes_by_quality(family_site_matches), "family_site"
 
         capability_matches = _filter_capability_matches(self.values(), required_capabilities)
         if capability_matches:
-            return capability_matches, "capability"
+            return _sort_routes_by_quality(capability_matches), "capability"
 
         summary_route = self.maybe_get(SUMMARY_FALLBACK_ROUTE_NAME)
         if summary_route is not None:
@@ -470,6 +491,7 @@ def build_detached_route(route: RouteSpec) -> RouteSpec:
         model_hint=route.model_hint,
         dialect_hint=route.dialect_hint,
         fallback_route_name=route.fallback_route_name,
+        quality_weight=route.quality_weight,
         executor_family=route.executor_family,
         execution_site="local",
         remote_capable=False,
@@ -482,6 +504,65 @@ def build_detached_route(route: RouteSpec) -> RouteSpec:
 def normalize_route_mode(raw_mode: str | None) -> str:
     normalized = (raw_mode or "").strip().lower()
     return ROUTE_MODE_ALIASES.get(normalized, "auto")
+
+
+def load_route_weights(base_dir: Path) -> dict[str, float]:
+    path = route_weights_path(base_dir)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+
+    weights: dict[str, float] = {}
+    for route_name, raw_weight in payload.items():
+        normalized_name = str(route_name).strip()
+        if not normalized_name:
+            continue
+        weights[normalized_name] = _normalize_quality_weight(raw_weight)
+    return weights
+
+
+def save_route_weights(base_dir: Path, weights: dict[str, float]) -> Path:
+    path = route_weights_path(base_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_weights = {
+        route_name: round(_normalize_quality_weight(weight), 6)
+        for route_name, weight in sorted(weights.items())
+    }
+    path.write_text(json.dumps(normalized_weights, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def apply_route_weights(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, float]:
+    active_registry = registry or ROUTE_REGISTRY
+    persisted_weights = load_route_weights(base_dir)
+    for route in active_registry.values():
+        route.quality_weight = persisted_weights.get(route.name, 1.0)
+    return {route.name: route.quality_weight for route in active_registry.values()}
+
+
+def current_route_weights(registry: RouteRegistry | None = None) -> dict[str, float]:
+    active_registry = registry or ROUTE_REGISTRY
+    return {route.name: route.quality_weight for route in active_registry.values()}
+
+
+def build_route_weights_report(base_dir: Path, registry: RouteRegistry | None = None) -> str:
+    active_registry = registry or ROUTE_REGISTRY
+    weights = current_route_weights(active_registry)
+    lines = [
+        "# Route Quality Weights",
+        "",
+        f"- path: {route_weights_path(base_dir)}",
+        "",
+        "## Weights",
+    ]
+    for route_name, weight in sorted(weights.items(), key=lambda item: (-item[1], item[0])):
+        lines.append(f"- {route_name}: {weight:.6f}")
+    return "\n".join(lines) + "\n"
 
 
 def route_for_executor(executor_name: str) -> RouteSpec:
