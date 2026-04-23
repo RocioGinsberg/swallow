@@ -40,7 +40,14 @@ from .knowledge_store import (
     migrate_file_knowledge_to_sqlite,
     persist_wiki_entry_from_record,
 )
-from .meta_optimizer import extract_route_weight_proposals_from_report, run_meta_optimizer
+from .meta_optimizer import (
+    apply_reviewed_optimization_proposals,
+    build_optimization_proposal_application_report,
+    build_optimization_proposal_review_report,
+    extract_route_weight_proposals_from_report,
+    review_optimization_proposals,
+    run_meta_optimizer,
+)
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .models import LIBRARIAN_MEMORY_AUTHORITY
@@ -71,6 +78,7 @@ from .paths import (
     handoff_path,
     knowledge_decisions_path,
     knowledge_index_path,
+    latest_optimization_proposal_bundle_path,
     knowledge_partition_path,
     knowledge_policy_path,
     memory_path,
@@ -1252,6 +1260,39 @@ def build_parser() -> argparse.ArgumentParser:
         default=100,
         help="Maximum number of recent task event logs to scan. Defaults to 100.",
     )
+    proposal_parser = subparsers.add_parser(
+        "proposal",
+        help="Review or apply structured meta-optimizer proposals.",
+    )
+    proposal_subparsers = proposal_parser.add_subparsers(dest="proposal_command", required=True)
+    proposal_review_parser = proposal_subparsers.add_parser(
+        "review",
+        help="Create an operator review record for a structured proposal bundle.",
+    )
+    proposal_review_parser.add_argument("proposal_file", help="Path to the structured proposal bundle JSON file.")
+    proposal_review_parser.add_argument(
+        "--decision",
+        required=True,
+        choices=("approved", "rejected", "deferred"),
+        help="Decision applied to all selected proposals. Non-selected proposals remain deferred.",
+    )
+    proposal_review_parser.add_argument(
+        "--proposal-id",
+        dest="proposal_ids",
+        action="append",
+        default=[],
+        help="Optional proposal id to review. Repeat to review multiple proposals; defaults to all proposals.",
+    )
+    proposal_review_parser.add_argument(
+        "--note",
+        default="",
+        help="Optional operator note stored in the review record.",
+    )
+    proposal_apply_parser = proposal_subparsers.add_parser(
+        "apply",
+        help="Apply the approved proposals from a proposal review record.",
+    )
+    proposal_apply_parser.add_argument("review_file", help="Path to the proposal review record JSON file.")
     ingest_parser = subparsers.add_parser(
         "ingest",
         help="Ingest an external session export into staged knowledge.",
@@ -2078,6 +2119,28 @@ def main(argv: list[str] | None = None) -> int:
         _snapshot, artifact_path, report = run_meta_optimizer(base_dir, last_n=args.last_n)
         print(report, end="")
         print(f"artifact: {artifact_path}")
+        print(f"proposal_bundle: {latest_optimization_proposal_bundle_path(base_dir)}")
+        return 0
+
+    if args.command == "proposal" and args.proposal_command == "review":
+        review_record, record_path = review_optimization_proposals(
+            base_dir,
+            Path(args.proposal_file).resolve(),
+            decision=args.decision,
+            proposal_ids=list(args.proposal_ids or []),
+            note=args.note,
+        )
+        print(build_optimization_proposal_review_report(review_record), end="")
+        print(f"record: {record_path}")
+        return 0
+
+    if args.command == "proposal" and args.proposal_command == "apply":
+        application_record, record_path = apply_reviewed_optimization_proposals(
+            base_dir,
+            Path(args.review_file).resolve(),
+        )
+        print(build_optimization_proposal_application_report(application_record), end="")
+        print(f"record: {record_path}")
         return 0
 
     if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "show":

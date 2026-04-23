@@ -405,9 +405,37 @@ class OptimizationProposal:
     description: str
     suggested_action: str
     suggested_weight: float | None = None
+    proposal_id: str = ""
+    priority: str = ""
+    rationale: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "OptimizationProposal":
+        raw_weight = data.get("suggested_weight")
+        suggested_weight: float | None
+        if raw_weight in {"", None}:
+            suggested_weight = None
+        else:
+            try:
+                suggested_weight = float(raw_weight)
+            except (TypeError, ValueError):
+                suggested_weight = None
+        route_name = data.get("route_name")
+        normalized_route_name = None if route_name in {"", None} else str(route_name)
+        return cls(
+            proposal_type=str(data.get("proposal_type", "")).strip(),
+            severity=str(data.get("severity", "")).strip(),
+            route_name=normalized_route_name,
+            description=str(data.get("description", "")).strip(),
+            suggested_action=str(data.get("suggested_action", "")).strip(),
+            suggested_weight=suggested_weight,
+            proposal_id=str(data.get("proposal_id", "")).strip(),
+            priority=str(data.get("priority", "")).strip(),
+            rationale=str(data.get("rationale", "")).strip(),
+        )
 
 
 @dataclass(slots=True)

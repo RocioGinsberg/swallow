@@ -11,9 +11,19 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.cli import main
-from swallow.meta_optimizer import build_meta_optimizer_snapshot, run_meta_optimizer
+from swallow.meta_optimizer import (
+    apply_reviewed_optimization_proposals,
+    build_meta_optimizer_snapshot,
+    load_optimization_proposal_bundle,
+    review_optimization_proposals,
+    run_meta_optimizer,
+)
 from swallow.models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED, EVENT_TASK_EXECUTION_FALLBACK
-from swallow.paths import optimization_proposals_path, route_weights_path
+from swallow.paths import (
+    latest_optimization_proposal_bundle_path,
+    optimization_proposals_path,
+    route_weights_path,
+)
 from swallow.router import apply_route_weights, route_by_name
 
 
@@ -114,6 +124,137 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertIn("Review route `local-codex`", report)
             self.assertIn("Investigate repeated failure fingerprint `launch_error/launch_error`", report)
             self.assertEqual(artifact_path.read_text(encoding="utf-8"), report)
+
+    def test_run_meta_optimizer_persists_latest_structured_proposal_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_dir = base_dir / ".swl" / "tasks" / "bundle-task"
+            _write_events(
+                task_dir,
+                [
+                    {
+                        "task_id": "bundle-task",
+                        "event_type": EVENT_EXECUTOR_FAILED,
+                        "message": "Local codex failed.",
+                        "payload": {
+                            "physical_route": "local-codex",
+                            "logical_model": "codex",
+                            "task_family": "execution",
+                            "latency_ms": 15,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                            "failure_kind": "launch_error",
+                            "error_code": "launch_error",
+                        },
+                    }
+                ],
+            )
+
+            snapshot, artifact_path, _report = run_meta_optimizer(base_dir, last_n=100)
+
+            bundle_path = latest_optimization_proposal_bundle_path(base_dir)
+            self.assertTrue(bundle_path.exists())
+            bundle = load_optimization_proposal_bundle(bundle_path)
+            self.assertEqual(bundle.report_artifact, str(artifact_path))
+            self.assertEqual(bundle.generated_at, snapshot.generated_at)
+            self.assertTrue(bundle.proposals)
+            self.assertTrue(bundle.proposals[0].proposal_id)
+            self.assertTrue(bundle.proposals[0].priority)
+            self.assertTrue(bundle.proposals[0].rationale)
+
+    def test_review_and_apply_approved_route_weight_proposals(self) -> None:
+        route = route_by_name("local-codex")
+        self.assertIsNotNone(route)
+        assert route is not None
+        original_weight = route.quality_weight
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base_dir = Path(tmp)
+                task_dir = base_dir / ".swl" / "tasks" / "apply-task"
+                _write_events(
+                    task_dir,
+                    [
+                        {
+                            "task_id": "apply-task",
+                            "event_type": EVENT_EXECUTOR_FAILED,
+                            "message": "Local codex failed.",
+                            "payload": {
+                                "physical_route": "local-codex",
+                                "logical_model": "codex",
+                                "task_family": "execution",
+                                "latency_ms": 12,
+                                "token_cost": 0.0,
+                                "degraded": False,
+                                "failure_kind": "launch_error",
+                                "error_code": "launch_error",
+                            },
+                        },
+                        {
+                            "task_id": "apply-task",
+                            "event_type": EVENT_EXECUTOR_FAILED,
+                            "message": "Local codex failed again.",
+                            "payload": {
+                                "physical_route": "local-codex",
+                                "logical_model": "codex",
+                                "task_family": "execution",
+                                "latency_ms": 8,
+                                "token_cost": 0.0,
+                                "degraded": False,
+                                "failure_kind": "launch_error",
+                                "error_code": "launch_error",
+                            },
+                        },
+                    ],
+                )
+
+                run_meta_optimizer(base_dir, last_n=100)
+                bundle_path = latest_optimization_proposal_bundle_path(base_dir)
+                bundle = load_optimization_proposal_bundle(bundle_path)
+                route_weight_proposal = next(
+                    proposal
+                    for proposal in bundle.proposals
+                    if proposal.proposal_type == "route_weight" and proposal.route_name == "local-codex"
+                )
+
+                review_record, review_path = review_optimization_proposals(
+                    base_dir,
+                    bundle_path,
+                    decision="approved",
+                    proposal_ids=[route_weight_proposal.proposal_id],
+                    note="Demote unstable local codex route.",
+                )
+                self.assertTrue(review_path.exists())
+                self.assertEqual(
+                    next(
+                        entry.decision
+                        for entry in review_record.entries
+                        if entry.proposal_id == route_weight_proposal.proposal_id
+                    ),
+                    "approved",
+                )
+
+                application_record, application_path = apply_reviewed_optimization_proposals(base_dir, review_path)
+                self.assertTrue(application_path.exists())
+                self.assertEqual(application_record.applied_count, 1)
+                self.assertEqual(application_record.noop_count, 0)
+                self.assertEqual(application_record.skipped_count, 0)
+                self.assertAlmostEqual(
+                    route_by_name("local-codex").quality_weight,
+                    route_weight_proposal.suggested_weight or 1.0,
+                    places=2,
+                )
+                persisted_weights = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
+                self.assertAlmostEqual(
+                    persisted_weights["local-codex"],
+                    route_weight_proposal.suggested_weight or 1.0,
+                    places=2,
+                )
+
+                replay_record, _replay_path = apply_reviewed_optimization_proposals(base_dir, review_path)
+                self.assertEqual(replay_record.applied_count, 0)
+                self.assertEqual(replay_record.noop_count, 1)
+        finally:
+            route.quality_weight = original_weight
 
     def test_run_meta_optimizer_generates_cost_proposals(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

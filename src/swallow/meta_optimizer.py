@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 import re
 from statistics import median_low
@@ -12,7 +13,15 @@ from .models import (
     OptimizationProposal,
     utc_now,
 )
-from .paths import optimization_proposals_path
+from .paths import (
+    latest_optimization_proposal_bundle_path,
+    optimization_proposal_application_path,
+    optimization_proposal_bundle_path,
+    optimization_proposal_review_path,
+    optimization_proposals_path,
+    route_weights_path,
+)
+from .router import apply_route_weights, current_route_weights, route_by_name, save_route_weights
 from .store import iter_recent_task_events
 
 
@@ -20,6 +29,10 @@ ROUTE_WEIGHT_PROPOSAL_PATTERN = re.compile(
     r"Route weight suggestion for `(?P<route_name>[^`]+)`: set quality weight to (?P<suggested_weight>\d+(?:\.\d+)?)",
     re.IGNORECASE,
 )
+PROPOSAL_BUNDLE_KIND = "meta_optimizer_proposal_bundle_v1"
+PROPOSAL_REVIEW_KIND = "meta_optimizer_proposal_review_v1"
+PROPOSAL_APPLICATION_KIND = "meta_optimizer_proposal_application_v1"
+VALID_PROPOSAL_REVIEW_DECISIONS = {"approved", "rejected", "deferred"}
 
 
 @dataclass(slots=True)
@@ -93,6 +106,221 @@ class MetaOptimizerSnapshot:
     task_family_stats: list[TaskFamilyTelemetryStats]
     proposals: list[OptimizationProposal]
 
+
+@dataclass(slots=True)
+class OptimizationProposalBundle:
+    bundle_id: str
+    generated_at: str
+    task_limit: int
+    scanned_task_ids: list[str]
+    scanned_event_count: int
+    report_artifact: str
+    proposals: list[OptimizationProposal]
+    kind: str = PROPOSAL_BUNDLE_KIND
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "kind": self.kind,
+            "bundle_id": self.bundle_id,
+            "generated_at": self.generated_at,
+            "task_limit": self.task_limit,
+            "scanned_task_ids": list(self.scanned_task_ids),
+            "scanned_event_count": self.scanned_event_count,
+            "report_artifact": self.report_artifact,
+            "proposals": [proposal.to_dict() for proposal in self.proposals],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> "OptimizationProposalBundle":
+        raw_proposals = data.get("proposals", [])
+        proposals = [
+            OptimizationProposal.from_dict(item)
+            for item in raw_proposals
+            if isinstance(item, dict)
+        ]
+        return cls(
+            kind=str(data.get("kind", PROPOSAL_BUNDLE_KIND)).strip() or PROPOSAL_BUNDLE_KIND,
+            bundle_id=str(data.get("bundle_id", "")).strip(),
+            generated_at=str(data.get("generated_at", "")).strip(),
+            task_limit=_coerce_nonnegative_int(data.get("task_limit", 0)),
+            scanned_task_ids=[
+                str(item).strip()
+                for item in data.get("scanned_task_ids", [])
+                if str(item).strip()
+            ]
+            if isinstance(data.get("scanned_task_ids", []), list)
+            else [],
+            scanned_event_count=_coerce_nonnegative_int(data.get("scanned_event_count", 0)),
+            report_artifact=str(data.get("report_artifact", "")).strip(),
+            proposals=_ensure_proposal_metadata(proposals),
+        )
+
+
+@dataclass(slots=True)
+class ProposalReviewEntry:
+    proposal_id: str
+    proposal_type: str
+    route_name: str | None
+    decision: str
+    description: str
+    suggested_action: str
+    note: str = ""
+    severity: str = ""
+    priority: str = ""
+    rationale: str = ""
+    suggested_weight: float | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> "ProposalReviewEntry":
+        raw_weight = data.get("suggested_weight")
+        suggested_weight: float | None
+        if raw_weight in {"", None}:
+            suggested_weight = None
+        else:
+            try:
+                suggested_weight = float(raw_weight)
+            except (TypeError, ValueError):
+                suggested_weight = None
+        route_name = data.get("route_name")
+        normalized_route_name = None if route_name in {"", None} else str(route_name)
+        return cls(
+            proposal_id=str(data.get("proposal_id", "")).strip(),
+            proposal_type=str(data.get("proposal_type", "")).strip(),
+            route_name=normalized_route_name,
+            decision=str(data.get("decision", "deferred")).strip() or "deferred",
+            description=str(data.get("description", "")).strip(),
+            suggested_action=str(data.get("suggested_action", "")).strip(),
+            note=str(data.get("note", "")).strip(),
+            severity=str(data.get("severity", "")).strip(),
+            priority=str(data.get("priority", "")).strip(),
+            rationale=str(data.get("rationale", "")).strip(),
+            suggested_weight=suggested_weight,
+        )
+
+
+@dataclass(slots=True)
+class OptimizationProposalReviewRecord:
+    review_id: str
+    reviewed_at: str
+    decision: str
+    source_bundle_path: str
+    source_bundle_id: str
+    reviewer: str
+    note: str
+    entries: list[ProposalReviewEntry]
+    kind: str = PROPOSAL_REVIEW_KIND
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "kind": self.kind,
+            "review_id": self.review_id,
+            "reviewed_at": self.reviewed_at,
+            "decision": self.decision,
+            "source_bundle_path": self.source_bundle_path,
+            "source_bundle_id": self.source_bundle_id,
+            "reviewer": self.reviewer,
+            "note": self.note,
+            "entries": [entry.to_dict() for entry in self.entries],
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, object]) -> "OptimizationProposalReviewRecord":
+        raw_entries = data.get("entries", [])
+        entries = [
+            ProposalReviewEntry.from_dict(item)
+            for item in raw_entries
+            if isinstance(item, dict)
+        ]
+        return cls(
+            kind=str(data.get("kind", PROPOSAL_REVIEW_KIND)).strip() or PROPOSAL_REVIEW_KIND,
+            review_id=str(data.get("review_id", "")).strip(),
+            reviewed_at=str(data.get("reviewed_at", "")).strip(),
+            decision=str(data.get("decision", "deferred")).strip() or "deferred",
+            source_bundle_path=str(data.get("source_bundle_path", "")).strip(),
+            source_bundle_id=str(data.get("source_bundle_id", "")).strip(),
+            reviewer=str(data.get("reviewer", "")).strip() or "swl_cli",
+            note=str(data.get("note", "")).strip(),
+            entries=entries,
+        )
+
+
+@dataclass(slots=True)
+class ProposalApplicationEntry:
+    proposal_id: str
+    proposal_type: str
+    route_name: str | None
+    status: str
+    detail: str
+    before_weight: float | None = None
+    after_weight: float | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return asdict(self)
+
+
+@dataclass(slots=True)
+class OptimizationProposalApplicationRecord:
+    application_id: str
+    applied_at: str
+    source_review_path: str
+    applied_count: int
+    noop_count: int
+    skipped_count: int
+    route_weights_path: str
+    rollback_weights: dict[str, float]
+    entries: list[ProposalApplicationEntry]
+    kind: str = PROPOSAL_APPLICATION_KIND
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "kind": self.kind,
+            "application_id": self.application_id,
+            "applied_at": self.applied_at,
+            "source_review_path": self.source_review_path,
+            "applied_count": self.applied_count,
+            "noop_count": self.noop_count,
+            "skipped_count": self.skipped_count,
+            "route_weights_path": self.route_weights_path,
+            "rollback_weights": dict(sorted(self.rollback_weights.items())),
+            "entries": [entry.to_dict() for entry in self.entries],
+        }
+
+
+def _slugify(value: str) -> str:
+    normalized = re.sub(r"[^a-z0-9]+", "-", value.casefold()).strip("-")
+    return normalized or "unknown"
+
+
+def _timestamp_token(value: str) -> str:
+    return _slugify(value.replace(":", "-"))
+
+
+def _write_json(path: Path, payload: dict[str, object]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return path
+
+
+def _load_json(path: Path) -> dict[str, object]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError(f"Expected JSON object in {path}")
+    return payload
+
+
+def _ensure_proposal_metadata(proposals: list[OptimizationProposal]) -> list[OptimizationProposal]:
+    for index, proposal in enumerate(proposals, start=1):
+        route_part = _slugify(proposal.route_name or "global")
+        if not proposal.proposal_id:
+            proposal.proposal_id = f"proposal-{index:03d}-{_slugify(proposal.proposal_type)}-{route_part}"
+        if not proposal.priority:
+            proposal.priority = proposal.severity or "info"
+        if not proposal.rationale:
+            proposal.rationale = proposal.description
+    return proposals
 
 def _coerce_nonnegative_int(value: object) -> int:
     if isinstance(value, bool):
@@ -423,7 +651,7 @@ def build_optimization_proposals(
                 suggested_action="Keep collecting telemetry until a stronger signal appears.",
             )
         )
-    return proposals
+    return _ensure_proposal_metadata(proposals)
 
 
 def extract_route_weight_proposals_from_report(report_text: str) -> list[OptimizationProposal]:
@@ -441,7 +669,7 @@ def extract_route_weight_proposals_from_report(report_text: str) -> list[Optimiz
                 suggested_weight=suggested_weight,
             )
         )
-    return proposals
+    return _ensure_proposal_metadata(proposals)
 
 
 def build_meta_optimizer_report(snapshot: MetaOptimizerSnapshot) -> str:
@@ -535,10 +763,262 @@ def build_meta_optimizer_report(snapshot: MetaOptimizerSnapshot) -> str:
         ]
     )
     for proposal in snapshot.proposals:
-        lines.append(f"- {proposal.description}")
+        proposal_label = proposal.proposal_id or proposal.proposal_type
+        lines.append(f"- [{proposal_label}] {proposal.description}")
     if not snapshot.proposals:
         lines.append("- No immediate optimization proposals were generated.")
 
+    return "\n".join(lines) + "\n"
+
+
+def save_optimization_proposal_bundle(
+    base_dir: Path,
+    snapshot: MetaOptimizerSnapshot,
+    report_artifact: Path,
+) -> tuple[OptimizationProposalBundle, Path]:
+    bundle = OptimizationProposalBundle(
+        bundle_id=f"bundle-{_timestamp_token(snapshot.generated_at)}",
+        generated_at=snapshot.generated_at,
+        task_limit=snapshot.task_limit,
+        scanned_task_ids=list(snapshot.scanned_task_ids),
+        scanned_event_count=snapshot.scanned_event_count,
+        report_artifact=str(report_artifact),
+        proposals=_ensure_proposal_metadata(list(snapshot.proposals)),
+    )
+    bundle_path = optimization_proposal_bundle_path(base_dir, bundle.bundle_id)
+    payload = bundle.to_dict()
+    _write_json(bundle_path, payload)
+    _write_json(latest_optimization_proposal_bundle_path(base_dir), payload)
+    return bundle, bundle_path
+
+
+def load_optimization_proposal_bundle(bundle_path: Path) -> OptimizationProposalBundle:
+    if not bundle_path.exists():
+        raise FileNotFoundError(f"Proposal bundle not found: {bundle_path}")
+    return OptimizationProposalBundle.from_dict(_load_json(bundle_path))
+
+
+def review_optimization_proposals(
+    base_dir: Path,
+    bundle_path: Path,
+    decision: str,
+    proposal_ids: list[str] | None = None,
+    note: str = "",
+    reviewer: str = "swl_cli",
+) -> tuple[OptimizationProposalReviewRecord, Path]:
+    normalized_decision = decision.strip().lower()
+    if normalized_decision not in VALID_PROPOSAL_REVIEW_DECISIONS:
+        raise ValueError(f"Unsupported proposal decision: {decision}")
+
+    bundle = load_optimization_proposal_bundle(bundle_path)
+    selected_ids = {
+        proposal_id.strip()
+        for proposal_id in (proposal_ids or [])
+        if proposal_id.strip()
+    }
+    known_ids = {proposal.proposal_id for proposal in bundle.proposals}
+    unknown_ids = sorted(selected_ids - known_ids)
+    if unknown_ids:
+        raise ValueError(f"Unknown proposal ids: {', '.join(unknown_ids)}")
+
+    review_entries: list[ProposalReviewEntry] = []
+    for proposal in bundle.proposals:
+        entry_decision = normalized_decision
+        entry_note = note.strip()
+        if selected_ids and proposal.proposal_id not in selected_ids:
+            entry_decision = "deferred"
+            entry_note = "not selected in this review"
+        review_entries.append(
+            ProposalReviewEntry(
+                proposal_id=proposal.proposal_id,
+                proposal_type=proposal.proposal_type,
+                route_name=proposal.route_name,
+                decision=entry_decision,
+                description=proposal.description,
+                suggested_action=proposal.suggested_action,
+                note=entry_note,
+                severity=proposal.severity,
+                priority=proposal.priority or proposal.severity or "info",
+                rationale=proposal.rationale or proposal.description,
+                suggested_weight=proposal.suggested_weight,
+            )
+        )
+
+    reviewed_at = utc_now()
+    review_record = OptimizationProposalReviewRecord(
+        review_id=f"review-{_timestamp_token(reviewed_at)}",
+        reviewed_at=reviewed_at,
+        decision=normalized_decision,
+        source_bundle_path=str(bundle_path),
+        source_bundle_id=bundle.bundle_id,
+        reviewer=reviewer,
+        note=note.strip(),
+        entries=review_entries,
+    )
+    record_path = optimization_proposal_review_path(base_dir, review_record.review_id)
+    _write_json(record_path, review_record.to_dict())
+    return review_record, record_path
+
+
+def load_optimization_proposal_review(review_path: Path) -> OptimizationProposalReviewRecord:
+    if not review_path.exists():
+        raise FileNotFoundError(f"Proposal review record not found: {review_path}")
+    return OptimizationProposalReviewRecord.from_dict(_load_json(review_path))
+
+
+def build_optimization_proposal_review_report(review_record: OptimizationProposalReviewRecord) -> str:
+    lines = [
+        "# Proposal Review Record",
+        "",
+        f"- review_id: {review_record.review_id}",
+        f"- reviewed_at: {review_record.reviewed_at}",
+        f"- reviewer: {review_record.reviewer}",
+        f"- decision: {review_record.decision}",
+        f"- source_bundle: {review_record.source_bundle_path}",
+        f"- note: {review_record.note or 'none'}",
+        "",
+        "## Entries",
+    ]
+    if not review_record.entries:
+        lines.append("- none")
+        return "\n".join(lines) + "\n"
+
+    for entry in review_record.entries:
+        lines.append(
+            f"- {entry.proposal_id}: decision={entry.decision} type={entry.proposal_type} "
+            f"route={entry.route_name or 'global'} priority={entry.priority or entry.severity or 'info'}"
+        )
+    return "\n".join(lines) + "\n"
+
+
+def apply_reviewed_optimization_proposals(
+    base_dir: Path,
+    review_path: Path,
+) -> tuple[OptimizationProposalApplicationRecord, Path]:
+    review_record = load_optimization_proposal_review(review_path)
+    approved_entries = [entry for entry in review_record.entries if entry.decision == "approved"]
+    if not approved_entries:
+        raise ValueError(f"No approved proposals found in {review_path}")
+
+    apply_route_weights(base_dir)
+    updated_weights = current_route_weights()
+
+    for entry in approved_entries:
+        if entry.proposal_type != "route_weight":
+            continue
+        route_name = str(entry.route_name or "").strip()
+        if not route_name:
+            raise ValueError(f"Approved route_weight proposal is missing route_name: {entry.proposal_id}")
+        if route_by_name(route_name) is None:
+            raise ValueError(f"Unknown route in approved proposal: {route_name}")
+        if entry.suggested_weight is None:
+            raise ValueError(f"Approved route_weight proposal is missing suggested_weight: {entry.proposal_id}")
+
+    entries: list[ProposalApplicationEntry] = []
+    rollback_weights: dict[str, float] = {}
+    applied_count = 0
+    noop_count = 0
+    skipped_count = 0
+    for entry in approved_entries:
+        if entry.proposal_type != "route_weight":
+            skipped_count += 1
+            entries.append(
+                ProposalApplicationEntry(
+                    proposal_id=entry.proposal_id,
+                    proposal_type=entry.proposal_type,
+                    route_name=entry.route_name,
+                    status="skipped",
+                    detail="No automatic apply handler is registered for this proposal type.",
+                )
+            )
+            continue
+
+        route_name = str(entry.route_name or "").strip()
+        before_weight = float(updated_weights.get(route_name, 1.0))
+        after_weight = round(float(entry.suggested_weight or 1.0), 6)
+        rollback_weights[route_name] = before_weight
+        if abs(before_weight - after_weight) <= 1e-9:
+            noop_count += 1
+            entries.append(
+                ProposalApplicationEntry(
+                    proposal_id=entry.proposal_id,
+                    proposal_type=entry.proposal_type,
+                    route_name=route_name,
+                    status="noop",
+                    detail="Suggested quality weight already matches the current persisted value.",
+                    before_weight=before_weight,
+                    after_weight=after_weight,
+                )
+            )
+            continue
+
+        updated_weights[route_name] = after_weight
+        applied_count += 1
+        entries.append(
+            ProposalApplicationEntry(
+                proposal_id=entry.proposal_id,
+                proposal_type=entry.proposal_type,
+                route_name=route_name,
+                status="applied",
+                detail="Persisted the approved route quality weight.",
+                before_weight=before_weight,
+                after_weight=after_weight,
+            )
+        )
+
+    persisted_weights = {
+        route_name: weight
+        for route_name, weight in updated_weights.items()
+        if abs(weight - 1.0) > 1e-9
+    }
+    save_route_weights(base_dir, persisted_weights)
+    apply_route_weights(base_dir)
+
+    applied_at = utc_now()
+    application_record = OptimizationProposalApplicationRecord(
+        application_id=f"application-{_timestamp_token(applied_at)}",
+        applied_at=applied_at,
+        source_review_path=str(review_path),
+        applied_count=applied_count,
+        noop_count=noop_count,
+        skipped_count=skipped_count,
+        route_weights_path=str(route_weights_path(base_dir)),
+        rollback_weights=rollback_weights,
+        entries=entries,
+    )
+    application_path = optimization_proposal_application_path(base_dir, application_record.application_id)
+    _write_json(application_path, application_record.to_dict())
+    return application_record, application_path
+
+
+def build_optimization_proposal_application_report(
+    application_record: OptimizationProposalApplicationRecord,
+) -> str:
+    lines = [
+        "# Proposal Application Record",
+        "",
+        f"- application_id: {application_record.application_id}",
+        f"- applied_at: {application_record.applied_at}",
+        f"- source_review: {application_record.source_review_path}",
+        f"- applied_count: {application_record.applied_count}",
+        f"- noop_count: {application_record.noop_count}",
+        f"- skipped_count: {application_record.skipped_count}",
+        f"- route_weights_path: {application_record.route_weights_path}",
+        "",
+        "## Entries",
+    ]
+    if not application_record.entries:
+        lines.append("- none")
+        return "\n".join(lines) + "\n"
+
+    for entry in application_record.entries:
+        detail = entry.detail
+        if entry.before_weight is not None and entry.after_weight is not None:
+            detail = f"{detail} ({entry.before_weight:.6f} -> {entry.after_weight:.6f})"
+        lines.append(
+            f"- {entry.proposal_id}: status={entry.status} type={entry.proposal_type} "
+            f"route={entry.route_name or 'global'} detail={detail}"
+        )
     return "\n".join(lines) + "\n"
 
 
@@ -548,4 +1028,5 @@ def run_meta_optimizer(base_dir: Path, last_n: int = 100) -> tuple[MetaOptimizer
     artifact_path = optimization_proposals_path(base_dir)
     artifact_path.parent.mkdir(parents=True, exist_ok=True)
     artifact_path.write_text(report, encoding="utf-8")
+    save_optimization_proposal_bundle(base_dir, snapshot, artifact_path)
     return snapshot, artifact_path, report

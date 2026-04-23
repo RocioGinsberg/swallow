@@ -9,7 +9,7 @@
 - active_phase: `Phase 51`
 - active_slice: `s1_proposal_review_apply`
 - active_branch: `feat/phase51-specialist-lifecycle`
-- status: `phase51_s1_in_progress`
+- status: `phase51_s1_ready_for_review`
 
 ---
 
@@ -45,11 +45,11 @@ Phase 51 文档已就绪，当前进入 S1 实现。
 - **[Claude]** 基于 gap 分析重新规划 Phase 51-54 的目标与优先级。
 - **[Claude]** 更新 `docs/roadmap.md`：Phase 50 标记为已完成，Phase 51 重新定位为"策略闭环与 Specialist Agent 落地"，Phase 52-54 后移。
 - **[Claude]** 已产出 `docs/plans/phase51/context_brief.md`、`kickoff.md`、`design_decision.md`。
-- **[Codex]** 已切出 `feat/phase51-specialist-lifecycle`，开始 S1 `proposal review/apply` 实现。
+- **[Codex]** 已切出 `feat/phase51-specialist-lifecycle`，完成 S1 `proposal review/apply` 实现。
+- **[Codex]** 已验证 S1：`.venv/bin/python -m pytest tests/test_meta_optimizer.py --tb=short` 11 passed；`.venv/bin/python -m pytest tests/test_cli.py --tb=short` 202 passed。
 
 待执行：
 
-- **[Codex]** 完成 S1 `proposal review/apply` 工作流、测试与状态同步。
 - **[Human]** 审阅 S1 diff 并执行 slice commit。
 - **[Codex]** 在 S1 提交后继续推进 S2 `MetaOptimizerAgent` 生命周期。
 
@@ -72,13 +72,18 @@ Phase 51 规划产出物：
 - `docs/plans/phase51/context_brief.md` (claude, 2026-04-23, Phase 51 上下文摘要)
 - `docs/plans/phase51/kickoff.md` (claude, 2026-04-23, Phase 51 kickoff 文档)
 - `docs/plans/phase51/design_decision.md` (claude, 2026-04-23, Phase 51 设计决策文档)
+- `src/swallow/meta_optimizer.py` (codex, 2026-04-23, S1 proposal bundle/review/apply workflow)
+- `src/swallow/cli.py` (codex, 2026-04-23, S1 `swl proposal review/apply` CLI)
+- `src/swallow/models.py` (codex, 2026-04-23, S1 proposal metadata fields + JSON hydration)
+- `src/swallow/paths.py` (codex, 2026-04-23, S1 proposal bundle/review/application paths)
+- `tests/test_meta_optimizer.py` (codex, 2026-04-23, S1 proposal workflow persistence/apply/idempotency coverage)
+- `tests/test_cli.py` (codex, 2026-04-23, S1 CLI review/apply flow coverage)
 
 ## 当前下一步
 
-1. **[Codex]** 实现并验证 Phase 51 S1：Meta-Optimizer proposal review/apply 工作流。
-2. **[Human]** 审阅当前 S1 diff，并按 slice 执行提交。
-3. **[Codex]** 继续进入 Phase 51 S2：Meta-Optimizer 独立 Agent 生命周期。
+1. **[Human]** 审阅当前 S1 diff，并按 slice 执行提交。
+2. **[Codex]** 在 Human 完成 S1 提交后，继续进入 Phase 51 S2：Meta-Optimizer 独立 Agent 生命周期。
 
 当前阻塞项：
 
-- 无。Phase 51 文档与分支已就位，S1 正在实现。
+- 等待人工审批: Phase 51 S1 `proposal review/apply` diff 与 slice commit。
