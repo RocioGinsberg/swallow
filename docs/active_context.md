@@ -2,14 +2,14 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Evaluation / Policy` (Primary) + `Provider Routing` (Secondary)
-- latest_completed_phase: `Phase 50`
-- latest_completed_slice: `Policy Closure & Specialist Audit (v0.7.0+)`
-- active_track: `Evaluation / Policy + Agent Taxonomy` (Primary) + `Provider Routing` (Secondary)
-- active_phase: `Phase 51`
-- active_slice: `s4_route_capability_profile_expansion`
-- active_branch: `feat/phase51-specialist-lifecycle`
-- status: `phase51_pr_materials_ready_for_commit`
+- latest_completed_track: `Evaluation / Policy + Agent Taxonomy` (Primary) + `Provider Routing` (Secondary)
+- latest_completed_phase: `Phase 51`
+- latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle (v0.8.0)`
+- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
+- active_phase: `Phase 52`
+- active_slice: `design`
+- active_branch: `main`
+- status: `phase52_design_ready_for_codex`
 
 ---
 
@@ -61,6 +61,8 @@ Phase 51 文档已就绪，当前已完成 S1-S4 实现，Human 已完成全部 
 - **[Codex]** 已吸收 review follow-up：`MetaOptimizerSnapshot` 新增 `route_task_family_stats` 可观测性字段；`apply_reviewed_optimization_proposals` 改为显式 `load_route_weights()` 读取当前持久化状态，仅在保存后调用一次 `apply_route_weights()`；补充 rollback/snapshot 断言测试。
 - **[Codex]** 已验证 review follow-up：`.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` 18 passed；`.venv/bin/python -m pytest tests/test_router.py -q` 15 passed；`.venv/bin/python -m pytest tests/test_cli.py -q -k "proposal or route_capabilities_update_and_show_cli_flow"` 3 passed；`.venv/bin/python -m pytest tests/test_executor_protocol.py -q` 18 passed。
 - **[Codex]** 已将未消化风险登记到 `docs/concerns_backlog.md`，并更新 `pr.md` / `docs/plans/phase51/commit_summary.md`，完成本轮 PR material 收口。
+
+- **[roadmap-updater]** 已完成 Phase 51 post-merge roadmap 更新：gap #2 标记为 [已消化]，Section 二新增 Phase 51 完成条目，Phase 51 标记为 ✅ [Done] — tag v0.8.0，Phase 52 升级为 🚀 [Next]，队列表与 Tag 记录已同步。
 
 待执行：
 
@@ -115,12 +117,14 @@ Phase 51 规划产出物：
 - `docs/concerns_backlog.md` (codex, 2026-04-24, Phase 51 unresolved risks logged + absorbed review concerns marked resolved)
 - `pr.md` (codex, 2026-04-24, Phase 51 PR body refreshed to current implementation + review outcome)
 
+Phase 52 规划产出物：
+
+- `docs/plans/phase52/context_brief.md` (claude, 2026-04-23, Phase 52 上下文摘要)
+
 ## 当前下一步
 
-1. **[Human]** 审阅并提交当前 review follow-up + PR material diff。
-2. **[Human]** push 当前 feature branch，并使用 `./pr.md` 创建 / 更新 PR。
-3. **[Codex]** 如后续还有 review follow-up，再继续同步 `./pr.md` 与状态文档。
+1. **[Claude]** 进行方案拆解：基于 `docs/plans/phase52/context_brief.md` 产出 Phase 52 kickoff 文档。
 
 当前阻塞项：
 
-- 无。当前等待 Human 提交并推送 PR-ready diff。
+- 无。
