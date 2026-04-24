@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v0.7.0`** — Knowledge Era：知识层 SQLite SSOT + Librarian Agent + sqlite-vec 可退级 RAG
+**当前 tag: `v0.8.0`** — Policy Era：策略闭环 + Specialist Agent 生命周期 + route capability 画像
 
-本仓库已形成稳定运行基线，395 tests passed + 8 eval passed。
+本仓库已形成新的稳定运行基线，422 tests passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -46,6 +46,10 @@
 - **知识迁移与诊断入口**：`swl knowledge migrate` 支持 dry-run / 实迁 / 幂等回填；`swl doctor sqlite` 已包含知识层健康检查
 - **LibrarianAgent 边界化落地**：`LibrarianExecutor` 升级为 `LibrarianAgent` 主体，结构化 `KnowledgeChangeLog` 与 canonical 写入 authority guard 已成为稳定基线
 - **本地向量 RAG 与平滑退级**：`sqlite-vec` 作为可选依赖接入，可用时走向量检索，不可用时自动回退到文本匹配并输出 WARN
+- **提案驱动策略闭环**：`OptimizationProposal` 已形成 bundle / review / apply 完整 operator gate，route weight 与 route capability 两类提案都可审计、可幂等应用、可保留 rollback 快照
+- **Meta-Optimizer Specialist Agent**：`MetaOptimizerAgent` / `MetaOptimizerExecutor` 已成为独立 specialist 实体，支持同步/异步执行、统一 resolver 接线与结构化 snapshot/report 输出
+- **自动一致性审计触发**：`AuditTriggerPolicy` + fire-and-forget 调度 + `verdict` 解析 + `swl audit policy show/set` CLI 已成为稳定基线
+- **Route capability 画像扩展**：`task_family_scores` / `unsupported_task_types` 已纳入路由选择；Meta-Optimizer 可基于 task-family 遥测生成 `route_capability` 提案并经 operator gate 落盘到 `.swl/route_capabilities.json`
 - canonical registry、reuse visibility、dedupe / supersede audit、regression inspection
 - grounding evidence artifact、locked grounding refs、resume-stable grounding state
 - 有界 1:N TaskCard planning、DAG subtask orchestration、parent-task artifact/event aggregation
