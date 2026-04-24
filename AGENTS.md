@@ -239,7 +239,7 @@
 - 必要时更新 `AGENTS.md`（仅限长期规则变更，不含 phase 进度）
 
 ### Tag 级更新
-仅在打新 tag 时更新：
+仅在**已决定要打新 tag、但尚未执行 tag 命令**时更新：
 
 - `README.md` / `README.zh-CN.md` — "当前实现概况"章节与 tag 对齐
 - `AGENTS.md` — "当前系统能力"章节与 tag 对齐
@@ -247,6 +247,7 @@
 说明：
 - README 和 AGENTS.md 不跟踪 phase 级进度，避免更新不及时引发上下文冲突
 - phase 级实时信息由 `docs/active_context.md` 和 `docs/roadmap.md` 承载
+- tag-level 文档更新应发生在最终 release commit 中，使 tag 直接指向完整对外快照
 
 ### 可选更新
 - `docs/plans/<phase>/commit_summary.md`
@@ -351,8 +352,9 @@
 
 1. **Claude 评估**：每次 phase merge 到 main 后，Claude 判断当前 main 是否构成一个有意义的能力里程碑，并给出 tag 建议（打 / 不打 / 等下一个 phase 再打）
 2. **Human 决策**：Human 根据 Claude 建议决定是否打 tag
-3. **Human 执行**：`git tag -a v0.x.0 -m "<tag message>"`
-4. **Codex 同步**：打 tag 后，Codex 更新 README 和 AGENTS.md 中的 tag 引用与系统能力描述
+3. **Codex 同步文档**：若 Human 决定打 tag，Codex 先更新 `README.md` / `README.zh-CN.md` / `AGENTS.md` 中与新 tag 对齐的内容
+4. **Human 审阅并提交 release docs**：将上述 tag-level 文档更新提交到 `main`
+5. **Human 执行 tag**：`git tag -a v0.x.0 -m "<tag message>"`
 
 Claude 评估 tag 时应考虑：
 - 自上一个 tag 以来是否有用户可感知的能力增量
