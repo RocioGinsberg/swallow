@@ -67,14 +67,16 @@ graph LR
 
 从最窄到最宽排列：
 
-| 权限等级 | 含义 | 适用角色 |
-|---|---|---|
-| **Stateless** | 除明确入参外不跨调用保留记忆 | Validator、单次审查器 |
-| **Task-State Access** | 可读写任务执行所依赖的 task truth / event truth | General Executor |
-| **Task-Memory** | 可在当前任务周期内读写局部记忆（resume note、压缩摘要等） | General Executor、部分 Specialist |
-| **Staged-Knowledge** | 有权生成或修改待审查的知识候选对象 | Ingestion Specialist、Librarian |
-| **Canonical-Write-Forbidden** | **默认安全标签**——禁止直接突变 canonical knowledge truth | 大多数实体 |
-| **Canonical Promotion Authority** | 最窄最敏感的权限域，通常需要 review / operator gate | 少数强约束流程 |
+`memory_authority` 描述的是实体对 task/canonical 知识面的**突变权限范围**，不限制向 orchestrator 返回 `ExecutorResult` 的基本能力。
+
+| 权限等级 | 含义 | 允许的 side effect | 适用角色 |
+|---|---|---|---|
+| **Stateless** | 除明确入参外不跨调用保留记忆 | 无 | Validator、单次审查器 |
+| **Task-State Access** | 可读写任务执行所依赖的 task truth / event truth | task artifacts、task events、task state updates | General Executor |
+| **Task-Memory** | 可在当前任务周期内读写局部记忆（resume note、压缩摘要等） | task artifacts、resume notes、compressed summaries | General Executor、部分 Specialist |
+| **Staged-Knowledge** | 有权生成或修改待审查的知识候选对象 | task artifacts、staged candidates、ingestion reports | Ingestion Specialist、Librarian |
+| **Canonical-Write-Forbidden** | **默认安全标签**——禁止直接突变 canonical knowledge truth；**仍可**产出 proposal、report、audit artifact 等文件 | task artifacts、reports、audit artifacts、proposal bundles | 大多数实体 |
+| **Canonical Promotion Authority** | 最窄最敏感的权限域，通常需要 review / operator gate | task artifacts、change logs、canonical records、knowledge decisions | 少数强约束流程 |
 
 ---
 
