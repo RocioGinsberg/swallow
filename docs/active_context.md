@@ -9,7 +9,7 @@
 - active_phase: `Phase 51`
 - active_slice: `s4_route_capability_profile_expansion`
 - active_branch: `feat/phase51-specialist-lifecycle`
-- status: `phase51_review_followup_ready_for_commit`
+- status: `phase51_pr_materials_ready_for_commit`
 
 ---
 
@@ -32,7 +32,7 @@ Phase 50 已完成，相关文档：
 5. `docs/plans/phase50/review_comments.md` — PR review 结论（claude, 2026-04-23）
 6. `docs/plans/phase50/closeout.md` — phase 收口（codex, 2026-04-23）
 
-Phase 51 文档已就绪，当前已完成 S1-S4 实现，Human 已完成全部 slice commit。Claude review 已产出后，Codex 已吸收本轮两个可直接收敛的 concern：`MetaOptimizerSnapshot` 现持久化 `route_task_family_stats`，`apply_reviewed_optimization_proposals` 不再用 `apply_route_weights()` 混合承担“读取当前权重”和“应用到注册表”两种语义。当前分支处于 review follow-up 待人工提交状态。
+Phase 51 文档已就绪，当前已完成 S1-S4 实现，Human 已完成全部 slice commit。Claude review 已产出后，Codex 已吸收本轮两个可直接收敛的 concern：`MetaOptimizerSnapshot` 现持久化 `route_task_family_stats`，`apply_reviewed_optimization_proposals` 不再用 `apply_route_weights()` 混合承担“读取当前权重”和“应用到注册表”两种语义。未消化风险已登记到 `docs/concerns_backlog.md`，`pr.md` 也已更新到当前实现与 review 结论，当前分支处于 review follow-up + PR material 待人工提交状态。
 
 ---
 
@@ -60,15 +60,16 @@ Phase 51 文档已就绪，当前已完成 S1-S4 实现，Human 已完成全部 
 - **[Claude]** 已完成 Phase 51 PR review，产出 `docs/plans/phase51/review_comments.md`，结论：`approved_with_concerns`（2 个 CONCERN 不阻塞合并）。
 - **[Codex]** 已吸收 review follow-up：`MetaOptimizerSnapshot` 新增 `route_task_family_stats` 可观测性字段；`apply_reviewed_optimization_proposals` 改为显式 `load_route_weights()` 读取当前持久化状态，仅在保存后调用一次 `apply_route_weights()`；补充 rollback/snapshot 断言测试。
 - **[Codex]** 已验证 review follow-up：`.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` 18 passed；`.venv/bin/python -m pytest tests/test_router.py -q` 15 passed；`.venv/bin/python -m pytest tests/test_cli.py -q -k "proposal or route_capabilities_update_and_show_cli_flow"` 3 passed；`.venv/bin/python -m pytest tests/test_executor_protocol.py -q` 18 passed。
+- **[Codex]** 已将未消化风险登记到 `docs/concerns_backlog.md`，并更新 `pr.md` / `docs/plans/phase51/commit_summary.md`，完成本轮 PR material 收口。
 
 待执行：
 
-- **[Human]** 审阅并提交当前 review follow-up diff。
-- **[Codex]** 在 Human 完成 follow-up commit 后，更新 `./pr.md` 以反映最新实现与 review 结论。
+- **[Human]** 审阅并提交当前 review follow-up + PR material diff。
+- **[Human]** push 当前 feature branch，并使用仓库根目录 `./pr.md` 创建或更新 PR。
 
 当前阻塞项：
 
-- 无。当前仅等待 Human 提交 review follow-up。
+- 无。当前仅等待 Human 提交并推送当前 PR-ready diff。
 
 ## 当前产出物
 
@@ -111,13 +112,15 @@ Phase 51 规划产出物：
 - `docs/plans/phase51/review_comments.md` (claude, 2026-04-24, Phase 51 PR review result: approved_with_concerns)
 - `src/swallow/meta_optimizer.py` (codex, 2026-04-24, review follow-up: snapshot observability + route weight load/apply split)
 - `tests/test_meta_optimizer.py` (codex, 2026-04-24, review follow-up: rollback/snapshot assertions)
+- `docs/concerns_backlog.md` (codex, 2026-04-24, Phase 51 unresolved risks logged + absorbed review concerns marked resolved)
+- `pr.md` (codex, 2026-04-24, Phase 51 PR body refreshed to current implementation + review outcome)
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交当前 review follow-up diff。
-2. **[Codex]** 更新 `./pr.md`，吸收 `review_comments.md` 结论与 follow-up 实现。
-3. **[Human]** push 当前 feature branch 并创建 / 更新 PR。
+1. **[Human]** 审阅并提交当前 review follow-up + PR material diff。
+2. **[Human]** push 当前 feature branch，并使用 `./pr.md` 创建 / 更新 PR。
+3. **[Codex]** 如后续还有 review follow-up，再继续同步 `./pr.md` 与状态文档。
 
 当前阻塞项：
 
-- 无。当前等待 Human 提交 review follow-up。
+- 无。当前等待 Human 提交并推送 PR-ready diff。

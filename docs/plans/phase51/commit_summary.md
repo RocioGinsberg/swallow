@@ -99,3 +99,20 @@ Phase 51 的四个实现 slice 已在 `feat/phase51-specialist-lifecycle` 完成
   - `docs/plans/phase51/commit_summary.md`
   - `git diff main...feat/phase51-specialist-lifecycle`
 
+## Post-Review Follow-up
+
+- Claude review 已产出 `docs/plans/phase51/review_comments.md`，结论为 `approved_with_concerns`
+- 已在当前分支吸收的 concern：
+  - `MetaOptimizerSnapshot` 新增 `route_task_family_stats`，snapshot / report / agent payload 可回放 capability proposal 依据
+  - `apply_reviewed_optimization_proposals()` 改为显式 `load_route_weights()` 读取当前持久化状态，仅在写入后调用一次 `apply_route_weights()`
+- review follow-up 验证：
+  - `.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` → `18 passed`
+  - `.venv/bin/python -m pytest tests/test_router.py -q` → `15 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -q -k "proposal or route_capabilities_update_and_show_cli_flow"` → `3 passed`
+  - `.venv/bin/python -m pytest tests/test_executor_protocol.py -q` → `18 passed`
+- 未消化风险已登记 `docs/concerns_backlog.md`：
+  - `MetaOptimizerAgent.memory_authority` 的命名语义仍需后续 taxonomy / 文档收紧
+  - 自动一致性审计当前采用 `threading`，后续 async runtime 收紧时需统一并发原语
+- 当前交付状态：
+  - `pr.md` 已更新到 Phase 51 当前实现与 review 结论
+  - 等待 Human 提交 review follow-up diff 后即可 push branch / 创建或更新 PR
