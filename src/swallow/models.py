@@ -21,6 +21,8 @@ MEMORY_AUTHORITIES: tuple[str, ...] = (
     "canonical-write-forbidden",
     "canonical-promotion",
 )
+# memory_authority only describes write scope over task/canonical knowledge surfaces.
+# It does not forbid read-only analysis or normal artifact/report/proposal file outputs.
 
 LIBRARIAN_SYSTEM_ROLE = "specialist"
 LIBRARIAN_MEMORY_AUTHORITY = "canonical-promotion"
