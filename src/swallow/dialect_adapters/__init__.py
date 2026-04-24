@@ -1,4 +1,4 @@
 from .claude_xml import ClaudeXMLDialect
-from .codex_fim import CodexFIMDialect, FIMDialect
+from .fim_dialect import CodexFIMDialect, FIMDialect
 
 __all__ = ["ClaudeXMLDialect", "FIMDialect", "CodexFIMDialect"]

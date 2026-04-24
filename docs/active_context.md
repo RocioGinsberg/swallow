@@ -7,15 +7,15 @@
 - latest_completed_slice: `Specialist Agent Ecosystem (v1.0.0)`
 - active_track: `Agent Taxonomy` (Primary) + `Provider Routing` (Secondary)
 - active_phase: `Phase 54`
-- active_slice: `kickoff_complete`
-- active_branch: `main`
-- status: `phase54_kickoff_complete_pending_impl`
+- active_slice: `naming_cleanup_impl_complete`
+- active_branch: `feat/phase54-taxonomy-naming-cleanup`
+- status: `phase54_naming_cleanup_impl_complete_pending_human_commit`
 
 ---
 
 ## 当前状态说明
 
-`main` 已完成 Phase 53 并打出 `v1.0.0`（Specialist Era）。5 个专项 Agent 独立生命周期全部落地，`EXECUTOR_REGISTRY` 替换 if-chain，`MEMORY_AUTHORITY_SEMANTICS` 落地，`AGENT_TAXONOMY.md §5` 补充 side effect 列。`docs/roadmap.md` 已同步更新（roadmap-updater，2026-04-24）。Phase 54（Taxonomy 命名与品牌残留清理）为下一阶段。
+`main` 已完成 Phase 53 并打出 `v1.0.0`（Specialist Era）。5 个专项 Agent 独立生命周期全部落地，`EXECUTOR_REGISTRY` 替换 if-chain，`MEMORY_AUTHORITY_SEMANTICS` 落地，`AGENT_TAXONOMY.md §5` 补充 side effect 列。Phase 54（Taxonomy 命名与品牌残留清理）已在 `feat/phase54-taxonomy-naming-cleanup` 上完成实现与验证，当前等待 Human 提交与后续收口。
 
 ---
 
@@ -25,6 +25,7 @@
 2. `docs/plans/phase54/kickoff.md`
 3. `docs/plans/phase54/design_decision.md`
 4. `docs/plans/phase54/risk_assessment.md`
+5. `docs/plans/phase54/closeout.md`
 
 ---
 
@@ -42,16 +43,17 @@
 - **[roadmap-updater]** `docs/roadmap.md` 已同步更新（2026-04-24）。
 - **[context-analyst]** Phase 54 `context_brief` 已产出（2026-04-24）。
 - **[Claude]** Phase 54 `kickoff` / `design_decision` / `risk_assessment` 已产出（2026-04-24）。
+- **[Codex]** 已完成 Phase 54 命名清理实现：`codex_fim` → `fim`、文件重命名、executor / router / tests 更新、`concerns_backlog.md` 收口。
+- **[Codex]** 已完成验证：目标测试集 `239 passed, 2 deselected, 5 subtests passed`，全量 `452 passed, 8 deselected`。
 
 进行中：
 
-- 无。等待 Human 切出 Phase 54 分支并启动 Codex 实现。
+- 无。
 
 待执行：
 
-- **[Human]** 切出 `feat/phase54-taxonomy-naming-cleanup` 分支，启动 Codex 实现。
-- **[Codex]** S1: `codex_fim` → `fim` dialect 重命名（文件、spec、BUILTIN_DIALECTS、router）。
-- **[Codex]** S2: 测试更新 + `concerns_backlog.md` Phase 52 条目 Resolved。
+- **[Human]** 审查当前 diff 并执行本 slice commit。
+- **[Codex]** 如需继续收口，再补充 `docs/plans/phase54/commit_summary.md` 或 `pr.md`。
 
 当前阻塞项：
 
@@ -78,9 +80,10 @@
 - `docs/plans/phase54/kickoff.md` (claude, 2026-04-24)
 - `docs/plans/phase54/design_decision.md` (claude, 2026-04-24)
 - `docs/plans/phase54/risk_assessment.md` (claude, 2026-04-24)
+- `docs/plans/phase54/closeout.md` (codex, 2026-04-24)
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** 切出 `feat/phase54-taxonomy-naming-cleanup`，启动 Codex 实现 S1/S2。
+1. **[Human]** 审查当前 diff 并执行本 slice commit。

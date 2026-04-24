@@ -418,6 +418,7 @@ BUILTIN_DIALECTS: dict[str, DialectAdapter] = {
     "plain_text": PlainTextDialect(),
     "structured_markdown": StructuredMarkdownDialect(),
     "claude_xml": ClaudeXMLDialect(),
+    "fim": FIMDialect(),
     "codex_fim": FIMDialect(),
 }
 

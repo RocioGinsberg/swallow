@@ -40,7 +40,7 @@ MODEL_CASES = {
     },
     "deepseek": {
         "expected_route": "http-deepseek",
-        "expected_dialect": "codex_fim",
+        "expected_dialect": "fim",
         "expected_prompt_marker": "<fim_prefix>",
     },
 }

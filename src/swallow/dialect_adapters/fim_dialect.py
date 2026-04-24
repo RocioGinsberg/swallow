@@ -10,9 +10,9 @@ def _escape_fim_markers(value: str) -> str:
 
 class FIMDialect:
     spec = DialectSpec(
-        name="codex_fim",
+        name="fim",
         description="FIM-style prompt layout for code-oriented executor routes.",
-        supported_model_hints=["codex", "deepseek", "deepseek-coder"],
+        supported_model_hints=["fim", "deepseek", "deepseek-coder"],
     )
 
     def format_prompt(self, raw_prompt: str, state: TaskState, retrieval_items: list[RetrievalItem]) -> str:

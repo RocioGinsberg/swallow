@@ -8667,13 +8667,13 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(normalize_executor_name("unknown-executor"), "unknown-executor")
 
     def test_resolve_dialect_name_prefers_route_hint_and_falls_back_to_plain_text(self) -> None:
-        self.assertEqual(resolve_dialect_name("structured_markdown", "codex"), "structured_markdown")
-        self.assertEqual(resolve_dialect_name("", "codex"), "codex_fim")
+        self.assertEqual(resolve_dialect_name("structured_markdown", "fim"), "structured_markdown")
+        self.assertEqual(resolve_dialect_name("", "fim"), "fim")
         self.assertEqual(resolve_dialect_name("", "claude-3-5-sonnet"), "claude_xml")
         self.assertEqual(resolve_dialect_name("", "mock"), "plain_text")
         self.assertEqual(resolve_dialect_name("", "unknown-provider"), "plain_text")
 
-    def test_build_formatted_executor_prompt_uses_codex_fim_for_codex_route(self) -> None:
+    def test_build_formatted_executor_prompt_uses_fim_for_codex_route(self) -> None:
         state = TaskState(
             task_id="dialect123",
             title="Dialect formatting",
@@ -8681,8 +8681,8 @@ class CliLifecycleTest(unittest.TestCase):
             workspace_root="/tmp",
             route_name="local-codex",
             route_backend="local_cli",
-            route_model_hint="codex",
-            route_dialect="codex_fim",
+            route_model_hint="fim",
+            route_dialect="fim",
             route_capabilities={
                 "execution_kind": "code_execution",
                 "supports_tool_loop": True,
