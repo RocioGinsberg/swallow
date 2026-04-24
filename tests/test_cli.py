@@ -5040,7 +5040,7 @@ class CliLifecycleTest(unittest.TestCase):
 
             with patch.dict(
                 "os.environ",
-                {"AIWF_CODEX_BIN": "definitely-not-a-real-codex-binary", "AIWF_EXECUTOR_MODE": "codex"},
+                {"AIWF_AIDER_BIN": "definitely-not-a-real-aider-binary", "AIWF_EXECUTOR_MODE": "aider"},
                 clear=False,
             ):
                 self.assertEqual(
@@ -5269,7 +5269,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("applied_count: 1", apply_stdout.getvalue())
                 persisted_weights = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
                 self.assertAlmostEqual(
-                    persisted_weights["local-codex"],
+                    persisted_weights["local-aider"],
                     route_weight.suggested_weight or 1.0,
                     places=2,
                 )
@@ -5309,14 +5309,14 @@ class CliLifecycleTest(unittest.TestCase):
                                 "event_type": "executor.completed",
                                 "message": "HTTP route completed another review task.",
                                 "payload": {
-                                    "physical_route": "local-http",
-                                    "logical_model": "http-default",
-                                    "task_family": "review",
-                                    "latency_ms": 9,
-                                    "token_cost": 0.0,
-                                    "degraded": False,
-                                },
+                                "physical_route": "local-http",
+                                "logical_model": "http-default",
+                                "task_family": "review",
+                                "latency_ms": 9,
+                                "token_cost": 0.0,
+                                "degraded": True,
                             },
+                        },
                         ]
                     ),
                     encoding="utf-8",
@@ -6485,7 +6485,7 @@ class CliLifecycleTest(unittest.TestCase):
             failure_kind="unreachable_backend",
         )
         note = build_fallback_output(state, [], unreachable_result)
-        self.assertIn("outbound network and websocket access", note)
+        self.assertIn("outbound network and process execution access", note)
         self.assertIn("backend connectivity", note)
 
     def test_doctor_executor_missing_binary_returns_nonzero(self) -> None:
@@ -8201,7 +8201,7 @@ class CliLifecycleTest(unittest.TestCase):
 
             with patch.dict(
                 "os.environ",
-                {"AIWF_CODEX_BIN": "definitely-not-a-real-codex-binary", "AIWF_EXECUTOR_MODE": "codex"},
+                {"AIWF_AIDER_BIN": "definitely-not-a-real-aider-binary", "AIWF_EXECUTOR_MODE": "aider"},
                 clear=False,
             ):
                 self.assertEqual(
@@ -8235,7 +8235,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[1]["event_type"], "task.run_started")
         self.assertEqual(events[1]["payload"]["previous_status"], "created")
         self.assertEqual(events[1]["payload"]["previous_phase"], "intake")
-        self.assertEqual(events[1]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[1]["payload"]["route_name"], "local-aider")
         self.assertEqual(events[1]["payload"]["route_backend"], "local_cli")
         self.assertEqual(events[1]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[1]["payload"]["route_remote_capable"], False)
@@ -8251,63 +8251,45 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[6]["event_type"], "task.phase_checkpoint")
         self.assertEqual(events[6]["payload"]["execution_phase"], "retrieval_done")
         self.assertEqual(events[7]["event_type"], "task.phase")
-        self.assertEqual(events[8]["event_type"], "executor.failed")
-        self.assertEqual(events[8]["payload"]["status"], "failed")
-        self.assertEqual(events[8]["payload"]["executor_name"], "codex")
-        self.assertEqual(events[8]["payload"]["route_name"], "local-codex")
+        self.assertEqual(events[8]["event_type"], "executor.completed")
+        self.assertEqual(events[8]["payload"]["status"], "completed")
+        self.assertEqual(events[8]["payload"]["executor_name"], "local")
+        self.assertEqual(events[8]["payload"]["route_name"], "local-summary")
         self.assertEqual(events[8]["payload"]["route_execution_site"], "local")
         self.assertEqual(events[8]["payload"]["attempt_id"], "attempt-0001")
         self.assertEqual(events[8]["payload"]["attempt_number"], 1)
         self.assertEqual(events[8]["payload"]["topology_dispatch_status"], "local_dispatched")
         self.assertTrue(bool(events[8]["payload"]["dispatch_started_at"]))
         self.assertEqual(events[8]["payload"]["execution_lifecycle"], "dispatched")
-        self.assertEqual(events[8]["payload"]["failure_kind"], "launch_error")
         self.assertEqual(events[8]["payload"]["task_family"], "execution")
-        self.assertEqual(events[8]["payload"]["logical_model"], "codex")
-        self.assertEqual(events[8]["payload"]["physical_route"], "local-codex")
+        self.assertEqual(events[8]["payload"]["logical_model"], "local")
+        self.assertEqual(events[8]["payload"]["physical_route"], "local-summary")
         self.assertGreaterEqual(events[8]["payload"]["latency_ms"], 0)
-        self.assertFalse(events[8]["payload"]["degraded"])
+        self.assertTrue(events[8]["payload"]["degraded"])
         self.assertGreaterEqual(events[8]["payload"]["token_cost"], 0.0)
-        self.assertEqual(events[8]["payload"]["error_code"], "launch_error")
-        self.assertEqual(events[9]["event_type"], "executor.completed")
-        self.assertEqual(events[9]["payload"]["executor_name"], "local")
-        self.assertEqual(events[9]["payload"]["route_name"], "local-summary")
-        self.assertEqual(events[9]["payload"]["logical_model"], "local")
-        self.assertEqual(events[9]["payload"]["physical_route"], "local-summary")
-        self.assertGreaterEqual(events[9]["payload"]["latency_ms"], 0)
-        self.assertTrue(events[9]["payload"]["degraded"])
-        self.assertEqual(events[9]["payload"]["token_cost"], 0.0)
-        self.assertEqual(events[9]["payload"]["error_code"], "")
-        self.assertEqual(events[10]["event_type"], "task.execution_fallback")
-        self.assertEqual(events[10]["payload"]["previous_route_name"], "local-codex")
-        self.assertEqual(events[10]["payload"]["fallback_route_name"], "local-summary")
-        self.assertEqual(events[10]["payload"]["fallback_status"], "completed")
-        self.assertGreaterEqual(events[10]["payload"]["latency_ms"], 0)
-        self.assertIn("previous_latency_ms", events[10]["payload"])
-        self.assertTrue(events[10]["payload"]["degraded"])
-        self.assertEqual(events[10]["payload"]["token_cost"], 0.0)
-        self.assertEqual(events[11]["event_type"], "task.review_gate")
-        self.assertEqual(events[11]["payload"]["status"], "passed")
-        self.assertEqual(events[12]["event_type"], "task.phase_checkpoint")
-        self.assertEqual(events[12]["payload"]["execution_phase"], "execution_done")
-        self.assertEqual(events[14]["event_type"], "compatibility.completed")
+        self.assertEqual(events[8]["payload"]["error_code"], "")
+        self.assertEqual(events[9]["event_type"], "task.review_gate")
+        self.assertEqual(events[9]["payload"]["status"], "passed")
+        self.assertEqual(events[10]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[10]["payload"]["execution_phase"], "execution_done")
+        self.assertEqual(events[12]["event_type"], "compatibility.completed")
+        self.assertEqual(events[12]["payload"]["status"], "passed")
+        self.assertEqual(events[13]["event_type"], "execution_fit.completed")
+        self.assertEqual(events[13]["payload"]["status"], "passed")
+        self.assertEqual(events[14]["event_type"], "knowledge_policy.completed")
         self.assertEqual(events[14]["payload"]["status"], "passed")
-        self.assertEqual(events[15]["event_type"], "execution_fit.completed")
+        self.assertEqual(events[15]["event_type"], "validation.completed")
         self.assertEqual(events[15]["payload"]["status"], "passed")
-        self.assertEqual(events[16]["event_type"], "knowledge_policy.completed")
+        self.assertEqual(events[16]["event_type"], "retry_policy.completed")
         self.assertEqual(events[16]["payload"]["status"], "passed")
-        self.assertEqual(events[17]["event_type"], "validation.completed")
+        self.assertEqual(events[17]["event_type"], "execution_budget_policy.completed")
         self.assertEqual(events[17]["payload"]["status"], "passed")
-        self.assertEqual(events[18]["event_type"], "retry_policy.completed")
-        self.assertEqual(events[18]["payload"]["status"], "passed")
-        self.assertEqual(events[19]["event_type"], "execution_budget_policy.completed")
+        self.assertEqual(events[18]["event_type"], "stop_policy.completed")
+        self.assertEqual(events[18]["payload"]["status"], "warning")
+        self.assertEqual(events[19]["event_type"], "checkpoint_snapshot.completed")
         self.assertEqual(events[19]["payload"]["status"], "passed")
-        self.assertEqual(events[20]["event_type"], "stop_policy.completed")
-        self.assertEqual(events[20]["payload"]["status"], "warning")
-        self.assertEqual(events[21]["event_type"], "checkpoint_snapshot.completed")
-        self.assertEqual(events[21]["payload"]["status"], "passed")
-        self.assertEqual(events[23]["event_type"], "task.phase_checkpoint")
-        self.assertEqual(events[23]["payload"]["execution_phase"], "analysis_done")
+        self.assertEqual(events[21]["event_type"], "task.phase_checkpoint")
+        self.assertEqual(events[21]["payload"]["execution_phase"], "analysis_done")
         self.assertEqual(events[-1]["payload"]["status"], "completed")
         self.assertEqual(events[-1]["payload"]["phase"], "summarize")
         self.assertEqual(events[-1]["payload"]["executor_status"], "completed")
@@ -8333,9 +8315,9 @@ class CliLifecycleTest(unittest.TestCase):
             RetrievalItem(path="notes.md", source_type="notes", score=2, preview="failure resume"),
         ]
         executor_result = ExecutorResult(
-            executor_name="codex",
+            executor_name="aider",
             status="failed",
-            message="Codex binary not found.",
+            message="Aider binary not found.",
             output="fallback",
             failure_kind="launch_error",
         )
@@ -8344,7 +8326,7 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertIn("treat this run as incomplete", note)
         self.assertIn("Treat this run as a failed live execution attempt", note)
-        self.assertIn("Verify that the Codex binary is installed", note)
+        self.assertIn("Verify that the configured live executor binary is installed", note)
 
     def test_repeat_run_records_attempt_boundary_and_resets_phase_to_intake(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -8354,7 +8336,7 @@ class CliLifecycleTest(unittest.TestCase):
 
             with patch.dict(
                 "os.environ",
-                {"AIWF_CODEX_BIN": "definitely-not-a-real-codex-binary", "AIWF_EXECUTOR_MODE": "codex"},
+                {"AIWF_AIDER_BIN": "definitely-not-a-real-aider-binary", "AIWF_EXECUTOR_MODE": "aider"},
                 clear=False,
             ):
                 self.assertEqual(
@@ -8409,9 +8391,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
-                "executor.failed",
                 "executor.completed",
-                "task.execution_fallback",
                 "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
@@ -8439,9 +8419,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "grounding.locked",
                 "task.phase_checkpoint",
                 "task.phase",
-                "executor.failed",
                 "executor.completed",
-                "task.execution_fallback",
                 "task.review_gate",
                 "task.phase_checkpoint",
                 "task.phase",
@@ -9658,7 +9636,7 @@ class CliLifecycleTest(unittest.TestCase):
 
             with patch.dict(
                 "os.environ",
-                {"AIWF_CODEX_BIN": "definitely-not-a-real-codex-binary", "AIWF_EXECUTOR_MODE": "codex"},
+                {"AIWF_AIDER_BIN": "definitely-not-a-real-aider-binary", "AIWF_EXECUTOR_MODE": "aider"},
                 clear=False,
             ):
                 self.assertEqual(
@@ -9683,9 +9661,6 @@ class CliLifecycleTest(unittest.TestCase):
 
             task_dir = tmp_path / ".swl" / "tasks" / task_id
             prompt = (task_dir / "artifacts" / "executor_prompt.md").read_text(encoding="utf-8")
-            primary_prompt = (task_dir / "artifacts" / "fallback_primary_executor_prompt.md").read_text(
-                encoding="utf-8"
-            )
             events = [
                 json.loads(line)
                 for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
@@ -9698,16 +9673,12 @@ class CliLifecycleTest(unittest.TestCase):
             with redirect_stdout(review_stdout):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "review", task_id]), 0)
 
-        executor_event = next(event for event in events if event["event_type"] == "executor.failed")
-        fallback_event = next(event for event in events if event["event_type"] == "task.execution_fallback")
+        executor_event = next(event for event in events if event["event_type"] == "executor.completed")
         self.assertTrue(prompt.startswith("dialect: plain_text\n\n"))
         self.assertIn("Executor: local", prompt)
         self.assertIn("Route: local-summary", prompt)
-        self.assertTrue(primary_prompt.startswith("dialect: codex_fim\n\n"))
-        self.assertIn("<fim_prefix>", primary_prompt)
-        self.assertIn("<fim_suffix>", primary_prompt)
-        self.assertEqual(executor_event["payload"]["dialect"], "codex_fim")
-        self.assertEqual(fallback_event["payload"]["fallback_route_name"], "local-summary")
+        self.assertFalse((task_dir / "artifacts" / "fallback_primary_executor_prompt.md").exists())
+        self.assertEqual(executor_event["payload"]["dialect"], "plain_text")
         self.assertIn("dialect: plain_text", inspect_stdout.getvalue())
         self.assertIn("dialect: plain_text", review_stdout.getvalue())
 

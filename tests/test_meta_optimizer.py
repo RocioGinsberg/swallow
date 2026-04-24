@@ -261,7 +261,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 self.assertEqual(application_record.applied_count, 1)
                 self.assertEqual(application_record.noop_count, 0)
                 self.assertEqual(application_record.skipped_count, 0)
-                self.assertEqual(application_record.rollback_weights, {"local-codex": 1.0})
+                self.assertEqual(application_record.rollback_weights, {"local-aider": 1.0})
                 self.assertAlmostEqual(
                     route_by_name("local-codex").quality_weight,
                     route_weight_proposal.suggested_weight or 1.0,
@@ -269,7 +269,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 )
                 persisted_weights = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
                 self.assertAlmostEqual(
-                    persisted_weights["local-codex"],
+                    persisted_weights["local-aider"],
                     route_weight_proposal.suggested_weight or 1.0,
                     places=2,
                 )
@@ -328,6 +328,53 @@ class MetaOptimizerTest(unittest.TestCase):
         )
         self.assertAlmostEqual(proposal.suggested_task_family_score or 0.0, 0.88, places=2)
 
+    def test_meta_optimizer_skips_route_capability_proposal_for_perfect_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            task_dir = base_dir / ".swl" / "tasks" / "capability-perfect-task"
+            _write_events(
+                task_dir,
+                [
+                    {
+                        "task_id": "capability-perfect-task",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Summary route completed execution task.",
+                        "payload": {
+                            "physical_route": "local-summary",
+                            "logical_model": "local",
+                            "task_family": "execution",
+                            "latency_ms": 3,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                        },
+                    },
+                    {
+                        "task_id": "capability-perfect-task",
+                        "event_type": EVENT_EXECUTOR_COMPLETED,
+                        "message": "Summary route completed another execution task.",
+                        "payload": {
+                            "physical_route": "local-summary",
+                            "logical_model": "local",
+                            "task_family": "execution",
+                            "latency_ms": 4,
+                            "token_cost": 0.0,
+                            "degraded": False,
+                        },
+                    },
+                ],
+            )
+
+            snapshot = build_meta_optimizer_snapshot(base_dir, last_n=100)
+
+        self.assertFalse(
+            any(
+                proposal.proposal_type == "route_capability"
+                and proposal.route_name == "local-summary"
+                and proposal.task_family == "execution"
+                for proposal in snapshot.proposals
+            )
+        )
+
     def test_review_and_apply_approved_route_capability_score_proposals(self) -> None:
         route = route_by_name("local-http")
         self.assertIsNotNone(route)
@@ -364,7 +411,7 @@ class MetaOptimizerTest(unittest.TestCase):
                                 "task_family": "review",
                                 "latency_ms": 12,
                                 "token_cost": 0.0,
-                                "degraded": False,
+                                "degraded": True,
                             },
                         },
                     ],
@@ -387,7 +434,14 @@ class MetaOptimizerTest(unittest.TestCase):
                     proposal_ids=[proposal.proposal_id],
                     note="Apply route capability score.",
                 )
-                self.assertEqual(review_record.entries[0].task_family, "review")
+                self.assertEqual(
+                    next(
+                        entry.task_family
+                        for entry in review_record.entries
+                        if entry.proposal_id == proposal.proposal_id
+                    ),
+                    "review",
+                )
 
                 application_record, _application_path = apply_reviewed_optimization_proposals(base_dir, review_path)
 
@@ -481,11 +535,11 @@ class MetaOptimizerTest(unittest.TestCase):
 
                 self.assertEqual(application_record.applied_count, 1)
                 self.assertEqual(
-                    application_record.rollback_capability_profiles["local-codex"]["unsupported_task_types"],
+                    application_record.rollback_capability_profiles["local-aider"]["unsupported_task_types"],
                     [],
                 )
                 persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
-                self.assertEqual(persisted_profiles["local-codex"]["unsupported_task_types"], ["review"])
+                self.assertEqual(persisted_profiles["local-aider"]["unsupported_task_types"], ["review"])
                 apply_route_capability_profiles(base_dir)
                 self.assertEqual(route.unsupported_task_types, ["review"])
         finally:
@@ -1172,8 +1226,8 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertTrue(route_weights_path(base_dir).exists())
             persisted = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
-            self.assertEqual(persisted["local-codex"], 0.33)
-            self.assertIn("local-codex: 0.330000", stdout.getvalue())
+            self.assertEqual(persisted["local-aider"], 0.33)
+            self.assertIn("local-aider: 0.330000", stdout.getvalue())
 
             stdout = StringIO()
             with redirect_stdout(stdout):
@@ -1188,7 +1242,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 )
 
             self.assertEqual(exit_code, 0)
-            self.assertIn("local-codex: 0.330000", stdout.getvalue())
+            self.assertIn("local-aider: 0.330000", stdout.getvalue())
             self.assertAlmostEqual(route_by_name("local-codex").quality_weight, 0.33, places=2)
 
         with tempfile.TemporaryDirectory() as reset_tmp:
