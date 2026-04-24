@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 import sys
@@ -135,6 +137,7 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             self.assertTrue((artifacts_dir / "subtask_1_attempt1_executor_output.md").exists())
             self.assertTrue((artifacts_dir / "subtask_2_attempt1_executor_output.md").exists())
             self.assertTrue((artifacts_dir / "subtask_2_attempt2_executor_output.md").exists())
+            self.assertTrue((artifacts_dir / "subtask_summary.md").exists())
             self.assertEqual(
                 (artifacts_dir / "subtask_1_attempt1_custom_trace.md").read_text(encoding="utf-8").strip(),
                 "subtask 1 attempt 1 trace",
@@ -146,6 +149,18 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             self.assertIn(
                 "# Subtask Orchestrator Result",
                 (artifacts_dir / "executor_output.md").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                ".swl/tasks/"
+                f"{created.task_id}"
+                "/artifacts/subtask_1_attempt1_executor_output.md",
+                (artifacts_dir / "subtask_summary.md").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                ".swl/tasks/"
+                f"{created.task_id}"
+                "/artifacts/subtask_2_attempt2_custom_trace.md",
+                (artifacts_dir / "subtask_summary.md").read_text(encoding="utf-8"),
             )
 
     def test_run_task_marks_failed_when_retry_is_exhausted(self) -> None:
@@ -369,6 +384,88 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             )
             self.assertFalse(any(".debate_round" in event["event_type"] for event in events))
             self.assertFalse(any(event["event_type"] == "task.failed" for event in events))
+
+    def test_run_task_times_out_one_parallel_subtask_without_canceling_other_work(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            created = create_task(
+                base_dir=tmp_path,
+                title="Multi-card timeout isolation",
+                goal="Fail one parallel subtask without canceling the other",
+                workspace_root=tmp_path,
+                executor_name="local",
+                constraints=["parallel_subtasks"],
+                next_action_proposals=[
+                    "Fast subtask",
+                    "Slow subtask",
+                ],
+                reviewer_timeout_seconds=1,
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / created.task_id
+            artifacts_dir = task_dir / "artifacts"
+
+            async def execute_card(
+                _base_dir: Path,
+                _state: object,
+                card: object,
+                _retrieval_items: list[object],
+            ) -> ExecutorResult:
+                if int(card.subtask_index) == 2:
+                    await asyncio.sleep(1.2)
+                else:
+                    await asyncio.sleep(0.05)
+                    write_artifact(
+                        _base_dir,
+                        str(_state.task_id),
+                        "custom_trace.md",
+                        "fast subtask trace",
+                    )
+                return ExecutorResult(
+                    executor_name="local",
+                    status="completed",
+                    message=f"subtask {card.subtask_index} completed",
+                    output=f"subtask {card.subtask_index} completed",
+                    prompt=f"execute subtask {card.subtask_index}",
+                    dialect="plain_text",
+                )
+
+            started_at = time.perf_counter()
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator._execute_task_card", side_effect=execute_card):
+                    with patch(
+                        "swallow.orchestrator.write_task_artifacts",
+                        return_value=_passing_validation_tuple(),
+                    ):
+                        final_state = run_task(tmp_path, created.task_id, executor_name="local")
+            elapsed = time.perf_counter() - started_at
+
+            events = _load_json_lines(task_dir / "events.jsonl")
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+            executor_event = next(event for event in events if event["event_type"] == "executor.failed")
+            subtask2_review = json.loads(
+                (artifacts_dir / "subtask_2_attempt1_review_gate.json").read_text(encoding="utf-8")
+            )
+            subtask_summary = (artifacts_dir / "subtask_summary.md").read_text(encoding="utf-8")
+
+            self.assertLess(elapsed, 1.35)
+            self.assertEqual(final_state.status, "failed")
+            self.assertEqual(final_state.executor_name, "subtask-orchestrator")
+            self.assertEqual(final_state.executor_status, "failed")
+            self.assertEqual(review_gate_event["payload"]["status"], "failed")
+            self.assertEqual(len(review_gate_event["payload"]["failed_card_ids"]), 1)
+            self.assertEqual(executor_event["payload"]["failure_kind"], "review_gate_retry_exhausted")
+            self.assertTrue((artifacts_dir / "subtask_1_attempt1_custom_trace.md").exists())
+            self.assertTrue((artifacts_dir / "subtask_2_attempt1_executor_output.md").exists())
+            self.assertEqual(subtask2_review["status"], "failed")
+            self.assertIn("timed out after 1 seconds", subtask2_review["checks"][0]["detail"])
+            self.assertIn("failure_kind: subtask_timeout", subtask_summary)
+            self.assertIn(
+                ".swl/tasks/"
+                f"{created.task_id}"
+                "/artifacts/subtask_1_attempt1_custom_trace.md",
+                subtask_summary,
+            )
+            self.assertFalse(any(event["event_type"] == "subtask.2.debate_round" for event in events))
 
 
 if __name__ == "__main__":

@@ -1530,6 +1530,14 @@ async def run_cli_agent_executor_async(
 
         try:
             stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
+        except asyncio.CancelledError:
+            if process.returncode is None:
+                process.kill()
+            try:
+                await process.communicate()
+            except Exception:  # pragma: no cover - best-effort cancellation cleanup
+                pass
+            raise
         except asyncio.TimeoutError:
             process.kill()
             stdout_bytes, stderr_bytes = await process.communicate()

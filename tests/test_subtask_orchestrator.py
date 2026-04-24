@@ -7,6 +7,7 @@ import time
 import unittest
 from pathlib import Path
 import sys
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -254,6 +255,128 @@ class AsyncSubtaskOrchestratorTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.levels, [[card_a.card_id, card_b.card_id]])
         self.assertEqual(result.max_parallelism, 2)
         self.assertGreaterEqual(max_active, 2)
+
+    async def test_run_marks_subtask_timeout_without_canceling_other_cards(self) -> None:
+        state = TaskState(
+            task_id="task-timeout-async",
+            title="Timeout async subtasks",
+            goal="Keep healthy subtasks running when one times out",
+            workspace_root="/tmp",
+        )
+        card_a = _build_card("A", subtask_index=1)
+        card_b = _build_card("B", subtask_index=2)
+        card_a.reviewer_timeout_seconds = 1
+        card_b.reviewer_timeout_seconds = 1
+
+        async def execute_card(
+            _base_dir: Path,
+            _state: TaskState,
+            card: TaskCard,
+            _retrieval_items: list[object],
+        ) -> ExecutorResult:
+            if card.card_id == card_b.card_id:
+                await asyncio.sleep(1.2)
+            else:
+                await asyncio.sleep(0.05)
+            return ExecutorResult(
+                executor_name="mock",
+                status="completed",
+                message="ok",
+                output=card.goal,
+            )
+
+        async def review_card(result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
+            return ReviewGateResult(
+                status="passed" if result.status == "completed" else "failed",
+                message=f"{card.goal} {result.status}",
+                checks=[],
+            )
+
+        started_at = time.perf_counter()
+        with tempfile.TemporaryDirectory() as tmp:
+            result = await AsyncSubtaskOrchestrator(execute_card, review_card).run(
+                Path(tmp),
+                state,
+                [card_a, card_b],
+                [],
+            )
+        elapsed = time.perf_counter() - started_at
+        records_by_id = {record.card_id: record for record in result.records}
+
+        self.assertLess(elapsed, 1.15)
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(result.completed_count, 1)
+        self.assertEqual(result.failed_count, 1)
+        self.assertEqual(records_by_id[card_a.card_id].status, "completed")
+        self.assertEqual(records_by_id[card_b.card_id].executor_result.failure_kind, "subtask_timeout")
+        self.assertEqual(records_by_id[card_b.card_id].review_gate_result.status, "failed")
+
+    async def test_run_collects_cancelled_subtask_as_failed_record(self) -> None:
+        state = TaskState(
+            task_id="task-cancelled-async",
+            title="Cancelled async subtask",
+            goal="Convert unexpected cancellations into failed records",
+            workspace_root="/tmp",
+        )
+        card_a = _build_card("A", subtask_index=1)
+        card_b = _build_card("B", subtask_index=2)
+
+        async def execute_card(
+            _base_dir: Path,
+            _state: TaskState,
+            card: TaskCard,
+            _retrieval_items: list[object],
+        ) -> ExecutorResult:
+            if card.card_id == card_b.card_id:
+                raise asyncio.CancelledError("synthetic cancellation")
+            await asyncio.sleep(0.05)
+            return ExecutorResult(
+                executor_name="mock",
+                status="completed",
+                message="ok",
+                output=card.goal,
+            )
+
+        async def review_card(result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
+            return ReviewGateResult(
+                status="passed" if result.status == "completed" else "failed",
+                message=f"{card.goal} {result.status}",
+                checks=[],
+            )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = await AsyncSubtaskOrchestrator(execute_card, review_card).run(
+                Path(tmp),
+                state,
+                [card_a, card_b],
+                [],
+            )
+        records_by_id = {record.card_id: record for record in result.records}
+
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(result.completed_count, 1)
+        self.assertEqual(result.failed_count, 1)
+        self.assertEqual(records_by_id[card_a.card_id].status, "completed")
+        self.assertEqual(records_by_id[card_b.card_id].status, "failed")
+        self.assertEqual(records_by_id[card_b.card_id].executor_result.failure_kind, "subtask_exception")
+        self.assertIn("CancelledError", records_by_id[card_b.card_id].executor_result.stderr)
+
+    def test_orchestrator_reads_max_workers_from_environment(self) -> None:
+        async def execute_card(
+            _base_dir: Path,
+            _state: TaskState,
+            _card: TaskCard,
+            _retrieval_items: list[object],
+        ) -> ExecutorResult:
+            return ExecutorResult(executor_name="mock", status="completed", message="ok")
+
+        async def review_card(_result: ExecutorResult, _card: TaskCard) -> ReviewGateResult:
+            return ReviewGateResult(status="passed", message="ok", checks=[])
+
+        with patch.dict("os.environ", {"AIWF_MAX_SUBTASK_WORKERS": "2"}, clear=False):
+            orchestrator = AsyncSubtaskOrchestrator(execute_card, review_card)
+
+        self.assertEqual(orchestrator._max_workers, 2)
 
 
 if __name__ == "__main__":

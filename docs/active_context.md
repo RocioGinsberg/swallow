@@ -7,17 +7,17 @@
 - latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle (v0.8.0)`
 - active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
 - active_phase: `Phase 52`
-- active_slice: `S2 Strategy Router complexity_hint`
+- active_slice: `S3 Fan-out / async subtask orchestration`
 - active_branch: `feat/phase52_execution_topology`
-- status: `phase52_s2_gate_ready`
+- status: `phase52_s3_gate_ready`
 
 ---
 
 ## 当前状态说明
 
-`main` 已完成 Phase 51 并打出 `v0.8.0`。当前实现分支已切到 `feat/phase52_execution_topology`，正在推进 Phase 52 的第二个实现 slice：Strategy Router 路由规则补强。
+`main` 已完成 Phase 51 并打出 `v0.8.0`。当前实现分支已切到 `feat/phase52_execution_topology`，正在推进 Phase 52 的第三个实现 slice：fan-out / async subtask orchestration 收口。
 
-本轮优先目标是把 `complexity_hint` 从 task semantics 贯通到 operator-facing CLI 与 Strategy Router 决策面，并提供 `swl route select --task-id` 只读 dry-run 入口用于检查路由决策过程。
+本轮优先目标是给 `AsyncSubtaskOrchestrator` 补齐 subtask timeout 守卫、局部失败隔离与 `subtask_summary.md` 汇总 artifact，使多 card fan-out 链路具备可审计的父级收口。
 
 ---
 
@@ -46,15 +46,19 @@
 - **[Codex]** 已完成 S2 语义入口补强：`TaskSemantics.complexity_hint` 已贯通 `build_task_semantics()`、`create_task()`、`update_task_planning_handoff()` 与 `task_semantics_report.md`。
 - **[Codex]** 已完成 S2 CLI 面：`swl task create --complexity-hint`、`swl task planning-handoff --complexity-hint` 与 `swl route select --task-id <id> [--executor ...] [--route-mode ...]` dry-run 已落地。
 - **[Codex]** 已完成 S2 测试补强：`tests/test_router.py -q` → `21 passed`；`tests/test_cli.py -q -k "test_cli_create_persists_imported_planning_semantics or test_cli_planning_handoff_updates_existing_task_semantics or test_cli_create_persists_complexity_hint_in_task_semantics or test_cli_planning_handoff_updates_complexity_hint or test_cli_route_select_reports_policy_inputs_for_task or test_cli_route_select_respects_executor_override or test_create_task_persists_route_dialect_for_default_aider_route or test_select_route_uses_override_before_legacy_mode or test_select_route_uses_legacy_mode_when_task_stays_default or test_select_route_uses_route_mode_when_no_executor_override_is_present"` → `9 passed`。
+- **[Codex]** 已完成 S3 async fan-out 守卫：`AsyncSubtaskOrchestrator` 新增 subtask timeout 记录、`asyncio.gather(..., return_exceptions=True)` 局部失败隔离，以及 `AIWF_MAX_SUBTASK_WORKERS` 环境变量接线。
+- **[Codex]** 已完成 S3 parent artifact 收口：多 card 路径会写出 `subtask_summary.md`，汇总各 subtask 的 card_id / goal / status / latest attempt artifact refs；单卡路径不暴露该 artifact key。
+- **[Codex]** 已完成 S3 cancellation cleanup：`run_cli_agent_executor_async()` 在外层 cancel 时会 kill 并回收子进程，避免 subtask timeout 留下悬挂 CLI 进程。
+- **[Codex]** 已验证 S3 gate：`.venv/bin/python -m pytest tests/test_subtask_orchestrator.py tests/test_run_task_subtasks.py tests/test_executor_async.py -q` → `17 passed`。
 
 进行中：
 
-- 无。S2 当前已进入 commit gate 状态。
+- 无。S3 当前已进入 commit gate 状态。
 
 待执行：
 
-- **[Human]** 审阅当前 S2 diff 并执行 slice commit。
-- **[Codex]** 在 Human 完成 S2 commit 后进入 S3 fan-out / async subtask orchestration 收口。
+- **[Human]** 审阅当前 S3 diff 并执行 slice commit。
+- **[Codex]** 在 Human 完成 S3 commit 后进入 Phase 52 收口或 review 修订。
 
 当前阻塞项：
 
@@ -73,5 +77,5 @@
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交当前 S2 diff。
-2. **[Codex]** 在 S2 提交后开始 S3 fan-out / async subtask orchestration 收口。
+1. **[Human]** 审阅并提交当前 S3 diff。
+2. **[Codex]** 在 S3 提交后进入 Phase 52 收口或 review 修订。

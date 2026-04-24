@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -11,6 +12,7 @@ from .review_gate import ReviewGateResult
 
 
 MAX_SUBTASK_WORKERS = 4
+DEFAULT_SUBTASK_TIMEOUT_SECONDS = 60
 
 ExecuteCard = Callable[[Path, TaskState, TaskCard, list[RetrievalItem]], ExecutorResult]
 ReviewCard = Callable[[ExecutorResult, TaskCard], ReviewGateResult]
@@ -64,6 +66,82 @@ def _failure_review_gate_result(detail: str) -> ReviewGateResult:
                 "detail": detail,
             }
         ],
+    )
+
+
+def _resolve_positive_int(raw_value: object, default: int) -> int:
+    try:
+        parsed = int(raw_value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def _resolve_max_subtask_workers(max_workers: int | None) -> int:
+    configured = (
+        max_workers
+        if max_workers is not None
+        else os.environ.get("AIWF_MAX_SUBTASK_WORKERS", str(MAX_SUBTASK_WORKERS))
+    )
+    return max(1, min(_resolve_positive_int(configured, MAX_SUBTASK_WORKERS), MAX_SUBTASK_WORKERS))
+
+
+def _subtask_timeout_seconds(card: TaskCard) -> int:
+    configured = getattr(card, "reviewer_timeout_seconds", DEFAULT_SUBTASK_TIMEOUT_SECONDS)
+    if _resolve_positive_int(configured, 0) > 0:
+        return _resolve_positive_int(configured, DEFAULT_SUBTASK_TIMEOUT_SECONDS)
+    return _resolve_positive_int(
+        os.environ.get("AIWF_SUBTASK_TIMEOUT_SECONDS", str(DEFAULT_SUBTASK_TIMEOUT_SECONDS)),
+        DEFAULT_SUBTASK_TIMEOUT_SECONDS,
+    )
+
+
+def _build_failed_record(
+    *,
+    card: TaskCard,
+    started_at: str,
+    message: str,
+    failure_kind: str,
+    detail: str,
+) -> SubtaskRunRecord:
+    return SubtaskRunRecord(
+        card_id=card.card_id,
+        subtask_index=card.subtask_index,
+        goal=card.goal,
+        depends_on=list(card.depends_on),
+        status="failed",
+        started_at=started_at,
+        completed_at=utc_now(),
+        executor_result=ExecutorResult(
+            executor_name="subtask-orchestrator",
+            status="failed",
+            message=message,
+            failure_kind=failure_kind,
+            stderr=detail,
+        ),
+        review_gate_result=_failure_review_gate_result(detail),
+    )
+
+
+def _timeout_record(card: TaskCard, *, started_at: str, timeout_seconds: int) -> SubtaskRunRecord:
+    detail = f"subtask timed out after {timeout_seconds} seconds"
+    return _build_failed_record(
+        card=card,
+        started_at=started_at,
+        message=f"Subtask timed out after {timeout_seconds} seconds.",
+        failure_kind="subtask_timeout",
+        detail=detail,
+    )
+
+
+def _exception_record(card: TaskCard, *, started_at: str, exc: BaseException) -> SubtaskRunRecord:
+    detail = f"subtask raised {type(exc).__name__}: {exc}"
+    return _build_failed_record(
+        card=card,
+        started_at=started_at,
+        message=f"Subtask execution raised {type(exc).__name__}.",
+        failure_kind="subtask_exception",
+        detail=detail,
     )
 
 
@@ -123,11 +201,11 @@ class SubtaskOrchestrator:
         execute_card: ExecuteCard,
         review_card: ReviewCard,
         *,
-        max_workers: int = MAX_SUBTASK_WORKERS,
+        max_workers: int | None = None,
     ) -> None:
         self._execute_card = execute_card
         self._review_card = review_card
-        self._max_workers = max(1, min(max_workers, MAX_SUBTASK_WORKERS))
+        self._max_workers = _resolve_max_subtask_workers(max_workers)
 
     def _run_single_card(
         self,
@@ -232,20 +310,21 @@ class AsyncSubtaskOrchestrator:
         execute_card: AsyncExecuteCard,
         review_card: AsyncReviewCard,
         *,
-        max_workers: int = MAX_SUBTASK_WORKERS,
+        max_workers: int | None = None,
     ) -> None:
         self._execute_card = execute_card
         self._review_card = review_card
-        self._max_workers = max(1, min(max_workers, MAX_SUBTASK_WORKERS))
+        self._max_workers = _resolve_max_subtask_workers(max_workers)
 
-    async def _run_single_card(
+    async def _run_single_card_once(
         self,
         base_dir: Path,
         state: TaskState,
         card: TaskCard,
         retrieval_items: list[RetrievalItem],
+        *,
+        started_at: str,
     ) -> SubtaskRunRecord:
-        started_at = utc_now()
         isolated_state = _clone_state(state)
         try:
             executor_result = await self._execute_card(base_dir, isolated_state, card, retrieval_items)
@@ -279,6 +358,29 @@ class AsyncSubtaskOrchestrator:
             review_gate_result=review_gate_result,
         )
 
+    async def _run_single_card(
+        self,
+        base_dir: Path,
+        state: TaskState,
+        card: TaskCard,
+        retrieval_items: list[RetrievalItem],
+    ) -> SubtaskRunRecord:
+        started_at = utc_now()
+        timeout_seconds = _subtask_timeout_seconds(card)
+        try:
+            return await asyncio.wait_for(
+                self._run_single_card_once(
+                    base_dir,
+                    state,
+                    card,
+                    retrieval_items,
+                    started_at=started_at,
+                ),
+                timeout=timeout_seconds,
+            )
+        except asyncio.TimeoutError:
+            return _timeout_record(card, started_at=started_at, timeout_seconds=timeout_seconds)
+
     async def _run_level(
         self,
         base_dir: Path,
@@ -303,11 +405,15 @@ class AsyncSubtaskOrchestrator:
             async with semaphore:
                 return await self._run_single_card(base_dir, state, card, retrieval_items)
 
-        gathered_records = await asyncio.gather(*(run_card(card) for card in level))
-        return {
-            card.card_id: record
-            for card, record in zip(level, gathered_records, strict=True)
-        }
+        started_at = utc_now()
+        gathered_records = await asyncio.gather(*(run_card(card) for card in level), return_exceptions=True)
+        records_by_id: dict[str, SubtaskRunRecord] = {}
+        for card, record_or_exc in zip(level, gathered_records, strict=True):
+            if isinstance(record_or_exc, BaseException):
+                records_by_id[card.card_id] = _exception_record(card, started_at=started_at, exc=record_or_exc)
+                continue
+            records_by_id[card.card_id] = record_or_exc
+        return records_by_id
 
     async def run(
         self,

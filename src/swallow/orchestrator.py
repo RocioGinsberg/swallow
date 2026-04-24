@@ -1915,6 +1915,89 @@ def _build_subtask_executor_result(
     )
 
 
+def _subtask_artifact_ref(task_id: str, artifact_name: str) -> str:
+    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
+
+
+def _collect_subtask_attempt_artifact_refs(
+    base_dir: Path,
+    task_id: str,
+    *,
+    subtask_index: int,
+    attempt_number: int,
+) -> list[str]:
+    artifact_root = artifacts_dir(base_dir, task_id)
+    if not artifact_root.exists():
+        return []
+
+    prefix = f"subtask_{subtask_index}_attempt{attempt_number}_"
+    artifact_names = sorted(
+        path.relative_to(artifact_root).as_posix()
+        for path in artifact_root.glob(f"{prefix}*")
+        if path.is_file()
+    )
+    return [_subtask_artifact_ref(task_id, artifact_name) for artifact_name in artifact_names]
+
+
+def _build_subtask_summary_report(
+    base_dir: Path,
+    task_id: str,
+    result: SubtaskOrchestratorResult,
+    attempt_counts: dict[str, int],
+    *,
+    debate_exhausted_card_ids: list[str] | None = None,
+    budget_exhausted_card_ids: list[str] | None = None,
+) -> str:
+    debate_exhausted = set(debate_exhausted_card_ids or [])
+    budget_exhausted = set(budget_exhausted_card_ids or [])
+    lines = [
+        "# Subtask Summary",
+        "",
+        f"- task_id: {task_id}",
+        f"- status: {result.status}",
+        f"- message: {result.message}",
+        f"- card_count: {len(result.records)}",
+        f"- completed_count: {result.completed_count}",
+        f"- failed_count: {result.failed_count}",
+        f"- max_parallelism: {result.max_parallelism}",
+        f"- levels: {' | '.join(' -> '.join(level) for level in result.levels) if result.levels else 'none'}",
+        "",
+        "## Subtasks",
+    ]
+    for record in result.records:
+        executor_result = record.executor_result
+        review_gate_result = record.review_gate_result
+        latest_attempt = attempt_counts.get(record.card_id, 1)
+        artifact_refs = _collect_subtask_attempt_artifact_refs(
+            base_dir,
+            task_id,
+            subtask_index=record.subtask_index,
+            attempt_number=latest_attempt,
+        )
+        lines.extend(
+            [
+                f"- subtask_index: {record.subtask_index}",
+                f"- card_id: {record.card_id}",
+                f"- goal: {record.goal}",
+                f"- status: {record.status}",
+                f"- attempts: {latest_attempt}",
+                f"- depends_on: {', '.join(record.depends_on) if record.depends_on else 'none'}",
+                f"- executor_name: {executor_result.executor_name if executor_result else 'unknown'}",
+                f"- executor_status: {executor_result.status if executor_result else 'failed'}",
+                f"- failure_kind: {executor_result.failure_kind if executor_result and executor_result.failure_kind else 'none'}",
+                f"- review_gate_status: {review_gate_result.status if review_gate_result else 'failed'}",
+                f"- debate_exhausted: {'yes' if record.card_id in debate_exhausted else 'no'}",
+                f"- budget_exhausted: {'yes' if record.card_id in budget_exhausted else 'no'}",
+            ]
+        )
+        if artifact_refs:
+            lines.extend([f"- artifact_ref: {artifact_ref}" for artifact_ref in artifact_refs])
+        else:
+            lines.append("- artifact_ref: none")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def _run_subtask_orchestration(
     base_dir: Path,
     state: TaskState,
@@ -2037,6 +2120,19 @@ def _run_subtask_orchestration(
         attempt_counts,
         debate_exhausted_card_ids=debate_exhausted_card_ids,
         budget_exhausted_card_ids=budget_exhausted_card_ids,
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "subtask_summary.md",
+        _build_subtask_summary_report(
+            base_dir,
+            state.task_id,
+            result,
+            attempt_counts,
+            debate_exhausted_card_ids=debate_exhausted_card_ids,
+            budget_exhausted_card_ids=budget_exhausted_card_ids,
+        ),
     )
     _write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
@@ -2170,6 +2266,19 @@ async def _run_subtask_orchestration_async(
         attempt_counts,
         debate_exhausted_card_ids=debate_exhausted_card_ids,
         budget_exhausted_card_ids=budget_exhausted_card_ids,
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "subtask_summary.md",
+        _build_subtask_summary_report(
+            base_dir,
+            state.task_id,
+            result,
+            attempt_counts,
+            debate_exhausted_card_ids=debate_exhausted_card_ids,
+            budget_exhausted_card_ids=budget_exhausted_card_ids,
+        ),
     )
     _write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
@@ -3463,6 +3572,8 @@ async def run_task_async(
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
     }
+    if multi_card_plan:
+        state.artifact_paths["subtask_summary"] = str((artifacts_dir(base_dir, task_id) / "subtask_summary.md").resolve())
     state.execution_phase = "analysis_done"
     state.last_phase_checkpoint_at = utc_now()
     save_state(base_dir, state)
