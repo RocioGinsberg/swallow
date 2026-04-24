@@ -21,17 +21,17 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 49`
-- latest_completed_slice: `Knowledge SSOT & Vector RAG`
+- latest_completed_phase: `Phase 51`
+- latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle`
 - checkpoint_type: `main_tagged_release`
-- current_tag: `v0.7.0`
-- last_checked: `2026-04-22`
+- current_tag: `v0.8.0`
+- last_checked: `2026-04-24`
 
 说明：
 
-- Phase 49 已完成实现、review、merge 与 tag，当前 `main` 对齐 `v0.7.0` 稳定 checkpoint。
-- `docs/plans/phase49/closeout.md` 与 `docs/plans/phase49/review_comments.md` 已反映本轮收口结论。
-- 当前默认不再继续扩张已完成的 Phase 49，而应转入 Phase 50 kickoff。
+- Phase 51 已完成实现、review、merge 与 tag，当前 `main` 对齐 `v0.8.0` 稳定 checkpoint。
+- `docs/plans/phase51/closeout.md` 已反映上一轮稳定里程碑收口结论。
+- 当前仓库的默认恢复入口不再是 Phase 49/50 的 kickoff，而是已完成验证的 Phase 52 feature branch 收口状态。
 
 ---
 
@@ -39,16 +39,16 @@
 
 当前推荐从以下状态继续：
 
-- active_branch: `main`
-- active_track: `Evaluation / Policy` (Primary) + `Provider Routing` (Secondary)
-- active_phase: `Phase 50`
-- active_slice: `fresh_kickoff_required`
-- workflow_status: `phase50_kickoff_pending`
+- active_branch: `feat/phase52_execution_topology`
+- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
+- active_phase: `Phase 52`
+- active_slice: `closeout / validation complete`
+- workflow_status: `phase52_implementation_validated`
 
 说明：
 
-- 当前默认恢复入口已从 Phase 49 closeout 切换为 Phase 50 启动前状态。
-- 现阶段应先完成新一轮 `context_brief` / kickoff / design / risk 文档，再由 Human 决定下一条 feature branch 与实现边界。
+- `main` 的稳定基线仍是 `v0.8.0 / Phase 51`，但当前日常开发入口已位于 `feat/phase52_execution_topology`。
+- Phase 52 的实现、eval 与全量 pytest 已完成；当前默认继续动作是 review / closeout / merge，而不是重新 kickoff。
 
 ---
 
@@ -60,12 +60,12 @@
 2. `docs/active_context.md`
 3. `docs/roadmap.md`
 4. `current_state.md`
-5. `docs/plans/phase49/closeout.md`
+5. `docs/plans/phase52/closeout.md`
 
 仅在需要时再读取：
 
 - `docs/concerns_backlog.md`
-- `docs/plans/phase49/review_comments.md`
+- `docs/plans/phase51/closeout.md`
 - `docs/system_tracks.md`
 - 历史 phase closeout / review_comments
 
@@ -89,9 +89,10 @@ git log --oneline -3
 - Web Control Center 仍保持严格只读；不会写入 `.swl/`，也未引入前端构建工具链。
 - SQLite 当前已同时承载 `TaskState` / `EventLog` 与知识层 truth；下一轮默认不再回退到知识层“双重真相”整理。
 - 默认 store 已切到 SQLite，但过渡期仍保留 file mirror/fallback；旧 `.swl/` 目录仍建议通过 `swl migrate` 回填。
-- `swl knowledge migrate`、`LibrarianAgent` 与 `sqlite-vec` 文本降级检索已成为 `v0.7.0` 稳定基线。
-- `CLIAgentExecutor` 尚未切到原生 async subprocess，当前仍通过线程桥接。
+- `swl knowledge migrate`、`LibrarianAgent` 与 `sqlite-vec` 文本降级检索已成为 `v0.8.0` 稳定基线。
+- `AsyncCLIAgentExecutor` 已成为当前 feature branch 的 CLI agent 通用执行路径；merge 前仍以 feature branch 验证结果为准。
 - `meta-optimize` 仍是只读分析入口，不会自动采纳策略提案，也不会直接修改 route policy 或 task state。
+- route policy / capability profile 当前已兼容 legacy route alias（`local-codex -> local-aider`，`local-cline -> local-claude-code`）。
 - `TaskCard.token_cost_limit` 仍按 task 全生命周期聚合真实 `token_cost`，不是按单 card 独立结算。
 - 一致性抽检仍是手动、只读入口，不自动进入主任务闭环。
 - 真实执行环境下的外部网络、代理与 provider 连通性仍受本地环境约束，`swl doctor` 只负责诊断，不负责修复。

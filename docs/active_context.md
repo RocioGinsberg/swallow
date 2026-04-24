@@ -7,17 +7,17 @@
 - latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle (v0.8.0)`
 - active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
 - active_phase: `Phase 52`
-- active_slice: `S3 Fan-out / async subtask orchestration`
+- active_slice: `Closeout / validation`
 - active_branch: `feat/phase52_execution_topology`
-- status: `phase52_s3_gate_ready`
+- status: `phase52_implementation_validated`
 
 ---
 
 ## 当前状态说明
 
-`main` 已完成 Phase 51 并打出 `v0.8.0`。当前实现分支已切到 `feat/phase52_execution_topology`，正在推进 Phase 52 的第三个实现 slice：fan-out / async subtask orchestration 收口。
+`main` 已完成 Phase 51 并打出 `v0.8.0`。当前工作分支 `feat/phase52_execution_topology` 上，Phase 52 的实现与实现后验证已完成，现处于 closeout / review 前状态。
 
-本轮优先目标是给 `AsyncSubtaskOrchestrator` 补齐 subtask timeout 守卫、局部失败隔离与 `subtask_summary.md` 汇总 artifact，使多 card fan-out 链路具备可审计的父级收口。
+本轮收口重点已从实现切换为文档同步与评审准备：确认 async CLI executor、Strategy Router 路由信号和 fan-out guard 主线全部稳定，并吸收实现后验证暴露的 meta-optimizer 兼容性问题。
 
 ---
 
@@ -27,7 +27,8 @@
 2. `docs/plans/phase52/kickoff.md`
 3. `docs/plans/phase52/design_decision.md`
 4. `docs/plans/phase52/risk_assessment.md`
-5. `docs/roadmap.md`
+5. `docs/plans/phase52/closeout.md`
+6. `docs/roadmap.md`
 
 ---
 
@@ -50,15 +51,19 @@
 - **[Codex]** 已完成 S3 parent artifact 收口：多 card 路径会写出 `subtask_summary.md`，汇总各 subtask 的 card_id / goal / status / latest attempt artifact refs；单卡路径不暴露该 artifact key。
 - **[Codex]** 已完成 S3 cancellation cleanup：`run_cli_agent_executor_async()` 在外层 cancel 时会 kill 并回收子进程，避免 subtask timeout 留下悬挂 CLI 进程。
 - **[Codex]** 已验证 S3 gate：`.venv/bin/python -m pytest tests/test_subtask_orchestrator.py tests/test_run_task_subtasks.py tests/test_executor_async.py -q` → `17 passed`。
+- **[Human]** 已完成 S3 commit。
+- **[Codex]** 已完成 Phase 52 post-implementation validation：补齐 `meta_optimizer` 的 cost trend 顺序修正、perfect-baseline capability proposal 抑制，以及 legacy route alias (`local-codex` / `local-cline`) 的 policy persistence 兼容。
+- **[Codex]** 已验证全量基线：`.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` → `19 passed`；`.venv/bin/python -m pytest -m eval -q` → `8 passed`；`.venv/bin/python -m pytest --tb=short` → `437 passed, 8 deselected`。
 
 进行中：
 
-- 无。S3 当前已进入 commit gate 状态。
+- 无。Phase 52 当前已进入 closeout / review 准备状态。
 
 待执行：
 
-- **[Human]** 审阅当前 S3 diff 并执行 slice commit。
-- **[Codex]** 在 Human 完成 S3 commit 后进入 Phase 52 收口或 review 修订。
+- **[Human]** 审阅 Phase 52 最终 diff，决定是否进入 review / PR。
+- **[Claude]** 按 workflow 进入 review / consistency 检查（如本轮需要）。
+- **[Codex]** 根据 review 结果继续 follow-up 或整理 `pr.md`。
 
 当前阻塞项：
 
@@ -72,10 +77,12 @@
 - `docs/plans/phase52/kickoff.md` (claude, 2026-04-23)
 - `docs/plans/phase52/design_decision.md` (claude, 2026-04-23)
 - `docs/plans/phase52/risk_assessment.md` (claude, 2026-04-23)
+- `docs/plans/phase52/closeout.md` (codex, 2026-04-24)
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交当前 S3 diff。
-2. **[Codex]** 在 S3 提交后进入 Phase 52 收口或 review 修订。
+1. **[Human]** 审阅当前 phase52 最终 diff，决定是否进入 review / PR。
+2. **[Claude]** 产出 review / consistency 结果。
+3. **[Codex]** 根据 review 继续 follow-up 或整理合并材料。
