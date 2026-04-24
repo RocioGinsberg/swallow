@@ -14,6 +14,7 @@ from swallow.executor import (
     AIDER_CONFIG,
     AsyncCLIAgentExecutor,
     CLAUDE_CODE_CONFIG,
+    EXECUTOR_REGISTRY,
     ExecutorProtocol,
     HTTPExecutor,
     LocalCLIExecutor,
@@ -115,11 +116,30 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(resolve_executor("meta-optimizer", "local"), MetaOptimizerExecutor)
         self.assertIsInstance(resolve_executor("cli", "meta-optimizer"), MetaOptimizerExecutor)
 
+    def test_executor_registry_contains_all_specialist_and_validator_agents(self) -> None:
+        self.assertEqual(
+            set(EXECUTOR_REGISTRY),
+            {
+                "consistency-reviewer",
+                "ingestion-specialist",
+                "librarian",
+                "literature-specialist",
+                "meta-optimizer",
+                "meta_optimizer",
+                "quality-reviewer",
+                "validator",
+            },
+        )
+
     def test_resolve_executor_routes_phase53_specialist_and_validator_agents(self) -> None:
         self.assertIsInstance(resolve_executor("cli", "ingestion-specialist"), IngestionSpecialistExecutor)
+        self.assertIsInstance(resolve_executor("ingestion-specialist", "local"), IngestionSpecialistExecutor)
         self.assertIsInstance(resolve_executor("cli", "literature-specialist"), LiteratureSpecialistExecutor)
+        self.assertIsInstance(resolve_executor("literature-specialist", "local"), LiteratureSpecialistExecutor)
         self.assertIsInstance(resolve_executor("cli", "consistency-reviewer"), ConsistencyReviewerExecutor)
+        self.assertIsInstance(resolve_executor("consistency-reviewer", "local"), ConsistencyReviewerExecutor)
         self.assertIsInstance(resolve_executor("cli", "quality-reviewer"), QualityReviewerExecutor)
+        self.assertIsInstance(resolve_executor("quality-reviewer", "local"), QualityReviewerExecutor)
         self.assertIsInstance(resolve_executor("validator", "local"), ValidatorExecutor)
 
     def test_local_cli_executor_delegates_to_harness_run_execution(self) -> None:

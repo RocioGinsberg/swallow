@@ -9,10 +9,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from swallow.models import (
     LIBRARIAN_MEMORY_AUTHORITY,
     LIBRARIAN_SYSTEM_ROLE,
+    MEMORY_AUTHORITY_SEMANTICS,
     MEMORY_AUTHORITIES,
     SYSTEM_ROLES,
     TaxonomyProfile,
+    allowed_memory_authority_side_effects,
     build_librarian_taxonomy_profile,
+    describe_memory_authority,
 )
 
 
@@ -52,3 +55,18 @@ class TaxonomyProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.system_role, LIBRARIAN_SYSTEM_ROLE)
         self.assertEqual(profile.memory_authority, LIBRARIAN_MEMORY_AUTHORITY)
+
+    def test_memory_authority_semantics_cover_every_registered_authority(self) -> None:
+        self.assertEqual(set(MEMORY_AUTHORITY_SEMANTICS), set(MEMORY_AUTHORITIES))
+
+    def test_describe_memory_authority_clarifies_canonical_write_forbidden_scope(self) -> None:
+        description = describe_memory_authority("canonical-write-forbidden")
+        side_effects = allowed_memory_authority_side_effects("canonical-write-forbidden")
+
+        self.assertIn("may not write to canonical knowledge truth", description.lower())
+        self.assertIn("proposal_bundles", side_effects)
+        self.assertIn("audit_artifacts", side_effects)
+
+    def test_describe_memory_authority_rejects_unknown_value(self) -> None:
+        with self.assertRaises(ValueError):
+            describe_memory_authority("unknown-authority")
