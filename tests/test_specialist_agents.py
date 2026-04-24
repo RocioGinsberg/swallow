@@ -20,8 +20,46 @@ from swallow.ingestion_specialist import (
     INGESTION_SPECIALIST_SYSTEM_ROLE,
     IngestionSpecialistAgent,
 )
-from swallow.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
+from swallow.literature_specialist import (
+    LITERATURE_SPECIALIST_MEMORY_AUTHORITY,
+    LITERATURE_SPECIALIST_SYSTEM_ROLE,
+    LiteratureSpecialistAgent,
+)
+from swallow.models import (
+    ExecutorResult,
+    RetrievalItem,
+    RouteCapabilities,
+    RouteSelection,
+    RouteSpec,
+    TaskCard,
+    TaskState,
+    TaxonomyProfile,
+    ValidationResult,
+)
+from swallow.orchestrator import create_task, run_task
+from swallow.quality_reviewer import (
+    QUALITY_REVIEWER_MEMORY_AUTHORITY,
+    QUALITY_REVIEWER_SYSTEM_ROLE,
+    QualityReviewerAgent,
+)
 from swallow.validator_agent import VALIDATOR_MEMORY_AUTHORITY, VALIDATOR_SYSTEM_ROLE, ValidatorAgent
+
+
+def _passing_validation_tuple() -> tuple[ValidationResult, ...]:
+    return (
+        ValidationResult(status="passed", message="Compatibility passed."),
+        ValidationResult(status="passed", message="Execution fit passed."),
+        ValidationResult(status="passed", message="Knowledge policy passed."),
+        ValidationResult(status="passed", message="Validation passed."),
+        ValidationResult(status="passed", message="Retry policy passed."),
+        ValidationResult(status="warning", message="Stop policy warning."),
+        ValidationResult(status="passed", message="Execution budget policy passed."),
+    )
+
+
+def _load_events(base_dir: Path, task_id: str) -> list[dict[str, object]]:
+    events_path = base_dir / ".swl" / "tasks" / task_id / "events.jsonl"
+    return [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 class SpecialistAgentTest(unittest.TestCase):
@@ -161,3 +199,211 @@ class SpecialistAgentTest(unittest.TestCase):
 
         self.assertEqual(result.status, "failed")
         self.assertIn("[fail] executor.empty_output", result.output)
+
+    def test_literature_specialist_agent_summarizes_documents_and_overlap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            doc_a = tmp_path / "doc-a.md"
+            doc_b = tmp_path / "doc-b.md"
+            doc_a.write_text(
+                "# Overview\nSwallow keeps task state explicit.\n\n## Routing\nParallel routing stays visible.",
+                encoding="utf-8",
+            )
+            doc_b.write_text(
+                "# Overview\nSwallow tracks artifacts and routing decisions.\n\n## Findings\nParallel review stays visible.",
+                encoding="utf-8",
+            )
+            state = TaskState(
+                task_id="literature-task",
+                title="Compare reference docs",
+                goal="Build a lightweight literature summary",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Compare two design notes",
+                parent_task_id=state.task_id,
+                input_context={"document_paths": [str(doc_a), str(doc_b)]},
+            )
+
+            result = LiteratureSpecialistAgent().execute(tmp_path, state, card, [])
+
+        self.assertEqual(LiteratureSpecialistAgent.system_role, LITERATURE_SPECIALIST_SYSTEM_ROLE)
+        self.assertEqual(LiteratureSpecialistAgent.memory_authority, LITERATURE_SPECIALIST_MEMORY_AUTHORITY)
+        self.assertEqual(result.executor_name, "literature-specialist")
+        self.assertEqual(result.status, "completed")
+        self.assertIn("# Literature Analysis", result.output)
+        self.assertIn("shared_headings: Overview", result.output)
+        self.assertIn("analysis_method: heuristic", result.output)
+
+    def test_quality_reviewer_agent_reports_pass_for_structured_actionable_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifact = tmp_path / "artifact.md"
+            artifact.write_text(
+                "# Summary\n\n- Next step: implement the specialist agent.\n\n```text\nDone\n```\n",
+                encoding="utf-8",
+            )
+            state = TaskState(
+                task_id="quality-task",
+                title="Review artifact quality",
+                goal="Check a generated artifact",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Review one artifact",
+                parent_task_id=state.task_id,
+                input_context={
+                    "artifact_ref": str(artifact),
+                    "quality_criteria": ["non_empty", "has_structure", "has_actionable_content", "min_length"],
+                    "min_length": 20,
+                },
+            )
+
+            result = QualityReviewerAgent().execute(tmp_path, state, card, [])
+
+        self.assertEqual(QualityReviewerAgent.system_role, QUALITY_REVIEWER_SYSTEM_ROLE)
+        self.assertEqual(QualityReviewerAgent.memory_authority, QUALITY_REVIEWER_MEMORY_AUTHORITY)
+        self.assertEqual(result.executor_name, "quality-reviewer")
+        self.assertEqual(result.status, "completed")
+        self.assertIn("# Quality Review", result.output)
+        self.assertIn("overall_verdict: pass", result.output)
+        self.assertEqual(result.side_effects["overall_verdict"], "pass")
+
+    def test_quality_reviewer_agent_reports_failure_for_empty_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifact = tmp_path / "empty.md"
+            artifact.write_text("", encoding="utf-8")
+            state = TaskState(
+                task_id="quality-fail",
+                title="Review empty artifact quality",
+                goal="Check a broken artifact",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Review an empty artifact",
+                parent_task_id=state.task_id,
+                input_context={"artifact_ref": str(artifact), "quality_criteria": ["non_empty", "min_length"]},
+            )
+
+            result = QualityReviewerAgent().execute(tmp_path, state, card, [])
+
+        self.assertEqual(result.status, "failed")
+        self.assertIn("overall_verdict: fail", result.output)
+        self.assertIn("non_empty: fail", result.output)
+
+    def test_run_task_can_execute_literature_specialist_card(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            doc_a = tmp_path / "reference-a.md"
+            doc_b = tmp_path / "reference-b.md"
+            doc_a.write_text("# Shared\nAgent lifecycle stays explicit.\n", encoding="utf-8")
+            doc_b.write_text("# Shared\nQuality review stays explicit.\n", encoding="utf-8")
+            created = create_task(
+                base_dir=tmp_path,
+                title="Literature run",
+                goal="Trigger literature specialist through orchestrator",
+                workspace_root=tmp_path,
+                executor_name="literature-specialist",
+            )
+            route_selection = RouteSelection(
+                route=RouteSpec(
+                    name="literature-specialist-local",
+                    backend_kind="specialist_test",
+                    executor_name="literature-specialist",
+                    executor_family="cli",
+                    execution_site="local",
+                    model_hint="local",
+                    dialect_hint="plain_text",
+                    remote_capable=False,
+                    transport_kind="local_process",
+                    capabilities=RouteCapabilities(
+                        execution_kind="artifact_generation",
+                        supports_tool_loop=False,
+                        filesystem_access="workspace_read",
+                        network_access="none",
+                        deterministic=True,
+                        resumable=True,
+                    ),
+                    taxonomy=TaxonomyProfile(system_role="specialist", memory_authority="task-memory"),
+                ),
+                reason="Route literature specialist tasks to the local heuristic agent.",
+                policy_inputs={},
+            )
+            validation_tuple = _passing_validation_tuple()
+            literature_card = TaskCard(
+                goal="Compare two reference docs",
+                parent_task_id=created.task_id,
+                executor_type="literature-specialist",
+                input_context={"document_paths": [str(doc_a), str(doc_b)]},
+            )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator.select_route", return_value=route_selection):
+                    with patch("swallow.orchestrator.plan", return_value=[literature_card]):
+                        with patch("swallow.orchestrator.write_task_artifacts", return_value=validation_tuple):
+                            final_state = run_task(tmp_path, created.task_id, executor_name="literature-specialist")
+
+            events = _load_events(tmp_path, created.task_id)
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+            self.assertEqual(final_state.status, "completed")
+            self.assertEqual(final_state.executor_name, "literature-specialist")
+            self.assertEqual(final_state.route_name, "literature-specialist-local")
+            self.assertEqual(review_gate_event["payload"]["executor_name"], "literature-specialist")
+
+    def test_run_task_can_execute_quality_reviewer_card(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifact = tmp_path / "review-target.md"
+            artifact.write_text("# Review\n\n- Next step: apply the fix.\n", encoding="utf-8")
+            created = create_task(
+                base_dir=tmp_path,
+                title="Quality review run",
+                goal="Trigger quality reviewer through orchestrator",
+                workspace_root=tmp_path,
+                executor_name="quality-reviewer",
+            )
+            route_selection = RouteSelection(
+                route=RouteSpec(
+                    name="quality-reviewer-local",
+                    backend_kind="validator_test",
+                    executor_name="quality-reviewer",
+                    executor_family="cli",
+                    execution_site="local",
+                    model_hint="local",
+                    dialect_hint="plain_text",
+                    remote_capable=False,
+                    transport_kind="local_process",
+                    capabilities=RouteCapabilities(
+                        execution_kind="artifact_validation",
+                        supports_tool_loop=False,
+                        filesystem_access="workspace_read",
+                        network_access="none",
+                        deterministic=True,
+                        resumable=True,
+                    ),
+                    taxonomy=TaxonomyProfile(system_role="validator", memory_authority="stateless"),
+                ),
+                reason="Route quality review tasks to the local heuristic validator.",
+                policy_inputs={},
+            )
+            validation_tuple = _passing_validation_tuple()
+            review_card = TaskCard(
+                goal="Review one generated artifact",
+                parent_task_id=created.task_id,
+                executor_type="quality-reviewer",
+                input_context={"artifact_ref": str(artifact), "quality_criteria": ["non_empty", "has_structure"]},
+            )
+
+            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestrator.select_route", return_value=route_selection):
+                    with patch("swallow.orchestrator.plan", return_value=[review_card]):
+                        with patch("swallow.orchestrator.write_task_artifacts", return_value=validation_tuple):
+                            final_state = run_task(tmp_path, created.task_id, executor_name="quality-reviewer")
+
+            events = _load_events(tmp_path, created.task_id)
+            review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
+            self.assertEqual(final_state.status, "completed")
+            self.assertEqual(final_state.executor_name, "quality-reviewer")
+            self.assertEqual(final_state.route_name, "quality-reviewer-local")
+            self.assertEqual(review_gate_event["payload"]["executor_name"], "quality-reviewer")

@@ -26,8 +26,10 @@ from swallow.executor import (
 from swallow.consistency_reviewer import ConsistencyReviewerAgent, ConsistencyReviewerExecutor
 from swallow.ingestion_specialist import IngestionSpecialistAgent, IngestionSpecialistExecutor
 from swallow.librarian_executor import LibrarianAgent, LibrarianExecutor
+from swallow.literature_specialist import LiteratureSpecialistAgent, LiteratureSpecialistExecutor
 from swallow.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
 from swallow.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
+from swallow.quality_reviewer import QualityReviewerAgent, QualityReviewerExecutor
 from swallow.validator_agent import ValidatorAgent, ValidatorExecutor
 
 
@@ -81,10 +83,14 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(IngestionSpecialistExecutor(), ExecutorProtocol)
         self.assertIsInstance(LibrarianAgent(), ExecutorProtocol)
         self.assertIsInstance(LibrarianExecutor(), ExecutorProtocol)
+        self.assertIsInstance(LiteratureSpecialistAgent(), ExecutorProtocol)
+        self.assertIsInstance(LiteratureSpecialistExecutor(), ExecutorProtocol)
         self.assertIsInstance(ConsistencyReviewerAgent(), ExecutorProtocol)
         self.assertIsInstance(ConsistencyReviewerExecutor(), ExecutorProtocol)
         self.assertIsInstance(MetaOptimizerAgent(), ExecutorProtocol)
         self.assertIsInstance(MetaOptimizerExecutor(), ExecutorProtocol)
+        self.assertIsInstance(QualityReviewerAgent(), ExecutorProtocol)
+        self.assertIsInstance(QualityReviewerExecutor(), ExecutorProtocol)
         self.assertIsInstance(ValidatorAgent(), ExecutorProtocol)
         self.assertIsInstance(ValidatorExecutor(), ExecutorProtocol)
 
@@ -111,7 +117,9 @@ class ExecutorProtocolTest(unittest.TestCase):
 
     def test_resolve_executor_routes_phase53_specialist_and_validator_agents(self) -> None:
         self.assertIsInstance(resolve_executor("cli", "ingestion-specialist"), IngestionSpecialistExecutor)
+        self.assertIsInstance(resolve_executor("cli", "literature-specialist"), LiteratureSpecialistExecutor)
         self.assertIsInstance(resolve_executor("cli", "consistency-reviewer"), ConsistencyReviewerExecutor)
+        self.assertIsInstance(resolve_executor("cli", "quality-reviewer"), QualityReviewerExecutor)
         self.assertIsInstance(resolve_executor("validator", "local"), ValidatorExecutor)
 
     def test_local_cli_executor_delegates_to_harness_run_execution(self) -> None:
