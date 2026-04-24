@@ -98,9 +98,9 @@ Recommended reading order: ARCHITECTURE → STATE_AND_TRUTH → KNOWLEDGE → AG
 
 ## Current Version
 
-**Tag: `v0.9.0`** — Execution Era: unified async CLI executor entrypoint, complexity-aware strategy routing, guarded fan-out orchestration, and policy-loop carryover.
+**Tag: `v1.0.0`** — Specialist Era: specialist agent ecosystem, taxonomy naming cleanup, and policy-loop carryover.
 
-Stable baseline: `437 tests passed + 8 eval passed`.
+Stable baseline: `452 tests passed + 8 eval passed`.
 
 For implementation details, see `CHANGELOG.md` and `docs/active_context.md`.
 
@@ -225,9 +225,9 @@ swl task artifacts <task-id>
 
 ## 当前版本
 
-**Tag: `v0.9.0`** — Execution Era：统一 async CLI 执行器入口 + complexity-aware 策略路由 + 带守卫的 fan-out 编排 + 延续的策略闭环能力。
+**Tag: `v1.0.0`** — Specialist Era：专项 Agent 生态、taxonomy 命名清理与延续的策略闭环能力。
 
-稳定基线：`437 tests passed + 8 eval passed`。
+稳定基线：`452 tests passed + 8 eval passed`。
 
 实现细节见 `CHANGELOG.md` 和 `docs/active_context.md`。
 

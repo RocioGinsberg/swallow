@@ -100,7 +100,7 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(route_by_name("http-qwen").dialect_hint, "plain_text")
         self.assertEqual(route_by_name("http-glm").fallback_route_name, "local-claude-code")
         self.assertEqual(route_by_name("http-gemini").fallback_route_name, "http-qwen")
-        self.assertEqual(route_by_name("http-deepseek").dialect_hint, "codex_fim")
+        self.assertEqual(route_by_name("http-deepseek").dialect_hint, "fim")
         self.assertEqual(route_by_name("local-claude-code").dialect_hint, "plain_text")
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
@@ -247,7 +247,7 @@ class RouteRegistryTest(unittest.TestCase):
                     executor_name="http",
                     backend_kind="http_api",
                     model_hint="deepseek-chat",
-                    dialect_hint="codex_fim",
+                    dialect_hint="fim",
                     fallback_route_name="http-qwen",
                     execution_site="local",
                     executor_family="api",
@@ -275,7 +275,7 @@ class RouteRegistryTest(unittest.TestCase):
             selection = select_route(state)
 
         self.assertEqual(selection.route.name, "http-deepseek")
-        self.assertEqual(selection.route.dialect_hint, "codex_fim")
+        self.assertEqual(selection.route.dialect_hint, "fim")
         self.assertIn("model hint", selection.reason)
 
     def test_select_route_prefers_claude_code_for_high_complexity(self) -> None:

@@ -425,7 +425,7 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 executor_name="http",
                 backend_kind="http_api",
                 model_hint="deepseek-chat",
-                dialect_hint="codex_fim",
+                dialect_hint="fim",
                 fallback_route_name="http-qwen",
                 executor_family="api",
                 execution_site="local",

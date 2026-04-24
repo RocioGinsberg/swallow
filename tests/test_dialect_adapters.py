@@ -122,12 +122,13 @@ class DialectAdaptersTest(unittest.TestCase):
 
     def test_resolve_dialect_name_matches_provider_model_hint_matrix(self) -> None:
         self.assertEqual(resolve_dialect_name("", "claude-3-7-sonnet"), "claude_xml")
-        self.assertEqual(resolve_dialect_name("", "codex"), "codex_fim")
-        self.assertEqual(resolve_dialect_name("", "deepseek-chat"), "codex_fim")
-        self.assertEqual(resolve_dialect_name("", "deepseek-coder-v2"), "codex_fim")
+        self.assertEqual(resolve_dialect_name("", "fim"), "fim")
+        self.assertEqual(resolve_dialect_name("", "deepseek-chat"), "fim")
+        self.assertEqual(resolve_dialect_name("", "deepseek-coder-v2"), "fim")
         self.assertEqual(resolve_dialect_name("", "qwen2.5-coder-32b-instruct"), "plain_text")
         self.assertEqual(resolve_dialect_name("", "glm-4.5-air"), "plain_text")
         self.assertEqual(resolve_dialect_name("", "gemini-2.5-pro"), "plain_text")
+        self.assertEqual(resolve_dialect_name("codex_fim", ""), "codex_fim")
 
     def test_build_formatted_executor_prompt_wraps_claude_xml_prompt(self) -> None:
         state = TaskState(
@@ -301,14 +302,14 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertIn("## Review Feedback (Round 2)", prompt)
         self.assertIn("Return a non-empty output payload.", prompt)
 
-    def test_codex_fim_falls_back_to_raw_prompt_for_non_code_routes(self) -> None:
+    def test_fim_falls_back_to_raw_prompt_for_non_code_routes(self) -> None:
         state = TaskState(
-            task_id="codex-fim-plain-001",
-            title="Codex FIM fallback",
+            task_id="fim-plain-001",
+            title="FIM fallback",
             goal="Keep non-code routes in raw form",
             workspace_root="/tmp",
-            route_model_hint="codex",
-            route_dialect="codex_fim",
+            route_model_hint="fim",
+            route_dialect="fim",
             route_capabilities={"execution_kind": "artifact_generation"},
         )
 
@@ -317,15 +318,15 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertNotIn("<fim_prefix>", prompt)
         self.assertIn("You are the executor for a swallow workflow task.", prompt)
 
-    def test_codex_fim_escapes_user_controlled_fim_markers(self) -> None:
+    def test_fim_escapes_user_controlled_fim_markers(self) -> None:
         state = TaskState(
             task_id="task-<fim_prefix>-001",
             title="Escape <fim_prefix> in title",
             goal="Keep <fim_suffix> markers inside task metadata from breaking the wrapper",
             workspace_root="/tmp",
             route_name="local-codex",
-            route_model_hint="codex",
-            route_dialect="codex_fim",
+            route_model_hint="fim",
+            route_dialect="fim",
             route_capabilities={"execution_kind": "code_execution"},
         )
 
@@ -338,15 +339,15 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertIn("Title: Escape [fim_prefix] in title", prompt)
         self.assertIn("Goal: Keep [fim_suffix] markers inside task metadata", prompt)
 
-    def test_codex_fim_prompt_keeps_review_feedback_inside_raw_prompt_section(self) -> None:
+    def test_fim_prompt_keeps_review_feedback_inside_raw_prompt_section(self) -> None:
         state = TaskState(
-            task_id="codex-feedback-001",
-            title="Codex feedback",
+            task_id="fim-feedback-001",
+            title="FIM feedback",
             goal="Retry with concrete review feedback",
             workspace_root="/tmp",
             route_name="local-codex",
-            route_model_hint="codex",
-            route_dialect="codex_fim",
+            route_model_hint="fim",
+            route_dialect="fim",
             route_capabilities={"execution_kind": "code_execution"},
             review_feedback_markdown="## Review Feedback (Round 1)\n\n- Fix the failing schema fields.",
         )
@@ -357,7 +358,7 @@ class DialectAdaptersTest(unittest.TestCase):
         self.assertIn("Review Feedback (Round 1)", prompt)
         self.assertIn("Fix the failing schema fields.", prompt)
 
-    def test_build_formatted_executor_prompt_uses_codex_fim_for_deepseek_code_route(self) -> None:
+    def test_build_formatted_executor_prompt_uses_fim_for_deepseek_code_route(self) -> None:
         state = TaskState(
             task_id="deepseek-fim-001",
             title="DeepSeek code route",
@@ -368,7 +369,7 @@ class DialectAdaptersTest(unittest.TestCase):
             route_executor_family="api",
             route_execution_site="local",
             route_model_hint="deepseek-chat",
-            route_dialect="codex_fim",
+            route_dialect="fim",
             route_capabilities={"execution_kind": "code_execution", "supports_tool_loop": False},
         )
 
