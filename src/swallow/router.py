@@ -20,7 +20,7 @@ CAPABILITY_MATCH_FIELDS = (
 )
 
 ROUTE_MODE_TO_ROUTE_NAME = {
-    "live": "local-codex",
+    "live": "local-aider",
     "http": "local-http",
     "deterministic": "local-mock",
     "offline": "local-note",
@@ -154,7 +154,10 @@ class RouteRegistry:
         for route in self.values():
             if _registered_executor_name(route.executor_name) == normalized_executor:
                 return route
-        return self.get("local-codex")
+        summary = self.maybe_get(SUMMARY_FALLBACK_ROUTE_NAME)
+        if summary is not None:
+            return summary
+        return next(iter(self.values()))
 
     def candidate_routes(
         self,
@@ -269,11 +272,11 @@ def _build_builtin_route_registry() -> RouteRegistry:
     return RouteRegistry(
         [
             RouteSpec(
-                name="local-codex",
-                executor_name="codex",
+                name="local-aider",
+                executor_name="aider",
                 backend_kind="local_cli",
-                model_hint="codex",
-                dialect_hint="codex_fim",
+                model_hint="aider",
+                dialect_hint="plain_text",
                 fallback_route_name="local-summary",
                 executor_family="cli",
                 execution_site="local",
@@ -298,7 +301,7 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 backend_kind="http_api",
                 model_hint="http-default",
                 dialect_hint="plain_text",
-                fallback_route_name="local-cline",
+                fallback_route_name="local-claude-code",
                 executor_family="api",
                 execution_site="local",
                 remote_capable=False,
@@ -370,7 +373,7 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 backend_kind="http_api",
                 model_hint="glm-4.5-air",
                 dialect_hint="plain_text",
-                fallback_route_name="local-cline",
+                fallback_route_name="local-claude-code",
                 executor_family="api",
                 execution_site="local",
                 remote_capable=False,
@@ -437,10 +440,10 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 ),
             ),
             RouteSpec(
-                name="local-cline",
-                executor_name="cline",
+                name="local-claude-code",
+                executor_name="claude-code",
                 backend_kind="local_cli",
-                model_hint="cline",
+                model_hint="claude-code",
                 dialect_hint="plain_text",
                 fallback_route_name="local-summary",
                 executor_family="cli",
@@ -487,7 +490,7 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 name="local-note",
                 executor_name="note-only",
                 backend_kind="local_fallback",
-                model_hint="codex",
+                model_hint="aider",
                 dialect_hint="plain_text",
                 executor_family="cli",
                 execution_site="local",
@@ -757,6 +760,26 @@ def _reason_with_strategy_match(base_reason: str, match_kind: str) -> str:
     return f"{base_reason} Strategy router used the default summary fallback."
 
 
+def _resolve_complexity_hint(state: TaskState) -> str:
+    semantics = state.task_semantics or {}
+    return str(semantics.get("complexity_hint", "")).strip().lower()
+
+
+def _apply_complexity_bias(candidates: list[RouteSpec], complexity_hint: str) -> list[RouteSpec]:
+    if not candidates:
+        return candidates
+    if complexity_hint in {"low", "routine"}:
+        preferred = "local-aider"
+    elif complexity_hint == "high":
+        preferred = "local-claude-code"
+    else:
+        return candidates
+    return sorted(
+        candidates,
+        key=lambda route: (0 if route.name == preferred else 1, -route.quality_weight, route.name),
+    )
+
+
 def select_route(
     state: TaskState,
     executor_override: str | None = None,
@@ -804,6 +827,7 @@ def select_route(
         reason = "Selected the route from legacy executor mode because the task kept the default executor."
 
     task_family = infer_task_family(state)
+    complexity_hint = _resolve_complexity_hint(state)
     candidates, match_kind = ROUTE_REGISTRY.candidate_routes(
         executor_name=selected_executor,
         model_hint=state.route_model_hint,
@@ -812,6 +836,24 @@ def select_route(
         required_capabilities=state.route_capabilities,
         task_family=task_family,
     )
+    if (
+        complexity_hint in {"high", "low", "routine"}
+        and executor_override is None
+        and selected_mode == "auto"
+        and configured_executor == DEFAULT_EXECUTOR
+    ):
+        strategy_candidates, strategy_match_kind = ROUTE_REGISTRY.candidate_routes(
+            executor_name="__strategy_router__",
+            model_hint="",
+            executor_family=state.route_executor_family,
+            execution_site=state.route_execution_site,
+            required_capabilities=state.route_capabilities,
+            task_family=task_family,
+        )
+        if strategy_candidates:
+            candidates = strategy_candidates
+            match_kind = strategy_match_kind
+    candidates = _apply_complexity_bias(candidates, complexity_hint)
     route = candidates[0] if candidates else route_for_executor(selected_executor)
     return RouteSelection(
         route=route,
@@ -822,5 +864,7 @@ def select_route(
             "task_executor": state.executor_name,
             "task_route_mode": state.route_mode,
             "legacy_executor_mode": os.environ.get("AIWF_EXECUTOR_MODE", ""),
+            "complexity_hint": complexity_hint,
+            "parallel_intent": complexity_hint == "parallel",
         },
     )

@@ -11,9 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 import httpx
 
 from swallow.executor import (
-    CLIAgentExecutor,
-    CLINE_CONFIG,
-    CODEX_CONFIG,
+    AIDER_CONFIG,
+    AsyncCLIAgentExecutor,
+    CLAUDE_CODE_CONFIG,
     ExecutorProtocol,
     HTTPExecutor,
     LocalCLIExecutor,
@@ -73,7 +73,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(LocalCLIExecutor(), ExecutorProtocol)
         self.assertIsInstance(MockExecutor(), ExecutorProtocol)
         self.assertIsInstance(HTTPExecutor(), ExecutorProtocol)
-        self.assertIsInstance(CLIAgentExecutor(CODEX_CONFIG), ExecutorProtocol)
+        self.assertIsInstance(AsyncCLIAgentExecutor(AIDER_CONFIG), ExecutorProtocol)
         self.assertIsInstance(LibrarianAgent(), ExecutorProtocol)
         self.assertIsInstance(LibrarianExecutor(), ExecutorProtocol)
         self.assertIsInstance(MetaOptimizerAgent(), ExecutorProtocol)
@@ -85,8 +85,8 @@ class ExecutorProtocolTest(unittest.TestCase):
 
     def test_resolve_executor_routes_http_and_cli_agent_names(self) -> None:
         self.assertIsInstance(resolve_executor("http", "http"), HTTPExecutor)
-        self.assertIsInstance(resolve_executor("cli", "codex"), CLIAgentExecutor)
-        self.assertIsInstance(resolve_executor("cli", "cline"), CLIAgentExecutor)
+        self.assertIsInstance(resolve_executor("cli", "aider"), AsyncCLIAgentExecutor)
+        self.assertIsInstance(resolve_executor("cli", "claude-code"), AsyncCLIAgentExecutor)
 
     def test_resolve_executor_keeps_local_summary_paths_on_local_cli_adapter(self) -> None:
         self.assertIsInstance(resolve_executor("cli", "local"), LocalCLIExecutor)
@@ -112,7 +112,7 @@ class ExecutorProtocolTest(unittest.TestCase):
             RetrievalItem(path="README.md", source_type="repo", score=1, preview="planner protocol"),
         ]
         expected = ExecutorResult(
-            executor_name="codex",
+            executor_name="aider",
             status="completed",
             message="Delegated.",
             output="ok",
@@ -156,11 +156,11 @@ class ExecutorProtocolTest(unittest.TestCase):
             title="CLI agent execution adapter",
             goal="Delegate through harness",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
         )
         card = TaskCard(goal=state.goal, parent_task_id=state.task_id)
         expected = ExecutorResult(
-            executor_name="codex",
+            executor_name="aider",
             status="completed",
             message="Delegated.",
             output="ok",
@@ -169,7 +169,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             with patch("swallow.harness.run_execution", return_value=expected) as execution_mock:
-                result = CLIAgentExecutor(CODEX_CONFIG).execute(tmp_path, state, card, [])
+                result = AsyncCLIAgentExecutor(AIDER_CONFIG).execute(tmp_path, state, card, [])
 
         execution_mock.assert_called_once_with(tmp_path, state, [])
         self.assertEqual(result, expected)
@@ -344,9 +344,9 @@ class ExecutorProtocolTest(unittest.TestCase):
         with self.assertRaises(UnknownExecutorError):
             run_executor_inline(state, [])
 
-    def test_cli_agent_configs_cover_codex_and_cline(self) -> None:
-        self.assertEqual(CODEX_CONFIG.executor_name, "codex")
-        self.assertEqual(CLINE_CONFIG.executor_name, "cline")
+    def test_cli_agent_configs_cover_aider_and_claude_code(self) -> None:
+        self.assertEqual(AIDER_CONFIG.executor_name, "aider")
+        self.assertEqual(CLAUDE_CODE_CONFIG.executor_name, "claude-code")
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ class PlannerTest(unittest.TestCase):
                 ],
                 "acceptance_criteria": ["Return one task card"],
             },
-            route_name="local-codex",
+            route_name="local-aider",
             route_executor_family="cli",
         )
 
@@ -34,7 +34,7 @@ class PlannerTest(unittest.TestCase):
         card = cards[0]
         self.assertEqual(card.goal, state.goal)
         self.assertEqual(card.parent_task_id, state.task_id)
-        self.assertEqual(card.route_hint, "local-codex")
+        self.assertEqual(card.route_hint, "local-aider")
         self.assertEqual(card.executor_type, "cli")
         self.assertEqual(card.constraints, state.task_semantics["constraints"])
         self.assertEqual(
@@ -106,7 +106,7 @@ class PlannerTest(unittest.TestCase):
                     "canonicalization_intent": "promote",
                 }
             ],
-            route_name="local-codex",
+            route_name="local-aider",
             route_executor_family="cli",
             route_execution_site="local",
             route_taxonomy_memory_authority="task-state",
@@ -140,7 +140,7 @@ class PlannerTest(unittest.TestCase):
                     "Add planner regression coverage",
                 ],
             },
-            route_name="local-codex",
+            route_name="local-aider",
             route_executor_family="cli",
         )
 
@@ -174,7 +174,7 @@ class PlannerTest(unittest.TestCase):
                     "Ignore overflow action",
                 ],
             },
-            route_name="local-codex",
+            route_name="local-aider",
             route_executor_family="cli",
         )
 

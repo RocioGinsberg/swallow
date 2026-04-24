@@ -23,13 +23,14 @@ from swallow.capabilities import (
 )
 from swallow.execution_fit import build_execution_fit_report, evaluate_execution_fit
 from swallow.executor import (
+    AIDER_CONFIG,
     build_formatted_executor_prompt,
     build_fallback_output,
     classify_failure_kind,
     normalize_executor_name,
     resolve_dialect_name,
     resolve_executor_name,
-    run_codex_executor,
+    run_cli_agent_executor,
 )
 from swallow.harness import (
     build_remote_handoff_contract_record,
@@ -100,7 +101,7 @@ class CliLifecycleTest(unittest.TestCase):
                 "workflow:task_loop",
                 "validator:run_output_validation",
                 "skill:plan-task",
-                "tool:doctor.codex",
+                "tool:doctor.executor",
             ]
         )
 
@@ -108,7 +109,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(manifest.workflow_refs, ["task_loop"])
         self.assertEqual(manifest.validator_refs, ["run_output_validation"])
         self.assertEqual(manifest.skill_refs, ["plan-task"])
-        self.assertEqual(manifest.tool_refs, ["doctor.codex"])
+        self.assertEqual(manifest.tool_refs, ["doctor.executor"])
 
     def test_validate_capability_manifest_reports_unknown_refs(self) -> None:
         manifest = parse_capability_refs(
@@ -6200,7 +6201,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertEqual(retrieval[0]["metadata"]["chunk_kind"], "markdown_section")
                 self.assertEqual(retrieval[0]["metadata"]["title_source"], "heading")
 
-    def test_task_failure_when_codex_binary_is_missing(self) -> None:
+    def test_task_falls_back_to_local_summary_when_aider_binary_is_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             notes = tmp_path / "notes.md"
@@ -6208,7 +6209,7 @@ class CliLifecycleTest(unittest.TestCase):
 
             with patch.dict(
                 "os.environ",
-                {"AIWF_CODEX_BIN": "definitely-not-a-real-codex-binary", "AIWF_EXECUTOR_MODE": "codex"},
+                {"AIWF_AIDER_BIN": "definitely-not-a-real-aider-binary", "AIWF_EXECUTOR_MODE": "aider"},
                 clear=False,
             ):
                 exit_code = main(
@@ -6220,7 +6221,7 @@ class CliLifecycleTest(unittest.TestCase):
                         "--title",
                         "Failing executor",
                         "--goal",
-                        "Exercise codex adapter failure handling",
+                        "Exercise aider adapter failure handling",
                         "--workspace-root",
                         str(tmp_path),
                     ]
@@ -6246,39 +6247,33 @@ class CliLifecycleTest(unittest.TestCase):
                 )
                 memory = json.loads((tasks_dir / task_id / "memory.json").read_text(encoding="utf-8"))
 
-                fallback_primary_output = (
-                    tasks_dir / task_id / "artifacts" / "fallback_primary_executor_output.md"
-                ).read_text(encoding="utf-8")
-                fallback_primary_stderr = (
-                    tasks_dir / task_id / "artifacts" / "fallback_primary_executor_stderr.txt"
-                ).read_text(encoding="utf-8")
-
                 self.assertIn('"status": "completed"', state)
-                self.assertIn("Selected fallback route 'local-summary'", summary)
+                self.assertIn("route_reason: Executor-level route fallback selected 'local-summary'", summary)
                 self.assertIn("# Local Executor Update", executor_output)
                 self.assertEqual(executor_stdout.strip(), "")
                 self.assertEqual(executor_stderr.strip(), "")
-                self.assertIn("Codex binary not found", fallback_primary_output)
-                self.assertIn("definitely-not-a-real-codex-binary", fallback_primary_stderr)
+                self.assertIn('"route_name": "local-summary"', state)
+                self.assertIn('"route_is_fallback": true', state)
                 self.assertEqual(memory["status"], "completed")
 
-    def test_codex_timeout_preserves_partial_output(self) -> None:
+    def test_aider_timeout_preserves_partial_output(self) -> None:
         state = TaskState(
             task_id="timeout123",
             title="Timeout executor",
             goal="Keep partial output on timeout",
             workspace_root="/tmp",
+            route_name="",
         )
         timeout_exc = subprocess.TimeoutExpired(
-            cmd=["codex", "exec"],
+            cmd=["aider", "--yes-always"],
             timeout=5,
             output="partial stdout",
             stderr="partial stderr",
         )
 
-        with patch("swallow.executor.shutil.which", return_value="/usr/bin/codex"):
+        with patch("swallow.executor.shutil.which", return_value="/usr/bin/aider"):
             with patch("swallow.executor.subprocess.run", side_effect=timeout_exc):
-                result = run_codex_executor(state, [])
+                result = run_cli_agent_executor(AIDER_CONFIG, state, [])
 
         self.assertEqual(result.status, "failed")
         self.assertIn("timed out", result.message)
@@ -6332,7 +6327,7 @@ class CliLifecycleTest(unittest.TestCase):
             workspace_root="/tmp",
         )
         unreachable_result = ExecutorResult(
-            executor_name="codex",
+            executor_name="aider",
             status="failed",
             message="Backend connection failed.",
             output="failed to connect to websocket",
@@ -6343,39 +6338,39 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("outbound network and websocket access", note)
         self.assertIn("backend connectivity", note)
 
-    def test_doctor_codex_missing_binary_returns_nonzero(self) -> None:
+    def test_doctor_executor_missing_binary_returns_nonzero(self) -> None:
         stdout = StringIO()
         with patch("swallow.doctor.shutil.which", return_value=None):
             with redirect_stdout(stdout):
-                exit_code = main(["doctor", "codex"])
+                exit_code = main(["doctor", "executor"])
         self.assertNotEqual(exit_code, 0)
         output = stdout.getvalue()
         self.assertIn("binary_found=no", output)
         self.assertIn("launch_ok=no", output)
         self.assertIn("note_only_recommended=yes", output)
 
-    def test_doctor_codex_success_returns_zero(self) -> None:
+    def test_doctor_executor_success_returns_zero(self) -> None:
         stdout = StringIO()
         completed = subprocess.CompletedProcess(
-            args=["codex", "--version"],
+            args=["aider", "--version"],
             returncode=0,
-            stdout="codex 1.2.3",
+            stdout="aider 1.2.3",
             stderr="",
         )
-        with patch("swallow.doctor.shutil.which", return_value="/usr/bin/codex"):
+        with patch("swallow.doctor.shutil.which", return_value="/usr/bin/aider"):
             with patch("swallow.doctor.subprocess.run", return_value=completed):
                 with redirect_stdout(stdout):
-                    exit_code = main(["doctor", "codex"])
+                    exit_code = main(["doctor", "executor"])
         self.assertEqual(exit_code, 0)
         output = stdout.getvalue()
         self.assertIn("binary_found=yes", output)
         self.assertIn("launch_ok=yes", output)
         self.assertIn("note_only_recommended=no", output)
 
-    def test_doctor_without_subcommand_runs_codex_and_stack_checks(self) -> None:
+    def test_doctor_without_subcommand_runs_executor_and_stack_checks(self) -> None:
         stdout = StringIO()
-        with patch("swallow.cli.diagnose_codex", return_value=(0, object())) as mocked_codex:
-            with patch("swallow.cli.format_codex_doctor_result", return_value="codex-ok"):
+        with patch("swallow.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
+            with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok"):
                 with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
                     with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
                         with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
@@ -6383,35 +6378,35 @@ class CliLifecycleTest(unittest.TestCase):
                                 with redirect_stdout(stdout):
                                     exit_code = main(["doctor"])
         self.assertEqual(exit_code, 0)
-        mocked_codex.assert_called_once_with()
+        mocked_executor.assert_called_once_with()
         mocked_sqlite.assert_called_once()
         mocked_stack.assert_called_once_with()
-        self.assertEqual(stdout.getvalue(), "codex-ok\n\nsqlite-ok\n\nstack-ok\n")
+        self.assertEqual(stdout.getvalue(), "executor-ok\n\nsqlite-ok\n\nstack-ok\n")
 
-    def test_doctor_skip_stack_only_runs_codex_check(self) -> None:
+    def test_doctor_skip_stack_only_runs_executor_check(self) -> None:
         stdout = StringIO()
-        with patch("swallow.cli.diagnose_codex", return_value=(0, object())) as mocked_codex:
-            with patch("swallow.cli.format_codex_doctor_result", return_value="codex-ok"):
+        with patch("swallow.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
+            with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok"):
                 with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
                     with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
                         with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
                             with redirect_stdout(stdout):
                                 exit_code = main(["doctor", "--skip-stack"])
         self.assertEqual(exit_code, 0)
-        mocked_codex.assert_called_once_with()
+        mocked_executor.assert_called_once_with()
         mocked_sqlite.assert_called_once()
         mocked_stack.assert_not_called()
-        self.assertEqual(stdout.getvalue(), "codex-ok\n\nsqlite-ok\n")
+        self.assertEqual(stdout.getvalue(), "executor-ok\n\nsqlite-ok\n")
 
     def test_doctor_sqlite_subcommand_runs_sqlite_check_only(self) -> None:
         stdout = StringIO()
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("swallow.cli.diagnose_codex") as mocked_codex:
+            with patch("swallow.cli.diagnose_executor") as mocked_executor:
                 with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
                     with redirect_stdout(stdout):
                         exit_code = main(["--base-dir", tmp, "doctor", "sqlite"])
         self.assertEqual(exit_code, 0)
-        mocked_codex.assert_not_called()
+        mocked_executor.assert_not_called()
         mocked_stack.assert_not_called()
         output = stdout.getvalue()
         self.assertIn("db_path=", output)
@@ -6419,13 +6414,13 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_stack_subcommand_runs_stack_check_only(self) -> None:
         stdout = StringIO()
-        with patch("swallow.cli.diagnose_codex") as mocked_codex:
+        with patch("swallow.cli.diagnose_executor") as mocked_executor:
             with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
                 with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
                     with redirect_stdout(stdout):
                         exit_code = main(["doctor", "stack"])
         self.assertEqual(exit_code, 0)
-        mocked_codex.assert_not_called()
+        mocked_executor.assert_not_called()
         mocked_stack.assert_called_once_with()
         self.assertEqual(stdout.getvalue(), "stack-ok\n")
 
@@ -8656,7 +8651,7 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertIn("FastAPI is required for `swl serve`.", stdout.getvalue())
 
-    def test_create_task_persists_route_dialect_for_default_codex_route(self) -> None:
+    def test_create_task_persists_route_dialect_for_default_aider_route(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
             state = create_task(
@@ -8670,9 +8665,9 @@ class CliLifecycleTest(unittest.TestCase):
                 (base_dir / ".swl" / "tasks" / state.task_id / "state.json").read_text(encoding="utf-8")
             )
 
-        self.assertEqual(state.route_name, "local-codex")
-        self.assertEqual(state.route_dialect, "codex_fim")
-        self.assertEqual(persisted["route_dialect"], "codex_fim")
+        self.assertEqual(state.route_name, "local-aider")
+        self.assertEqual(state.route_dialect, "plain_text")
+        self.assertEqual(persisted["route_dialect"], "plain_text")
 
     def test_select_route_uses_override_before_legacy_mode(self) -> None:
         state = TaskState(
@@ -8680,7 +8675,7 @@ class CliLifecycleTest(unittest.TestCase):
             title="Route selection",
             goal="Prefer explicit route selection",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
         )
 
         with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
@@ -8702,7 +8697,7 @@ class CliLifecycleTest(unittest.TestCase):
             title="Route selection",
             goal="Use legacy mode only for default tasks",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
         )
 
         with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
@@ -8722,7 +8717,7 @@ class CliLifecycleTest(unittest.TestCase):
             title="Route selection",
             goal="Use route mode policy inputs",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
             route_mode="deterministic",
         )
 
@@ -8775,9 +8770,9 @@ class CliLifecycleTest(unittest.TestCase):
             title="Compatibility warning",
             goal="Surface compatibility warnings",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
             route_mode="live",
-            route_name="local-codex",
+            route_name="local-aider",
             route_backend="local_cli",
             route_capabilities={
                 "execution_kind": "code_execution",
@@ -8789,7 +8784,7 @@ class CliLifecycleTest(unittest.TestCase):
             },
         )
         executor_result = ExecutorResult(
-            executor_name="codex",
+            executor_name="aider",
             status="completed",
             message="Execution finished.",
             output="done",
@@ -8807,9 +8802,9 @@ class CliLifecycleTest(unittest.TestCase):
             title="Compatibility failure",
             goal="Block route-policy mismatches",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
             route_mode="deterministic",
-            route_name="local-codex",
+            route_name="local-aider",
             route_backend="local_cli",
             route_capabilities={
                 "execution_kind": "code_execution",
@@ -8821,7 +8816,7 @@ class CliLifecycleTest(unittest.TestCase):
             },
         )
         executor_result = ExecutorResult(
-            executor_name="codex",
+            executor_name="aider",
             status="completed",
             message="Execution finished.",
             output="done",

@@ -18,7 +18,7 @@ from swallow.subtask_orchestrator import AsyncSubtaskOrchestrator, SubtaskOrches
 def _build_card(goal: str, *, subtask_index: int, depends_on: list[str] | None = None) -> TaskCard:
     return TaskCard(
         goal=goal,
-        route_hint="local-codex",
+        route_hint="local-aider",
         executor_type="cli",
         parent_task_id="task-subtasks",
         subtask_index=subtask_index,

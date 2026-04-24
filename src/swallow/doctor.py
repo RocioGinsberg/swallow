@@ -19,7 +19,7 @@ class DoctorResult:
     launch_ok: bool
     executor_mode: str
     note_only_recommended: bool
-    codex_bin: str
+    executor_bin: str
     details: str = ""
 
 
@@ -271,23 +271,23 @@ def diagnose_sqlite_store(base_dir: Path) -> tuple[int, SqliteDoctorResult]:
     return exit_code, result
 
 
-def diagnose_codex() -> tuple[int, DoctorResult]:
-    executor_mode = os.environ.get("AIWF_EXECUTOR_MODE", "codex").strip().lower() or "codex"
-    codex_bin = os.environ.get("AIWF_CODEX_BIN", "codex").strip() or "codex"
-    resolved = shutil.which(codex_bin)
+def diagnose_executor() -> tuple[int, DoctorResult]:
+    executor_mode = os.environ.get("AIWF_EXECUTOR_MODE", "aider").strip().lower() or "aider"
+    executor_bin = os.environ.get("AIWF_AIDER_BIN", "aider").strip() or "aider"
+    resolved = shutil.which(executor_bin)
     if not resolved:
         return 1, DoctorResult(
             binary_found=False,
             launch_ok=False,
             executor_mode=executor_mode,
             note_only_recommended=True,
-            codex_bin=codex_bin,
-            details="Codex binary not found in PATH.",
+            executor_bin=executor_bin,
+            details="Executor binary not found in PATH.",
         )
 
     try:
         completed = subprocess.run(
-            [codex_bin, "--version"],
+            [executor_bin, "--version"],
             check=False,
             capture_output=True,
             text=True,
@@ -300,8 +300,8 @@ def diagnose_codex() -> tuple[int, DoctorResult]:
             launch_ok=False,
             executor_mode=executor_mode,
             note_only_recommended=True,
-            codex_bin=resolved,
-            details=f"Codex launch check failed: {exc}",
+            executor_bin=resolved,
+            details=f"Executor launch check failed: {exc}",
         )
 
     launch_ok = completed.returncode == 0
@@ -311,12 +311,12 @@ def diagnose_codex() -> tuple[int, DoctorResult]:
         launch_ok=launch_ok,
         executor_mode=executor_mode,
         note_only_recommended=not launch_ok,
-        codex_bin=resolved,
+        executor_bin=resolved,
         details=details,
     )
 
 
-def format_codex_doctor_result(result: DoctorResult) -> str:
+def format_executor_doctor_result(result: DoctorResult) -> str:
     lines = [
         f"binary_found={'yes' if result.binary_found else 'no'}",
         f"launch_ok={'yes' if result.launch_ok else 'no'}",

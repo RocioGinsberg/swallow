@@ -27,10 +27,10 @@ from .canonical_registry import (
     build_staged_canonical_key,
 )
 from .doctor import (
-    diagnose_codex,
+    diagnose_executor,
     diagnose_local_stack,
     diagnose_sqlite_store,
-    format_codex_doctor_result,
+    format_executor_doctor_result,
     format_local_stack_doctor_result,
     format_sqlite_doctor_result,
 )
@@ -1435,8 +1435,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     create_parser.add_argument(
         "--executor",
-        default="codex",
-        help="Executor to persist for the task. Defaults to codex.",
+        default="aider",
+        help="Executor to persist for the task. Defaults to aider.",
     )
     create_parser.add_argument(
         "--constraint",
@@ -2058,7 +2058,8 @@ def build_parser() -> argparse.ArgumentParser:
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
-    doctor_subparsers.add_parser("codex", help="Run a minimal Codex executor preflight.")
+    doctor_subparsers.add_parser("executor", help="Run a minimal live executor preflight.")
+    doctor_subparsers.add_parser("codex", help="Deprecated alias for `doctor executor`.")
     doctor_subparsers.add_parser("sqlite", help="Inspect the SQLite store and migration status.")
     doctor_subparsers.add_parser("stack", help="Run local Docker / WireGuard / proxy health checks.")
 
@@ -3259,9 +3260,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "doctor":
-        if args.doctor_command == "codex":
-            exit_code, result = diagnose_codex()
-            print(format_codex_doctor_result(result))
+        if args.doctor_command in {"executor", "codex"}:
+            exit_code, result = diagnose_executor()
+            print(format_executor_doctor_result(result))
             return exit_code
         if args.doctor_command == "sqlite":
             exit_code, result = diagnose_sqlite_store(base_dir)
@@ -3272,20 +3273,20 @@ def main(argv: list[str] | None = None) -> int:
             print(format_local_stack_doctor_result(result))
             return exit_code
 
-        codex_exit_code, codex_result = diagnose_codex()
-        print(format_codex_doctor_result(codex_result))
+        executor_exit_code, executor_result = diagnose_executor()
+        print(format_executor_doctor_result(executor_result))
 
         sqlite_exit_code, sqlite_result = diagnose_sqlite_store(base_dir)
         print()
         print(format_sqlite_doctor_result(sqlite_result))
 
         if args.skip_stack:
-            return 0 if codex_exit_code == 0 and sqlite_exit_code == 0 else 1
+            return 0 if executor_exit_code == 0 and sqlite_exit_code == 0 else 1
 
         stack_exit_code, stack_result = diagnose_local_stack()
         print()
         print(format_local_stack_doctor_result(stack_result))
-        return 0 if codex_exit_code == 0 and sqlite_exit_code == 0 and stack_exit_code == 0 else 1
+        return 0 if executor_exit_code == 0 and sqlite_exit_code == 0 and stack_exit_code == 0 else 1
 
     parser.error("Unsupported command.")
     return 2

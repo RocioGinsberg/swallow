@@ -181,6 +181,7 @@ EXECUTOR_ARTIFACT_NAMES = (
 )
 
 DEBATE_MAX_ROUNDS = 3
+_BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
 
 
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
@@ -231,19 +232,34 @@ def _dispatch_status_for_transport(transport_kind: str) -> str:
     return "local_dispatched"
 
 
-def _maybe_schedule_consistency_audit(base_dir: Path, state: TaskState) -> None:
+async def _wait_for_background_consistency_audits(timeout_seconds: float = 5.0) -> None:
+    if not _BACKGROUND_CONSISTENCY_AUDIT_TASKS:
+        return
+    pending = tuple(_BACKGROUND_CONSISTENCY_AUDIT_TASKS)
+    try:
+        await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        return
+
+
+async def _maybe_schedule_consistency_audit(base_dir: Path, state: TaskState) -> None:
     policy = load_audit_trigger_policy(base_dir)
     executor_payload = load_latest_executor_event_payload(base_dir, state.task_id)
     trigger_reasons = evaluate_audit_trigger(policy, executor_payload)
     if not trigger_reasons:
         return
 
-    thread_name = schedule_consistency_audit(
-        base_dir,
-        state.task_id,
-        auditor_route=policy.auditor_route,
-        sample_artifact_path="executor_output.md",
+    audit_task = asyncio.create_task(
+        schedule_consistency_audit(
+            base_dir,
+            state.task_id,
+            auditor_route=policy.auditor_route,
+            sample_artifact_path="executor_output.md",
+        ),
+        name=f"swallow-audit-{state.task_id[:8]}",
     )
+    _BACKGROUND_CONSISTENCY_AUDIT_TASKS.add(audit_task)
+    audit_task.add_done_callback(_BACKGROUND_CONSISTENCY_AUDIT_TASKS.discard)
     append_event(
         base_dir,
         Event(
@@ -261,7 +277,7 @@ def _maybe_schedule_consistency_audit(base_dir: Path, state: TaskState) -> None:
                 "executor_route_name": str(
                     executor_payload.get("physical_route") or executor_payload.get("route_name") or ""
                 ).strip(),
-                "thread_name": thread_name,
+                "thread_name": audit_task.get_name(),
             },
         ),
     )
@@ -2377,7 +2393,7 @@ def create_task(
     title: str,
     goal: str,
     workspace_root: Path,
-    executor_name: str = "codex",
+    executor_name: str = "aider",
     constraints: list[str] | None = None,
     acceptance_criteria: list[str] | None = None,
     priority_hints: list[str] | None = None,
@@ -3514,7 +3530,7 @@ async def run_task_async(
             ),
         )
     else:
-        _maybe_schedule_consistency_audit(base_dir, state)
+        await _maybe_schedule_consistency_audit(base_dir, state)
         append_event(
             base_dir,
             Event(
@@ -3574,6 +3590,7 @@ async def run_task_async(
                 },
             ),
         )
+    await _wait_for_background_consistency_audits()
     return state
 
 

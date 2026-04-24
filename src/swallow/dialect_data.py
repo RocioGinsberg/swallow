@@ -15,11 +15,12 @@ from .models import RetrievalItem, TaskState
 from .retrieval import summarize_reused_knowledge
 
 
-DEFAULT_EXECUTOR = "codex"
+DEFAULT_EXECUTOR = "aider"
 EXECUTOR_ALIASES = {
     "": DEFAULT_EXECUTOR,
-    "codex": "codex",
-    "cline": "cline",
+    "aider": "aider",
+    "claude-code": "claude-code",
+    "claude_code": "claude-code",
     "http": "http",
     "mock": "mock",
     "mock-remote": "mock-remote",
@@ -58,6 +59,7 @@ class RoutePromptData:
 class SemanticsPromptData:
     source_kind: str
     source_ref: str
+    complexity_hint: str = ""
     constraints: list[str] = field(default_factory=list)
     acceptance_criteria: list[str] = field(default_factory=list)
     priority_hints: list[str] = field(default_factory=list)
@@ -208,6 +210,7 @@ def _collect_semantics_data(state: TaskState) -> SemanticsPromptData | None:
     return SemanticsPromptData(
         source_kind=str(semantics.get("source_kind", "unknown")) or "unknown",
         source_ref=str(semantics.get("source_ref", "")).strip() or "none",
+        complexity_hint=str(semantics.get("complexity_hint", "")).strip().lower(),
         constraints=_clean_string_list(semantics.get("constraints", [])),
         acceptance_criteria=_clean_string_list(semantics.get("acceptance_criteria", [])),
         priority_hints=_clean_string_list(semantics.get("priority_hints", [])),

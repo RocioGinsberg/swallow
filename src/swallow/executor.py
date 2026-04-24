@@ -151,32 +151,30 @@ class CLIAgentConfig:
     workspace_root_flags: tuple[str, ...] = ()
 
 
-CODEX_CONFIG = CLIAgentConfig(
-    executor_name="codex",
-    display_name="Codex",
-    bin_env_var="AIWF_CODEX_BIN",
-    default_bin="codex",
-    fixed_args=("exec", "--skip-git-repo-check", "--full-auto", "--ephemeral", "--color", "never"),
-    output_path_flags=("--output-last-message",),
-    workspace_root_flags=("--cd",),
+AIDER_CONFIG = CLIAgentConfig(
+    executor_name="aider",
+    display_name="Aider",
+    bin_env_var="AIWF_AIDER_BIN",
+    default_bin="aider",
+    fixed_args=("--yes-always", "--no-auto-commits"),
 )
 
-CLINE_CONFIG = CLIAgentConfig(
-    executor_name="cline",
-    display_name="Cline",
-    bin_env_var="AIWF_CLINE_BIN",
-    default_bin="cline",
-    fixed_args=("-y",),
+CLAUDE_CODE_CONFIG = CLIAgentConfig(
+    executor_name="claude-code",
+    display_name="Claude Code",
+    bin_env_var="AIWF_CLAUDE_CODE_BIN",
+    default_bin="claude",
+    fixed_args=("--print",),
 )
 
 CLI_AGENT_CONFIGS = {
-    CODEX_CONFIG.executor_name: CODEX_CONFIG,
-    CLINE_CONFIG.executor_name: CLINE_CONFIG,
+    AIDER_CONFIG.executor_name: AIDER_CONFIG,
+    CLAUDE_CODE_CONFIG.executor_name: CLAUDE_CODE_CONFIG,
 }
 
 
-class CLIAgentExecutor:
-    """Adapter for brand-configured CLI agents that still run through the harness."""
+class AsyncCLIAgentExecutor:
+    """Adapter for config-driven CLI agents while runtime v0 still delegates through the harness."""
 
     def __init__(self, config: CLIAgentConfig) -> None:
         self.config = config
@@ -220,7 +218,7 @@ def resolve_executor(executor_type: str, executor_name: str) -> ExecutorProtocol
     if normalized_name == "http" or normalized_type in {"http", "api"}:
         return HTTPExecutor()
     if normalized_name in CLI_AGENT_CONFIGS:
-        return CLIAgentExecutor(CLI_AGENT_CONFIGS[normalized_name])
+        return AsyncCLIAgentExecutor(CLI_AGENT_CONFIGS[normalized_name])
     return LocalCLIExecutor()
 
 
@@ -275,6 +273,8 @@ class StructuredMarkdownDialect:
                     f"- source_ref: {prompt_data.semantics.source_ref}",
                 ]
             )
+            if prompt_data.semantics.complexity_hint:
+                lines.append(f"- complexity_hint: {prompt_data.semantics.complexity_hint}")
             for label, values in [
                 ("constraints", prompt_data.semantics.constraints),
                 ("acceptance_criteria", prompt_data.semantics.acceptance_criteria),
@@ -449,7 +449,7 @@ def resolve_http_model_name(state: TaskState) -> str:
 
 def _executor_route_fallback_enabled(state: TaskState) -> bool:
     route_name = str(state.route_name or "").strip().lower()
-    return route_name.startswith("http-") or route_name in {"local-http", "local-cline"}
+    return route_name.startswith("http-") or route_name in {"local-http", "local-aider", "local-claude-code"}
 
 
 def _load_fallback_route(route_name: str) -> RouteSpec | None:
@@ -553,16 +553,18 @@ def run_prompt_executor(
             visited_routes=visited_routes,
             original_route_name=original_route_name,
         )
-    if executor_name == "codex":
-        return run_codex_executor(
+    if executor_name == "aider":
+        return run_cli_agent_executor(
+            AIDER_CONFIG,
             state,
             retrieval_items,
             prompt,
             visited_routes=visited_routes,
             original_route_name=original_route_name,
         )
-    if executor_name == "cline":
-        return run_cline_executor(
+    if executor_name == "claude-code":
+        return run_cli_agent_executor(
+            CLAUDE_CODE_CONFIG,
             state,
             retrieval_items,
             prompt,
@@ -597,18 +599,18 @@ async def run_prompt_executor_async(
             visited_routes=visited_routes,
             original_route_name=original_route_name,
         )
-    if executor_name == "codex":
-        return await asyncio.to_thread(
-            run_codex_executor,
+    if executor_name == "aider":
+        return await run_cli_agent_executor_async(
+            AIDER_CONFIG,
             state,
             retrieval_items,
             prompt,
             visited_routes=visited_routes,
             original_route_name=original_route_name,
         )
-    if executor_name == "cline":
-        return await asyncio.to_thread(
-            run_cline_executor,
+    if executor_name == "claude-code":
+        return await run_cli_agent_executor_async(
+            CLAUDE_CODE_CONFIG,
             state,
             retrieval_items,
             prompt,
@@ -952,6 +954,8 @@ def build_executor_prompt(state: TaskState, retrieval_items: list[RetrievalItem]
                 f"- source_ref: {prompt_data.semantics.source_ref}",
             ]
         )
+        if prompt_data.semantics.complexity_hint:
+            lines.append(f"- complexity_hint: {prompt_data.semantics.complexity_hint}")
         for label, values in [
             ("constraints", prompt_data.semantics.constraints),
             ("acceptance_criteria", prompt_data.semantics.acceptance_criteria),
@@ -1344,7 +1348,7 @@ def run_cli_agent_executor(
     visited_routes: set[str] | None = None,
     original_route_name: str | None = None,
 ) -> ExecutorResult:
-    prompt = prompt or build_executor_prompt(state, retrieval_items)
+    prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
     agent_bin = resolve_cli_agent_binary(config)
     timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
     if not shutil.which(agent_bin):
@@ -1461,7 +1465,8 @@ def run_cli_agent_executor(
         )
 
 
-def run_codex_executor(
+async def run_cli_agent_executor_async(
+    config: CLIAgentConfig,
     state: TaskState,
     retrieval_items: list[RetrievalItem],
     prompt: str | None = None,
@@ -1469,32 +1474,120 @@ def run_codex_executor(
     visited_routes: set[str] | None = None,
     original_route_name: str | None = None,
 ) -> ExecutorResult:
-    return run_cli_agent_executor(
-        CODEX_CONFIG,
-        state,
-        retrieval_items,
-        prompt,
-        visited_routes=visited_routes,
-        original_route_name=original_route_name,
-    )
+    prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
+    agent_bin = resolve_cli_agent_binary(config)
+    timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
+    if not shutil.which(agent_bin):
+        result = ExecutorResult(
+            executor_name=config.executor_name,
+            status="failed",
+            message=f"{config.display_name} binary not found: {agent_bin}",
+            prompt=prompt,
+            failure_kind="launch_error",
+            stdout="",
+            stderr=f"{config.display_name} binary not found: {agent_bin}",
+        )
+        return _apply_executor_route_fallback(
+            state,
+            retrieval_items,
+            result,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
 
+    with tempfile.TemporaryDirectory(prefix=f"swl-{config.executor_name}-") as temp_dir:
+        output_path = Path(temp_dir) / "last_message.txt" if config.output_path_flags else None
+        command = _build_cli_agent_command(
+            config,
+            workspace_root=state.workspace_root,
+            prompt=prompt,
+            output_path=output_path,
+        )
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=state.workspace_root,
+            )
+        except OSError as exc:
+            result = ExecutorResult(
+                executor_name=config.executor_name,
+                status="failed",
+                message=f"Failed to launch {config.display_name}: {exc}",
+                prompt=prompt,
+                failure_kind="launch_error",
+                stdout="",
+                stderr=str(exc),
+            )
+            return _apply_executor_route_fallback(
+                state,
+                retrieval_items,
+                result,
+                visited_routes=visited_routes,
+                original_route_name=original_route_name,
+            )
 
-def run_cline_executor(
-    state: TaskState,
-    retrieval_items: list[RetrievalItem],
-    prompt: str | None = None,
-    *,
-    visited_routes: set[str] | None = None,
-    original_route_name: str | None = None,
-) -> ExecutorResult:
-    return run_cli_agent_executor(
-        CLINE_CONFIG,
-        state,
-        retrieval_items,
-        prompt,
-        visited_routes=visited_routes,
-        original_route_name=original_route_name,
-    )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=timeout_seconds)
+        except asyncio.TimeoutError:
+            process.kill()
+            stdout_bytes, stderr_bytes = await process.communicate()
+            output = (read_last_message(output_path) if output_path is not None else "") or clean_output(stdout_bytes)
+            result = ExecutorResult(
+                executor_name=config.executor_name,
+                status="failed",
+                message=f"{config.display_name} executor timed out after {timeout_seconds} seconds.",
+                output=output or clean_output(stderr_bytes),
+                prompt=prompt,
+                failure_kind="timeout",
+                stdout=clean_output(stdout_bytes),
+                stderr=clean_output(stderr_bytes),
+            )
+            return _apply_executor_route_fallback(
+                state,
+                retrieval_items,
+                result,
+                visited_routes=visited_routes,
+                original_route_name=original_route_name,
+            )
+
+        output = (read_last_message(output_path) if output_path is not None else "") or clean_output(stdout_bytes)
+        error_output = clean_output(stderr_bytes)
+        if process.returncode != 0:
+            combined_output = output or error_output
+            failure_kind = classify_failure_kind(process.returncode or 1, error_output, combined_output)
+            message = f"{config.display_name} executor failed with exit code {process.returncode}."
+            if error_output:
+                message = f"{message} {error_output}"
+            result = ExecutorResult(
+                executor_name=config.executor_name,
+                status="failed",
+                message=message,
+                output=combined_output,
+                prompt=prompt,
+                failure_kind=failure_kind,
+                stdout=clean_output(stdout_bytes),
+                stderr=error_output,
+            )
+            return _apply_executor_route_fallback(
+                state,
+                retrieval_items,
+                result,
+                visited_routes=visited_routes,
+                original_route_name=original_route_name,
+            )
+
+        return ExecutorResult(
+            executor_name=config.executor_name,
+            status="completed",
+            message=f"{config.display_name} executor completed.",
+            output=output or f"{config.display_name} completed without a final text response.",
+            prompt=prompt,
+            failure_kind="",
+            stdout=clean_output(stdout_bytes),
+            stderr=error_output,
+        )
 
 
 def parse_timeout_seconds(raw_value: str) -> int:
@@ -1657,7 +1750,7 @@ def build_failure_recommendations(failure_kind: str) -> list[str]:
         ]
     if failure_kind == "unreachable_backend":
         return [
-            "- Verify that the execution environment allows outbound network and websocket access for the Codex backend.",
+            "- Verify that the execution environment allows outbound network and process execution access for the configured live executor.",
             "- Re-run after restoring backend connectivity, or continue manually from the retrieved context if connectivity cannot be restored now.",
             *common_tail,
         ]
@@ -1669,12 +1762,12 @@ def build_failure_recommendations(failure_kind: str) -> list[str]:
         ]
     if failure_kind == "launch_error":
         return [
-            "- Verify that the Codex binary is installed and reachable in the current environment.",
+            "- Verify that the configured live executor binary is installed and reachable in the current environment.",
             "- Re-run after fixing the local launch configuration.",
             *common_tail,
         ]
     return [
-        "- Re-run when the Codex backend is reachable, or continue manually from the retrieved context.",
+        "- Re-run when the configured live executor is reachable, or continue manually from the retrieved context.",
         *common_tail,
     ]
 

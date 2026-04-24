@@ -13,7 +13,7 @@ KNOWN_PROFILE_REFS = {"baseline_local", "research_local"}
 KNOWN_WORKFLOW_REFS = {"task_loop"}
 KNOWN_VALIDATOR_REFS = {"run_output_validation", "strict_validation"}
 KNOWN_SKILL_REFS = {"plan-task"}
-KNOWN_TOOL_REFS = {"doctor.codex"}
+KNOWN_TOOL_REFS = {"doctor.executor"}
 
 
 def parse_capability_refs(raw_values: list[str] | None) -> CapabilityManifest:
