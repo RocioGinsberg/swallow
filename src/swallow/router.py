@@ -40,6 +40,11 @@ ROUTE_MODE_ALIASES = {
     "summary": "summary",
 }
 
+ROUTE_NAME_ALIASES = {
+    "local-codex": "local-aider",
+    "local-cline": "local-claude-code",
+}
+
 
 def _registered_executor_name(raw_name: str | None) -> str:
     raw = (raw_name or "").strip().lower()
@@ -585,6 +590,16 @@ def normalize_route_mode(raw_mode: str | None) -> str:
     return ROUTE_MODE_ALIASES.get(normalized, "auto")
 
 
+def normalize_route_name(raw_name: str | None) -> str:
+    normalized = str(raw_name or "").strip()
+    if not normalized:
+        return ""
+    if normalized.endswith("-detached"):
+        base_name = normalized[: -len("-detached")]
+        return f"{ROUTE_NAME_ALIASES.get(base_name, base_name)}-detached"
+    return ROUTE_NAME_ALIASES.get(normalized, normalized)
+
+
 def load_route_weights(base_dir: Path) -> dict[str, float]:
     path = route_weights_path(base_dir)
     if not path.exists():
@@ -598,7 +613,7 @@ def load_route_weights(base_dir: Path) -> dict[str, float]:
 
     weights: dict[str, float] = {}
     for route_name, raw_weight in payload.items():
-        normalized_name = str(route_name).strip()
+        normalized_name = normalize_route_name(route_name)
         if not normalized_name:
             continue
         weights[normalized_name] = _normalize_quality_weight(raw_weight)
@@ -609,8 +624,9 @@ def save_route_weights(base_dir: Path, weights: dict[str, float]) -> Path:
     path = route_weights_path(base_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     normalized_weights = {
-        route_name: round(_normalize_quality_weight(weight), 6)
+        normalize_route_name(route_name): round(_normalize_quality_weight(weight), 6)
         for route_name, weight in sorted(weights.items())
+        if normalize_route_name(route_name)
     }
     path.write_text(json.dumps(normalized_weights, indent=2) + "\n", encoding="utf-8")
     return path
@@ -654,7 +670,7 @@ def load_route_capability_profiles(base_dir: Path) -> dict[str, dict[str, object
 
     profiles: dict[str, dict[str, object]] = {}
     for route_name, raw_profile in payload.items():
-        normalized_name = str(route_name).strip()
+        normalized_name = normalize_route_name(route_name)
         if not normalized_name:
             continue
         profiles[normalized_name] = _normalize_route_capability_profile(raw_profile)
@@ -665,8 +681,9 @@ def save_route_capability_profiles(base_dir: Path, profiles: dict[str, dict[str,
     path = route_capabilities_path(base_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     normalized_profiles = {
-        route_name: _normalize_route_capability_profile(profile)
+        normalize_route_name(route_name): _normalize_route_capability_profile(profile)
         for route_name, profile in sorted(profiles.items())
+        if normalize_route_name(route_name)
     }
     path.write_text(json.dumps(normalized_profiles, indent=2) + "\n", encoding="utf-8")
     return path
@@ -729,11 +746,12 @@ def route_for_mode(route_mode: str) -> RouteSpec | None:
 
 
 def route_by_name(route_name: str) -> RouteSpec | None:
-    route = ROUTE_REGISTRY.maybe_get(route_name)
+    normalized_route_name = normalize_route_name(route_name)
+    route = ROUTE_REGISTRY.maybe_get(normalized_route_name)
     if route is not None:
         return route
-    if route_name.endswith("-detached"):
-        base_route = ROUTE_REGISTRY.maybe_get(route_name[: -len("-detached")])
+    if normalized_route_name.endswith("-detached"):
+        base_route = ROUTE_REGISTRY.maybe_get(normalized_route_name[: -len("-detached")])
         if base_route is not None:
             return build_detached_route(base_route)
     return None

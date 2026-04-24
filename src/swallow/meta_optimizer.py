@@ -34,6 +34,7 @@ from .router import (
     apply_route_weights,
     load_route_weights,
     load_route_capability_profiles,
+    normalize_route_name,
     route_by_name,
     save_route_capability_profiles,
     save_route_weights,
@@ -497,7 +498,9 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
     scanned_task_ids: list[str] = []
     scanned_event_count = 0
 
-    for task_id, events in iter_recent_task_events(base_dir, last_n):
+    recent_task_events = iter_recent_task_events(base_dir, last_n)
+    # Trend heuristics need oldest->newest ordering across the selected recent tasks.
+    for task_id, events in reversed(recent_task_events):
         scanned_task_ids.append(task_id)
         scanned_event_count += len(events)
 
@@ -747,8 +750,8 @@ def build_optimization_proposals(
         if len(stats.cost_samples) < 4:
             continue
         midpoint = len(stats.cost_samples) // 2
-        recent_average = sum(stats.cost_samples[:midpoint]) / max(midpoint, 1)
-        historical_average = sum(stats.cost_samples[midpoint:]) / max(len(stats.cost_samples) - midpoint, 1)
+        historical_average = sum(stats.cost_samples[:midpoint]) / max(midpoint, 1)
+        recent_average = sum(stats.cost_samples[midpoint:]) / max(len(stats.cost_samples) - midpoint, 1)
         if recent_average >= 0.10 and recent_average >= historical_average * 1.5:
             description = (
                 f"Watch cost trend on `{stats.route_name}`: recent estimated cost rose from "
@@ -871,6 +874,14 @@ def _build_route_capability_proposals(
             continue
 
         suggested_score = _suggest_task_family_score(stats)
+        if (
+            current_score is None
+            and not unsupported
+            and suggested_score >= 0.99
+            and stats.failure_count == 0
+            and stats.degraded_count == 0
+        ):
+            continue
         if not unsupported and current_score is not None and abs(current_score - suggested_score) < 0.15:
             continue
         proposals.append(
@@ -1176,7 +1187,7 @@ def apply_reviewed_optimization_proposals(
     }
 
     for entry in approved_entries:
-        route_name = str(entry.route_name or "").strip()
+        route_name = normalize_route_name(entry.route_name)
         if entry.proposal_type == "route_weight":
             if not route_name:
                 raise ValueError(f"Approved route_weight proposal is missing route_name: {entry.proposal_id}")
@@ -1206,7 +1217,7 @@ def apply_reviewed_optimization_proposals(
     skipped_count = 0
     for entry in approved_entries:
         if entry.proposal_type == "route_capability":
-            route_name = str(entry.route_name or "").strip()
+            route_name = normalize_route_name(entry.route_name)
             task_family = _normalize_task_family_name(entry.task_family)
             profile = updated_profiles.setdefault(
                 route_name,
@@ -1318,7 +1329,7 @@ def apply_reviewed_optimization_proposals(
                 ProposalApplicationEntry(
                     proposal_id=entry.proposal_id,
                     proposal_type=entry.proposal_type,
-                    route_name=entry.route_name,
+                    route_name=normalize_route_name(entry.route_name),
                     task_family=entry.task_family,
                     status="skipped",
                     detail="No automatic apply handler is registered for this proposal type.",
@@ -1326,7 +1337,7 @@ def apply_reviewed_optimization_proposals(
             )
             continue
 
-        route_name = str(entry.route_name or "").strip()
+        route_name = normalize_route_name(entry.route_name)
         before_weight = float(updated_weights.get(route_name, 1.0))
         after_weight = round(float(entry.suggested_weight or 1.0), 6)
         rollback_weights[route_name] = before_weight
