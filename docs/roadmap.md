@@ -1,182 +1,174 @@
 ---
-author: gemini
+author: claude
 status: living-document
 ---
 
-# 蓝图差距与演进路线图 (Gap Analysis & Roadmap)
+# 演进路线图 (Roadmap)
 
-## 一、当前实现与蓝图设计的核心差距 (Gap Analysis)
+## 一、能力现状与演进方向 (Post-v1.0.0)
 
-根据最新收口的 Phase 49 (v0.7.0) 成果，系统已完成全异步化改造、SQLite 任务真值层与知识层 SQLite SSOT 落地。通过对全量设计蓝图（Track 1-7）的深度审计，当前系统正从”真值归一”转入**策略闭环与 Specialist Agent 体系落地**阶段。
+> 最近更新：2026-04-24
 
-### 1. [已消化] 知识真值的”双重真相”风险 (SSOT Consistency)
-*   **蓝图要求**：`STATE_AND_TRUTH_DESIGN` 要求单一事实源 (SSOT)，拒绝线性历史依赖。
-*   **当前现状**：Phase 49 已将 Evidence / Wiki 知识读取切换为 SQLite primary，文件系统仅保留 mirror / export / fallback 视图。
-*   **消化结果**：知识层事务性真值闭环已在 `v0.7.0` 落地，后续不应再回退为文件系统主读。
+系统已完成 **Foundation Era**（Phase 47-54），核心架构差距全部消化：异步底座（v0.6.0）、知识 SSOT（v0.7.0）、策略闭环（v0.8.0）、并行编排（v0.9.0）、Specialist Agent 体系（v1.0.0）、命名清理（v1.0.0）。452 tests passed，7 个 specialist/validator Agent 全部具备独立生命周期。
 
-### 2. [已消化] Specialist Agent 的缺位与提案应用流程不完整 (Specialist Agent Lifecycle & Proposal Consumption)
-*   **蓝图要求**：`AGENT_TAXONOMY_DESIGN` 定义了 6 个专项角色（Librarian、Meta-Optimizer、Ingestion Specialist、Literature Specialist、Quality Reviewer、Consistency Reviewer），应具备边界清晰的职责与独立生命周期。`SELF_EVOLUTION_AND_MEMORY` 要求系统能够通过”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环实现自我进化。
-*   **当前现状**：Librarian 已落地为独立 Agent；Meta-Optimizer 已落地为只读分析入口，可产出提案；但其他 5 个专项角色仍为函数化，且提案应用流程（operator review → apply）尚未完整。
-*   **核心差距**：知识沉淀和策略自省仍属于”函数的副作用”，而非”显式的工作流”；遥测数据处于”已捕获但未消费”状态，浪费了宝贵的反馈信号。
-*   **消化计划**：Phase 50 应完成 Meta-Optimizer 提案应用流程与独立 Agent 生命周期；Phase 52 应完成其他 5 个专项角色的落地。
+### 已消化的蓝图差距（Foundation Era 回顾）
 
-### 3. [已消化] 执行能力的不完整性 (Execution Capability Gaps)
-*   **蓝图要求**：`ORCHESTRATION.md` 定义了高并发多路子任务编排与复杂拓扑的能力。
-*   **当前现状**：CLIAgentExecutor 等残留同步桥接层，并发控制不完整。
-*   **消化结果**：Phase 52 已落地 `AsyncCLIAgentExecutor` 统一 async 入口、`complexity_hint` 路由偏置、fan-out timeout 守卫与 `subtask_summary.md` 收口。Runtime v0 仍通过 harness bridge 接入同步执行链（原生 async subprocess 留待 Runtime v1）。
+| 差距 | 消化 Phase | 状态 |
+|------|-----------|------|
+| 知识真值”双重真相”风险（SSOT） | Phase 49 (v0.7.0) | ✅ SQLite-primary，文件系统仅保留 mirror |
+| Specialist Agent 缺位与提案应用流程 | Phase 50-51-53 (v0.7.0+ → v1.0.0) | ✅ 7 个 Agent 全部落地，提案应用闭环完整 |
+| 执行能力不完整（同步桥接、并发控制） | Phase 52 (v0.9.0) | ✅ AsyncCLIAgentExecutor + fan-out + timeout |
+| Taxonomy 命名品牌残留 | Phase 54 (v1.0.0) | ✅ codex_fim → fim，shim 保留 |
 
-### 4. [已消化] Taxonomy 命名的品牌残留 (Taxonomy Naming)
-*   **蓝图要求**：推荐命名格式 `[role]/[site]/[authority]/[domain]`，品牌名仅作 implementation binding。
-*   **当前现状**：内部模型清晰，但 CLI/API 仍有品牌名残留（如 `http-claude`）。
-*   **消化计划**：Phase 53 应完成命名重构与品牌清理。
+### 前瞻性能力差距（Knowledge Loop Era 方向）
+
+Foundation Era 以”消化蓝图差距”为驱动。v1.0.0 后，主要架构债务已清零，演进逻辑转为**从知识闭环出发，逐步扩展系统能力**。
+
+| 差距 | 蓝图来源 | 当前状态 | 演进方向 |
+|------|---------|---------|---------|
+| **知识图谱与关系检索** | `KNOWLEDGE.md` Stage 3 (Relation Expansion) | 设计已定义，实现为零 | **Phase 55**：双链图谱 + 本地 RAG 闭环 |
+| **本地文件摄入** | `KNOWLEDGE.md` + `INTERACTION.md` | ingestion 仅支持对话导出 | **Phase 55**：扩展为任意本地文件 |
+| **LLM 增强检索与知识质量** | `KNOWLEDGE.md` 远期方向 | Literature/Quality Agent 为启发式 | **Phase 56 方向**：接入 LLM 增强 |
+| **编排显式化（Planner / DAG）** | `ORCHESTRATION.md` | planner 逻辑嵌入 orchestrator | **Phase 57 方向**：独立组件 |
+| **能力画像自动学习** | `PROVIDER_ROUTER.md` + `SELF_EVOLUTION.md` | unsupported_task_types 字段存在但未消费 | **Phase 58 方向**：遥测驱动 |
+| **Runtime v1（原生 async subprocess）** | `HARNESS.md` | harness bridge 为 v0 约束 | 低优先级，功能正常 |
+| **远期方向** | 多处 | — | IDE 集成、Remote Worker、Hosted Control Plane |
 
 ---
 
-## 二、已消化差距 (Digested Gaps)
-
-### [Phase 49] 知识真值归一与向量 RAG (v0.7.0)
-*   **解决方式**：落地知识层 SQLite SSOT、`swl knowledge migrate`、`LibrarianAgent` 与 `sqlite-vec` 可退级检索。
-*   **成果**：系统进入 **Knowledge Era**，消除了知识层”双重真相”风险，并形成本地语义检索基线。
-
-### [Phase 48] 存储引擎升级与全异步改造 (v0.6.0)
-*   **解决方式**：落地 `SqliteTaskStore` 与全链路 `async/await`，实装 `swl migrate` 过渡入口。
-*   **成果**：系统进入 **Async Era**，消除了高并发子任务的 IO 阻塞瓶颈。
+## 二、已完成 Phase 记录 (Completed Phases)
 
 ### [Phase 47] 多模型共识与策略护栏 (v0.5.0)
-*   **解决方式**：实装 N-Reviewer 共识门禁与 TaskCard 级成本护栏。
-*   **成果**：系统进入 **Consensus Era**，具备了自我纠偏与财务自律能力。
+*   **成果**：系统进入 **Consensus Era**，实装 N-Reviewer 共识门禁与 TaskCard 级成本护栏。
+
+### [Phase 48] 存储引擎升级与全异步改造 (v0.6.0)
+*   **成果**：系统进入 **Async Era**，落地 `SqliteTaskStore` 与全链路 `async/await`。
+
+### [Phase 49] 知识真值归一与向量 RAG (v0.7.0)
+*   **成果**：系统进入 **Knowledge Era**，落地知识层 SQLite SSOT、`LibrarianAgent` 与 `sqlite-vec` 可退级检索。
+
+### [Phase 50] 路由策略闭环与专项审计 (v0.7.0+)
+*   **成果**：系统从”孤立的遥测记录”进化到”可感知的策略行为”，实现审计、提案、权重调整的单向数据流闭环。406 tests passed。
 
 ### [Phase 51] 策略闭环与 Specialist Agent 落地 (v0.8.0)
-*   **解决方式**：实装 S1 提案 review/apply 工作流（operator gate、持久化、rollback 快照）、S2 `MetaOptimizerAgent` 独立生命周期（`execute` / `execute_async`、`MetaOptimizerSnapshot`）、S3 route 能力画像与 task-family guard、S4 遥测驱动的 capability 提案生成与应用闭环。
-*   **成果**：系统进入 **Policy Era**，实现”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环。Specialist Agent 体系初步成型，为后续 Ingestion/Literature/Quality Reviewer 等角色落地奠定基础。已合并到 main（commit `4b0de67`），review 结论 `approved_with_concerns`，2 个 CONCERN 已登记到 `docs/concerns_backlog.md`，tag `v0.8.0`。
-
-### [Phase 53] Specialist Agent 生态落地 (v1.0.0)
-*   **解决方式**：落地 5 个专项 Agent 独立生命周期（`IngestionSpecialistAgent`、`ConsistencyReviewerAgent`、`ValidatorAgent`、`LiteratureSpecialistAgent`、`QualityReviewerAgent`）；引入 `EXECUTOR_REGISTRY` 替换 if-chain 分发；在 `models.py` 中落地 `MEMORY_AUTHORITY_SEMANTICS`；`AGENT_TAXONOMY.md §5` 补充"允许的 side effect"列。
-*   **成果**：系统进入 **Specialist Era**，Specialist Agent 体系完全落地，系统进化逻辑完全显式化、工作流化。452 tests passed，8 deselected，review 结论 `approved_with_concerns`（唯一 CONCERN 已在合并前由 Claude 消化），tag `v1.0.0`。
+*   **成果**：系统进入 **Policy Era**，实现”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环。Specialist Agent 体系初步成型（MetaOptimizerAgent / LibrarianAgent）。approved_with_concerns，2 CONCERN 登记。
 
 ### [Phase 52] 平台级多路并行与复杂拓扑 (v0.9.0)
-*   **解决方式**：S1 `AsyncCLIAgentExecutor` 统一 async 入口（Aider / Claude Code 复用同一执行路径，Runtime v0 通过 harness bridge 接入）、codex/cline 主命名收口（默认路径切到 `aider` / `local-aider`）、`schedule_consistency_audit` 改为 `asyncio.create_task` 路径；S2 `TaskSemantics.complexity_hint` 贯通路由偏置，`parallel_intent` 进入 `RouteSelection.policy_inputs`；S3 `AsyncSubtaskOrchestrator` 补齐 subtask timeout、局部失败隔离、`AIWF_MAX_SUBTASK_WORKERS` 与 `subtask_summary.md`；post-implementation validation 吸收 `meta_optimizer` cost trend 顺序修正与 legacy route alias 兼容（`local-codex → local-aider`、`local-cline → local-claude-code`）。
-*   **成果**：系统进入 **Parallel Era**，高并发多路编排能力落地。437 tests passed，review 结论 `approved_with_concerns`，2 个 CONCERN（harness 桥接为 Runtime v0 架构约束、codex 品牌残留留待 Phase 53/54 清理）已登记到 `docs/concerns_backlog.md`，tag `v0.9.0`。
+*   **成果**：系统进入 **Parallel Era**，落地 `AsyncCLIAgentExecutor`、`complexity_hint` 路由偏置、`AsyncSubtaskOrchestrator` fan-out + timeout 守卫。437 tests passed，approved_with_concerns，2 CONCERN 登记。
+
+### [Phase 53] Specialist Agent 生态落地 (v1.0.0)
+*   **成果**：系统进入 **Specialist Era**，5 个专项 Agent 独立生命周期全部落地（IngestionSpecialist、ConsistencyReviewer、Validator、LiteratureSpecialist、QualityReviewer），`EXECUTOR_REGISTRY` 替换 if-chain，`MEMORY_AUTHORITY_SEMANTICS` 落地，`AGENT_TAXONOMY.md §5` 补充 side effect 列。452 tests passed，approved_with_concerns（唯一 CONCERN 已在合并前消化）。
+
+### [Phase 54] Taxonomy 命名与品牌残留清理 (v1.0.0)
+*   **成果**：`codex_fim` 降级为 legacy shim，`fim` 成为主键，文件重命名 `codex_fim.py → fim_dialect.py`，Phase 52 CONCERN 消化完毕。452 tests passed，approved，无新 CONCERN。
 
 ---
 
-## 三、架构演进 Roadmap (Phases 49-51)
+## 三、Phase 定义
 
-### Phase 49: 知识真值归一与向量 RAG (Knowledge SSOT & Vector RAG) ✅ [Done]
+### Foundation Era (Phase 47-54) — 已完成
+
+| Phase | 名称 | Tag | Primary Track | 状态 |
+|-------|------|-----|---------------|------|
+| 47 | 多模型共识与策略护栏 | v0.5.0 | Consensus | ✅ Done |
+| 48 | 存储引擎升级与全异步改造 | v0.6.0 | Core Loop | ✅ Done |
+| 49 | 知识真值归一与向量 RAG | v0.7.0 | Knowledge / RAG | ✅ Done |
+| 50 | 路由策略闭环与专项审计 | v0.7.0+ | Evaluation / Policy | ✅ Done |
+| 51 | 策略闭环与 Specialist Agent 落地 | v0.8.0 | Agent Taxonomy | ✅ Done |
+| 52 | 平台级多路并行与复杂拓扑 | v0.9.0 | Core Loop | ✅ Done |
+| 53 | Specialist Agent 生态落地 | v1.0.0 | Agent Taxonomy | ✅ Done |
+| 54 | Taxonomy 命名与品牌残留清理 | v1.0.0 | Agent Taxonomy | ✅ Done |
+
+### Knowledge Loop Era (Phase 55+) — 从知识闭环出发的能力扩展
+
+v1.0.0 后，演进逻辑从”消化蓝图差距”转为”从可展示的知识闭环出发，逐步扩展系统能力”。每个 phase 的输出是前一个 phase 的自然延伸，而非从蓝图中挑选 gap 填补。
+
+#### Phase 55: 知识图谱与本地 RAG (Knowledge Graph & Local RAG) 🚀 [Next]
 *   **Primary Track**: Knowledge / RAG
-*   **Secondary Track**: State / Truth
-*   **目标**：彻底消除知识层的“双重真相”，实装本地向量检索。
+*   **Secondary Track**: Agent Taxonomy
+*   **目标**：构建双链知识图谱，打通”本地文件 → 知识入库 → 关系建立 → 图谱检索 → 任务执行”的完整闭环。
 *   **核心任务**：
-    - **知识层 SSOT 归一**：将 `Evidence Store` / `Wiki Store` 全量迁移至 SQLite。废除文件系统作为真值的逻辑，仅将其保留为可导出的“视图”。
-    - **图书管理员 (Librarian Agent) 实装**：落地首个专项智能体实体。由其接管知识的冲突检测、去重与 SQLite 写入边界。
-    - **向量化 RAG 与平滑退级**：集成 `sqlite-vec` 提供本地向量能力。强制要求具备“向量 -> 文本模糊匹配”的自动降级机制，确保环境鲁棒性。
-*   **产出价值**：终结碎片化存储，实现具备语义维度的高质量知识闭环。
+    - **S1: 本地文件摄入**：扩展 ingestion pipeline 支持任意 markdown/text 文件，新增 `swl knowledge ingest-file` CLI 命令。
+    - **S2: 双链关系模型**：新增 `knowledge_relations` SQLite 表，定义关系类型（refines / contradicts / cites / extends / related_to），实现双向遍历。
+    - **S3: 检索管线 Stage 3 落地**：实现 `KNOWLEDGE.md` 设计的 Relation Expansion 阶段——BFS 遍历 + 置信度衰减 + 深度限制。
+    - **S4: 端到端闭环测试**：本地文件 → 入库 → 建立关系 → 检索时关系扩展 → 任务执行引用图谱知识。
+*   **开发方式**：TDD 先行，每个 slice 先写测试定义契约再实现。
+*   **产出价值**：系统首次具备可展示的知识闭环——从本地文件到图谱检索到任务输出。
+*   **风险等级**：中（新增 SQLite schema + 检索管线改造，但基础设施成熟）
+*   **依赖**：Phase 49 知识存储 + Phase 53 IngestionSpecialistAgent / LiteratureSpecialistAgent
 
-### [Phase 50 已完成] 路由策略闭环与专项审计 (Policy Closure & Specialist Audit) ✅ [Done]
-*   **Primary Track**: Evaluation / Policy
-*   **Secondary Track**: Provider Routing
-*   **目标**：将现有的孤立审计与遥测能力连接成可感知的策略闭环。
-*   **核心任务**：
-    - **S1: Meta-Optimizer 结构化提案**：将 `build_optimization_proposals()` 的输出从纯文本升级为结构化 `OptimizationProposal` dataclass，并补充 workflow 类提案。
-    - **S2: 一致性审计自动触发策略**：在 harness 执行完成后，根据可配置 `AuditTriggerPolicy` 决定是否自动触发一致性审计（fire-and-forget）。
-    - **S3: 路由质量权重**：RouteRegistry 支持 per-route 质量权重，Meta-Optimizer 提案可建议权重调整，operator 通过 CLI 应用。
-*   **产出价值**：系统从”孤立的遥测记录”进化到”可感知的策略行为”，实现审计、提案、权重调整的单向数据流闭环。
-*   **成果**：406 tests passed，0 BLOCK / 2 CONCERN（可接受），已合并到 main（commit `434a56c`）。
+#### Phase 56 方向: 知识质量与 LLM 增强检索
+*   **驱动**：Phase 55 闭环跑通后，启发式分析的质量瓶颈会暴露。
+*   **方向**：LiteratureSpecialist 接入 LLM 深度解析、QualityReviewer 接入 LLM 语义评估、多跳 agentic retrieval。
+*   **蓝图对齐**：`KNOWLEDGE.md` 远期方向（Graph RAG、Agentic Retrieval）。
 
-### Phase 51: 策略闭环与 Specialist Agent 落地 (Policy Closure & Specialist Agent Lifecycle) ✅ [Done] — tag v0.8.0
-*   **Primary Track**: Evaluation / Policy + Agent Taxonomy
-*   **Secondary Track**: Provider Routing
-*   **目标**：完成”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环，落地 Meta-Optimizer 作为独立 Specialist Agent。
-*   **核心任务**：
-    - **S1: Meta-Optimizer 提案应用流程**（Primary）：设计与实装 operator review → apply 的完整工作流。包括提案持久化、operator gate、应用审计、回滚机制。
-    - **S2: Meta-Optimizer 独立 Agent 生命周期**（Primary）：落地 Meta-Optimizer 作为独立 Specialist Agent（类似 Librarian）。定义其输入/输出边界、权限模型、与 Orchestrator 的协作接口。
-    - **S3: 一致性审计自动化触发**（Primary）：将只读的一致性抽检升级为可配置的自动化触发策略。支持基于 task 特征、route 质量、成本等维度的触发规则。
-    - **S4: Route 能力画像扩展**（Secondary）：实装能力画像评分机制与 unsupported_task_types 字段。支持路由决策时的能力边界守卫。
-*   **产出价值**：系统从”有感遥测”进化到”主动优化”，实现架构级的自我迭代闭环。Specialist Agent 体系初步成型，为后续 Ingestion/Literature/Quality Reviewer 等角色落地奠定基础。
-*   **风险等级**：中（涉及新的 operator gate 流程与 Agent 生命周期管理，需要充分测试）
-*   **依赖**：Phase 50 的结构化提案与自动触发基础设施
+#### Phase 57 方向: 编排增强
+*   **驱动**：检索质量提升后，任务拆解和执行编排成为瓶颈。
+*   **方向**：Planner 显式化为独立组件、DAG-based subtask 依赖、Strategy Router 抽取。
+*   **蓝图对齐**：`ORCHESTRATION.md`（Strategy Router、Planner、DAG 编排）。
 
-### Phase 52: 平台级多路并行与复杂拓扑 (Advanced Parallel Topologies) ✅ [Done] — tag v0.9.0
-*   **Primary Track**: Core Loop
-*   **Secondary Track**: Execution Topology
-*   **目标**：利用 Async & SQLite 底座，解锁蓝图中的高并发多路子任务编排。
-*   **核心任务**：
-    - **S1: 全异步执行器升级**：将 `CLIAgentExecutor` 等残留的同步桥接层彻底改为原生 async subprocess。
-    - **S2: 多路 Subtask 并行压测**：实装跨任务/跨模型的并行提取与对比拓扑，处理资源争抢与死锁保护。
-*   **产出价值**：实现蓝图定义的”长周期、高并发”任务树处理能力。
-*   **风险等级**：中高（涉及执行器架构改造与并发控制）
-*   **依赖**：Phase 51 的 Specialist Agent 体系稳定
-
-### Phase 53: 其他 Specialist Agent 落地 (Specialist Agent Ecosystem) ✅ [Done] — tag v1.0.0
-*   **Primary Track**: Agent Taxonomy
-*   **Secondary Track**: Knowledge / Self-Evolution
-*   **目标**：完成 AGENT_TAXONOMY 中定义的 5 个专项角色的落地（Ingestion Specialist、Literature Specialist、Quality Reviewer、Consistency Reviewer、Validator）。
-*   **核心任务**：
-    - **S1: Ingestion Specialist 独立生命周期**：将外部会话摄入逻辑从函数化升级为独立 Agent。支持规则式过滤、质量评分、自动分类。
-    - **S2: Literature Specialist 独立生命周期**：将知识文献管理逻辑升级为独立 Agent。支持文献去重、版本管理、引用追踪。
-    - **S3: Quality Reviewer 与 Consistency Reviewer 独立生命周期**：将质量评审与一致性检查升级为独立 Agent。支持多维度评分、自动化审查、反馈生成。
-*   **产出价值**：完成 Specialist Agent 体系的全面落地，系统进化逻辑完全显式化、工作流化。
-*   **风险等级**：中（基于 Phase 51 的 Agent 生命周期模式，复用度高）
-*   **依赖**：Phase 51 的 Specialist Agent 基础设施
-
-### Phase 54: Taxonomy 命名与品牌残留清理 (Taxonomy Naming & Brand Cleanup) 🚀 [Next]
-*   **Primary Track**: Agent Taxonomy
-*   **Secondary Track**: Provider Routing
-*   **目标**：完成 `[role]/[site]/[authority]/[domain]` 命名格式的全面推行，清理 CLI/API 中的品牌名残留。
-*   **核心任务**：
-    - **S1: CLI 命名重构**：将 `http-claude`、`local-cline` 等品牌名改为 `http-executor/cloud-backed/...` 的完整形式。保持向后兼容性。
-    - **S2: API 命名重构**：更新 Route Registry、Executor Registry 等内部 API 的命名。
-    - **S3: 文档与示例更新**：更新所有文档、示例、测试中的命名引用。
-*   **产出价值**：系统命名体系完全对齐蓝图，提升长期可维护性与扩展性。
-*   **风险等级**：低（纯重构，无功能变化）
-*   **依赖**：Phase 51-53 的 Specialist Agent 体系稳定
+#### Phase 58 方向: 能力画像自动学习
+*   **驱动**：编排能力上来后，路由决策的精度成为瓶颈。
+*   **方向**：从遥测数据自动学习 route capability profiles、capability boundary guard 激活。
+*   **蓝图对齐**：`PROVIDER_ROUTER.md`（能力画像评分）、`SELF_EVOLUTION.md`（隐式信号聚合）。
 
 ---
 
-## 四、推荐 Phase 队列与风险批注 (Claude 维护)
+## 四、队列与战略分析 (Claude 维护)
 
-> 最近更新：2026-04-24 (Phase 53 已完成，tag v1.0.0，Phase 54 为下一阶段)
+> 最近更新：2026-04-24 (Phase 54 已完成，v1.0.0 Foundation Era 收官，Phase 55 为下一阶段)
 
 ### 队列总览
 
-| 优先级 | Phase | 名称 | Primary Track | Secondary Track | 风险等级 | 备注 |
-|--------|-------|------|---------------|-----------------|----------|------|
-| ~~1~~ | ~~48~~ | ~~存储引擎升级与全异步改造~~ | ~~Core Loop~~ | ~~State / Truth~~ | ~~已完成~~ | tag `v0.6.0` |
-| ~~2~~ | ~~49~~ | ~~知识真值归一与向量 RAG~~ | ~~Knowledge / RAG~~ | ~~State / Truth~~ | ~~已完成~~ | tag `v0.7.0` |
-| ~~3~~ | ~~50~~ | ~~路由策略闭环与专项审计~~ | ~~Evaluation / Policy~~ | ~~Provider Routing~~ | ~~已完成~~ | tag `v0.7.0+`，406 tests passed |
-| ~~4~~ | ~~51~~ | ~~策略闭环与 Specialist Agent 落地~~ | ~~Evaluation / Policy + Agent Taxonomy~~ | ~~Provider Routing~~ | ~~已完成~~ | tag `v0.8.0`，commit `4b0de67`，approved_with_concerns |
-| ~~5~~ | ~~52~~ | ~~平台级多路并行与复杂拓扑~~ | ~~Core Loop~~ | ~~Execution Topology~~ | ~~已完成~~ | tag `v0.9.0`，437 tests passed，approved_with_concerns |
-| ~~6~~ | ~~53~~ | ~~其他 Specialist Agent 落地~~ | ~~Agent Taxonomy~~ | ~~Knowledge / Self-Evolution~~ | ~~已完成~~ | tag `v1.0.0`，452 tests passed，approved_with_concerns |
-| **7** | **54** | **Taxonomy 命名与品牌残留清理** | **Agent Taxonomy** | **Provider Routing** | **低** | 纯重构，无功能变化 |
+| 优先级 | Phase | 名称 | Primary Track | 状态 | 备注 |
+|--------|-------|------|---------------|------|------|
+| ~~1~~ | ~~47~~ | ~~多模型共识与策略护栏~~ | ~~Consensus~~ | ~~已完成~~ | tag `v0.5.0` |
+| ~~2~~ | ~~48~~ | ~~存储引擎升级与全异步改造~~ | ~~Core Loop~~ | ~~已完成~~ | tag `v0.6.0` |
+| ~~3~~ | ~~49~~ | ~~知识真值归一与向量 RAG~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | tag `v0.7.0` |
+| ~~4~~ | ~~50~~ | ~~路由策略闭环与专项审计~~ | ~~Evaluation / Policy~~ | ~~已完成~~ | tag `v0.7.0+` |
+| ~~5~~ | ~~51~~ | ~~策略闭环与 Specialist Agent 落地~~ | ~~Agent Taxonomy~~ | ~~已完成~~ | tag `v0.8.0` |
+| ~~6~~ | ~~52~~ | ~~平台级多路并行与复杂拓扑~~ | ~~Core Loop~~ | ~~已完成~~ | tag `v0.9.0` |
+| ~~7~~ | ~~53~~ | ~~Specialist Agent 生态落地~~ | ~~Agent Taxonomy~~ | ~~已完成~~ | tag `v1.0.0` |
+| ~~8~~ | ~~54~~ | ~~Taxonomy 命名与品牌残留清理~~ | ~~Agent Taxonomy~~ | ~~已完成~~ | tag `v1.0.0` |
+| **9** | **55** | **知识图谱与本地 RAG** | **Knowledge / RAG** | **Next** | 双链图谱 + 本地文件闭环 |
+| 10 | 56 | 知识质量与 LLM 增强检索 | Knowledge / RAG | 方向 | LLM 增强 Literature/Quality Agent |
+| 11 | 57 | 编排增强 | Core Loop | 方向 | Planner / DAG / Strategy Router |
+| 12 | 58 | 能力画像自动学习 | Evaluation / Policy | 方向 | 遥测驱动 capability profiles |
 
-### 全局锚点分析 (Claude 维护)
+### 战略锚点分析
 
-| 维度 | 参考源 | 蓝图愿景 | 当前差距 | Phase 消化计划 | 风险预警 |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **系统级锚点** | `ARCHITECTURE.md` | 基于状态的异步协同，SSOT 事实层，自我优化闭环 | 遥测与审计结果已进入可感知策略行为（Phase 50），但缺少”提案应用”与”独立 Agent”的完整闭环 | **Phase 51**: 完成提案应用流程与 operator gate，落地 Meta-Optimizer 独立 Agent | **[中高]** 若不完成 Phase 51，系统仍停留在”有感遥测”阶段，无法进入”主动优化” |
-| **领域级卫星** | `AGENT_TAXONOMY` | 显式的角色认知分工，6 个专项角色独立生命周期 | Librarian 已落地，Meta-Optimizer 仍为函数化，其他 4 个仍缺失 | **Phase 51**: 落地 Meta-Optimizer 独立 Agent；**Phase 53**: 落地其他 5 个专项角色 | 通用 Agent 上下文压力降低有限，策略建议仍缺少明确 agent 边界 |
-| **跨界嗅探** | `SELF_EVOLUTION` | 记忆沉淀作为显式工作流，Proposal over Mutation 原则 | 遥测数据已被消费为提案（Phase 50），但提案应用流程缺失 | **Phase 51**: 实装提案应用流程与 operator gate | 浪费了宝贵的反馈信号，导致路由和策略演进滞后于业务实际 |
-| **执行能力** | `ORCHESTRATION.md` | 高并发多路子任务编排与复杂拓扑 | CLIAgentExecutor 等残留同步桥接层，并发控制不完整 | **Phase 52**: 全异步执行器升级与多路并行压测 | 高并发场景下可能出现资源争抢与死锁 |
-| **命名体系** | `AGENT_TAXONOMY` | `[role]/[site]/[authority]/[domain]` 格式，品牌名仅作 implementation binding | CLI/API 仍有品牌名残留（如 `http-claude`） | **Phase 54**: 完成命名重构与品牌清理 | 低优先级，不影响功能，但影响长期可维护性 |
+| 维度 | 蓝图愿景 | v1.0.0 现状 | 下一步 |
+|------|---------|------------|--------|
+| **知识治理** | truth-first 知识系统，5 阶段检索（含 Relation Expansion） | 双层架构完整，Stage 1/2/4/5 已实现，**Stage 3 未实现** | **Phase 55**：落地 Stage 3 + 双链图谱 |
+| **Agent 体系** | 6 个专项角色独立生命周期 | 7 个 Agent 全部落地，EXECUTOR_REGISTRY 统一分发 | Phase 56：LLM 增强 Literature/Quality |
+| **自我进化** | Librarian 知识沉淀 + Meta-Optimizer 优化提案 | 两条主线完整，提案应用闭环已落地 | Phase 58：能力画像自动学习 |
+| **执行编排** | 高并发多路编排 + 复杂拓扑 | fan-out + timeout + subtask summary 已落地 | Phase 57：Planner 显式化 + DAG |
+| **命名体系** | taxonomy before brand | codex 品牌清理完成，http-claude 保留（描述性名称） | 无近期计划 |
 
-### 核心差距消化路线
+### 知识闭环驱动的能力扩展路线
 
-**战略级差距（Phase 51 必须完成）**：
-1. Meta-Optimizer 提案应用流程（operator review → apply）
-2. Meta-Optimizer 独立 Agent 生命周期
-3. 一致性审计自动化触发策略的完整工作流
+```
+Phase 55: 知识图谱 + 本地 RAG（核心闭环）
+    ↓ 闭环跑通后，启发式分析质量成为瓶颈
+Phase 56: LLM 增强检索 + 知识质量
+    ↓ 检索质量上来后，任务编排成为瓶颈
+Phase 57: 编排增强（Planner / DAG）
+    ↓ 编排能力上来后，路由精度成为瓶颈
+Phase 58: 能力画像自动学习
+```
 
-**中期差距（Phase 52-53 推进）**：
-1. 全异步执行器升级与多路并行编排（Phase 52）
-2. 其他 5 个 Specialist Agent 落地（Phase 53）
-
-**低优先级差距（Phase 54 推进）**：
-1. Taxonomy 命名与品牌残留清理（Phase 54）
+每个 phase 的详细 slice 拆解在前一个 phase 完成后再细化，避免过早规划。
 
 ### Tag 评估
 
-- **Phase 49** → `v0.7.0` (Knowledge Era)：知识真值归一与向量检索能力的正式闭环
-- **Phase 50** → `v0.7.0+` (Policy Closure)：策略闭环初步成型，孤立能力连接成可感知行为
-- **Phase 51** → `v0.8.0` (Policy Era)：策略闭环与 Specialist Agent 体系初步成型（commit `4b0de67`，approved_with_concerns，2 CONCERN 登记至 concerns_backlog.md）
-- **Phase 52** → `v0.9.0` (Parallel Era)：高并发多路编排能力落地（approved_with_concerns，2 CONCERN 登记至 concerns_backlog.md）
-- **Phase 53** → `v1.0.0` (Specialist Era)：Specialist Agent 体系完全落地，系统进化逻辑完全显式化（452 tests passed，approved_with_concerns，唯一 CONCERN 已在合并前消化）
+| Phase | Tag | Era |
+|-------|-----|-----|
+| Phase 47 | `v0.5.0` | Consensus Era |
+| Phase 48 | `v0.6.0` | Async Era |
+| Phase 49 | `v0.7.0` | Knowledge Era |
+| Phase 50 | `v0.7.0+` | Policy Closure |
+| Phase 51 | `v0.8.0` | Policy Era |
+| Phase 52 | `v0.9.0` | Parallel Era |
+| Phase 53 | `v1.0.0` | Specialist Era |
+| Phase 54 | `v1.0.0` | Specialist Era (cleanup) |
+| Phase 55 | `v1.1.0` (预估) | Knowledge Graph Era |
