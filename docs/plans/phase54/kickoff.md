@@ -21,7 +21,7 @@ Phase 54 是纯重构阶段，目标是清理 `codex` 品牌残留（dialect key
 | Phase | 54 |
 | Primary Track | Agent Taxonomy |
 | Secondary Track | Provider Routing |
-| 目标 tag | v1.0.1 (Naming Cleanup) |
+| 目标 tag | v1.0.0 (Naming Cleanup) |
 | 前置 phase | Phase 53 (v1.0.0) |
 
 ## 战略定位

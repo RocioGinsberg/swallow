@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v0.9.0`** — Execution Era：统一 async CLI 执行器入口 + complexity-aware 路由 + 带守卫的 fan-out 编排
+**当前 tag: `v1.0.0`** — Specialist Era：专项 Agent 生态、taxonomy 命名清理与延续的策略闭环能力
 
-本仓库已形成新的稳定运行基线，437 tests passed + 8 eval passed。
+本仓库已形成新的稳定运行基线，452 tests passed + 8 eval passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -78,13 +78,14 @@
 - Librarian 持久化原子提交：state / knowledge / index 批量 `os.replace` + rollback
 - 共享 debate loop 核心：单任务与子任务路径复用统一 `_debate_loop_core()`
 - acknowledge_task route_mode 参数化 + canonical_write_guard 运行时审计 + FIMDialect FIM 标记转义
+- **FIM dialect 去品牌化**：`fim` 为主 dialect key，`codex_fim` 保留为 legacy shim，`fim_dialect.py` 为当前文件名
 - 只读 Web 控制中心（`swl serve`）：FastAPI JSON API + 单页 HTML 仪表盘 + Artifact Review 双栏视图 + Subtask Tree + artifact compare + execution timeline，零写入 `.swl/`，无前端构建工具链
 - Eval-Driven Development 基础设施：`tests/eval/` + `@pytest.mark.eval` 标记隔离 + Ingestion 降噪质量基线（precision/recall）+ Meta-Optimizer 提案质量基线（scenario-based）+ 共识 majority / veto / budget exhaustion 质量基线
 - ChatGPT 对话树还原：parent-child 树构建、主路径/侧枝识别、abandoned branch 语义保留
 - `swl ingest --summary`：Decisions / Constraints / Rejected Alternatives / Statistics 结构化摘要
 - **HTTP 执行器（HTTPExecutor）**：httpx 直连本地 new-api（OpenAI-compatible），替代 subprocess CLI 成为系统主 LLM 路径，真实多模型网络分发能力首次落地
 - **CLI 执行器去品牌化（AsyncCLIAgentExecutor + CLIAgentConfig）**：配置驱动的 `CLIAgentConfig`，`aider` / `claude-code` 作为稳定 CLI executor 实例，`run_executor_inline` 对未知 executor 显式报错
-- **多模型 HTTP / CLI 路由**：`http-claude`（claude_xml）/ `http-qwen`（plain_text）/ `http-glm`（plain_text）/ `http-gemini`（plain_text）/ `http-deepseek`（codex_fim）+ `local-aider` / `local-claude-code` 全部注册
+- **多模型 HTTP / CLI 路由**：`http-claude`（claude_xml）/ `http-qwen`（plain_text）/ `http-glm`（plain_text）/ `http-gemini`（plain_text）/ `http-deepseek`（fim）+ `local-aider` / `local-claude-code` 全部注册
 - **分层降级矩阵**：`http-claude → http-qwen → http-glm → local-claude-code → local-summary`，循环检测保护，429 rate-limit 走重试路径而非立即降级
 - **自建遥测层**：HTTPExecutor 从 API 响应 `usage` 字段捕获真实 token 数据，替代静态成本估算，Meta-Optimizer 消费真实成本数据
 

@@ -9,13 +9,13 @@
 - active_phase: `Phase 54`
 - active_slice: `naming_cleanup_impl_complete`
 - active_branch: `feat/phase54-taxonomy-naming-cleanup`
-- status: `phase54_naming_cleanup_impl_complete_pending_human_commit`
+- status: `phase54_approved_pending_merge`
 
 ---
 
 ## 当前状态说明
 
-`main` 已完成 Phase 53 并打出 `v1.0.0`（Specialist Era）。5 个专项 Agent 独立生命周期全部落地，`EXECUTOR_REGISTRY` 替换 if-chain，`MEMORY_AUTHORITY_SEMANTICS` 落地，`AGENT_TAXONOMY.md §5` 补充 side effect 列。Phase 54（Taxonomy 命名与品牌残留清理）已在 `feat/phase54-taxonomy-naming-cleanup` 上完成实现与验证，当前等待 Human 提交与后续收口。
+`main` 已完成 Phase 53 并打出 `v1.0.0`（Specialist Era）。5 个专项 Agent 独立生命周期全部落地，`EXECUTOR_REGISTRY` 替换 if-chain，`MEMORY_AUTHORITY_SEMANTICS` 落地，`AGENT_TAXONOMY.md §5` 补充 side effect 列。Phase 54（Taxonomy 命名与品牌残留清理）已在 `feat/phase54-taxonomy-naming-cleanup` 上完成实现、验证与 review，通过后进入 tag 前准备阶段。
 
 ---
 
@@ -43,6 +43,7 @@
 - **[roadmap-updater]** `docs/roadmap.md` 已同步更新（2026-04-24）。
 - **[context-analyst]** Phase 54 `context_brief` 已产出（2026-04-24）。
 - **[Claude]** Phase 54 `kickoff` / `design_decision` / `risk_assessment` 已产出（2026-04-24）。
+- **[Claude]** Phase 54 `review_comments.md` 已产出并通过（verdict: `approved`）。
 - **[Codex]** 已完成 Phase 54 命名清理实现：`codex_fim` → `fim`、文件重命名、executor / router / tests 更新、`concerns_backlog.md` 收口。
 - **[Codex]** 已完成验证：目标测试集 `239 passed, 2 deselected, 5 subtests passed`，全量 `452 passed, 8 deselected`。
 
@@ -80,6 +81,7 @@
 - `docs/plans/phase54/kickoff.md` (claude, 2026-04-24)
 - `docs/plans/phase54/design_decision.md` (claude, 2026-04-24)
 - `docs/plans/phase54/risk_assessment.md` (claude, 2026-04-24)
+- `docs/plans/phase54/review_comments.md` (claude, 2026-04-24)
 - `docs/plans/phase54/closeout.md` (codex, 2026-04-24)
 
 ---
