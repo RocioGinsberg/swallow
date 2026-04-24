@@ -7,7 +7,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 import sys
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -318,7 +318,11 @@ class ConsistencyAuditTest(unittest.TestCase):
             with patch("swallow.orchestrator.run_retrieval", return_value=[]):
                 with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
                     with patch("swallow.executor.run_local_executor", side_effect=run_local):
-                        with patch("swallow.orchestrator.schedule_consistency_audit", return_value="audit-thread") as schedule:
+                        with patch(
+                            "swallow.orchestrator.schedule_consistency_audit",
+                            new_callable=AsyncMock,
+                            return_value="audit-thread",
+                        ) as schedule:
                             final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             events = _load_events(tmp_path / ".swl" / "tasks" / created.task_id / "events.jsonl")
@@ -364,7 +368,11 @@ class ConsistencyAuditTest(unittest.TestCase):
             with patch("swallow.orchestrator.run_retrieval", return_value=[]):
                 with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
                     with patch("swallow.executor.run_local_executor", side_effect=run_local):
-                        with patch("swallow.orchestrator.schedule_consistency_audit", return_value="audit-thread") as schedule:
+                        with patch(
+                            "swallow.orchestrator.schedule_consistency_audit",
+                            new_callable=AsyncMock,
+                            return_value="audit-thread",
+                        ) as schedule:
                             final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             events = _load_events(tmp_path / ".swl" / "tasks" / created.task_id / "events.jsonl")

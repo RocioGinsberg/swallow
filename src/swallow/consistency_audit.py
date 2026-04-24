@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
-import threading
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -249,7 +249,11 @@ def evaluate_audit_trigger(policy: AuditTriggerPolicy, executor_payload: dict[st
     return reasons
 
 
-def _run_consistency_audit_background(
+def _background_audit_task_name(task_id: str) -> str:
+    return f"swallow-audit-{task_id[:8]}"
+
+
+async def _run_consistency_audit_background(
     base_dir: Path,
     task_id: str,
     *,
@@ -257,7 +261,8 @@ def _run_consistency_audit_background(
     sample_artifact_path: str,
 ) -> None:
     try:
-        run_consistency_audit(
+        await asyncio.to_thread(
+            run_consistency_audit,
             base_dir,
             task_id,
             auditor_route=auditor_route,
@@ -267,26 +272,20 @@ def _run_consistency_audit_background(
         return
 
 
-def schedule_consistency_audit(
+async def schedule_consistency_audit(
     base_dir: Path,
     task_id: str,
     *,
     auditor_route: str,
     sample_artifact_path: str = "executor_output.md",
 ) -> str:
-    thread = threading.Thread(
-        target=_run_consistency_audit_background,
-        kwargs={
-            "base_dir": base_dir,
-            "task_id": task_id,
-            "auditor_route": auditor_route,
-            "sample_artifact_path": sample_artifact_path,
-        },
-        daemon=True,
-        name=f"swallow-audit-{task_id[:8]}",
+    await _run_consistency_audit_background(
+        base_dir,
+        task_id,
+        auditor_route=auditor_route,
+        sample_artifact_path=sample_artifact_path,
     )
-    thread.start()
-    return thread.name
+    return _background_audit_task_name(task_id)
 
 
 def run_consistency_audit(

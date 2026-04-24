@@ -14,7 +14,7 @@ status: living-document
 *   **当前现状**：Phase 49 已将 Evidence / Wiki 知识读取切换为 SQLite primary，文件系统仅保留 mirror / export / fallback 视图。
 *   **消化结果**：知识层事务性真值闭环已在 `v0.7.0` 落地，后续不应再回退为文件系统主读。
 
-### 2. [战略级] Specialist Agent 的缺位与提案应用流程不完整 (Specialist Agent Lifecycle & Proposal Consumption)
+### 2. [已消化] Specialist Agent 的缺位与提案应用流程不完整 (Specialist Agent Lifecycle & Proposal Consumption)
 *   **蓝图要求**：`AGENT_TAXONOMY_DESIGN` 定义了 6 个专项角色（Librarian、Meta-Optimizer、Ingestion Specialist、Literature Specialist、Quality Reviewer、Consistency Reviewer），应具备边界清晰的职责与独立生命周期。`SELF_EVOLUTION_AND_MEMORY` 要求系统能够通过”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环实现自我进化。
 *   **当前现状**：Librarian 已落地为独立 Agent；Meta-Optimizer 已落地为只读分析入口，可产出提案；但其他 5 个专项角色仍为函数化，且提案应用流程（operator review → apply）尚未完整。
 *   **核心差距**：知识沉淀和策略自省仍属于”函数的副作用”，而非”显式的工作流”；遥测数据处于”已捕获但未消费”状态，浪费了宝贵的反馈信号。
@@ -46,9 +46,9 @@ status: living-document
 *   **解决方式**：实装 N-Reviewer 共识门禁与 TaskCard 级成本护栏。
 *   **成果**：系统进入 **Consensus Era**，具备了自我纠偏与财务自律能力。
 
-### [Phase 50 预期] 策略闭环与 Specialist Agent 落地 (v0.8.0)
-*   **解决方式**：完成 Meta-Optimizer 提案应用流程、落地 Meta-Optimizer 独立 Agent、实装一致性审计自动化触发。
-*   **预期成果**：系统进入 **Policy Era**，实现”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环。Specialist Agent 体系初步成型，为后续 Ingestion/Literature/Quality Reviewer 等角色落地奠定基础。
+### [Phase 51] 策略闭环与 Specialist Agent 落地 (v0.8.0)
+*   **解决方式**：实装 S1 提案 review/apply 工作流（operator gate、持久化、rollback 快照）、S2 `MetaOptimizerAgent` 独立生命周期（`execute` / `execute_async`、`MetaOptimizerSnapshot`）、S3 route 能力画像与 task-family guard、S4 遥测驱动的 capability 提案生成与应用闭环。
+*   **成果**：系统进入 **Policy Era**，实现”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环。Specialist Agent 体系初步成型，为后续 Ingestion/Literature/Quality Reviewer 等角色落地奠定基础。已合并到 main（commit `4b0de67`），review 结论 `approved_with_concerns`，2 个 CONCERN 已登记到 `docs/concerns_backlog.md`，tag `v0.8.0`。
 
 ---
 
@@ -75,7 +75,7 @@ status: living-document
 *   **产出价值**：系统从”孤立的遥测记录”进化到”可感知的策略行为”，实现审计、提案、权重调整的单向数据流闭环。
 *   **成果**：406 tests passed，0 BLOCK / 2 CONCERN（可接受），已合并到 main（commit `434a56c`）。
 
-### Phase 51: 策略闭环与 Specialist Agent 落地 (Policy Closure & Specialist Agent Lifecycle) 🚀 [Next]
+### Phase 51: 策略闭环与 Specialist Agent 落地 (Policy Closure & Specialist Agent Lifecycle) ✅ [Done] — tag v0.8.0
 *   **Primary Track**: Evaluation / Policy + Agent Taxonomy
 *   **Secondary Track**: Provider Routing
 *   **目标**：完成”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环，落地 Meta-Optimizer 作为独立 Specialist Agent。
@@ -88,7 +88,7 @@ status: living-document
 *   **风险等级**：中（涉及新的 operator gate 流程与 Agent 生命周期管理，需要充分测试）
 *   **依赖**：Phase 50 的结构化提案与自动触发基础设施
 
-### Phase 52: 平台级多路并行与复杂拓扑 (Advanced Parallel Topologies)
+### Phase 52: 平台级多路并行与复杂拓扑 (Advanced Parallel Topologies) 🚀 [Next]
 *   **Primary Track**: Core Loop
 *   **Secondary Track**: Execution Topology
 *   **目标**：利用 Async & SQLite 底座，解锁蓝图中的高并发多路子任务编排。
@@ -127,7 +127,7 @@ status: living-document
 
 ## 四、推荐 Phase 队列与风险批注 (Claude 维护)
 
-> 最近更新：2026-04-23 (Phase 50 已完成，Phase 51 规划基于 gap 分析)
+> 最近更新：2026-04-23 (Phase 51 已完成，tag v0.8.0，Phase 52 为下一阶段)
 
 ### 队列总览
 
@@ -136,7 +136,7 @@ status: living-document
 | ~~1~~ | ~~48~~ | ~~存储引擎升级与全异步改造~~ | ~~Core Loop~~ | ~~State / Truth~~ | ~~已完成~~ | tag `v0.6.0` |
 | ~~2~~ | ~~49~~ | ~~知识真值归一与向量 RAG~~ | ~~Knowledge / RAG~~ | ~~State / Truth~~ | ~~已完成~~ | tag `v0.7.0` |
 | ~~3~~ | ~~50~~ | ~~路由策略闭环与专项审计~~ | ~~Evaluation / Policy~~ | ~~Provider Routing~~ | ~~已完成~~ | tag `v0.7.0+`，406 tests passed |
-| **4** | **51** | **策略闭环与 Specialist Agent 落地** | **Evaluation / Policy + Agent Taxonomy** | **Provider Routing** | **中** | 战略级 gap：完成提案应用流程、落地 Meta-Optimizer 独立 Agent |
+| ~~4~~ | ~~51~~ | ~~策略闭环与 Specialist Agent 落地~~ | ~~Evaluation / Policy + Agent Taxonomy~~ | ~~Provider Routing~~ | ~~已完成~~ | tag `v0.8.0`，commit `4b0de67`，approved_with_concerns |
 | **5** | **52** | **平台级多路并行与复杂拓扑** | **Core Loop** | **Execution Topology** | **中高** | 依赖 Phase 51 的 Specialist Agent 体系稳定 |
 | **6** | **53** | **其他 Specialist Agent 落地** | **Agent Taxonomy** | **Knowledge / Self-Evolution** | **中** | 完成 5 个专项角色的独立生命周期 |
 | **7** | **54** | **Taxonomy 命名与品牌残留清理** | **Agent Taxonomy** | **Provider Routing** | **低** | 纯重构，无功能变化 |
@@ -169,6 +169,6 @@ status: living-document
 
 - **Phase 49** → `v0.7.0` (Knowledge Era)：知识真值归一与向量检索能力的正式闭环
 - **Phase 50** → `v0.7.0+` (Policy Closure)：策略闭环初步成型，孤立能力连接成可感知行为
-- **Phase 51** → `v0.8.0` (Policy Era)：策略闭环与 Specialist Agent 体系初步成型（待 closeout 后确认）
+- **Phase 51** → `v0.8.0` (Policy Era)：策略闭环与 Specialist Agent 体系初步成型（commit `4b0de67`，approved_with_concerns，2 CONCERN 登记至 concerns_backlog.md）
 - **Phase 52** → `v0.9.0` (Parallel Era)：高并发多路编排能力落地（待 closeout 后确认）
 - **Phase 53** → `v1.0.0` (Specialist Era)：Specialist Agent 体系完全落地，系统进化逻辑完全显式化（待 closeout 后确认）

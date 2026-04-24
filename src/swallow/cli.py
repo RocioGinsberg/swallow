@@ -27,10 +27,10 @@ from .canonical_registry import (
     build_staged_canonical_key,
 )
 from .doctor import (
-    diagnose_codex,
+    diagnose_executor,
     diagnose_local_stack,
     diagnose_sqlite_store,
-    format_codex_doctor_result,
+    format_executor_doctor_result,
     format_local_stack_doctor_result,
     format_sqlite_doctor_result,
 )
@@ -50,7 +50,7 @@ from .meta_optimizer import (
 )
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
-from .models import LIBRARIAN_MEMORY_AUTHORITY
+from .models import LIBRARIAN_MEMORY_AUTHORITY, RouteSelection
 from .orchestrator import (
     acknowledge_task,
     append_task_knowledge_capture,
@@ -101,6 +101,7 @@ from .router import (
     route_by_name,
     save_route_capability_profiles,
     save_route_weights,
+    select_route,
 )
 from .store import (
     append_canonical_record,
@@ -366,6 +367,7 @@ def build_intake_snapshot(base_dir: Path, task_id: str) -> list[str]:
         "Planning Handoff",
         f"task_semantics_source_kind: {task_semantics.get('source_kind', state.task_semantics.get('source_kind', 'none') if state.task_semantics else 'none')}",
         f"task_semantics_source_ref: {task_semantics.get('source_ref', state.task_semantics.get('source_ref', '') if state.task_semantics else '') or '-'}",
+        f"task_semantics_complexity_hint: {task_semantics.get('complexity_hint', state.task_semantics.get('complexity_hint', '') if state.task_semantics else '') or '-'}",
         f"constraints_count: {len(task_semantics.get('constraints', state.task_semantics.get('constraints', []) if state.task_semantics else []))}",
         f"acceptance_criteria_count: {len(task_semantics.get('acceptance_criteria', state.task_semantics.get('acceptance_criteria', []) if state.task_semantics else []))}",
         f"priority_hints_count: {len(task_semantics.get('priority_hints', state.task_semantics.get('priority_hints', []) if state.task_semantics else []))}",
@@ -600,6 +602,48 @@ def load_json_lines_if_exists(path: Path) -> list[dict[str, object]]:
             continue
         items.append(json.loads(stripped))
     return items
+
+
+def _format_route_selection_value(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    normalized = str(value or "").strip()
+    return normalized or "none"
+
+
+def build_route_selection_report(
+    task_id: str,
+    selection: RouteSelection,
+    *,
+    executor_override: str = "",
+    route_mode_override: str = "",
+) -> str:
+    lines = [
+        "# Route Selection",
+        "",
+        f"- task_id: {task_id}",
+        f"- override_executor: {executor_override or 'none'}",
+        f"- override_route_mode: {route_mode_override or 'none'}",
+        f"- selected_route: {selection.route.name}",
+        f"- executor_name: {selection.route.executor_name}",
+        f"- backend_kind: {selection.route.backend_kind}",
+        f"- execution_site: {selection.route.execution_site}",
+        f"- executor_family: {selection.route.executor_family}",
+        f"- transport_kind: {selection.route.transport_kind}",
+        f"- model_hint: {selection.route.model_hint or 'none'}",
+        f"- dialect: {selection.route.dialect_hint or 'none'}",
+        f"- fallback_route: {selection.route.fallback_route_name or 'none'}",
+        f"- reason: {selection.reason}",
+        f"- capabilities: {selection.route.capabilities.summary()}",
+        "",
+        "## Policy Inputs",
+    ]
+    if selection.policy_inputs:
+        for key in sorted(selection.policy_inputs):
+            lines.append(f"- {key}: {_format_route_selection_value(selection.policy_inputs[key])}")
+    else:
+        lines.append("- none")
+    return "\n".join(lines)
 
 
 def build_stage_candidate_list_report(candidates: list[StagedCandidate]) -> str:
@@ -1273,6 +1317,22 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Remove a task family from the unsupported list. Repeat to clear multiple values.",
     )
+    route_select_parser = route_subparsers.add_parser(
+        "select",
+        help="Dry-run route selection for an existing task.",
+    )
+    route_select_parser.add_argument("--task-id", required=True, help="Task identifier to evaluate.")
+    route_select_parser.add_argument(
+        "--executor",
+        default=None,
+        help="Optional executor override for the dry-run selection.",
+    )
+    route_select_parser.add_argument(
+        "--route-mode",
+        default=None,
+        choices=["auto", "live", "deterministic", "detached", "offline", "summary"],
+        help="Optional routing policy override for the dry-run selection.",
+    )
 
     task_parser = subparsers.add_parser("task", help="Task workbench and lifecycle commands.")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
@@ -1435,8 +1495,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     create_parser.add_argument(
         "--executor",
-        default="codex",
-        help="Executor to persist for the task. Defaults to codex.",
+        default="aider",
+        help="Executor to persist for the task. Defaults to aider.",
     )
     create_parser.add_argument(
         "--constraint",
@@ -1466,6 +1526,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--planning-source",
         default="",
         help="Optional external planning source reference for task semantics.",
+    )
+    create_parser.add_argument(
+        "--complexity-hint",
+        default=None,
+        choices=["low", "routine", "high", "parallel"],
+        help="Optional complexity hint persisted into task semantics for route selection.",
     )
     create_parser.add_argument(
         "--knowledge-item",
@@ -1523,6 +1589,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--planning-source",
         default="",
         help="Optional external planning source reference for task semantics.",
+    )
+    planning_handoff_parser.add_argument(
+        "--complexity-hint",
+        default=None,
+        choices=["low", "routine", "high", "parallel"],
+        help="Optional complexity hint to persist or update on task semantics.",
     )
     planning_handoff_parser.add_argument(
         "--constraint",
@@ -2058,7 +2130,8 @@ def build_parser() -> argparse.ArgumentParser:
     retrieval_json_parser = task_subparsers.add_parser("retrieval-json", help="Print the task retrieval record.")
     retrieval_json_parser.add_argument("task_id", help="Task identifier.")
 
-    doctor_subparsers.add_parser("codex", help="Run a minimal Codex executor preflight.")
+    doctor_subparsers.add_parser("executor", help="Run a minimal live executor preflight.")
+    doctor_subparsers.add_parser("codex", help="Deprecated alias for `doctor executor`.")
     doctor_subparsers.add_parser("sqlite", help="Inspect the SQLite store and migration status.")
     doctor_subparsers.add_parser("stack", help="Run local Docker / WireGuard / proxy health checks.")
 
@@ -2313,6 +2386,22 @@ def main(argv: list[str] | None = None) -> int:
         print(build_route_capability_profiles_report(base_dir), end="")
         return 0
 
+    if args.command == "route" and args.route_command == "select":
+        apply_route_weights(base_dir)
+        apply_route_capability_profiles(base_dir)
+        state = load_state(base_dir, args.task_id)
+        selection = select_route(state, args.executor, args.route_mode)
+        print(
+            build_route_selection_report(
+                state.task_id,
+                selection,
+                executor_override=str(args.executor or "").strip(),
+                route_mode_override=str(args.route_mode or "").strip(),
+            ),
+            end="",
+        )
+        return 0
+
     if args.command == "ingest":
         result = run_ingestion_pipeline(
             base_dir,
@@ -2348,6 +2437,7 @@ def main(argv: list[str] | None = None) -> int:
             priority_hints=args.priority_hint,
             next_action_proposals=args.next_action_proposal,
             planning_source=args.planning_source,
+            complexity_hint=args.complexity_hint,
             knowledge_items=args.knowledge_item,
             knowledge_stage=args.knowledge_stage,
             knowledge_source=args.knowledge_source,
@@ -2369,6 +2459,7 @@ def main(argv: list[str] | None = None) -> int:
             priority_hints=args.priority_hint,
             next_action_proposals=args.next_action_proposal,
             planning_source=args.planning_source,
+            complexity_hint=args.complexity_hint,
         )
         print(
             f"{state.task_id} planning_handoff_updated "
@@ -3259,9 +3350,9 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "doctor":
-        if args.doctor_command == "codex":
-            exit_code, result = diagnose_codex()
-            print(format_codex_doctor_result(result))
+        if args.doctor_command in {"executor", "codex"}:
+            exit_code, result = diagnose_executor()
+            print(format_executor_doctor_result(result))
             return exit_code
         if args.doctor_command == "sqlite":
             exit_code, result = diagnose_sqlite_store(base_dir)
@@ -3272,20 +3363,20 @@ def main(argv: list[str] | None = None) -> int:
             print(format_local_stack_doctor_result(result))
             return exit_code
 
-        codex_exit_code, codex_result = diagnose_codex()
-        print(format_codex_doctor_result(codex_result))
+        executor_exit_code, executor_result = diagnose_executor()
+        print(format_executor_doctor_result(executor_result))
 
         sqlite_exit_code, sqlite_result = diagnose_sqlite_store(base_dir)
         print()
         print(format_sqlite_doctor_result(sqlite_result))
 
         if args.skip_stack:
-            return 0 if codex_exit_code == 0 and sqlite_exit_code == 0 else 1
+            return 0 if executor_exit_code == 0 and sqlite_exit_code == 0 else 1
 
         stack_exit_code, stack_result = diagnose_local_stack()
         print()
         print(format_local_stack_doctor_result(stack_result))
-        return 0 if codex_exit_code == 0 and sqlite_exit_code == 0 and stack_exit_code == 0 else 1
+        return 0 if executor_exit_code == 0 and sqlite_exit_code == 0 and stack_exit_code == 0 else 1
 
     parser.error("Unsupported command.")
     return 2

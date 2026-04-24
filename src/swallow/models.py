@@ -149,6 +149,7 @@ class TaskSemantics:
     next_action_proposals: list[str] = field(default_factory=list)
     source_kind: str = "operator_entry"
     source_ref: str = ""
+    complexity_hint: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -316,13 +317,13 @@ class TaskState:
     created_at: str = field(default_factory=utc_now)
     updated_at: str = field(default_factory=utc_now)
     retrieval_count: int = 0
-    executor_name: str = "codex"
+    executor_name: str = "aider"
     task_semantics: dict[str, Any] = field(default_factory=dict)
     knowledge_objects: list[dict[str, Any]] = field(default_factory=list)
     capability_manifest: dict[str, Any] = field(default_factory=dict)
     capability_assembly: dict[str, Any] = field(default_factory=dict)
     route_mode: str = "auto"
-    route_name: str = "local-codex"
+    route_name: str = "local-aider"
     route_backend: str = "local_cli"
     route_executor_family: str = "cli"
     route_execution_site: str = "local"
@@ -330,12 +331,12 @@ class TaskState:
     route_transport_kind: str = "local_process"
     route_taxonomy_role: str = ""
     route_taxonomy_memory_authority: str = ""
-    route_model_hint: str = "codex"
+    route_model_hint: str = "aider"
     route_dialect: str = "plain_text"
-    route_reason: str = "Default local Codex route."
+    route_reason: str = "Default local Aider route."
     route_is_fallback: bool = False
     route_capabilities: dict[str, Any] = field(default_factory=dict)
-    topology_route_name: str = "local-codex"
+    topology_route_name: str = "local-aider"
     topology_executor_family: str = "cli"
     topology_execution_site: str = "local"
     topology_transport_kind: str = "local_process"

@@ -2,37 +2,33 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Evaluation / Policy` (Primary) + `Provider Routing` (Secondary)
-- latest_completed_phase: `Phase 50`
-- latest_completed_slice: `Policy Closure & Specialist Audit (v0.7.0+)`
-- active_track: `Evaluation / Policy + Agent Taxonomy` (Primary) + `Provider Routing` (Secondary)
-- active_phase: `Phase 51`
-- active_slice: `s4_route_capability_profile_expansion`
-- active_branch: `feat/phase51-specialist-lifecycle`
-- status: `phase51_pr_materials_ready_for_commit`
+- latest_completed_track: `Evaluation / Policy + Agent Taxonomy` (Primary) + `Provider Routing` (Secondary)
+- latest_completed_phase: `Phase 51`
+- latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle (v0.8.0)`
+- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
+- active_phase: `Phase 52`
+- active_slice: `PR closeout / tag preflight`
+- active_branch: `feat/phase52_execution_topology`
+- status: `phase52_pr_ready_tag_preflight_pending`
 
 ---
 
 ## 当前状态说明
 
-`main` 已吸收 Phase 50 `Policy Closure & Specialist Audit` 的全部实现，Human 已完成 merge（commit `434a56c`）与 closeout 同步（commit `fc8b7d3`）。Phase 50 实现了结构化提案、自动审计触发、路由质量权重等能力，系统从"孤立的遥测记录"进化到"可感知的策略行为"。当前对外稳定 checkpoint 为 `v0.7.0+`（Phase 50 merge 后）。
+`main` 已完成 Phase 51 并打出 `v0.8.0`。当前工作分支 `feat/phase52_execution_topology` 上，Phase 52 的实现、实现后验证与 review follow-up 已完成，现处于 PR 收口与 tag 前置准备状态。
 
-Phase 50 已完成，当前已进入 Phase 51 实现阶段。Phase 51 目标为"策略闭环与 Specialist Agent 落地"，重点是完成"提案应用流程"与"Meta-Optimizer 独立 Agent 生命周期"，实现"自我观察 → 提案生成 → operator 审批 → 自动应用"的完整闭环。
+本轮收口重点已从 review 修订切到合并材料整理：确认 PR 描述、closeout、backlog 和当前状态入口一致，并为 merge 后是否打 `v0.9.0` 预先准备检查清单。
 
 ---
 
 ## 当前关键文档
 
-Phase 50 已完成，相关文档：
-
-1. `docs/plans/phase50/context_brief.md` — 上下文摘要（claude, 2026-04-23）
-2. `docs/plans/phase50/kickoff.md` — phase 边界与 slice 拆解（claude, 2026-04-23）
-3. `docs/plans/phase50/design_decision.md` — 方案设计（claude, 2026-04-23）
-4. `docs/plans/phase50/risk_assessment.md` — 风险评估（claude, 2026-04-23）
-5. `docs/plans/phase50/review_comments.md` — PR review 结论（claude, 2026-04-23）
-6. `docs/plans/phase50/closeout.md` — phase 收口（codex, 2026-04-23）
-
-Phase 51 文档已就绪，当前已完成 S1-S4 实现，Human 已完成全部 slice commit。Claude review 已产出后，Codex 已吸收本轮两个可直接收敛的 concern：`MetaOptimizerSnapshot` 现持久化 `route_task_family_stats`，`apply_reviewed_optimization_proposals` 不再用 `apply_route_weights()` 混合承担“读取当前权重”和“应用到注册表”两种语义。未消化风险已登记到 `docs/concerns_backlog.md`，`pr.md` 也已更新到当前实现与 review 结论，当前分支处于 review follow-up + PR material 待人工提交状态。
+1. `docs/plans/phase52/context_brief.md`
+2. `docs/plans/phase52/kickoff.md`
+3. `docs/plans/phase52/design_decision.md`
+4. `docs/plans/phase52/risk_assessment.md`
+5. `docs/plans/phase52/closeout.md`
+6. `docs/roadmap.md`
 
 ---
 
@@ -40,87 +36,58 @@ Phase 51 文档已就绪，当前已完成 S1-S4 实现，Human 已完成全部 
 
 已完成：
 
-- **[Phase 50]** 已完成实现并合并到 main（commit `434a56c`）。406 tests passed，0 BLOCK / 2 CONCERN（可接受）。
-- **[Claude]** 完成蓝图与实现 gap 分析，识别战略级差距（提案应用流程缺失、Meta-Optimizer 仍为函数化）。
-- **[Claude]** 基于 gap 分析重新规划 Phase 51-54 的目标与优先级。
-- **[Claude]** 更新 `docs/roadmap.md`：Phase 50 标记为已完成，Phase 51 重新定位为"策略闭环与 Specialist Agent 落地"，Phase 52-54 后移。
-- **[Claude]** 已产出 `docs/plans/phase51/context_brief.md`、`kickoff.md`、`design_decision.md`。
-- **[Codex]** 已切出 `feat/phase51-specialist-lifecycle`，完成 S1 `proposal review/apply` 实现。
-- **[Codex]** 已验证 S1：`.venv/bin/python -m pytest tests/test_meta_optimizer.py --tb=short` 11 passed；`.venv/bin/python -m pytest tests/test_cli.py --tb=short` 202 passed。
-- **[Human]** 已完成 S1 commit：`799e35a feat(meta-optimizer): add proposal review and apply workflow`。
-- **[Codex]** 已完成 S2：`MetaOptimizerAgent` / `MetaOptimizerExecutor` 生命周期、`resolve_executor(...)` 接线、同步/异步执行与 `run_task(...)` 集成测试。
-- **[Codex]** 已验证 S2：`.venv/bin/python -m pytest tests/test_meta_optimizer.py --tb=short` 15 passed；`.venv/bin/python -m pytest tests/test_executor_protocol.py --tb=short` 18 passed；`.venv/bin/python -m pytest tests/test_librarian_executor.py --tb=short` 5 passed；`.venv/bin/python -m pytest tests/test_cli.py --tb=short` 202 passed。
-- **[Human]** 已完成 S2 commit：`5407cc1 feat(meta-optimizer): add specialist agent lifecycle`。
-- **[Codex]** 已完成 S3：`RouteSpec.unsupported_task_types` / `task_family_scores`、`.swl/route_capabilities.json` 持久化、`swl route capabilities show/update` CLI、route selection task-family guard。
-- **[Codex]** 已验证 S3：`.venv/bin/python -m pytest tests/test_router.py --tb=short` 15 passed；`.venv/bin/python -m pytest tests/test_cli.py --tb=short` 203 passed；`.venv/bin/python -m pytest tests/test_meta_optimizer.py tests/test_librarian_executor.py tests/test_router.py --tb=short` 35 passed。
-- **[Codex]** 已完成 S4：Meta-Optimizer 基于遥测自动生成 `route_capability` 提案，`proposal review/apply` 支持 capability score / unsupported boundary 落盘到 `.swl/route_capabilities.json`，补齐 capability profile 的 proposal-driven 闭环。
-- **[Codex]** 已验证 S4：`.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` 18 passed；`.venv/bin/python -m pytest tests/test_cli.py -q -k "proposal or route_capabilities_update_and_show_cli_flow"` 3 passed；`.venv/bin/python -m pytest tests/test_router.py -q` 15 passed；`.venv/bin/python -m pytest tests/test_executor_protocol.py -q` 18 passed；`.venv/bin/python -m pytest tests/test_meta_optimizer.py tests/test_cli.py tests/test_router.py --tb=short` 237 passed。
-- **[Human]** 已完成 S4 commit：`b52caf8 feat(meta-optimizer): extend route capability proposal workflow`。
-- **[Codex]** 已同步 `docs/active_context.md` 并整理 `docs/plans/phase51/commit_summary.md`，当前进入 Claude PR review 前置交接态。
-- **[Claude]** 已完成 Phase 51 PR review，产出 `docs/plans/phase51/review_comments.md`，结论：`approved_with_concerns`（2 个 CONCERN 不阻塞合并）。
-- **[Codex]** 已吸收 review follow-up：`MetaOptimizerSnapshot` 新增 `route_task_family_stats` 可观测性字段；`apply_reviewed_optimization_proposals` 改为显式 `load_route_weights()` 读取当前持久化状态，仅在保存后调用一次 `apply_route_weights()`；补充 rollback/snapshot 断言测试。
-- **[Codex]** 已验证 review follow-up：`.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` 18 passed；`.venv/bin/python -m pytest tests/test_router.py -q` 15 passed；`.venv/bin/python -m pytest tests/test_cli.py -q -k "proposal or route_capabilities_update_and_show_cli_flow"` 3 passed；`.venv/bin/python -m pytest tests/test_executor_protocol.py -q` 18 passed。
-- **[Codex]** 已将未消化风险登记到 `docs/concerns_backlog.md`，并更新 `pr.md` / `docs/plans/phase51/commit_summary.md`，完成本轮 PR material 收口。
+- **[Human]** 已切出 `feat/phase52_execution_topology`。
+- **[Claude]** 已完成 Phase 52 `context_brief` / `kickoff` / `design_decision` / `risk_assessment`。
+- **[Codex]** 已完成 S1 代码盘点，确认 `executor.py` / `router.py` / `dialect_data.py` / `models.py` 仍残留 `codex/cline` 默认路径与同步桥接实现。
+- **[Codex]** 已完成 S1 主路径：`AsyncCLIAgentExecutor`、`AIDER_CONFIG` / `CLAUDE_CODE_CONFIG`、`aider/claude-code` 路由重命名、`complexity_hint` 基础路由偏置与 `parallel_intent` 记录。
+- **[Codex]** 已验证 S1 主路径：`.venv/bin/python -m pytest tests/test_executor_protocol.py tests/test_router.py tests/test_binary_fallback.py tests/test_planner.py tests/test_subtask_orchestrator.py -q` → `50 passed`。
+- **[Codex]** 已完成 S1 尾部 concern：`schedule_consistency_audit` 改为 `asyncio.create_task` + background task set 收口，并验证 `tests/test_consistency_audit.py -q` → `11 passed`。
+- **[Codex]** 已完成 S1 残余命名收口：`doctor/cli/create_task` 默认 executor 改为 `aider`，`doctor executor` 取代旧 `doctor codex` 命名（保留 deprecated alias），相关 CLI 测试已同步。
+- **[Codex]** 已验证 S1 commit gate 补充集：`tests/test_cli.py -q -k "parse_capability_refs_builds_manifest_from_explicit_refs or task_falls_back_to_local_summary_when_aider_binary_is_missing or aider_timeout_preserves_partial_output or doctor_executor_missing_binary_returns_nonzero or doctor_executor_success_returns_zero or doctor_without_subcommand_runs_executor_and_stack_checks or doctor_skip_stack_only_runs_executor_check or doctor_sqlite_subcommand_runs_sqlite_check_only or doctor_stack_subcommand_runs_stack_check_only or create_task_persists_route_dialect_for_default_aider_route or select_route_uses_override_before_legacy_mode or select_route_uses_legacy_mode_when_task_stays_default or select_route_uses_route_mode_when_no_executor_override_is_present or compatibility_reports_warning_for_live_route_without_network or compatibility_reports_failure_for_deterministic_mode_mismatch"` → `15 passed`。
+- **[Codex]** 已完成 S2 语义入口补强：`TaskSemantics.complexity_hint` 已贯通 `build_task_semantics()`、`create_task()`、`update_task_planning_handoff()` 与 `task_semantics_report.md`。
+- **[Codex]** 已完成 S2 CLI 面：`swl task create --complexity-hint`、`swl task planning-handoff --complexity-hint` 与 `swl route select --task-id <id> [--executor ...] [--route-mode ...]` dry-run 已落地。
+- **[Codex]** 已完成 S2 测试补强：`tests/test_router.py -q` → `21 passed`；`tests/test_cli.py -q -k "test_cli_create_persists_imported_planning_semantics or test_cli_planning_handoff_updates_existing_task_semantics or test_cli_create_persists_complexity_hint_in_task_semantics or test_cli_planning_handoff_updates_complexity_hint or test_cli_route_select_reports_policy_inputs_for_task or test_cli_route_select_respects_executor_override or test_create_task_persists_route_dialect_for_default_aider_route or test_select_route_uses_override_before_legacy_mode or test_select_route_uses_legacy_mode_when_task_stays_default or test_select_route_uses_route_mode_when_no_executor_override_is_present"` → `9 passed`。
+- **[Codex]** 已完成 S3 async fan-out 守卫：`AsyncSubtaskOrchestrator` 新增 subtask timeout 记录、`asyncio.gather(..., return_exceptions=True)` 局部失败隔离，以及 `AIWF_MAX_SUBTASK_WORKERS` 环境变量接线。
+- **[Codex]** 已完成 S3 parent artifact 收口：多 card 路径会写出 `subtask_summary.md`，汇总各 subtask 的 card_id / goal / status / latest attempt artifact refs；单卡路径不暴露该 artifact key。
+- **[Codex]** 已完成 S3 cancellation cleanup：`run_cli_agent_executor_async()` 在外层 cancel 时会 kill 并回收子进程，避免 subtask timeout 留下悬挂 CLI 进程。
+- **[Codex]** 已验证 S3 gate：`.venv/bin/python -m pytest tests/test_subtask_orchestrator.py tests/test_run_task_subtasks.py tests/test_executor_async.py -q` → `17 passed`。
+- **[Human]** 已完成 S3 commit。
+- **[Codex]** 已完成 Phase 52 post-implementation validation：补齐 `meta_optimizer` 的 cost trend 顺序修正、perfect-baseline capability proposal 抑制，以及 legacy route alias (`local-codex` / `local-cline`) 的 policy persistence 兼容。
+- **[Codex]** 已验证全量基线：`.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` → `19 passed`；`.venv/bin/python -m pytest -m eval -q` → `8 passed`；`.venv/bin/python -m pytest --tb=short` → `437 passed, 8 deselected`。
+- **[Claude]** 已产出 `review_comments.md`，结论为 `approved_with_concerns`。
+- **[Codex]** 已吸收 review follow-up：修正文档中对 `AsyncCLIAgentExecutor` / harness bridge 的实现表述，清理 operator-facing `Codex` 残留文案，引入 `FIMDialect` 中性类型名并保留 `CodexFIMDialect` alias 兼容，同时把剩余 `codex_fim` 命名 concern 登记到 `docs/concerns_backlog.md`。
+- **[Codex]** 已验证 review follow-up 后基线：`.venv/bin/python -m pytest --tb=short` → `437 passed, 8 deselected`。
+- **[Codex]** 已更新 `pr.md` 为 Phase 52 PR 收口版本，并加入 merge 后 tag preflight 清单。
+
+进行中：
+
+- 无。Phase 52 当前已进入 PR ready 状态。
 
 待执行：
 
-- **[Human]** 审阅并提交当前 review follow-up + PR material diff。
-- **[Human]** push 当前 feature branch，并使用仓库根目录 `./pr.md` 创建或更新 PR。
+- **[Human]** 审阅当前 PR 材料并决定是否 merge。
+- **[Human]** merge 后按 `pr.md` 的 tag preflight 清单决定是否打 `v0.9.0`。
+- **[Codex]** 若 Human 决定打 tag，再更新 README / AGENTS 的 tag-level snapshot。
 
 当前阻塞项：
 
-- 无。当前仅等待 Human 提交并推送当前 PR-ready diff。
+- 无。
+
+---
 
 ## 当前产出物
 
-Phase 50 已完成产出物：
+- `docs/plans/phase52/context_brief.md` (claude, 2026-04-23)
+- `docs/plans/phase52/kickoff.md` (claude, 2026-04-23)
+- `docs/plans/phase52/design_decision.md` (claude, 2026-04-23)
+- `docs/plans/phase52/risk_assessment.md` (claude, 2026-04-23)
+- `docs/plans/phase52/review_comments.md` (claude, 2026-04-24)
+- `docs/plans/phase52/closeout.md` (codex, 2026-04-24)
 
-- `docs/plans/phase50/kickoff.md` (claude, 2026-04-23, 原始 Phase 50 kickoff)
-- `docs/plans/phase50/design_decision.md` (claude, 2026-04-23, 原始 Phase 50 design)
-- `docs/plans/phase50/review_comments.md` (claude, 2026-04-23, PR review 结论)
-- `docs/plans/phase50/risk_assessment.md` (claude, 2026-04-23, 风险评估)
-
-Phase 51 规划产出物：
-
-- `docs/roadmap.md` (claude, 2026-04-23, Phase 51-54 重新规划与优先级排序)
-- `docs/plans/phase51/context_brief.md` (claude, 2026-04-23, Phase 51 上下文摘要)
-- `docs/plans/phase51/kickoff.md` (claude, 2026-04-23, Phase 51 kickoff 文档)
-- `docs/plans/phase51/design_decision.md` (claude, 2026-04-23, Phase 51 设计决策文档)
-- `src/swallow/meta_optimizer.py` (codex, 2026-04-23, S1 proposal bundle/review/apply workflow)
-- `src/swallow/cli.py` (codex, 2026-04-23, S1 `swl proposal review/apply` CLI)
-- `src/swallow/models.py` (codex, 2026-04-23, S1 proposal metadata fields + JSON hydration)
-- `src/swallow/paths.py` (codex, 2026-04-23, S1 proposal bundle/review/application paths)
-- `tests/test_meta_optimizer.py` (codex, 2026-04-23, S1 proposal workflow persistence/apply/idempotency coverage)
-- `tests/test_cli.py` (codex, 2026-04-23, S1 CLI review/apply flow coverage)
-- `src/swallow/meta_optimizer.py` (codex, 2026-04-23, S2 `MetaOptimizerAgent` / `MetaOptimizerExecutor` lifecycle)
-- `src/swallow/executor.py` (codex, 2026-04-23, S2 resolve_executor wiring for `meta-optimizer`)
-- `src/swallow/models.py` (codex, 2026-04-23, S2 meta-optimizer taxonomy constants)
-- `tests/test_meta_optimizer.py` (codex, 2026-04-23, S2 agent execute/execute_async/run_task integration coverage)
-- `tests/test_executor_protocol.py` (codex, 2026-04-23, S2 executor protocol + resolver coverage)
-- `src/swallow/router.py` (codex, 2026-04-23, S3 route capability profile persistence + task-family guard)
-- `src/swallow/paths.py` (codex, 2026-04-23, S3 route capability profile path)
-- `src/swallow/cli.py` (codex, 2026-04-23, S3 `swl route capabilities show/update` CLI)
-- `src/swallow/models.py` (codex, 2026-04-23, S3 RouteSpec capability profile fields)
-- `src/swallow/orchestrator.py` (codex, 2026-04-23, S3 route capability profile apply before route selection)
-- `tests/test_router.py` (codex, 2026-04-23, S3 task-family scoring/unsupported guard/persistence coverage)
-- `tests/test_cli.py` (codex, 2026-04-23, S3 route capabilities CLI coverage)
-- `src/swallow/meta_optimizer.py` (codex, 2026-04-23, S4 telemetry-driven route capability proposals + proposal apply handlers)
-- `src/swallow/models.py` (codex, 2026-04-23, S4 structured capability proposal metadata hydration)
-- `tests/test_meta_optimizer.py` (codex, 2026-04-23, S4 capability score / unsupported proposal generation and apply coverage)
-- `tests/test_cli.py` (codex, 2026-04-23, S4 proposal apply CLI coverage for route capability profiles)
-- `docs/plans/phase51/commit_summary.md` (codex, 2026-04-23, Phase 51 slice commit map + validation snapshot + review focus)
-- `docs/plans/phase51/review_comments.md` (claude, 2026-04-24, Phase 51 PR review result: approved_with_concerns)
-- `src/swallow/meta_optimizer.py` (codex, 2026-04-24, review follow-up: snapshot observability + route weight load/apply split)
-- `tests/test_meta_optimizer.py` (codex, 2026-04-24, review follow-up: rollback/snapshot assertions)
-- `docs/concerns_backlog.md` (codex, 2026-04-24, Phase 51 unresolved risks logged + absorbed review concerns marked resolved)
-- `pr.md` (codex, 2026-04-24, Phase 51 PR body refreshed to current implementation + review outcome)
+---
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交当前 review follow-up + PR material diff。
-2. **[Human]** push 当前 feature branch，并使用 `./pr.md` 创建 / 更新 PR。
-3. **[Codex]** 如后续还有 review follow-up，再继续同步 `./pr.md` 与状态文档。
-
-当前阻塞项：
-
-- 无。当前等待 Human 提交并推送 PR-ready diff。
+1. **[Human]** 审阅当前 review follow-up diff，决定是否执行本轮收口提交 / PR 更新。
+2. **[Human]** merge 后决定是否进入 `v0.9.0` tag 流程。
+3. **[Codex]** 若需要，再执行 tag-level 文档同步。

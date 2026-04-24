@@ -70,10 +70,10 @@ def _route(
 
 
 class RouteRegistryTest(unittest.TestCase):
-    def test_route_for_executor_returns_builtin_codex_route(self) -> None:
-        route = route_for_executor("codex")
+    def test_route_for_executor_returns_builtin_aider_route(self) -> None:
+        route = route_for_executor("aider")
 
-        self.assertEqual(route.name, "local-codex")
+        self.assertEqual(route.name, "local-aider")
         self.assertEqual(route.fallback_route_name, "local-summary")
 
     def test_route_for_executor_returns_builtin_http_route(self) -> None:
@@ -83,10 +83,10 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(route.backend_kind, "http_api")
         self.assertEqual(route.transport_kind, "http")
 
-    def test_route_for_executor_returns_builtin_cline_route(self) -> None:
-        route = route_for_executor("cline")
+    def test_route_for_executor_returns_builtin_claude_code_route(self) -> None:
+        route = route_for_executor("claude-code")
 
-        self.assertEqual(route.name, "local-cline")
+        self.assertEqual(route.name, "local-claude-code")
         self.assertEqual(route.fallback_route_name, "local-summary")
 
     def test_route_for_mode_supports_http_mode(self) -> None:
@@ -98,15 +98,15 @@ class RouteRegistryTest(unittest.TestCase):
     def test_builtin_multi_model_http_routes_are_registered(self) -> None:
         self.assertEqual(route_by_name("http-claude").dialect_hint, "claude_xml")
         self.assertEqual(route_by_name("http-qwen").dialect_hint, "plain_text")
-        self.assertEqual(route_by_name("http-glm").fallback_route_name, "local-cline")
+        self.assertEqual(route_by_name("http-glm").fallback_route_name, "local-claude-code")
         self.assertEqual(route_by_name("http-gemini").fallback_route_name, "http-qwen")
         self.assertEqual(route_by_name("http-deepseek").dialect_hint, "codex_fim")
-        self.assertEqual(route_by_name("local-cline").dialect_hint, "plain_text")
+        self.assertEqual(route_by_name("local-claude-code").dialect_hint, "plain_text")
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
-        detached = build_detached_route(route_for_executor("codex"))
+        detached = build_detached_route(route_for_executor("aider"))
 
-        self.assertEqual(detached.name, "local-codex-detached")
+        self.assertEqual(detached.name, "local-aider-detached")
         self.assertEqual(detached.transport_kind, "local_detached_process")
         self.assertEqual(detached.fallback_route_name, "local-summary")
 
@@ -132,7 +132,7 @@ class RouteRegistryTest(unittest.TestCase):
             title="Family site fallback",
             goal="Prefer family/site when no exact executor exists",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
             route_executor_family="cli",
             route_execution_site="local",
         )
@@ -167,7 +167,7 @@ class RouteRegistryTest(unittest.TestCase):
             title="Capability fallback",
             goal="Prefer capability tier when family/site is unavailable",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
             route_executor_family="cli",
             route_execution_site="local",
             route_capabilities={
@@ -208,7 +208,7 @@ class RouteRegistryTest(unittest.TestCase):
             title="Summary fallback",
             goal="Use final local summary fallback when nothing matches",
             workspace_root="/tmp",
-            executor_name="codex",
+            executor_name="aider",
             route_executor_family="api",
             route_execution_site="local",
             route_capabilities={"execution_kind": "code_execution"},
@@ -277,6 +277,112 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(selection.route.name, "http-deepseek")
         self.assertEqual(selection.route.dialect_hint, "codex_fim")
         self.assertIn("model hint", selection.reason)
+
+    def test_select_route_prefers_claude_code_for_high_complexity(self) -> None:
+        state = TaskState(
+            task_id="complexity-high-001",
+            title="High complexity task",
+            goal="Prefer claude-code for high complexity work",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={"complexity_hint": "high"},
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-claude-code")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "high")
+
+    def test_select_route_prefers_aider_for_low_complexity(self) -> None:
+        state = TaskState(
+            task_id="complexity-low-001",
+            title="Low complexity task",
+            goal="Prefer aider for low complexity work",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={"complexity_hint": "low"},
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-aider")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "low")
+        self.assertFalse(selection.policy_inputs["parallel_intent"])
+
+    def test_select_route_prefers_aider_for_routine_complexity(self) -> None:
+        state = TaskState(
+            task_id="complexity-routine-001",
+            title="Routine task",
+            goal="Prefer aider for routine complexity work",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={"complexity_hint": "routine"},
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-aider")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "routine")
+        self.assertFalse(selection.policy_inputs["parallel_intent"])
+
+    def test_select_route_sets_parallel_intent_for_parallel_complexity(self) -> None:
+        state = TaskState(
+            task_id="complexity-parallel-001",
+            title="Parallelizable task",
+            goal="Record fan-out intent without changing executor family",
+            workspace_root="/tmp",
+            executor_name="http",
+            route_executor_family="api",
+            route_execution_site="local",
+            task_semantics={"complexity_hint": "parallel"},
+        )
+
+        selection = select_route(state)
+
+        self.assertTrue(selection.policy_inputs["parallel_intent"])
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "parallel")
+
+    def test_select_route_keeps_empty_complexity_hint_visible_in_policy_inputs(self) -> None:
+        state = TaskState(
+            task_id="complexity-empty-001",
+            title="Unannotated task",
+            goal="Keep default route behavior when no complexity hint is present",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={},
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-aider")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "")
+        self.assertFalse(selection.policy_inputs["parallel_intent"])
+
+    def test_select_route_keeps_executor_override_above_complexity_bias(self) -> None:
+        state = TaskState(
+            task_id="complexity-override-001",
+            title="Explicit override",
+            goal="Executor override should beat complexity-based routing",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={"complexity_hint": "high"},
+        )
+
+        selection = select_route(state, executor_override="http")
+
+        self.assertEqual(selection.route.executor_name, "http")
+        self.assertEqual(selection.policy_inputs["executor_override"], "http")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "high")
 
     def test_candidate_routes_prioritizes_higher_quality_weight(self) -> None:
         registry = RouteRegistry(

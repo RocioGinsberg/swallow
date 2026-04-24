@@ -54,27 +54,28 @@ class BinaryFallbackTest(unittest.TestCase):
             created = create_task(
                 base_dir=tmp_path,
                 title="Binary fallback success",
-                goal="Retry with local summary after codex failure",
+                goal="Retry with local summary after aider failure",
                 workspace_root=tmp_path,
             )
             task_dir = tmp_path / ".swl" / "tasks" / created.task_id
             artifacts_dir = task_dir / "artifacts"
 
-            def fail_codex(
+            def fail_aider(
+                _config: object,
                 _state: object,
                 _retrieval_items: list[object],
                 prompt: str | None = None,
                 **_kwargs: object,
             ) -> ExecutorResult:
                 return ExecutorResult(
-                    executor_name="codex",
+                    executor_name="aider",
                     status="failed",
-                    message="Codex route failed.",
+                    message="Aider route failed.",
                     output="primary executor output",
                     prompt=prompt or "",
-                    dialect="codex_fim",
+                    dialect="plain_text",
                     failure_kind="launch_error",
-                    stderr="codex unavailable",
+                    stderr="aider unavailable",
                 )
 
             def complete_local(
@@ -97,7 +98,7 @@ class BinaryFallbackTest(unittest.TestCase):
                     "swallow.orchestrator.write_task_artifacts",
                     return_value=_passing_validation_tuple(),
                 ):
-                    with patch("swallow.executor.run_codex_executor", side_effect=fail_codex):
+                    with patch("swallow.executor.run_cli_agent_executor", side_effect=fail_aider):
                         with patch("swallow.executor.run_local_executor", side_effect=complete_local):
                             final_state = run_task(tmp_path, created.task_id)
 
@@ -108,7 +109,7 @@ class BinaryFallbackTest(unittest.TestCase):
             self.assertEqual(final_state.executor_name, "local")
             self.assertEqual(final_state.route_name, "local-summary")
             self.assertTrue(final_state.route_is_fallback)
-            self.assertEqual(fallback_event["payload"]["previous_route_name"], "local-codex")
+            self.assertEqual(fallback_event["payload"]["previous_route_name"], "local-aider")
             self.assertEqual(fallback_event["payload"]["fallback_route_name"], "local-summary")
             self.assertEqual(fallback_event["payload"]["fallback_status"], "completed")
             self.assertEqual(executor_completed["payload"]["route_name"], "local-summary")
@@ -147,21 +148,22 @@ class BinaryFallbackTest(unittest.TestCase):
             task_dir = tmp_path / ".swl" / "tasks" / created.task_id
             artifacts_dir = task_dir / "artifacts"
 
-            def fail_codex(
+            def fail_aider(
+                _config: object,
                 _state: object,
                 _retrieval_items: list[object],
                 prompt: str | None = None,
                 **_kwargs: object,
             ) -> ExecutorResult:
                 return ExecutorResult(
-                    executor_name="codex",
+                    executor_name="aider",
                     status="failed",
-                    message="Codex route failed.",
+                    message="Aider route failed.",
                     output="primary executor output",
                     prompt=prompt or "",
-                    dialect="codex_fim",
+                    dialect="plain_text",
                     failure_kind="launch_error",
-                    stderr="codex unavailable",
+                    stderr="aider unavailable",
                 )
 
             def fail_local(
@@ -186,7 +188,7 @@ class BinaryFallbackTest(unittest.TestCase):
                     "swallow.orchestrator.write_task_artifacts",
                     return_value=_passing_validation_tuple(),
                 ):
-                    with patch("swallow.executor.run_codex_executor", side_effect=fail_codex):
+                    with patch("swallow.executor.run_cli_agent_executor", side_effect=fail_aider):
                         with patch("swallow.executor.run_local_executor", side_effect=fail_local):
                             final_state = run_task(tmp_path, created.task_id)
 
@@ -199,7 +201,7 @@ class BinaryFallbackTest(unittest.TestCase):
             self.assertEqual(len(fallback_events), 1)
             self.assertEqual(len(executor_failures), 2)
             self.assertEqual(fallback_events[0]["payload"]["fallback_status"], "failed")
-            self.assertEqual(executor_failures[0]["payload"]["logical_model"], "codex")
+            self.assertEqual(executor_failures[0]["payload"]["logical_model"], "aider")
             self.assertEqual(executor_failures[0]["payload"]["error_code"], "launch_error")
             self.assertFalse(executor_failures[0]["payload"]["degraded"])
             self.assertGreaterEqual(executor_failures[0]["payload"]["token_cost"], 0.0)

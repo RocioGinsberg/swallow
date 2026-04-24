@@ -4,14 +4,18 @@ from typing import Protocol, runtime_checkable
 
 MODEL_PRICING: dict[str, tuple[float, float]] = {
     "claude": (3.0, 15.0),
-    "codex": (0.0, 0.0),
     "deepseek": (0.27, 1.1),
+    "fim": (0.0, 0.0),
     "gemini": (1.25, 5.0),
     "glm": (0.5, 1.5),
     "local": (0.0, 0.0),
     "mock": (0.0, 0.0),
     "mock-remote": (0.0, 0.0),
     "qwen": (0.6, 1.2),
+}
+
+LEGACY_MODEL_HINT_ALIASES: dict[str, str] = {
+    "codex": "fim",
 }
 
 
@@ -31,6 +35,7 @@ def _pricing_for(model_hint: str) -> tuple[float, float]:
     normalized_hint = (model_hint or "").strip().lower()
     if not normalized_hint:
         return (0.0, 0.0)
+    normalized_hint = LEGACY_MODEL_HINT_ALIASES.get(normalized_hint, normalized_hint)
     for key, pricing in MODEL_PRICING.items():
         if key in normalized_hint:
             return pricing
@@ -55,6 +60,7 @@ class StaticCostEstimator:
         normalized_hint = (model_hint or "").strip().lower()
         if not normalized_hint:
             return (0.0, 0.0)
+        normalized_hint = LEGACY_MODEL_HINT_ALIASES.get(normalized_hint, normalized_hint)
         for key, pricing in self._model_pricing.items():
             if key in normalized_hint:
                 return pricing

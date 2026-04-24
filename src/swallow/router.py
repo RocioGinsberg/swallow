@@ -20,7 +20,7 @@ CAPABILITY_MATCH_FIELDS = (
 )
 
 ROUTE_MODE_TO_ROUTE_NAME = {
-    "live": "local-codex",
+    "live": "local-aider",
     "http": "local-http",
     "deterministic": "local-mock",
     "offline": "local-note",
@@ -38,6 +38,11 @@ ROUTE_MODE_ALIASES = {
     "detached": "detached",
     "offline": "offline",
     "summary": "summary",
+}
+
+ROUTE_NAME_ALIASES = {
+    "local-codex": "local-aider",
+    "local-cline": "local-claude-code",
 }
 
 
@@ -154,7 +159,10 @@ class RouteRegistry:
         for route in self.values():
             if _registered_executor_name(route.executor_name) == normalized_executor:
                 return route
-        return self.get("local-codex")
+        summary = self.maybe_get(SUMMARY_FALLBACK_ROUTE_NAME)
+        if summary is not None:
+            return summary
+        return next(iter(self.values()))
 
     def candidate_routes(
         self,
@@ -269,11 +277,11 @@ def _build_builtin_route_registry() -> RouteRegistry:
     return RouteRegistry(
         [
             RouteSpec(
-                name="local-codex",
-                executor_name="codex",
+                name="local-aider",
+                executor_name="aider",
                 backend_kind="local_cli",
-                model_hint="codex",
-                dialect_hint="codex_fim",
+                model_hint="aider",
+                dialect_hint="plain_text",
                 fallback_route_name="local-summary",
                 executor_family="cli",
                 execution_site="local",
@@ -298,7 +306,7 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 backend_kind="http_api",
                 model_hint="http-default",
                 dialect_hint="plain_text",
-                fallback_route_name="local-cline",
+                fallback_route_name="local-claude-code",
                 executor_family="api",
                 execution_site="local",
                 remote_capable=False,
@@ -370,7 +378,7 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 backend_kind="http_api",
                 model_hint="glm-4.5-air",
                 dialect_hint="plain_text",
-                fallback_route_name="local-cline",
+                fallback_route_name="local-claude-code",
                 executor_family="api",
                 execution_site="local",
                 remote_capable=False,
@@ -437,10 +445,10 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 ),
             ),
             RouteSpec(
-                name="local-cline",
-                executor_name="cline",
+                name="local-claude-code",
+                executor_name="claude-code",
                 backend_kind="local_cli",
-                model_hint="cline",
+                model_hint="claude-code",
                 dialect_hint="plain_text",
                 fallback_route_name="local-summary",
                 executor_family="cli",
@@ -487,7 +495,7 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 name="local-note",
                 executor_name="note-only",
                 backend_kind="local_fallback",
-                model_hint="codex",
+                model_hint="aider",
                 dialect_hint="plain_text",
                 executor_family="cli",
                 execution_site="local",
@@ -582,6 +590,16 @@ def normalize_route_mode(raw_mode: str | None) -> str:
     return ROUTE_MODE_ALIASES.get(normalized, "auto")
 
 
+def normalize_route_name(raw_name: str | None) -> str:
+    normalized = str(raw_name or "").strip()
+    if not normalized:
+        return ""
+    if normalized.endswith("-detached"):
+        base_name = normalized[: -len("-detached")]
+        return f"{ROUTE_NAME_ALIASES.get(base_name, base_name)}-detached"
+    return ROUTE_NAME_ALIASES.get(normalized, normalized)
+
+
 def load_route_weights(base_dir: Path) -> dict[str, float]:
     path = route_weights_path(base_dir)
     if not path.exists():
@@ -595,7 +613,7 @@ def load_route_weights(base_dir: Path) -> dict[str, float]:
 
     weights: dict[str, float] = {}
     for route_name, raw_weight in payload.items():
-        normalized_name = str(route_name).strip()
+        normalized_name = normalize_route_name(route_name)
         if not normalized_name:
             continue
         weights[normalized_name] = _normalize_quality_weight(raw_weight)
@@ -606,8 +624,9 @@ def save_route_weights(base_dir: Path, weights: dict[str, float]) -> Path:
     path = route_weights_path(base_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     normalized_weights = {
-        route_name: round(_normalize_quality_weight(weight), 6)
+        normalize_route_name(route_name): round(_normalize_quality_weight(weight), 6)
         for route_name, weight in sorted(weights.items())
+        if normalize_route_name(route_name)
     }
     path.write_text(json.dumps(normalized_weights, indent=2) + "\n", encoding="utf-8")
     return path
@@ -651,7 +670,7 @@ def load_route_capability_profiles(base_dir: Path) -> dict[str, dict[str, object
 
     profiles: dict[str, dict[str, object]] = {}
     for route_name, raw_profile in payload.items():
-        normalized_name = str(route_name).strip()
+        normalized_name = normalize_route_name(route_name)
         if not normalized_name:
             continue
         profiles[normalized_name] = _normalize_route_capability_profile(raw_profile)
@@ -662,8 +681,9 @@ def save_route_capability_profiles(base_dir: Path, profiles: dict[str, dict[str,
     path = route_capabilities_path(base_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     normalized_profiles = {
-        route_name: _normalize_route_capability_profile(profile)
+        normalize_route_name(route_name): _normalize_route_capability_profile(profile)
         for route_name, profile in sorted(profiles.items())
+        if normalize_route_name(route_name)
     }
     path.write_text(json.dumps(normalized_profiles, indent=2) + "\n", encoding="utf-8")
     return path
@@ -726,11 +746,12 @@ def route_for_mode(route_mode: str) -> RouteSpec | None:
 
 
 def route_by_name(route_name: str) -> RouteSpec | None:
-    route = ROUTE_REGISTRY.maybe_get(route_name)
+    normalized_route_name = normalize_route_name(route_name)
+    route = ROUTE_REGISTRY.maybe_get(normalized_route_name)
     if route is not None:
         return route
-    if route_name.endswith("-detached"):
-        base_route = ROUTE_REGISTRY.maybe_get(route_name[: -len("-detached")])
+    if normalized_route_name.endswith("-detached"):
+        base_route = ROUTE_REGISTRY.maybe_get(normalized_route_name[: -len("-detached")])
         if base_route is not None:
             return build_detached_route(base_route)
     return None
@@ -755,6 +776,26 @@ def _reason_with_strategy_match(base_reason: str, match_kind: str) -> str:
     if match_kind == "summary_fallback":
         return "No registered route matched the requested executor profile; selected the local summary fallback."
     return f"{base_reason} Strategy router used the default summary fallback."
+
+
+def _resolve_complexity_hint(state: TaskState) -> str:
+    semantics = state.task_semantics or {}
+    return str(semantics.get("complexity_hint", "")).strip().lower()
+
+
+def _apply_complexity_bias(candidates: list[RouteSpec], complexity_hint: str) -> list[RouteSpec]:
+    if not candidates:
+        return candidates
+    if complexity_hint in {"low", "routine"}:
+        preferred = "local-aider"
+    elif complexity_hint == "high":
+        preferred = "local-claude-code"
+    else:
+        return candidates
+    return sorted(
+        candidates,
+        key=lambda route: (0 if route.name == preferred else 1, -route.quality_weight, route.name),
+    )
 
 
 def select_route(
@@ -804,6 +845,7 @@ def select_route(
         reason = "Selected the route from legacy executor mode because the task kept the default executor."
 
     task_family = infer_task_family(state)
+    complexity_hint = _resolve_complexity_hint(state)
     candidates, match_kind = ROUTE_REGISTRY.candidate_routes(
         executor_name=selected_executor,
         model_hint=state.route_model_hint,
@@ -812,6 +854,24 @@ def select_route(
         required_capabilities=state.route_capabilities,
         task_family=task_family,
     )
+    if (
+        complexity_hint in {"high", "low", "routine"}
+        and executor_override is None
+        and selected_mode == "auto"
+        and configured_executor == DEFAULT_EXECUTOR
+    ):
+        strategy_candidates, strategy_match_kind = ROUTE_REGISTRY.candidate_routes(
+            executor_name="__strategy_router__",
+            model_hint="",
+            executor_family=state.route_executor_family,
+            execution_site=state.route_execution_site,
+            required_capabilities=state.route_capabilities,
+            task_family=task_family,
+        )
+        if strategy_candidates:
+            candidates = strategy_candidates
+            match_kind = strategy_match_kind
+    candidates = _apply_complexity_bias(candidates, complexity_hint)
     route = candidates[0] if candidates else route_for_executor(selected_executor)
     return RouteSelection(
         route=route,
@@ -822,5 +882,7 @@ def select_route(
             "task_executor": state.executor_name,
             "task_route_mode": state.route_mode,
             "legacy_executor_mode": os.environ.get("AIWF_EXECUTOR_MODE", ""),
+            "complexity_hint": complexity_hint,
+            "parallel_intent": complexity_hint == "parallel",
         },
     )

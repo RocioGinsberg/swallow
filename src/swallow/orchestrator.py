@@ -181,6 +181,7 @@ EXECUTOR_ARTIFACT_NAMES = (
 )
 
 DEBATE_MAX_ROUNDS = 3
+_BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
 
 
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
@@ -231,19 +232,34 @@ def _dispatch_status_for_transport(transport_kind: str) -> str:
     return "local_dispatched"
 
 
-def _maybe_schedule_consistency_audit(base_dir: Path, state: TaskState) -> None:
+async def _wait_for_background_consistency_audits(timeout_seconds: float = 5.0) -> None:
+    if not _BACKGROUND_CONSISTENCY_AUDIT_TASKS:
+        return
+    pending = tuple(_BACKGROUND_CONSISTENCY_AUDIT_TASKS)
+    try:
+        await asyncio.wait_for(asyncio.gather(*pending, return_exceptions=True), timeout=timeout_seconds)
+    except asyncio.TimeoutError:
+        return
+
+
+async def _maybe_schedule_consistency_audit(base_dir: Path, state: TaskState) -> None:
     policy = load_audit_trigger_policy(base_dir)
     executor_payload = load_latest_executor_event_payload(base_dir, state.task_id)
     trigger_reasons = evaluate_audit_trigger(policy, executor_payload)
     if not trigger_reasons:
         return
 
-    thread_name = schedule_consistency_audit(
-        base_dir,
-        state.task_id,
-        auditor_route=policy.auditor_route,
-        sample_artifact_path="executor_output.md",
+    audit_task = asyncio.create_task(
+        schedule_consistency_audit(
+            base_dir,
+            state.task_id,
+            auditor_route=policy.auditor_route,
+            sample_artifact_path="executor_output.md",
+        ),
+        name=f"swallow-audit-{state.task_id[:8]}",
     )
+    _BACKGROUND_CONSISTENCY_AUDIT_TASKS.add(audit_task)
+    audit_task.add_done_callback(_BACKGROUND_CONSISTENCY_AUDIT_TASKS.discard)
     append_event(
         base_dir,
         Event(
@@ -261,7 +277,7 @@ def _maybe_schedule_consistency_audit(base_dir: Path, state: TaskState) -> None:
                 "executor_route_name": str(
                     executor_payload.get("physical_route") or executor_payload.get("route_name") or ""
                 ).strip(),
-                "thread_name": thread_name,
+                "thread_name": audit_task.get_name(),
             },
         ),
     )
@@ -1899,6 +1915,89 @@ def _build_subtask_executor_result(
     )
 
 
+def _subtask_artifact_ref(task_id: str, artifact_name: str) -> str:
+    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
+
+
+def _collect_subtask_attempt_artifact_refs(
+    base_dir: Path,
+    task_id: str,
+    *,
+    subtask_index: int,
+    attempt_number: int,
+) -> list[str]:
+    artifact_root = artifacts_dir(base_dir, task_id)
+    if not artifact_root.exists():
+        return []
+
+    prefix = f"subtask_{subtask_index}_attempt{attempt_number}_"
+    artifact_names = sorted(
+        path.relative_to(artifact_root).as_posix()
+        for path in artifact_root.glob(f"{prefix}*")
+        if path.is_file()
+    )
+    return [_subtask_artifact_ref(task_id, artifact_name) for artifact_name in artifact_names]
+
+
+def _build_subtask_summary_report(
+    base_dir: Path,
+    task_id: str,
+    result: SubtaskOrchestratorResult,
+    attempt_counts: dict[str, int],
+    *,
+    debate_exhausted_card_ids: list[str] | None = None,
+    budget_exhausted_card_ids: list[str] | None = None,
+) -> str:
+    debate_exhausted = set(debate_exhausted_card_ids or [])
+    budget_exhausted = set(budget_exhausted_card_ids or [])
+    lines = [
+        "# Subtask Summary",
+        "",
+        f"- task_id: {task_id}",
+        f"- status: {result.status}",
+        f"- message: {result.message}",
+        f"- card_count: {len(result.records)}",
+        f"- completed_count: {result.completed_count}",
+        f"- failed_count: {result.failed_count}",
+        f"- max_parallelism: {result.max_parallelism}",
+        f"- levels: {' | '.join(' -> '.join(level) for level in result.levels) if result.levels else 'none'}",
+        "",
+        "## Subtasks",
+    ]
+    for record in result.records:
+        executor_result = record.executor_result
+        review_gate_result = record.review_gate_result
+        latest_attempt = attempt_counts.get(record.card_id, 1)
+        artifact_refs = _collect_subtask_attempt_artifact_refs(
+            base_dir,
+            task_id,
+            subtask_index=record.subtask_index,
+            attempt_number=latest_attempt,
+        )
+        lines.extend(
+            [
+                f"- subtask_index: {record.subtask_index}",
+                f"- card_id: {record.card_id}",
+                f"- goal: {record.goal}",
+                f"- status: {record.status}",
+                f"- attempts: {latest_attempt}",
+                f"- depends_on: {', '.join(record.depends_on) if record.depends_on else 'none'}",
+                f"- executor_name: {executor_result.executor_name if executor_result else 'unknown'}",
+                f"- executor_status: {executor_result.status if executor_result else 'failed'}",
+                f"- failure_kind: {executor_result.failure_kind if executor_result and executor_result.failure_kind else 'none'}",
+                f"- review_gate_status: {review_gate_result.status if review_gate_result else 'failed'}",
+                f"- debate_exhausted: {'yes' if record.card_id in debate_exhausted else 'no'}",
+                f"- budget_exhausted: {'yes' if record.card_id in budget_exhausted else 'no'}",
+            ]
+        )
+        if artifact_refs:
+            lines.extend([f"- artifact_ref: {artifact_ref}" for artifact_ref in artifact_refs])
+        else:
+            lines.append("- artifact_ref: none")
+        lines.append("")
+    return "\n".join(lines)
+
+
 def _run_subtask_orchestration(
     base_dir: Path,
     state: TaskState,
@@ -2021,6 +2120,19 @@ def _run_subtask_orchestration(
         attempt_counts,
         debate_exhausted_card_ids=debate_exhausted_card_ids,
         budget_exhausted_card_ids=budget_exhausted_card_ids,
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "subtask_summary.md",
+        _build_subtask_summary_report(
+            base_dir,
+            state.task_id,
+            result,
+            attempt_counts,
+            debate_exhausted_card_ids=debate_exhausted_card_ids,
+            budget_exhausted_card_ids=budget_exhausted_card_ids,
+        ),
     )
     _write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
@@ -2154,6 +2266,19 @@ async def _run_subtask_orchestration_async(
         attempt_counts,
         debate_exhausted_card_ids=debate_exhausted_card_ids,
         budget_exhausted_card_ids=budget_exhausted_card_ids,
+    )
+    write_artifact(
+        base_dir,
+        state.task_id,
+        "subtask_summary.md",
+        _build_subtask_summary_report(
+            base_dir,
+            state.task_id,
+            result,
+            attempt_counts,
+            debate_exhausted_card_ids=debate_exhausted_card_ids,
+            budget_exhausted_card_ids=budget_exhausted_card_ids,
+        ),
     )
     _write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
@@ -2377,12 +2502,13 @@ def create_task(
     title: str,
     goal: str,
     workspace_root: Path,
-    executor_name: str = "codex",
+    executor_name: str = "aider",
     constraints: list[str] | None = None,
     acceptance_criteria: list[str] | None = None,
     priority_hints: list[str] | None = None,
     next_action_proposals: list[str] | None = None,
     planning_source: str | None = None,
+    complexity_hint: str | None = None,
     knowledge_items: list[str] | None = None,
     knowledge_stage: str = "raw",
     knowledge_source: str | None = None,
@@ -2410,6 +2536,7 @@ def create_task(
         priority_hints=priority_hints,
         next_action_proposals=next_action_proposals,
         planning_source=planning_source,
+        complexity_hint=complexity_hint,
     )
     knowledge_objects = build_knowledge_objects(
         items=knowledge_items,
@@ -2621,10 +2748,16 @@ def update_task_planning_handoff(
     priority_hints: list[str] | None = None,
     next_action_proposals: list[str] | None = None,
     planning_source: str | None = None,
+    complexity_hint: str | None = None,
 ) -> TaskState:
     state = load_state(base_dir, task_id)
     current_semantics = state.task_semantics or {}
     effective_planning_source = (planning_source or str(current_semantics.get("source_ref", ""))).strip()
+    effective_complexity_hint = (
+        str(current_semantics.get("complexity_hint", ""))
+        if complexity_hint is None
+        else str(complexity_hint)
+    )
     merged_semantics = build_task_semantics(
         title=state.title,
         goal=state.goal,
@@ -2637,6 +2770,7 @@ def update_task_planning_handoff(
             list(current_semantics.get("next_action_proposals", [])), next_action_proposals
         ),
         planning_source=effective_planning_source or None,
+        complexity_hint=effective_complexity_hint,
     )
     state.task_semantics = merged_semantics.to_dict()
     save_state(base_dir, state)
@@ -3438,6 +3572,8 @@ async def run_task_async(
         "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
         "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
     }
+    if multi_card_plan:
+        state.artifact_paths["subtask_summary"] = str((artifacts_dir(base_dir, task_id) / "subtask_summary.md").resolve())
     state.execution_phase = "analysis_done"
     state.last_phase_checkpoint_at = utc_now()
     save_state(base_dir, state)
@@ -3514,7 +3650,7 @@ async def run_task_async(
             ),
         )
     else:
-        _maybe_schedule_consistency_audit(base_dir, state)
+        await _maybe_schedule_consistency_audit(base_dir, state)
         append_event(
             base_dir,
             Event(
@@ -3574,6 +3710,7 @@ async def run_task_async(
                 },
             ),
         )
+    await _wait_for_background_consistency_audits()
     return state
 
 
@@ -3608,6 +3745,7 @@ def build_task_semantics_report(state: TaskState) -> str:
         f"- goal: {semantics.get('goal', state.goal)}",
         f"- source_kind: {semantics.get('source_kind', 'unknown')}",
         f"- source_ref: {semantics.get('source_ref', '') or 'none'}",
+        f"- complexity_hint: {semantics.get('complexity_hint', '') or 'none'}",
         "",
         "## Imported Planning Constraints",
     ]
