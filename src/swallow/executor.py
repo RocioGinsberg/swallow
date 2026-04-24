@@ -9,7 +9,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Callable, Protocol, runtime_checkable
 
 import httpx
 
@@ -200,19 +200,69 @@ class AsyncCLIAgentExecutor:
         return await _run_harness_execution_async(base_dir, state, retrieval_items)
 
 
+def _lazy_librarian() -> ExecutorProtocol:
+    from .librarian_executor import LibrarianExecutor
+
+    return LibrarianExecutor()
+
+
+def _lazy_meta_optimizer() -> ExecutorProtocol:
+    from .meta_optimizer import MetaOptimizerExecutor
+
+    return MetaOptimizerExecutor()
+
+
+def _lazy_ingestion_specialist() -> ExecutorProtocol:
+    from .ingestion_specialist import IngestionSpecialistExecutor
+
+    return IngestionSpecialistExecutor()
+
+
+def _lazy_consistency_reviewer() -> ExecutorProtocol:
+    from .consistency_reviewer import ConsistencyReviewerExecutor
+
+    return ConsistencyReviewerExecutor()
+
+
+def _lazy_validator() -> ExecutorProtocol:
+    from .validator_agent import ValidatorExecutor
+
+    return ValidatorExecutor()
+
+
+def _lazy_literature_specialist() -> ExecutorProtocol:
+    from .literature_specialist import LiteratureSpecialistExecutor
+
+    return LiteratureSpecialistExecutor()
+
+
+def _lazy_quality_reviewer() -> ExecutorProtocol:
+    from .quality_reviewer import QualityReviewerExecutor
+
+    return QualityReviewerExecutor()
+
+
+EXECUTOR_REGISTRY: dict[str, Callable[[], ExecutorProtocol]] = {
+    "consistency-reviewer": _lazy_consistency_reviewer,
+    "ingestion-specialist": _lazy_ingestion_specialist,
+    "librarian": _lazy_librarian,
+    "literature-specialist": _lazy_literature_specialist,
+    "meta-optimizer": _lazy_meta_optimizer,
+    "meta_optimizer": _lazy_meta_optimizer,
+    "quality-reviewer": _lazy_quality_reviewer,
+    "validator": _lazy_validator,
+}
+
+
 def resolve_executor(executor_type: str, executor_name: str) -> ExecutorProtocol:
     raw_name = (executor_name or "").strip().lower()
     normalized_name = normalize_executor_name(executor_name)
     normalized_type = (executor_type or "").strip().lower()
 
-    if raw_name == "librarian" or normalized_type == "librarian":
-        from .librarian_executor import LibrarianExecutor
-
-        return LibrarianExecutor()
-    if raw_name in {"meta-optimizer", "meta_optimizer"} or normalized_type in {"meta-optimizer", "meta_optimizer"}:
-        from .meta_optimizer import MetaOptimizerExecutor
-
-        return MetaOptimizerExecutor()
+    for candidate in (raw_name, normalized_name, normalized_type):
+        factory = EXECUTOR_REGISTRY.get(candidate)
+        if factory is not None:
+            return factory()
     if normalized_name in {"mock", "mock-remote"} or normalized_type == "mock":
         return MockExecutor()
     if normalized_name == "http" or normalized_type in {"http", "api"}:

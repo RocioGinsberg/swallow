@@ -147,6 +147,27 @@ class DispatchPolicyTest(unittest.TestCase):
         self.assertTrue(result.valid)
         self.assertEqual(result.errors, [])
 
+    def test_validate_taxonomy_dispatch_allows_stateless_route_for_local_baseline_contract(self) -> None:
+        task_state = type(
+            "TaskStateStub",
+            (),
+            {"route_taxonomy_role": "validator", "route_taxonomy_memory_authority": "stateless"},
+        )()
+
+        result = validate_taxonomy_dispatch(
+            task_state,
+            {
+                "contract_kind": "not_applicable",
+                "handoff_boundary": "local_baseline",
+                "goal": "Review the generated artifact",
+                "next_steps": ["Continue through the existing local execution path."],
+                "context_pointers": ["artifacts/summary.md"],
+            },
+        )
+
+        self.assertTrue(result.valid)
+        self.assertEqual(result.errors, [])
+
     def test_run_task_blocks_dispatch_when_validator_route_receives_write_intent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

@@ -42,6 +42,8 @@ def validate_taxonomy_dispatch(task_state: Any, contract: dict[str, Any]) -> Pol
     errors: list[str] = []
     system_role = str(getattr(task_state, "route_taxonomy_role", "")).strip()
     memory_authority = str(getattr(task_state, "route_taxonomy_memory_authority", "")).strip()
+    contract_kind = str(contract.get("contract_kind", "")).strip()
+    handoff_boundary = str(contract.get("handoff_boundary", "")).strip()
     goal = str(contract.get("goal", "")).lower()
     next_steps = [str(step).strip().lower() for step in contract.get("next_steps", []) if str(step).strip()]
     done = [str(item).strip().lower() for item in contract.get("done", []) if str(item).strip()]
@@ -57,7 +59,8 @@ def validate_taxonomy_dispatch(task_state: Any, contract: dict[str, Any]) -> Pol
     if memory_authority == "canonical-write-forbidden" and any(keyword in goal for keyword in PROMOTION_KEYWORDS):
         errors.append("canonical-write-forbidden routes cannot accept promotion-oriented dispatch goals")
 
-    if memory_authority == "stateless" and context_pointers:
+    local_baseline_contract = contract_kind == "not_applicable" and handoff_boundary == "local_baseline"
+    if memory_authority == "stateless" and context_pointers and not local_baseline_contract:
         errors.append("stateless routes cannot accept dispatch contracts that require task-state context pointers")
 
     return PolicyResult(valid=not errors, errors=errors)

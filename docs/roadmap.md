@@ -20,10 +20,10 @@ status: living-document
 *   **核心差距**：知识沉淀和策略自省仍属于”函数的副作用”，而非”显式的工作流”；遥测数据处于”已捕获但未消费”状态，浪费了宝贵的反馈信号。
 *   **消化计划**：Phase 50 应完成 Meta-Optimizer 提案应用流程与独立 Agent 生命周期；Phase 52 应完成其他 5 个专项角色的落地。
 
-### 3. [中期] 执行能力的不完整性 (Execution Capability Gaps)
+### 3. [已消化] 执行能力的不完整性 (Execution Capability Gaps)
 *   **蓝图要求**：`ORCHESTRATION.md` 定义了高并发多路子任务编排与复杂拓扑的能力。
 *   **当前现状**：CLIAgentExecutor 等残留同步桥接层，并发控制不完整。
-*   **消化计划**：Phase 51 应完成全异步执行器升级与多路并行压测。
+*   **消化结果**：Phase 52 已落地 `AsyncCLIAgentExecutor` 统一 async 入口、`complexity_hint` 路由偏置、fan-out timeout 守卫与 `subtask_summary.md` 收口。Runtime v0 仍通过 harness bridge 接入同步执行链（原生 async subprocess 留待 Runtime v1）。
 
 ### 4. [低优先级] Taxonomy 命名的品牌残留 (Taxonomy Naming)
 *   **蓝图要求**：推荐命名格式 `[role]/[site]/[authority]/[domain]`，品牌名仅作 implementation binding。
@@ -49,6 +49,10 @@ status: living-document
 ### [Phase 51] 策略闭环与 Specialist Agent 落地 (v0.8.0)
 *   **解决方式**：实装 S1 提案 review/apply 工作流（operator gate、持久化、rollback 快照）、S2 `MetaOptimizerAgent` 独立生命周期（`execute` / `execute_async`、`MetaOptimizerSnapshot`）、S3 route 能力画像与 task-family guard、S4 遥测驱动的 capability 提案生成与应用闭环。
 *   **成果**：系统进入 **Policy Era**，实现”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环。Specialist Agent 体系初步成型，为后续 Ingestion/Literature/Quality Reviewer 等角色落地奠定基础。已合并到 main（commit `4b0de67`），review 结论 `approved_with_concerns`，2 个 CONCERN 已登记到 `docs/concerns_backlog.md`，tag `v0.8.0`。
+
+### [Phase 52] 平台级多路并行与复杂拓扑 (v0.9.0)
+*   **解决方式**：S1 `AsyncCLIAgentExecutor` 统一 async 入口（Aider / Claude Code 复用同一执行路径，Runtime v0 通过 harness bridge 接入）、codex/cline 主命名收口（默认路径切到 `aider` / `local-aider`）、`schedule_consistency_audit` 改为 `asyncio.create_task` 路径；S2 `TaskSemantics.complexity_hint` 贯通路由偏置，`parallel_intent` 进入 `RouteSelection.policy_inputs`；S3 `AsyncSubtaskOrchestrator` 补齐 subtask timeout、局部失败隔离、`AIWF_MAX_SUBTASK_WORKERS` 与 `subtask_summary.md`；post-implementation validation 吸收 `meta_optimizer` cost trend 顺序修正与 legacy route alias 兼容（`local-codex → local-aider`、`local-cline → local-claude-code`）。
+*   **成果**：系统进入 **Parallel Era**，高并发多路编排能力落地。437 tests passed，review 结论 `approved_with_concerns`，2 个 CONCERN（harness 桥接为 Runtime v0 架构约束、codex 品牌残留留待 Phase 53/54 清理）已登记到 `docs/concerns_backlog.md`，tag `v0.9.0`。
 
 ---
 
@@ -88,7 +92,7 @@ status: living-document
 *   **风险等级**：中（涉及新的 operator gate 流程与 Agent 生命周期管理，需要充分测试）
 *   **依赖**：Phase 50 的结构化提案与自动触发基础设施
 
-### Phase 52: 平台级多路并行与复杂拓扑 (Advanced Parallel Topologies) 🚀 [Next]
+### Phase 52: 平台级多路并行与复杂拓扑 (Advanced Parallel Topologies) ✅ [Done] — tag v0.9.0
 *   **Primary Track**: Core Loop
 *   **Secondary Track**: Execution Topology
 *   **目标**：利用 Async & SQLite 底座，解锁蓝图中的高并发多路子任务编排。
@@ -99,7 +103,7 @@ status: living-document
 *   **风险等级**：中高（涉及执行器架构改造与并发控制）
 *   **依赖**：Phase 51 的 Specialist Agent 体系稳定
 
-### Phase 53: 其他 Specialist Agent 落地 (Specialist Agent Ecosystem)
+### Phase 53: 其他 Specialist Agent 落地 (Specialist Agent Ecosystem) 🚀 [Next]
 *   **Primary Track**: Agent Taxonomy
 *   **Secondary Track**: Knowledge / Self-Evolution
 *   **目标**：完成 AGENT_TAXONOMY 中定义的 5 个专项角色的落地（Ingestion Specialist、Literature Specialist、Quality Reviewer、Consistency Reviewer、Validator）。
@@ -127,7 +131,7 @@ status: living-document
 
 ## 四、推荐 Phase 队列与风险批注 (Claude 维护)
 
-> 最近更新：2026-04-23 (Phase 51 已完成，tag v0.8.0，Phase 52 为下一阶段)
+> 最近更新：2026-04-23 (Phase 52 已完成，tag v0.9.0，Phase 53 为下一阶段)
 
 ### 队列总览
 
@@ -137,7 +141,7 @@ status: living-document
 | ~~2~~ | ~~49~~ | ~~知识真值归一与向量 RAG~~ | ~~Knowledge / RAG~~ | ~~State / Truth~~ | ~~已完成~~ | tag `v0.7.0` |
 | ~~3~~ | ~~50~~ | ~~路由策略闭环与专项审计~~ | ~~Evaluation / Policy~~ | ~~Provider Routing~~ | ~~已完成~~ | tag `v0.7.0+`，406 tests passed |
 | ~~4~~ | ~~51~~ | ~~策略闭环与 Specialist Agent 落地~~ | ~~Evaluation / Policy + Agent Taxonomy~~ | ~~Provider Routing~~ | ~~已完成~~ | tag `v0.8.0`，commit `4b0de67`，approved_with_concerns |
-| **5** | **52** | **平台级多路并行与复杂拓扑** | **Core Loop** | **Execution Topology** | **中高** | 依赖 Phase 51 的 Specialist Agent 体系稳定 |
+| ~~5~~ | ~~52~~ | ~~平台级多路并行与复杂拓扑~~ | ~~Core Loop~~ | ~~Execution Topology~~ | ~~已完成~~ | tag `v0.9.0`，437 tests passed，approved_with_concerns |
 | **6** | **53** | **其他 Specialist Agent 落地** | **Agent Taxonomy** | **Knowledge / Self-Evolution** | **中** | 完成 5 个专项角色的独立生命周期 |
 | **7** | **54** | **Taxonomy 命名与品牌残留清理** | **Agent Taxonomy** | **Provider Routing** | **低** | 纯重构，无功能变化 |
 
@@ -170,5 +174,5 @@ status: living-document
 - **Phase 49** → `v0.7.0` (Knowledge Era)：知识真值归一与向量检索能力的正式闭环
 - **Phase 50** → `v0.7.0+` (Policy Closure)：策略闭环初步成型，孤立能力连接成可感知行为
 - **Phase 51** → `v0.8.0` (Policy Era)：策略闭环与 Specialist Agent 体系初步成型（commit `4b0de67`，approved_with_concerns，2 CONCERN 登记至 concerns_backlog.md）
-- **Phase 52** → `v0.9.0` (Parallel Era)：高并发多路编排能力落地（待 closeout 后确认）
+- **Phase 52** → `v0.9.0` (Parallel Era)：高并发多路编排能力落地（approved_with_concerns，2 CONCERN 登记至 concerns_backlog.md）
 - **Phase 53** → `v1.0.0` (Specialist Era)：Specialist Agent 体系完全落地，系统进化逻辑完全显式化（待 closeout 后确认）

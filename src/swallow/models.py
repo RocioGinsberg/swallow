@@ -22,6 +22,35 @@ MEMORY_AUTHORITIES: tuple[str, ...] = (
     "canonical-promotion",
 )
 
+MEMORY_AUTHORITY_SEMANTICS: dict[str, dict[str, object]] = {
+    "stateless": {
+        "description": "No cross-call memory authority beyond the explicit task inputs supplied for the current run.",
+        "allowed_side_effects": (),
+    },
+    "task-state": {
+        "description": "May read and write task truth and event truth within the current task lifecycle.",
+        "allowed_side_effects": ("task_artifacts", "task_events", "task_state_updates"),
+    },
+    "task-memory": {
+        "description": "May read and write local task memory artifacts such as summaries or reusable within-task notes.",
+        "allowed_side_effects": ("task_artifacts", "resume_notes", "compressed_summaries"),
+    },
+    "staged-knowledge": {
+        "description": "May generate or modify staged knowledge candidates that remain behind operator or reviewer gates.",
+        "allowed_side_effects": ("task_artifacts", "staged_candidates", "ingestion_reports"),
+    },
+    "canonical-write-forbidden": {
+        "description": "May not write to canonical knowledge truth, but may still emit proposals, reports, and audit artifacts.",
+        "allowed_side_effects": ("task_artifacts", "reports", "audit_artifacts", "proposal_bundles"),
+    },
+    "canonical-promotion": {
+        "description": "May promote staged knowledge into canonical truth and emit the accompanying audit trail.",
+        "allowed_side_effects": ("task_artifacts", "change_logs", "canonical_records", "knowledge_decisions"),
+    },
+}
+# memory_authority describes mutation scope over task/canonical knowledge surfaces.
+# It does not redefine the basic ability to return an executor result to the orchestrator.
+
 LIBRARIAN_SYSTEM_ROLE = "specialist"
 LIBRARIAN_MEMORY_AUTHORITY = "canonical-promotion"
 META_OPTIMIZER_SYSTEM_ROLE = "specialist"
@@ -137,6 +166,28 @@ def build_meta_optimizer_taxonomy_profile() -> TaxonomyProfile:
         system_role=META_OPTIMIZER_SYSTEM_ROLE,
         memory_authority=META_OPTIMIZER_MEMORY_AUTHORITY,
     )
+
+
+def describe_memory_authority(memory_authority: str) -> str:
+    normalized = str(memory_authority).strip()
+    semantics = MEMORY_AUTHORITY_SEMANTICS.get(normalized)
+    if semantics is None:
+        raise ValueError(
+            "Invalid memory_authority: "
+            f"{memory_authority}. Expected one of: {', '.join(MEMORY_AUTHORITIES)}"
+        )
+    return str(semantics["description"])
+
+
+def allowed_memory_authority_side_effects(memory_authority: str) -> tuple[str, ...]:
+    normalized = str(memory_authority).strip()
+    semantics = MEMORY_AUTHORITY_SEMANTICS.get(normalized)
+    if semantics is None:
+        raise ValueError(
+            "Invalid memory_authority: "
+            f"{memory_authority}. Expected one of: {', '.join(MEMORY_AUTHORITIES)}"
+        )
+    return tuple(str(item) for item in semantics["allowed_side_effects"])
 
 
 @dataclass(slots=True)

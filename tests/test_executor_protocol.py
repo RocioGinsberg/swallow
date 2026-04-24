@@ -14,6 +14,7 @@ from swallow.executor import (
     AIDER_CONFIG,
     AsyncCLIAgentExecutor,
     CLAUDE_CODE_CONFIG,
+    EXECUTOR_REGISTRY,
     ExecutorProtocol,
     HTTPExecutor,
     LocalCLIExecutor,
@@ -23,9 +24,14 @@ from swallow.executor import (
     run_executor_inline,
     run_http_executor,
 )
+from swallow.consistency_reviewer import ConsistencyReviewerAgent, ConsistencyReviewerExecutor
+from swallow.ingestion_specialist import IngestionSpecialistAgent, IngestionSpecialistExecutor
 from swallow.librarian_executor import LibrarianAgent, LibrarianExecutor
+from swallow.literature_specialist import LiteratureSpecialistAgent, LiteratureSpecialistExecutor
 from swallow.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
 from swallow.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
+from swallow.quality_reviewer import QualityReviewerAgent, QualityReviewerExecutor
+from swallow.validator_agent import ValidatorAgent, ValidatorExecutor
 
 
 class _FakeHTTPResponse:
@@ -74,10 +80,20 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(MockExecutor(), ExecutorProtocol)
         self.assertIsInstance(HTTPExecutor(), ExecutorProtocol)
         self.assertIsInstance(AsyncCLIAgentExecutor(AIDER_CONFIG), ExecutorProtocol)
+        self.assertIsInstance(IngestionSpecialistAgent(), ExecutorProtocol)
+        self.assertIsInstance(IngestionSpecialistExecutor(), ExecutorProtocol)
         self.assertIsInstance(LibrarianAgent(), ExecutorProtocol)
         self.assertIsInstance(LibrarianExecutor(), ExecutorProtocol)
+        self.assertIsInstance(LiteratureSpecialistAgent(), ExecutorProtocol)
+        self.assertIsInstance(LiteratureSpecialistExecutor(), ExecutorProtocol)
+        self.assertIsInstance(ConsistencyReviewerAgent(), ExecutorProtocol)
+        self.assertIsInstance(ConsistencyReviewerExecutor(), ExecutorProtocol)
         self.assertIsInstance(MetaOptimizerAgent(), ExecutorProtocol)
         self.assertIsInstance(MetaOptimizerExecutor(), ExecutorProtocol)
+        self.assertIsInstance(QualityReviewerAgent(), ExecutorProtocol)
+        self.assertIsInstance(QualityReviewerExecutor(), ExecutorProtocol)
+        self.assertIsInstance(ValidatorAgent(), ExecutorProtocol)
+        self.assertIsInstance(ValidatorExecutor(), ExecutorProtocol)
 
     def test_resolve_executor_routes_mock_names_to_mock_executor(self) -> None:
         self.assertIsInstance(resolve_executor("cli", "mock"), MockExecutor)
@@ -99,6 +115,32 @@ class ExecutorProtocolTest(unittest.TestCase):
     def test_resolve_executor_routes_meta_optimizer_type_to_meta_optimizer_executor(self) -> None:
         self.assertIsInstance(resolve_executor("meta-optimizer", "local"), MetaOptimizerExecutor)
         self.assertIsInstance(resolve_executor("cli", "meta-optimizer"), MetaOptimizerExecutor)
+
+    def test_executor_registry_contains_all_specialist_and_validator_agents(self) -> None:
+        self.assertEqual(
+            set(EXECUTOR_REGISTRY),
+            {
+                "consistency-reviewer",
+                "ingestion-specialist",
+                "librarian",
+                "literature-specialist",
+                "meta-optimizer",
+                "meta_optimizer",
+                "quality-reviewer",
+                "validator",
+            },
+        )
+
+    def test_resolve_executor_routes_phase53_specialist_and_validator_agents(self) -> None:
+        self.assertIsInstance(resolve_executor("cli", "ingestion-specialist"), IngestionSpecialistExecutor)
+        self.assertIsInstance(resolve_executor("ingestion-specialist", "local"), IngestionSpecialistExecutor)
+        self.assertIsInstance(resolve_executor("cli", "literature-specialist"), LiteratureSpecialistExecutor)
+        self.assertIsInstance(resolve_executor("literature-specialist", "local"), LiteratureSpecialistExecutor)
+        self.assertIsInstance(resolve_executor("cli", "consistency-reviewer"), ConsistencyReviewerExecutor)
+        self.assertIsInstance(resolve_executor("consistency-reviewer", "local"), ConsistencyReviewerExecutor)
+        self.assertIsInstance(resolve_executor("cli", "quality-reviewer"), QualityReviewerExecutor)
+        self.assertIsInstance(resolve_executor("quality-reviewer", "local"), QualityReviewerExecutor)
+        self.assertIsInstance(resolve_executor("validator", "local"), ValidatorExecutor)
 
     def test_local_cli_executor_delegates_to_harness_run_execution(self) -> None:
         state = TaskState(
