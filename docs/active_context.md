@@ -2,33 +2,28 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Evaluation / Policy + Agent Taxonomy` (Primary) + `Provider Routing` (Secondary)
-- latest_completed_phase: `Phase 51`
-- latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle (v0.8.0)`
-- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
-- active_phase: `Phase 52`
-- active_slice: `PR closeout / tag preflight`
-- active_branch: `feat/phase52_execution_topology`
-- status: `phase52_pr_ready_tag_preflight_pending`
+- latest_completed_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
+- latest_completed_phase: `Phase 52`
+- latest_completed_slice: `Advanced Parallel Topologies (v0.9.0)`
+- active_track: `Agent Taxonomy` (Primary) + `Knowledge / Self-Evolution` (Secondary)
+- active_phase: `Phase 53`
+- active_slice: `kickoff`
+- active_branch: `main`
+- status: `phase53_design_ready_for_codex`
 
 ---
 
 ## 当前状态说明
 
-`main` 已完成 Phase 51 并打出 `v0.8.0`。当前工作分支 `feat/phase52_execution_topology` 上，Phase 52 的实现、实现后验证与 review follow-up 已完成，现处于 PR 收口与 tag 前置准备状态。
-
-本轮收口重点已从 review 修订切到合并材料整理：确认 PR 描述、closeout、backlog 和当前状态入口一致，并为 merge 后是否打 `v0.9.0` 预先准备检查清单。
+`main` 已完成 Phase 52 并打出 `v0.9.0`。`docs/roadmap.md` 已由 roadmap-updater 完成增量更新：Gap 3 标记为 `[已消化]`，Phase 52 条目写入 Section 二，Section 三 Phase 52 标记为 `✅ [Done] — tag v0.9.0`，Phase 53 升为 `🚀 [Next]`，队列表格已划线，Tag 记录已追加。下一阶段为 Phase 53（其他 Specialist Agent 落地）。
 
 ---
 
 ## 当前关键文档
 
-1. `docs/plans/phase52/context_brief.md`
-2. `docs/plans/phase52/kickoff.md`
-3. `docs/plans/phase52/design_decision.md`
-4. `docs/plans/phase52/risk_assessment.md`
-5. `docs/plans/phase52/closeout.md`
-6. `docs/roadmap.md`
+1. `docs/plans/phase53/context_brief.md`
+2. `docs/plans/phase52/closeout.md`
+3. `docs/roadmap.md`
 
 ---
 
@@ -61,13 +56,12 @@
 
 进行中：
 
-- 无。Phase 52 当前已进入 PR ready 状态。
+- 无。Phase 53 context_brief 已完成，等待 kickoff 方案拆解。
 
 待执行：
 
-- **[Human]** 审阅当前 PR 材料并决定是否 merge。
-- **[Human]** merge 后按 `pr.md` 的 tag preflight 清单决定是否打 `v0.9.0`。
-- **[Codex]** 若 Human 决定打 tag，再更新 README / AGENTS 的 tag-level snapshot。
+- **[Claude]** 产出 Phase 53 kickoff 文档。
+- **[Human]** 切出 `feat/phase53-specialist-ecosystem` 分支。
 
 当前阻塞项：
 
@@ -83,11 +77,10 @@
 - `docs/plans/phase52/risk_assessment.md` (claude, 2026-04-23)
 - `docs/plans/phase52/review_comments.md` (claude, 2026-04-24)
 - `docs/plans/phase52/closeout.md` (codex, 2026-04-24)
+- `docs/plans/phase53/context_brief.md` (claude, 2026-04-23)
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** 审阅当前 review follow-up diff，决定是否执行本轮收口提交 / PR 更新。
-2. **[Human]** merge 后决定是否进入 `v0.9.0` tag 流程。
-3. **[Codex]** 若需要，再执行 tag-level 文档同步。
+1. **[Claude]** 进行方案拆解：基于 `docs/plans/phase53/context_brief.md` 产出 Phase 53 kickoff 文档。
