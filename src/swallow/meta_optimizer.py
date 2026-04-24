@@ -32,7 +32,7 @@ from .paths import (
 from .router import (
     apply_route_capability_profiles,
     apply_route_weights,
-    current_route_weights,
+    load_route_weights,
     load_route_capability_profiles,
     route_by_name,
     save_route_capability_profiles,
@@ -158,6 +158,16 @@ class RouteTaskFamilyTelemetryStats:
     def degraded_rate(self) -> float:
         return self.degraded_count / self.event_count if self.event_count else 0.0
 
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "route_name": self.route_name,
+            "task_family": self.task_family,
+            "success_count": self.success_count,
+            "failure_count": self.failure_count,
+            "degraded_count": self.degraded_count,
+            "event_count": self.event_count,
+        }
+
 
 @dataclass(slots=True)
 class MetaOptimizerSnapshot:
@@ -169,6 +179,7 @@ class MetaOptimizerSnapshot:
     failure_fingerprints: list[FailureFingerprint]
     degraded_event_count: int
     task_family_stats: list[TaskFamilyTelemetryStats]
+    route_task_family_stats: list[RouteTaskFamilyTelemetryStats]
     proposals: list[OptimizationProposal]
 
     def to_dict(self) -> dict[str, object]:
@@ -181,6 +192,7 @@ class MetaOptimizerSnapshot:
             "failure_fingerprints": [item.to_dict() for item in self.failure_fingerprints],
             "degraded_event_count": self.degraded_event_count,
             "task_family_stats": [item.to_dict() for item in self.task_family_stats],
+            "route_task_family_stats": [item.to_dict() for item in self.route_task_family_stats],
             "proposals": [proposal.to_dict() for proposal in self.proposals],
         }
 
@@ -595,6 +607,7 @@ def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOpti
         failure_fingerprints=failure_fingerprints,
         degraded_event_count=degraded_event_count,
         task_family_stats=task_family_stats,
+        route_task_family_stats=route_task_family_stats,
         proposals=build_optimization_proposals(
             base_dir,
             route_stats,
@@ -986,6 +999,22 @@ def build_meta_optimizer_report(snapshot: MetaOptimizerSnapshot) -> str:
     lines.extend(
         [
             "",
+            "## Route Task Family Signals",
+        ]
+    )
+    if snapshot.route_task_family_stats:
+        for stats in snapshot.route_task_family_stats:
+            lines.append(
+                f"- {stats.route_name}/{stats.task_family}: success_rate={stats.success_rate():.0%} "
+                f"degraded_rate={stats.degraded_rate():.0%} "
+                f"events={stats.event_count}"
+            )
+    else:
+        lines.append("- no route task family signals detected.")
+
+    lines.extend(
+        [
+            "",
             "## Proposals",
         ]
     )
@@ -1132,8 +1161,7 @@ def apply_reviewed_optimization_proposals(
     if not approved_entries:
         raise ValueError(f"No approved proposals found in {review_path}")
 
-    apply_route_weights(base_dir)
-    updated_weights = current_route_weights()
+    updated_weights = load_route_weights(base_dir)
     existing_profiles = load_route_capability_profiles(base_dir)
     updated_profiles = {
         route_name: {

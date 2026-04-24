@@ -132,11 +132,14 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertEqual(snapshot.scanned_event_count, 4)
             self.assertTrue(snapshot.proposals)
             self.assertEqual(snapshot.proposals[0].proposal_type, "route")
+            self.assertTrue(snapshot.route_task_family_stats)
             self.assertEqual(artifact_path, optimization_proposals_path(base_dir))
             self.assertTrue(artifact_path.exists())
             self.assertIn("## Route Health", report)
+            self.assertIn("## Route Task Family Signals", report)
             self.assertIn("local-codex: success_rate=0% failure_rate=100% fallback_rate=50%", report)
             self.assertIn("local-summary: success_rate=100% failure_rate=0% fallback_rate=0%", report)
+            self.assertIn("local-codex/execution: success_rate=0% degraded_rate=0% events=2", report)
             self.assertIn("failure_kind=launch_error error_code=launch_error count=2 routes=local-codex", report)
             self.assertIn("degraded_executor_events: 1/3", report)
             self.assertIn("## Cost Summary", report)
@@ -258,6 +261,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 self.assertEqual(application_record.applied_count, 1)
                 self.assertEqual(application_record.noop_count, 0)
                 self.assertEqual(application_record.skipped_count, 0)
+                self.assertEqual(application_record.rollback_weights, {"local-codex": 1.0})
                 self.assertAlmostEqual(
                     route_by_name("local-codex").quality_weight,
                     route_weight_proposal.suggested_weight or 1.0,
@@ -389,6 +393,14 @@ class MetaOptimizerTest(unittest.TestCase):
 
                 self.assertEqual(application_record.applied_count, 1)
                 self.assertEqual(application_record.route_capabilities_path, str(route_capabilities_path(base_dir)))
+                self.assertEqual(
+                    application_record.rollback_capability_profiles["local-http"]["task_family_scores"],
+                    {},
+                )
+                self.assertEqual(
+                    application_record.rollback_capability_profiles["local-http"]["unsupported_task_types"],
+                    [],
+                )
                 persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
                 self.assertAlmostEqual(
                     persisted_profiles["local-http"]["task_family_scores"]["review"],
@@ -468,6 +480,10 @@ class MetaOptimizerTest(unittest.TestCase):
                 application_record, _application_path = apply_reviewed_optimization_proposals(base_dir, review_path)
 
                 self.assertEqual(application_record.applied_count, 1)
+                self.assertEqual(
+                    application_record.rollback_capability_profiles["local-codex"]["unsupported_task_types"],
+                    [],
+                )
                 persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
                 self.assertEqual(persisted_profiles["local-codex"]["unsupported_task_types"], ["review"])
                 apply_route_capability_profiles(base_dir)
@@ -531,6 +547,7 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertEqual(payload["memory_authority"], "canonical-write-forbidden")
             self.assertEqual(payload["snapshot"]["task_limit"], 25)
             self.assertTrue(payload["snapshot"]["proposals"])
+            self.assertTrue(payload["snapshot"]["route_task_family_stats"])
             self.assertTrue(Path(result.side_effects["bundle_path"]).exists())
             self.assertTrue(Path(result.side_effects["report_artifact"]).exists())
 
