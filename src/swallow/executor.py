@@ -15,7 +15,7 @@ import httpx
 
 from .cost_estimation import estimate_tokens
 from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
-from .dialect_adapters import ClaudeXMLDialect, CodexFIMDialect
+from .dialect_adapters import ClaudeXMLDialect, FIMDialect
 from .models import DialectSpec, ExecutorResult, RetrievalItem, RouteSpec, TaskCard, TaskState
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
@@ -368,7 +368,7 @@ BUILTIN_DIALECTS: dict[str, DialectAdapter] = {
     "plain_text": PlainTextDialect(),
     "structured_markdown": StructuredMarkdownDialect(),
     "claude_xml": ClaudeXMLDialect(),
-    "codex_fim": CodexFIMDialect(),
+    "codex_fim": FIMDialect(),
 }
 
 
@@ -862,7 +862,7 @@ def run_note_only_executor(
     base_result = ExecutorResult(
         executor_name="note-only",
         status="failed",
-        message="Operator selected note-only non-live mode; live Codex execution was skipped.",
+        message="Operator selected note-only non-live mode; live executor execution was skipped.",
         prompt=prompt,
         failure_kind="unreachable_backend",
         stdout="",

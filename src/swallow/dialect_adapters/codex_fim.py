@@ -8,7 +8,7 @@ def _escape_fim_markers(value: str) -> str:
     return value.replace("<fim_prefix>", "[fim_prefix]").replace("<fim_suffix>", "[fim_suffix]")
 
 
-class CodexFIMDialect:
+class FIMDialect:
     spec = DialectSpec(
         name="codex_fim",
         description="FIM-style prompt layout for code-oriented executor routes.",
@@ -24,7 +24,7 @@ class CodexFIMDialect:
         retrieval_lines = [f"- {entry}" for entry in prompt_data.retrieval_entries] or ["- No retrieval matches were found."]
 
         prefix_lines = [
-            "# Swallow Codex FIM Task",
+            "# Swallow FIM Task",
             "",
             f"Task ID: {_escape_fim_markers(prompt_data.task.task_id)}",
             f"Title: {_escape_fim_markers(prompt_data.task.title)}",
@@ -53,3 +53,7 @@ class CodexFIMDialect:
                 *suffix_lines,
             ]
         )
+
+
+# Backward-compatible alias for existing imports and historical references.
+CodexFIMDialect = FIMDialect
