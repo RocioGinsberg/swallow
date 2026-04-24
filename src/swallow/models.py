@@ -24,6 +24,8 @@ MEMORY_AUTHORITIES: tuple[str, ...] = (
 
 LIBRARIAN_SYSTEM_ROLE = "specialist"
 LIBRARIAN_MEMORY_AUTHORITY = "canonical-promotion"
+META_OPTIMIZER_SYSTEM_ROLE = "specialist"
+META_OPTIMIZER_MEMORY_AUTHORITY = "canonical-write-forbidden"
 
 
 @dataclass(slots=True)
@@ -127,6 +129,13 @@ def build_librarian_taxonomy_profile() -> TaxonomyProfile:
     return TaxonomyProfile(
         system_role=LIBRARIAN_SYSTEM_ROLE,
         memory_authority=LIBRARIAN_MEMORY_AUTHORITY,
+    )
+
+
+def build_meta_optimizer_taxonomy_profile() -> TaxonomyProfile:
+    return TaxonomyProfile(
+        system_role=META_OPTIMIZER_SYSTEM_ROLE,
+        memory_authority=META_OPTIMIZER_MEMORY_AUTHORITY,
     )
 
 
@@ -405,9 +414,62 @@ class OptimizationProposal:
     description: str
     suggested_action: str
     suggested_weight: float | None = None
+    task_family: str | None = None
+    suggested_task_family_score: float | None = None
+    mark_task_family_unsupported: bool = False
+    proposal_id: str = ""
+    priority: str = ""
+    rationale: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "OptimizationProposal":
+        raw_weight = data.get("suggested_weight")
+        suggested_weight: float | None
+        if raw_weight in {"", None}:
+            suggested_weight = None
+        else:
+            try:
+                suggested_weight = float(raw_weight)
+            except (TypeError, ValueError):
+                suggested_weight = None
+        raw_task_family_score = data.get("suggested_task_family_score")
+        suggested_task_family_score: float | None
+        if raw_task_family_score in {"", None}:
+            suggested_task_family_score = None
+        else:
+            try:
+                suggested_task_family_score = max(float(raw_task_family_score), 0.0)
+            except (TypeError, ValueError):
+                suggested_task_family_score = None
+        route_name = data.get("route_name")
+        normalized_route_name = None if route_name in {"", None} else str(route_name)
+        task_family = data.get("task_family")
+        normalized_task_family = None if task_family in {"", None} else str(task_family).strip().lower()
+        mark_task_family_unsupported = data.get("mark_task_family_unsupported", False)
+        if not isinstance(mark_task_family_unsupported, bool):
+            mark_task_family_unsupported = str(mark_task_family_unsupported).strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+        return cls(
+            proposal_type=str(data.get("proposal_type", "")).strip(),
+            severity=str(data.get("severity", "")).strip(),
+            route_name=normalized_route_name,
+            description=str(data.get("description", "")).strip(),
+            suggested_action=str(data.get("suggested_action", "")).strip(),
+            suggested_weight=suggested_weight,
+            task_family=normalized_task_family,
+            suggested_task_family_score=suggested_task_family_score,
+            mark_task_family_unsupported=mark_task_family_unsupported,
+            proposal_id=str(data.get("proposal_id", "")).strip(),
+            priority=str(data.get("priority", "")).strip(),
+            rationale=str(data.get("rationale", "")).strip(),
+        )
 
 
 @dataclass(slots=True)
@@ -852,6 +914,8 @@ class RouteSpec:
     dialect_hint: str = ""
     fallback_route_name: str = ""
     quality_weight: float = 1.0
+    task_family_scores: dict[str, float] = field(default_factory=dict)
+    unsupported_task_types: list[str] = field(default_factory=list)
     executor_family: str = "cli"
     execution_site: str = "local"
     remote_capable: bool = False
@@ -877,6 +941,11 @@ class RouteSpec:
         payload = asdict(self)
         payload["capabilities"] = self.capabilities.to_dict()
         payload["taxonomy"] = self.taxonomy.to_dict()
+        payload["task_family_scores"] = {
+            str(task_family): float(score)
+            for task_family, score in sorted(self.task_family_scores.items())
+        }
+        payload["unsupported_task_types"] = sorted({str(item).strip() for item in self.unsupported_task_types if str(item).strip()})
         return payload
 
 

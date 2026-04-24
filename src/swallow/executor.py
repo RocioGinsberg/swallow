@@ -211,6 +211,10 @@ def resolve_executor(executor_type: str, executor_name: str) -> ExecutorProtocol
         from .librarian_executor import LibrarianExecutor
 
         return LibrarianExecutor()
+    if raw_name in {"meta-optimizer", "meta_optimizer"} or normalized_type in {"meta-optimizer", "meta_optimizer"}:
+        from .meta_optimizer import MetaOptimizerExecutor
+
+        return MetaOptimizerExecutor()
     if normalized_name in {"mock", "mock-remote"} or normalized_type == "mock":
         return MockExecutor()
     if normalized_name == "http" or normalized_type in {"http", "api"}:

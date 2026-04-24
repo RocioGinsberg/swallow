@@ -170,12 +170,44 @@ def optimization_proposals_path(base_dir: Path) -> Path:
     return meta_optimizer_root(base_dir) / "optimization_proposals.md"
 
 
+def optimization_proposal_bundles_root(base_dir: Path) -> Path:
+    return meta_optimizer_root(base_dir) / "proposal_bundles"
+
+
+def latest_optimization_proposal_bundle_path(base_dir: Path) -> Path:
+    return optimization_proposal_bundles_root(base_dir) / "latest.json"
+
+
+def optimization_proposal_bundle_path(base_dir: Path, bundle_id: str) -> Path:
+    return optimization_proposal_bundles_root(base_dir) / f"{bundle_id}.json"
+
+
+def optimization_proposal_reviews_root(base_dir: Path) -> Path:
+    return meta_optimizer_root(base_dir) / "proposal_reviews"
+
+
+def optimization_proposal_review_path(base_dir: Path, review_id: str) -> Path:
+    return optimization_proposal_reviews_root(base_dir) / f"{review_id}.json"
+
+
+def optimization_proposal_applications_root(base_dir: Path) -> Path:
+    return meta_optimizer_root(base_dir) / "proposal_applications"
+
+
+def optimization_proposal_application_path(base_dir: Path, application_id: str) -> Path:
+    return optimization_proposal_applications_root(base_dir) / f"{application_id}.json"
+
+
 def audit_policy_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "audit_policy.json"
 
 
 def route_weights_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "route_weights.json"
+
+
+def route_capabilities_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "route_capabilities.json"
 
 
 def canonical_registry_path(base_dir: Path) -> Path:

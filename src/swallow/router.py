@@ -6,8 +6,8 @@ from collections.abc import Iterable
 from pathlib import Path
 
 from .executor import DEFAULT_EXECUTOR, normalize_executor_name
-from .models import RouteCapabilities, RouteSelection, RouteSpec, TaskState, TaxonomyProfile
-from .paths import route_weights_path
+from .models import RouteCapabilities, RouteSelection, RouteSpec, TaskState, TaxonomyProfile, infer_task_family
+from .paths import route_capabilities_path, route_weights_path
 
 
 CAPABILITY_MATCH_FIELDS = (
@@ -64,7 +64,67 @@ def _normalize_quality_weight(value: object) -> float:
 
 def _sort_routes_by_quality(routes: Iterable[RouteSpec]) -> list[RouteSpec]:
     route_list = list(routes)
-    return sorted(route_list, key=lambda route: route.quality_weight, reverse=True)
+    return sorted(route_list, key=lambda route: (-route.quality_weight, route.name))
+
+
+def _normalize_task_type(value: object) -> str:
+    return str(value or "").strip().lower()
+
+
+def _normalize_task_family_scores(scores: object) -> dict[str, float]:
+    if not isinstance(scores, dict):
+        return {}
+    normalized: dict[str, float] = {}
+    for task_type, raw_score in scores.items():
+        normalized_task_type = _normalize_task_type(task_type)
+        if not normalized_task_type:
+            continue
+        normalized[normalized_task_type] = round(_normalize_quality_weight(raw_score), 6)
+    return normalized
+
+
+def _normalize_unsupported_task_types(task_types: object) -> list[str]:
+    if not isinstance(task_types, list):
+        return []
+    normalized = {_normalize_task_type(item) for item in task_types}
+    normalized.discard("")
+    return sorted(normalized)
+
+
+def _normalize_route_capability_profile(profile: object) -> dict[str, object]:
+    if not isinstance(profile, dict):
+        return {"task_family_scores": {}, "unsupported_task_types": []}
+    return {
+        "task_family_scores": _normalize_task_family_scores(profile.get("task_family_scores", {})),
+        "unsupported_task_types": _normalize_unsupported_task_types(profile.get("unsupported_task_types", [])),
+    }
+
+
+def _task_family_score(route: RouteSpec, task_family: str) -> float:
+    normalized_task_family = _normalize_task_type(task_family)
+    if not normalized_task_family:
+        return 0.0
+    return _normalize_quality_weight(route.task_family_scores.get(normalized_task_family, 0.0))
+
+
+def _route_supports_task_family(route: RouteSpec, task_family: str) -> bool:
+    normalized_task_family = _normalize_task_type(task_family)
+    if not normalized_task_family:
+        return True
+    unsupported = {_normalize_task_type(item) for item in route.unsupported_task_types}
+    return normalized_task_family not in unsupported
+
+
+def _sort_routes_by_preference(routes: Iterable[RouteSpec], task_family: str = "") -> list[RouteSpec]:
+    route_list = list(routes)
+    return sorted(
+        route_list,
+        key=lambda route: (-_task_family_score(route, task_family), -route.quality_weight, route.name),
+    )
+
+
+def _filter_supported_task_family(routes: Iterable[RouteSpec], task_family: str) -> list[RouteSpec]:
+    return [route for route in routes if _route_supports_task_family(route, task_family)]
 
 
 class RouteRegistry:
@@ -105,11 +165,14 @@ class RouteRegistry:
         executor_family: str = "",
         execution_site: str = "",
         required_capabilities: dict[str, object] | None = None,
+        task_family: str = "",
     ) -> tuple[list[RouteSpec], str]:
         if route_name_hint:
             hinted = self.maybe_get(route_name_hint)
             if hinted is not None:
-                return [hinted], "exact_route_name"
+                supported_hinted = _filter_supported_task_family([hinted], task_family)
+                if supported_hinted:
+                    return supported_hinted, "exact_route_name"
 
         normalized_executor = normalize_executor_name(executor_name)
         exact_executor_matches = [
@@ -118,10 +181,15 @@ class RouteRegistry:
             if _registered_executor_name(route.executor_name) == normalized_executor
         ]
         if exact_executor_matches:
-            model_matches = _filter_model_hint_matches(exact_executor_matches, model_hint)
+            exact_executor_matches = _filter_supported_task_family(exact_executor_matches, task_family)
+            model_matches = _filter_supported_task_family(
+                _filter_model_hint_matches(exact_executor_matches, model_hint),
+                task_family,
+            )
             if model_matches:
-                return _sort_routes_by_quality(model_matches), "exact_executor_model_hint"
-            return _sort_routes_by_quality(exact_executor_matches), "exact_executor"
+                return _sort_routes_by_preference(model_matches, task_family), "exact_executor_model_hint"
+            if exact_executor_matches:
+                return _sort_routes_by_preference(exact_executor_matches, task_family), "exact_executor"
 
         family_site_matches = [
             route
@@ -129,19 +197,27 @@ class RouteRegistry:
             if route.executor_family == executor_family and route.execution_site == execution_site
         ]
         if family_site_matches:
+            family_site_matches = _filter_supported_task_family(family_site_matches, task_family)
             capability_matches = _filter_capability_matches(family_site_matches, required_capabilities)
             if capability_matches:
-                return _sort_routes_by_quality(capability_matches), "family_site"
+                capability_matches = _filter_supported_task_family(capability_matches, task_family)
+                if capability_matches:
+                    return _sort_routes_by_preference(capability_matches, task_family), "family_site"
             if not required_capabilities:
-                return _sort_routes_by_quality(family_site_matches), "family_site"
+                return _sort_routes_by_preference(family_site_matches, task_family), "family_site"
 
         capability_matches = _filter_capability_matches(self.values(), required_capabilities)
         if capability_matches:
-            return _sort_routes_by_quality(capability_matches), "capability"
+            capability_matches = _filter_supported_task_family(capability_matches, task_family)
+            if capability_matches:
+                return _sort_routes_by_preference(capability_matches, task_family), "capability"
 
         summary_route = self.maybe_get(SUMMARY_FALLBACK_ROUTE_NAME)
-        if summary_route is not None:
+        if summary_route is not None and _route_supports_task_family(summary_route, task_family):
             return [summary_route], "summary_fallback"
+        supported_routes = _filter_supported_task_family(self.values(), task_family)
+        if supported_routes:
+            return _sort_routes_by_preference(supported_routes, task_family), "no_match"
         return list(self.values()), "no_match"
 
 
@@ -565,6 +641,82 @@ def build_route_weights_report(base_dir: Path, registry: RouteRegistry | None = 
     return "\n".join(lines) + "\n"
 
 
+def load_route_capability_profiles(base_dir: Path) -> dict[str, dict[str, object]]:
+    path = route_capabilities_path(base_dir)
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {}
+
+    profiles: dict[str, dict[str, object]] = {}
+    for route_name, raw_profile in payload.items():
+        normalized_name = str(route_name).strip()
+        if not normalized_name:
+            continue
+        profiles[normalized_name] = _normalize_route_capability_profile(raw_profile)
+    return profiles
+
+
+def save_route_capability_profiles(base_dir: Path, profiles: dict[str, dict[str, object]]) -> Path:
+    path = route_capabilities_path(base_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_profiles = {
+        route_name: _normalize_route_capability_profile(profile)
+        for route_name, profile in sorted(profiles.items())
+    }
+    path.write_text(json.dumps(normalized_profiles, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def apply_route_capability_profiles(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, dict[str, object]]:
+    active_registry = registry or ROUTE_REGISTRY
+    persisted_profiles = load_route_capability_profiles(base_dir)
+    for route in active_registry.values():
+        profile = persisted_profiles.get(route.name, {})
+        route.task_family_scores = _normalize_task_family_scores(profile.get("task_family_scores", {}))
+        route.unsupported_task_types = _normalize_unsupported_task_types(profile.get("unsupported_task_types", []))
+    return current_route_capability_profiles(active_registry)
+
+
+def current_route_capability_profiles(registry: RouteRegistry | None = None) -> dict[str, dict[str, object]]:
+    active_registry = registry or ROUTE_REGISTRY
+    return {
+        route.name: {
+            "task_family_scores": _normalize_task_family_scores(route.task_family_scores),
+            "unsupported_task_types": _normalize_unsupported_task_types(route.unsupported_task_types),
+        }
+        for route in active_registry.values()
+    }
+
+
+def build_route_capability_profiles_report(base_dir: Path, registry: RouteRegistry | None = None) -> str:
+    active_registry = registry or ROUTE_REGISTRY
+    profiles = current_route_capability_profiles(active_registry)
+    lines = [
+        "# Route Capability Profiles",
+        "",
+        f"- path: {route_capabilities_path(base_dir)}",
+        "",
+        "## Routes",
+    ]
+    for route_name in sorted(profiles):
+        profile = profiles[route_name]
+        score_text = ", ".join(
+            f"{task_type}={score:.6f}"
+            for task_type, score in sorted(profile["task_family_scores"].items())
+        ) or "none"
+        unsupported_text = ", ".join(profile["unsupported_task_types"]) or "none"
+        lines.extend(
+            [
+                f"- {route_name}",
+                f"  task_family_scores: {score_text}",
+                f"  unsupported_task_types: {unsupported_text}",
+            ]
+        )
+    return "\n".join(lines) + "\n"
+
+
 def route_for_executor(executor_name: str) -> RouteSpec:
     return ROUTE_REGISTRY.route_for_executor(executor_name)
 
@@ -651,12 +803,14 @@ def select_route(
         selected_executor = legacy_executor
         reason = "Selected the route from legacy executor mode because the task kept the default executor."
 
+    task_family = infer_task_family(state)
     candidates, match_kind = ROUTE_REGISTRY.candidate_routes(
         executor_name=selected_executor,
         model_hint=state.route_model_hint,
         executor_family=state.route_executor_family,
         execution_site=state.route_execution_site,
         required_capabilities=state.route_capabilities,
+        task_family=task_family,
     )
     route = candidates[0] if candidates else route_for_executor(selected_executor)
     return RouteSelection(
