@@ -12,7 +12,7 @@ swallow sustains multi-step, multi-session tasks by combining task orchestration
 
 - **Stateful task runtime** — tasks persist across steps and sessions with explicit state, events, artifacts, checkpoints, resume, retry, and rerun.
 - **Knowledge governance** — SQLite-backed knowledge truth with staged → review → promote workflow, not implicit global memory.
-- **Policy loop** — proposal-driven meta-optimization with operator review/apply, automatic consistency audit triggers, and route capability profiles.
+- **Policy & execution loop** — proposal-driven meta-optimization, operator review/apply, automatic consistency audit triggers, complexity-aware routing, and guarded fan-out orchestration.
 - **Replaceable executors** — role-first architecture; executors are bound by system role, not brand identity.
 - **Multi-model routing** — HTTP routes with dialect adapters, layered fallback matrix, and real token-cost telemetry.
 - **Review & recovery** — structured review gates, feedback-driven retry, waiting_human circuit breaking, and operator-facing control surfaces.
@@ -98,9 +98,9 @@ Recommended reading order: ARCHITECTURE → STATE_AND_TRUTH → KNOWLEDGE → AG
 
 ## Current Version
 
-**Tag: `v0.8.0`** — Policy Era: proposal-driven strategy closure, Meta-Optimizer specialist lifecycle, automatic consistency audits, and route capability profiles.
+**Tag: `v0.9.0`** — Execution Era: unified async CLI executor entrypoint, complexity-aware strategy routing, guarded fan-out orchestration, and policy-loop carryover.
 
-Stable baseline: `422 tests passed`.
+Stable baseline: `437 tests passed + 8 eval passed`.
 
 For implementation details, see `CHANGELOG.md` and `docs/active_context.md`.
 
@@ -139,7 +139,7 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 - **有状态任务运行时**——任务跨步骤和会话持久化，支持显式 state / events / artifacts / checkpoint / resume / retry / rerun。
 - **知识治理**——SQLite-backed 知识真值层，staged → review → promote 工作流，而不是隐式全局记忆。
-- **策略闭环**——proposal-driven 的 meta-optimization、operator review/apply、自动一致性审计触发与 route capability 画像。
+- **策略与执行闭环**——proposal-driven 的 meta-optimization、operator review/apply、自动一致性审计触发、complexity-aware 路由与带守卫的 fan-out 编排。
 - **可替换执行器**——role-first 架构，执行器按系统角色绑定，而非品牌绑定。
 - **多模型路由**——HTTP 路由 + 方言适配器 + 分层降级矩阵 + 真实 token 成本遥测。
 - **审查与恢复**——结构化 review gate、feedback-driven retry、waiting_human 熔断与 operator-facing 控制面。
@@ -225,9 +225,9 @@ swl task artifacts <task-id>
 
 ## 当前版本
 
-**Tag: `v0.8.0`** — Policy Era：提案驱动的策略闭环 + Meta-Optimizer Specialist Agent 生命周期 + 自动一致性审计 + route capability 画像。
+**Tag: `v0.9.0`** — Execution Era：统一 async CLI 执行器入口 + complexity-aware 策略路由 + 带守卫的 fan-out 编排 + 延续的策略闭环能力。
 
-稳定基线：`422 tests passed`。
+稳定基线：`437 tests passed + 8 eval passed`。
 
 实现细节见 `CHANGELOG.md` 和 `docs/active_context.md`。
 
