@@ -230,12 +230,26 @@ def _lazy_validator() -> ExecutorProtocol:
     return ValidatorExecutor()
 
 
+def _lazy_literature_specialist() -> ExecutorProtocol:
+    from .literature_specialist import LiteratureSpecialistExecutor
+
+    return LiteratureSpecialistExecutor()
+
+
+def _lazy_quality_reviewer() -> ExecutorProtocol:
+    from .quality_reviewer import QualityReviewerExecutor
+
+    return QualityReviewerExecutor()
+
+
 EXECUTOR_REGISTRY: dict[str, Callable[[], ExecutorProtocol]] = {
     "consistency-reviewer": _lazy_consistency_reviewer,
     "ingestion-specialist": _lazy_ingestion_specialist,
     "librarian": _lazy_librarian,
+    "literature-specialist": _lazy_literature_specialist,
     "meta-optimizer": _lazy_meta_optimizer,
     "meta_optimizer": _lazy_meta_optimizer,
+    "quality-reviewer": _lazy_quality_reviewer,
     "validator": _lazy_validator,
 }
 
