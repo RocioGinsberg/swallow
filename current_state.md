@@ -42,13 +42,13 @@
 - active_branch: `feat/phase52_execution_topology`
 - active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
 - active_phase: `Phase 52`
-- active_slice: `closeout / validation complete`
-- workflow_status: `phase52_implementation_validated`
+- active_slice: `pr closeout / tag preflight`
+- workflow_status: `phase52_pr_ready_tag_preflight_pending`
 
 说明：
 
 - `main` 的稳定基线仍是 `v0.8.0 / Phase 51`，但当前日常开发入口已位于 `feat/phase52_execution_topology`。
-- Phase 52 的实现、eval 与全量 pytest 已完成；当前默认继续动作是 review / closeout / merge，而不是重新 kickoff。
+- Phase 52 的实现、eval、review follow-up 与 PR 材料已完成；当前默认继续动作是 merge 决策与 tag preflight，而不是重新 kickoff。
 
 ---
 
@@ -90,7 +90,7 @@ git log --oneline -3
 - SQLite 当前已同时承载 `TaskState` / `EventLog` 与知识层 truth；下一轮默认不再回退到知识层“双重真相”整理。
 - 默认 store 已切到 SQLite，但过渡期仍保留 file mirror/fallback；旧 `.swl/` 目录仍建议通过 `swl migrate` 回填。
 - `swl knowledge migrate`、`LibrarianAgent` 与 `sqlite-vec` 文本降级检索已成为 `v0.8.0` 稳定基线。
-- `AsyncCLIAgentExecutor` 已成为当前 feature branch 的 CLI agent 通用执行路径；merge 前仍以 feature branch 验证结果为准。
+- `AsyncCLIAgentExecutor` 已成为当前 feature branch 的 CLI agent 统一 async 入口；Runtime v0 仍通过 harness bridge 接入既有同步执行链，merge 前仍以 feature branch 验证结果为准。
 - `meta-optimize` 仍是只读分析入口，不会自动采纳策略提案，也不会直接修改 route policy 或 task state。
 - route policy / capability profile 当前已兼容 legacy route alias（`local-codex -> local-aider`，`local-cline -> local-claude-code`）。
 - `TaskCard.token_cost_limit` 仍按 task 全生命周期聚合真实 `token_cost`，不是按单 card 独立结算。

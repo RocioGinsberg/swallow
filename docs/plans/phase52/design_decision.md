@@ -15,7 +15,11 @@ depends_on:
 
 ## TL;DR
 
-Phase 52 用通用 `AsyncCLIAgentExecutor`（基于 `asyncio.create_subprocess_exec`）承载 Aider / Claude Code 两条 CLI 路径，同步移除 codex/cline 具名分支与同步 `CLIAgentExecutor` 空壳；Warp-Oz 因付费依赖延后接入，保留 `CLIAgentConfig` 扩展位。路由层通过在 `TaskSemantics` 新增 `complexity_hint` 字段改造 `select_route`，使其能根据任务特征在 aider / claude-code / http 之间选择，`parallel` 信号触发 fan-out 但不绑定具体执行器。现有 `AsyncSubtaskOrchestrator` 已提供 `asyncio.gather + Semaphore` 的 fan-out 原语，S3 仅补 summary artifact 汇总、子任务级 timeout 守卫与 fan-out 集成验证（以 Aider 多实例 + HTTP 路径为目标）；`schedule_consistency_audit` 的 `threading.Thread → asyncio.create_task` 迁移作为 S1 尾部独立提交。
+Phase 52 用通用 `AsyncCLIAgentExecutor` 承载 Aider / Claude Code 两条 CLI 路径，同步移除 codex/cline 具名分支与同步 `CLIAgentExecutor` 空壳；Warp-Oz 因付费依赖延后接入，保留 `CLIAgentConfig` 扩展位。路由层通过在 `TaskSemantics` 新增 `complexity_hint` 字段改造 `select_route`，使其能根据任务特征在 aider / claude-code / http 之间选择，`parallel` 信号触发 fan-out 但不绑定具体执行器。现有 `AsyncSubtaskOrchestrator` 已提供 `asyncio.gather + Semaphore` 的 fan-out 原语，S3 仅补 summary artifact 汇总、子任务级 timeout 守卫与 fan-out 集成验证（以 Aider 多实例 + HTTP 路径为目标）；`schedule_consistency_audit` 的 `threading.Thread → asyncio.create_task` 迁移作为 S1 尾部独立提交。
+
+## Implementation Note
+
+2026-04-24 follow-up：Phase 52 实际落地的是 **async executor entrypoint + Runtime v0 harness bridge**。`AsyncCLIAgentExecutor.execute_async()` 已成为统一 async 入口，但底层仍通过 `_run_harness_execution_async()` 以 `asyncio.to_thread(...)` 包装同步 harness，而不是在本 phase 内直接把 harness 改造成 `asyncio.create_subprocess_exec` 主链。原文中对“原生 async subprocess 主链”的描述应视为设计目标，不是本 phase 的最终实现状态。
 
 ---
 
@@ -106,7 +110,7 @@ class AsyncCLIAgentExecutor:
         return asyncio.run(self.execute_async(base_dir, state, card, retrieval_items))
 ```
 
-核心 async subprocess 逻辑使用 `asyncio.create_subprocess_exec` + `asyncio.wait_for` 实现 timeout，stdout/stderr 用 `proc.communicate()`。
+实现后校正：Phase 52 当前并未把 Runtime v0 harness 改写为原生 async subprocess 主链；实际稳定实现是 async executor 入口统一后，通过 `_run_harness_execution_async()` 桥接既有同步 harness。若后续 phase 继续收紧 Runtime，才再把这段设计目标下推到 harness / subprocess 层。
 
 ---
 

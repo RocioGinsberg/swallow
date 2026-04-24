@@ -7,17 +7,17 @@
 - latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle (v0.8.0)`
 - active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
 - active_phase: `Phase 52`
-- active_slice: `Closeout / validation`
+- active_slice: `PR closeout / tag preflight`
 - active_branch: `feat/phase52_execution_topology`
-- status: `phase52_implementation_validated`
+- status: `phase52_pr_ready_tag_preflight_pending`
 
 ---
 
 ## 当前状态说明
 
-`main` 已完成 Phase 51 并打出 `v0.8.0`。当前工作分支 `feat/phase52_execution_topology` 上，Phase 52 的实现与实现后验证已完成，现处于 closeout / review 前状态。
+`main` 已完成 Phase 51 并打出 `v0.8.0`。当前工作分支 `feat/phase52_execution_topology` 上，Phase 52 的实现、实现后验证与 review follow-up 已完成，现处于 PR 收口与 tag 前置准备状态。
 
-本轮收口重点已从实现切换为文档同步与评审准备：确认 async CLI executor、Strategy Router 路由信号和 fan-out guard 主线全部稳定，并吸收实现后验证暴露的 meta-optimizer 兼容性问题。
+本轮收口重点已从 review 修订切到合并材料整理：确认 PR 描述、closeout、backlog 和当前状态入口一致，并为 merge 后是否打 `v0.9.0` 预先准备检查清单。
 
 ---
 
@@ -54,16 +54,20 @@
 - **[Human]** 已完成 S3 commit。
 - **[Codex]** 已完成 Phase 52 post-implementation validation：补齐 `meta_optimizer` 的 cost trend 顺序修正、perfect-baseline capability proposal 抑制，以及 legacy route alias (`local-codex` / `local-cline`) 的 policy persistence 兼容。
 - **[Codex]** 已验证全量基线：`.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` → `19 passed`；`.venv/bin/python -m pytest -m eval -q` → `8 passed`；`.venv/bin/python -m pytest --tb=short` → `437 passed, 8 deselected`。
+- **[Claude]** 已产出 `review_comments.md`，结论为 `approved_with_concerns`。
+- **[Codex]** 已吸收 review follow-up：修正文档中对 `AsyncCLIAgentExecutor` / harness bridge 的实现表述，清理 operator-facing `Codex` 残留文案，引入 `FIMDialect` 中性类型名并保留 `CodexFIMDialect` alias 兼容，同时把剩余 `codex_fim` 命名 concern 登记到 `docs/concerns_backlog.md`。
+- **[Codex]** 已验证 review follow-up 后基线：`.venv/bin/python -m pytest --tb=short` → `437 passed, 8 deselected`。
+- **[Codex]** 已更新 `pr.md` 为 Phase 52 PR 收口版本，并加入 merge 后 tag preflight 清单。
 
 进行中：
 
-- 无。Phase 52 当前已进入 closeout / review 准备状态。
+- 无。Phase 52 当前已进入 PR ready 状态。
 
 待执行：
 
-- **[Human]** 审阅 Phase 52 最终 diff，决定是否进入 review / PR。
-- **[Claude]** 按 workflow 进入 review / consistency 检查（如本轮需要）。
-- **[Codex]** 根据 review 结果继续 follow-up 或整理 `pr.md`。
+- **[Human]** 审阅当前 PR 材料并决定是否 merge。
+- **[Human]** merge 后按 `pr.md` 的 tag preflight 清单决定是否打 `v0.9.0`。
+- **[Codex]** 若 Human 决定打 tag，再更新 README / AGENTS 的 tag-level snapshot。
 
 当前阻塞项：
 
@@ -77,12 +81,13 @@
 - `docs/plans/phase52/kickoff.md` (claude, 2026-04-23)
 - `docs/plans/phase52/design_decision.md` (claude, 2026-04-23)
 - `docs/plans/phase52/risk_assessment.md` (claude, 2026-04-23)
+- `docs/plans/phase52/review_comments.md` (claude, 2026-04-24)
 - `docs/plans/phase52/closeout.md` (codex, 2026-04-24)
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** 审阅当前 phase52 最终 diff，决定是否进入 review / PR。
-2. **[Claude]** 产出 review / consistency 结果。
-3. **[Codex]** 根据 review 继续 follow-up 或整理合并材料。
+1. **[Human]** 审阅当前 review follow-up diff，决定是否执行本轮收口提交 / PR 更新。
+2. **[Human]** merge 后决定是否进入 `v0.9.0` tag 流程。
+3. **[Codex]** 若需要，再执行 tag-level 文档同步。
