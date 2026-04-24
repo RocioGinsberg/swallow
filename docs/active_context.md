@@ -7,23 +7,24 @@
 - latest_completed_slice: `Advanced Parallel Topologies (v0.9.0)`
 - active_track: `Agent Taxonomy` (Primary) + `Knowledge / Self-Evolution` (Secondary)
 - active_phase: `Phase 53`
-- active_slice: `kickoff`
-- active_branch: `main`
-- status: `phase53_design_ready_for_codex`
+- active_slice: `implementation closeout`
+- active_branch: `feat/phase53-specialist-ecosystem`
+- status: `phase53_impl_complete_pending_review`
 
 ---
 
 ## 当前状态说明
 
-`main` 已完成 Phase 52 并打出 `v0.9.0`。`docs/roadmap.md` 已由 roadmap-updater 完成增量更新：Gap 3 标记为 `[已消化]`，Phase 52 条目写入 Section 二，Section 三 Phase 52 标记为 `✅ [Done] — tag v0.9.0`，Phase 53 升为 `🚀 [Next]`，队列表格已划线，Tag 记录已追加。下一阶段为 Phase 53（其他 Specialist Agent 落地）。
+`main` 已完成 Phase 52 并打出 `v0.9.0`。Phase 53 文档现已齐备：`context_brief.md`、`kickoff.md`、`design_decision.md`、`risk_assessment.md` 均已生成，S1/S2/S3 代码实现与测试已全部落地并完成人工提交。当前分支进入 implementation closeout / Claude review 前置阶段。
 
 ---
 
 ## 当前关键文档
 
 1. `docs/plans/phase53/context_brief.md`
-2. `docs/plans/phase52/closeout.md`
-3. `docs/roadmap.md`
+2. `docs/plans/phase53/kickoff.md`
+3. `docs/plans/phase53/design_decision.md`
+4. `docs/plans/phase53/risk_assessment.md`
 
 ---
 
@@ -31,37 +32,34 @@
 
 已完成：
 
-- **[Human]** 已切出 `feat/phase52_execution_topology`。
-- **[Claude]** 已完成 Phase 52 `context_brief` / `kickoff` / `design_decision` / `risk_assessment`。
-- **[Codex]** 已完成 S1 代码盘点，确认 `executor.py` / `router.py` / `dialect_data.py` / `models.py` 仍残留 `codex/cline` 默认路径与同步桥接实现。
-- **[Codex]** 已完成 S1 主路径：`AsyncCLIAgentExecutor`、`AIDER_CONFIG` / `CLAUDE_CODE_CONFIG`、`aider/claude-code` 路由重命名、`complexity_hint` 基础路由偏置与 `parallel_intent` 记录。
-- **[Codex]** 已验证 S1 主路径：`.venv/bin/python -m pytest tests/test_executor_protocol.py tests/test_router.py tests/test_binary_fallback.py tests/test_planner.py tests/test_subtask_orchestrator.py -q` → `50 passed`。
-- **[Codex]** 已完成 S1 尾部 concern：`schedule_consistency_audit` 改为 `asyncio.create_task` + background task set 收口，并验证 `tests/test_consistency_audit.py -q` → `11 passed`。
-- **[Codex]** 已完成 S1 残余命名收口：`doctor/cli/create_task` 默认 executor 改为 `aider`，`doctor executor` 取代旧 `doctor codex` 命名（保留 deprecated alias），相关 CLI 测试已同步。
-- **[Codex]** 已验证 S1 commit gate 补充集：`tests/test_cli.py -q -k "parse_capability_refs_builds_manifest_from_explicit_refs or task_falls_back_to_local_summary_when_aider_binary_is_missing or aider_timeout_preserves_partial_output or doctor_executor_missing_binary_returns_nonzero or doctor_executor_success_returns_zero or doctor_without_subcommand_runs_executor_and_stack_checks or doctor_skip_stack_only_runs_executor_check or doctor_sqlite_subcommand_runs_sqlite_check_only or doctor_stack_subcommand_runs_stack_check_only or create_task_persists_route_dialect_for_default_aider_route or select_route_uses_override_before_legacy_mode or select_route_uses_legacy_mode_when_task_stays_default or select_route_uses_route_mode_when_no_executor_override_is_present or compatibility_reports_warning_for_live_route_without_network or compatibility_reports_failure_for_deterministic_mode_mismatch"` → `15 passed`。
-- **[Codex]** 已完成 S2 语义入口补强：`TaskSemantics.complexity_hint` 已贯通 `build_task_semantics()`、`create_task()`、`update_task_planning_handoff()` 与 `task_semantics_report.md`。
-- **[Codex]** 已完成 S2 CLI 面：`swl task create --complexity-hint`、`swl task planning-handoff --complexity-hint` 与 `swl route select --task-id <id> [--executor ...] [--route-mode ...]` dry-run 已落地。
-- **[Codex]** 已完成 S2 测试补强：`tests/test_router.py -q` → `21 passed`；`tests/test_cli.py -q -k "test_cli_create_persists_imported_planning_semantics or test_cli_planning_handoff_updates_existing_task_semantics or test_cli_create_persists_complexity_hint_in_task_semantics or test_cli_planning_handoff_updates_complexity_hint or test_cli_route_select_reports_policy_inputs_for_task or test_cli_route_select_respects_executor_override or test_create_task_persists_route_dialect_for_default_aider_route or test_select_route_uses_override_before_legacy_mode or test_select_route_uses_legacy_mode_when_task_stays_default or test_select_route_uses_route_mode_when_no_executor_override_is_present"` → `9 passed`。
-- **[Codex]** 已完成 S3 async fan-out 守卫：`AsyncSubtaskOrchestrator` 新增 subtask timeout 记录、`asyncio.gather(..., return_exceptions=True)` 局部失败隔离，以及 `AIWF_MAX_SUBTASK_WORKERS` 环境变量接线。
-- **[Codex]** 已完成 S3 parent artifact 收口：多 card 路径会写出 `subtask_summary.md`，汇总各 subtask 的 card_id / goal / status / latest attempt artifact refs；单卡路径不暴露该 artifact key。
-- **[Codex]** 已完成 S3 cancellation cleanup：`run_cli_agent_executor_async()` 在外层 cancel 时会 kill 并回收子进程，避免 subtask timeout 留下悬挂 CLI 进程。
-- **[Codex]** 已验证 S3 gate：`.venv/bin/python -m pytest tests/test_subtask_orchestrator.py tests/test_run_task_subtasks.py tests/test_executor_async.py -q` → `17 passed`。
-- **[Human]** 已完成 S3 commit。
-- **[Codex]** 已完成 Phase 52 post-implementation validation：补齐 `meta_optimizer` 的 cost trend 顺序修正、perfect-baseline capability proposal 抑制，以及 legacy route alias (`local-codex` / `local-cline`) 的 policy persistence 兼容。
-- **[Codex]** 已验证全量基线：`.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` → `19 passed`；`.venv/bin/python -m pytest -m eval -q` → `8 passed`；`.venv/bin/python -m pytest --tb=short` → `437 passed, 8 deselected`。
-- **[Claude]** 已产出 `review_comments.md`，结论为 `approved_with_concerns`。
-- **[Codex]** 已吸收 review follow-up：修正文档中对 `AsyncCLIAgentExecutor` / harness bridge 的实现表述，清理 operator-facing `Codex` 残留文案，引入 `FIMDialect` 中性类型名并保留 `CodexFIMDialect` alias 兼容，同时把剩余 `codex_fim` 命名 concern 登记到 `docs/concerns_backlog.md`。
-- **[Codex]** 已验证 review follow-up 后基线：`.venv/bin/python -m pytest --tb=short` → `437 passed, 8 deselected`。
-- **[Codex]** 已更新 `pr.md` 为 Phase 52 PR 收口版本，并加入 merge 后 tag preflight 清单。
+- **[Claude]** 已完成 Phase 53 `context_brief` / `kickoff` / `design_decision` / `risk_assessment`。
+- **[Human]** 已切出 `feat/phase53-specialist-ecosystem` 并完成 S1 / S2 / S3 提交。
+- **[Codex]** 已完成 S1 代码盘点：确认现有独立 Agent 模式由 `LibrarianAgent` / `MetaOptimizerAgent` 提供，`run_ingestion_pipeline()` / `run_consistency_audit()` / `validate_run_outputs()` 仍是函数化入口，`resolve_executor()` 目前仅注册 `librarian` 与 `meta-optimizer`。
+- **[Codex]** 已完成 S1 包装型 Agent：新增 `IngestionSpecialistAgent`、`ConsistencyReviewerAgent`、`ValidatorAgent`，分别包装 ingestion pipeline、consistency audit 与 run-output validation。
+- **[Codex]** 已完成 S1 resolver 收口：`resolve_executor()` 改为基于 `EXECUTOR_REGISTRY` 的延迟注册表，新增 `ingestion-specialist` / `consistency-reviewer` / `validator` 入口，同时保留 `librarian` / `meta-optimizer` 兼容。
+- **[Codex]** 已完成 S1 taxonomy 注释收口：`models.py` 中为 `memory_authority` 补充语义说明，明确其限制 canonical/task knowledge 写边界，而非普通 artifact/report 输出。
+- **[Codex]** 已完成 S1 测试补强：新增 `tests/test_specialist_agents.py`，并扩展 `tests/test_executor_protocol.py` 覆盖新 agent 的 protocol / resolver 路径。
+- **[Codex]** 已验证 S1 gate：`.venv/bin/python -m pytest tests/test_executor_protocol.py tests/test_specialist_agents.py tests/test_ingestion_pipeline.py tests/test_consistency_audit.py -q` → `38 passed`；`.venv/bin/python -m pytest tests/test_cli.py -q -k "validator_reports_warning_when_retrieval_is_empty or validator_reports_failure_when_completed_executor_has_no_output"` → `2 passed, 206 deselected`。
+- **[Codex]** 已完成 S2 新建 Agent：新增 `LiteratureSpecialistAgent`（启发式文档结构/术语分析）与 `QualityReviewerAgent`（规则式 artifact 质量检查），均实现 `ExecutorProtocol` 与兼容包装器。
+- **[Codex]** 已完成 S2 resolver 接线：`EXECUTOR_REGISTRY` 新增 `literature-specialist` / `quality-reviewer`，`tests/test_executor_protocol.py` 已覆盖 protocol / resolver 路径。
+- **[Codex]** 已完成 S2 集成测试补强：`tests/test_specialist_agents.py` 新增两类 direct execute 测试与两条 `run_task` 集成路径，验证 orchestrator 可触发 `Literature Specialist` / `Quality Reviewer`。
+- **[Codex]** 已完成 S2 dispatch guard 收口：`validate_taxonomy_dispatch()` 现在允许 `stateless` 路由在 `local_baseline + not_applicable` 的纯本地合同下继续执行，远程/跨站 handoff guard 保持不变。
+- **[Codex]** 已验证 S2 gate：`.venv/bin/python -m pytest tests/test_executor_protocol.py tests/test_specialist_agents.py tests/test_dispatch_policy.py -q` → `37 passed`。
+- **[Codex]** 已完成 S3 taxonomy 语义收口：`models.py` 新增 `MEMORY_AUTHORITY_SEMANTICS`、`describe_memory_authority()` 与 `allowed_memory_authority_side_effects()`，把 `memory_authority` 从注释提升为可测试语义基线，明确 `canonical-write-forbidden` 禁止 canonical truth 写入，但允许 proposal/report/audit artifact side effect。
+- **[Codex]** 已完成 S3 resolver 覆盖收口：`tests/test_executor_protocol.py` 现显式断言 `EXECUTOR_REGISTRY` 覆盖全部 specialist/validator agent，并验证 name/type 两种解析路径。
+- **[Codex]** 已完成 S3 taxonomy 回归：`tests/test_taxonomy.py` 现覆盖每个 `memory_authority` 都有语义映射，以及 `canonical-write-forbidden` 的 side-effect 说明。
+- **[Codex]** 已验证 S3 gate：`.venv/bin/python -m pytest tests/test_taxonomy.py tests/test_executor_protocol.py tests/test_specialist_agents.py tests/test_dispatch_policy.py -q` → `45 passed`。
+- **[Codex]** 已验证全量基线：首次 `.venv/bin/python -m pytest --tb=short` 因 `tests/test_run_task_subtasks.py::test_run_task_times_out_one_parallel_subtask_without_canceling_other_work` 出现一次性 timing 临界失败（`1.365s > 1.35s`）；单测重跑通过后再次执行 `.venv/bin/python -m pytest --tb=short` → `452 passed, 8 deselected`。
+- **[Codex]** 已完成 implementation closeout 材料：`docs/plans/phase53/commit_summary.md` 与根目录 `pr.md` 已整理到可供 Claude review / Human 开 PR 直接使用的状态。
 
 进行中：
 
-- 无。Phase 53 context_brief 已完成，等待 kickoff 方案拆解。
+- 无。Phase 53 implementation 已完成，等待 Claude review。
 
 待执行：
 
-- **[Claude]** 产出 Phase 53 kickoff 文档。
-- **[Human]** 切出 `feat/phase53-specialist-ecosystem` 分支。
+- **[Claude]** 产出 `docs/plans/phase53/review_comments.md` 并给出 PR 结论。
+- **[Human]** 根据 review 结果决定是否继续修正或进入 PR / merge gate。
 
 当前阻塞项：
 
@@ -78,9 +76,15 @@
 - `docs/plans/phase52/review_comments.md` (claude, 2026-04-24)
 - `docs/plans/phase52/closeout.md` (codex, 2026-04-24)
 - `docs/plans/phase53/context_brief.md` (claude, 2026-04-23)
+- `docs/plans/phase53/kickoff.md` (claude, 2026-04-24)
+- `docs/plans/phase53/design_decision.md` (claude, 2026-04-24)
+- `docs/plans/phase53/risk_assessment.md` (claude, 2026-04-24)
+- `docs/plans/phase53/commit_summary.md` (codex, 2026-04-24)
+- `pr.md` (codex, 2026-04-24)
 
 ---
 
 ## 当前下一步
 
-1. **[Claude]** 进行方案拆解：基于 `docs/plans/phase53/context_brief.md` 产出 Phase 53 kickoff 文档。
+1. **[Claude]** 开始 Phase 53 review / closeout。
+2. **[Human]** 根据 `review_comments.md` 与 `pr.md` 进入 PR / merge gate。
