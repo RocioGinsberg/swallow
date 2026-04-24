@@ -2399,6 +2399,7 @@ def create_task(
     priority_hints: list[str] | None = None,
     next_action_proposals: list[str] | None = None,
     planning_source: str | None = None,
+    complexity_hint: str | None = None,
     knowledge_items: list[str] | None = None,
     knowledge_stage: str = "raw",
     knowledge_source: str | None = None,
@@ -2426,6 +2427,7 @@ def create_task(
         priority_hints=priority_hints,
         next_action_proposals=next_action_proposals,
         planning_source=planning_source,
+        complexity_hint=complexity_hint,
     )
     knowledge_objects = build_knowledge_objects(
         items=knowledge_items,
@@ -2637,10 +2639,16 @@ def update_task_planning_handoff(
     priority_hints: list[str] | None = None,
     next_action_proposals: list[str] | None = None,
     planning_source: str | None = None,
+    complexity_hint: str | None = None,
 ) -> TaskState:
     state = load_state(base_dir, task_id)
     current_semantics = state.task_semantics or {}
     effective_planning_source = (planning_source or str(current_semantics.get("source_ref", ""))).strip()
+    effective_complexity_hint = (
+        str(current_semantics.get("complexity_hint", ""))
+        if complexity_hint is None
+        else str(complexity_hint)
+    )
     merged_semantics = build_task_semantics(
         title=state.title,
         goal=state.goal,
@@ -2653,6 +2661,7 @@ def update_task_planning_handoff(
             list(current_semantics.get("next_action_proposals", [])), next_action_proposals
         ),
         planning_source=effective_planning_source or None,
+        complexity_hint=effective_complexity_hint,
     )
     state.task_semantics = merged_semantics.to_dict()
     save_state(base_dir, state)
@@ -3625,6 +3634,7 @@ def build_task_semantics_report(state: TaskState) -> str:
         f"- goal: {semantics.get('goal', state.goal)}",
         f"- source_kind: {semantics.get('source_kind', 'unknown')}",
         f"- source_ref: {semantics.get('source_ref', '') or 'none'}",
+        f"- complexity_hint: {semantics.get('complexity_hint', '') or 'none'}",
         "",
         "## Imported Planning Constraints",
     ]

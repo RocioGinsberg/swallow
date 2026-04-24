@@ -569,6 +569,156 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[-1]["event_type"], "task.planning_handoff_added")
         self.assertEqual(events[-1]["payload"]["task_semantics"]["source_ref"], "chat://phase11-planning")
 
+    def test_cli_create_persists_complexity_hint_in_task_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Complexity hint create",
+                        "--goal",
+                        "Persist complexity hint during task creation",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--complexity-hint",
+                        "high",
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            task_semantics = json.loads((task_dir / "task_semantics.json").read_text(encoding="utf-8"))
+            semantics_report = (task_dir / "artifacts" / "task_semantics_report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(task_semantics["complexity_hint"], "high")
+        self.assertEqual(state["task_semantics"]["complexity_hint"], "high")
+        self.assertIn("- complexity_hint: high", semantics_report)
+
+    def test_cli_planning_handoff_updates_complexity_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Complexity hint handoff",
+                        "--goal",
+                        "Update complexity hint after task creation",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            task_dir = tmp_path / ".swl" / "tasks" / task_id
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "planning-handoff",
+                        task_id,
+                        "--complexity-hint",
+                        "parallel",
+                    ]
+                ),
+                0,
+            )
+            task_semantics = json.loads((task_dir / "task_semantics.json").read_text(encoding="utf-8"))
+            semantics_report = (task_dir / "artifacts" / "task_semantics_report.md").read_text(encoding="utf-8")
+            events = [
+                json.loads(line)
+                for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(task_semantics["complexity_hint"], "parallel")
+        self.assertIn("- complexity_hint: parallel", semantics_report)
+        self.assertEqual(events[-1]["payload"]["task_semantics"]["complexity_hint"], "parallel")
+
+    def test_cli_route_select_reports_policy_inputs_for_task(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Route selection report",
+                goal="Show route selection dry-run output",
+                workspace_root=tmp_path,
+                complexity_hint="high",
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "route",
+                            "select",
+                            "--task-id",
+                            state.task_id,
+                        ]
+                    ),
+                    0,
+                )
+
+        output = stdout.getvalue()
+        self.assertIn("Route Selection", output)
+        self.assertIn(f"- task_id: {state.task_id}", output)
+        self.assertIn("- selected_route: local-claude-code", output)
+        self.assertIn("- complexity_hint: high", output)
+        self.assertIn("- parallel_intent: false", output)
+
+    def test_cli_route_select_respects_executor_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Route selection override",
+                goal="Prefer explicit override in route dry-run",
+                workspace_root=tmp_path,
+                complexity_hint="high",
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "route",
+                            "select",
+                            "--task-id",
+                            state.task_id,
+                            "--executor",
+                            "http",
+                        ]
+                    ),
+                    0,
+                )
+
+        output = stdout.getvalue()
+        self.assertIn("- override_executor: http", output)
+        self.assertIn("- executor_name: http", output)
+        self.assertIn("- executor_override: http", output)
+
     def test_cli_create_persists_staged_knowledge_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

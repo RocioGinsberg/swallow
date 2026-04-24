@@ -7,17 +7,17 @@
 - latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle (v0.8.0)`
 - active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
 - active_phase: `Phase 52`
-- active_slice: `S1 Async CLI Executor Refactor`
+- active_slice: `S2 Strategy Router complexity_hint`
 - active_branch: `feat/phase52_execution_topology`
-- status: `phase52_s1_gate_ready`
+- status: `phase52_s2_gate_ready`
 
 ---
 
 ## 当前状态说明
 
-`main` 已完成 Phase 51 并打出 `v0.8.0`。当前实现分支已切到 `feat/phase52_execution_topology`，进入 Phase 52 的首个实现 slice：执行器重构。
+`main` 已完成 Phase 51 并打出 `v0.8.0`。当前实现分支已切到 `feat/phase52_execution_topology`，正在推进 Phase 52 的第二个实现 slice：Strategy Router 路由规则补强。
 
-本轮优先目标是把 `codex/cline` 具名执行路径替换为 `aider/claude-code`，落地通用 `AsyncCLIAgentExecutor`，并把路由默认值与内建 route registry 同步到新的执行器命名。
+本轮优先目标是把 `complexity_hint` 从 task semantics 贯通到 operator-facing CLI 与 Strategy Router 决策面，并提供 `swl route select --task-id` 只读 dry-run 入口用于检查路由决策过程。
 
 ---
 
@@ -43,15 +43,18 @@
 - **[Codex]** 已完成 S1 尾部 concern：`schedule_consistency_audit` 改为 `asyncio.create_task` + background task set 收口，并验证 `tests/test_consistency_audit.py -q` → `11 passed`。
 - **[Codex]** 已完成 S1 残余命名收口：`doctor/cli/create_task` 默认 executor 改为 `aider`，`doctor executor` 取代旧 `doctor codex` 命名（保留 deprecated alias），相关 CLI 测试已同步。
 - **[Codex]** 已验证 S1 commit gate 补充集：`tests/test_cli.py -q -k "parse_capability_refs_builds_manifest_from_explicit_refs or task_falls_back_to_local_summary_when_aider_binary_is_missing or aider_timeout_preserves_partial_output or doctor_executor_missing_binary_returns_nonzero or doctor_executor_success_returns_zero or doctor_without_subcommand_runs_executor_and_stack_checks or doctor_skip_stack_only_runs_executor_check or doctor_sqlite_subcommand_runs_sqlite_check_only or doctor_stack_subcommand_runs_stack_check_only or create_task_persists_route_dialect_for_default_aider_route or select_route_uses_override_before_legacy_mode or select_route_uses_legacy_mode_when_task_stays_default or select_route_uses_route_mode_when_no_executor_override_is_present or compatibility_reports_warning_for_live_route_without_network or compatibility_reports_failure_for_deterministic_mode_mismatch"` → `15 passed`。
+- **[Codex]** 已完成 S2 语义入口补强：`TaskSemantics.complexity_hint` 已贯通 `build_task_semantics()`、`create_task()`、`update_task_planning_handoff()` 与 `task_semantics_report.md`。
+- **[Codex]** 已完成 S2 CLI 面：`swl task create --complexity-hint`、`swl task planning-handoff --complexity-hint` 与 `swl route select --task-id <id> [--executor ...] [--route-mode ...]` dry-run 已落地。
+- **[Codex]** 已完成 S2 测试补强：`tests/test_router.py -q` → `21 passed`；`tests/test_cli.py -q -k "test_cli_create_persists_imported_planning_semantics or test_cli_planning_handoff_updates_existing_task_semantics or test_cli_create_persists_complexity_hint_in_task_semantics or test_cli_planning_handoff_updates_complexity_hint or test_cli_route_select_reports_policy_inputs_for_task or test_cli_route_select_respects_executor_override or test_create_task_persists_route_dialect_for_default_aider_route or test_select_route_uses_override_before_legacy_mode or test_select_route_uses_legacy_mode_when_task_stays_default or test_select_route_uses_route_mode_when_no_executor_override_is_present"` → `9 passed`。
 
 进行中：
 
-- 无。S1 当前已进入 commit gate 状态。
+- 无。S2 当前已进入 commit gate 状态。
 
 待执行：
 
-- **[Human]** 审阅当前 S1 diff 并执行 slice commit。
-- **[Codex]** 在 Human 完成 S1 commit 后进入 S2 `Strategy Router` 规则补强。
+- **[Human]** 审阅当前 S2 diff 并执行 slice commit。
+- **[Codex]** 在 Human 完成 S2 commit 后进入 S3 fan-out / async subtask orchestration 收口。
 
 当前阻塞项：
 
@@ -70,5 +73,5 @@
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交当前 S1 diff。
-2. **[Codex]** 开始 S2 `Strategy Router` 规则补强。
+1. **[Human]** 审阅并提交当前 S2 diff。
+2. **[Codex]** 在 S2 提交后开始 S3 fan-out / async subtask orchestration 收口。

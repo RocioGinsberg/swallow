@@ -295,6 +295,42 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(selection.route.name, "local-claude-code")
         self.assertEqual(selection.policy_inputs["complexity_hint"], "high")
 
+    def test_select_route_prefers_aider_for_low_complexity(self) -> None:
+        state = TaskState(
+            task_id="complexity-low-001",
+            title="Low complexity task",
+            goal="Prefer aider for low complexity work",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={"complexity_hint": "low"},
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-aider")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "low")
+        self.assertFalse(selection.policy_inputs["parallel_intent"])
+
+    def test_select_route_prefers_aider_for_routine_complexity(self) -> None:
+        state = TaskState(
+            task_id="complexity-routine-001",
+            title="Routine task",
+            goal="Prefer aider for routine complexity work",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={"complexity_hint": "routine"},
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-aider")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "routine")
+        self.assertFalse(selection.policy_inputs["parallel_intent"])
+
     def test_select_route_sets_parallel_intent_for_parallel_complexity(self) -> None:
         state = TaskState(
             task_id="complexity-parallel-001",
@@ -311,6 +347,42 @@ class RouteRegistryTest(unittest.TestCase):
 
         self.assertTrue(selection.policy_inputs["parallel_intent"])
         self.assertEqual(selection.policy_inputs["complexity_hint"], "parallel")
+
+    def test_select_route_keeps_empty_complexity_hint_visible_in_policy_inputs(self) -> None:
+        state = TaskState(
+            task_id="complexity-empty-001",
+            title="Unannotated task",
+            goal="Keep default route behavior when no complexity hint is present",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={},
+        )
+
+        selection = select_route(state)
+
+        self.assertEqual(selection.route.name, "local-aider")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "")
+        self.assertFalse(selection.policy_inputs["parallel_intent"])
+
+    def test_select_route_keeps_executor_override_above_complexity_bias(self) -> None:
+        state = TaskState(
+            task_id="complexity-override-001",
+            title="Explicit override",
+            goal="Executor override should beat complexity-based routing",
+            workspace_root="/tmp",
+            executor_name="aider",
+            route_executor_family="cli",
+            route_execution_site="local",
+            task_semantics={"complexity_hint": "high"},
+        )
+
+        selection = select_route(state, executor_override="http")
+
+        self.assertEqual(selection.route.executor_name, "http")
+        self.assertEqual(selection.policy_inputs["executor_override"], "http")
+        self.assertEqual(selection.policy_inputs["complexity_hint"], "high")
 
     def test_candidate_routes_prioritizes_higher_quality_weight(self) -> None:
         registry = RouteRegistry(
