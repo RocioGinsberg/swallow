@@ -27,7 +27,7 @@ Phase 56 实现质量高，4 个设计决策全部按规格落地。成本追踪
 - `extract_json_object()` 处理三种情况：纯 JSON → 含文本包裹的 JSON → 解析失败抛异常
 - API key 缺失时立即抛 `AgentLLMUnavailable`（line 52-53），不尝试请求
 - 复用现有 executor 基础设施（`resolve_new_api_chat_completions_url`、`_http_request_headers`、`extract_api_usage`），不重复实现
-- `AIWF_AGENT_LLM_MODEL` env var 支持 Agent 使用与 executor 不同的模型
+- Agent LLM 当前统一使用 `SWL_CHAT_MODEL`
 
 ### 决策 2：LLM 失败 fallback ✅
 

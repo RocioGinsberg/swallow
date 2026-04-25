@@ -180,7 +180,7 @@ services:
     environment:
       # 不设 DATABASE_URL，Open WebUI 默认使用 SQLite
       OPENAI_API_BASE_URL: http://new-api:3000/v1
-      OPENAI_API_KEY: ${NEW_API_KEY}
+      OPENAI_API_KEY: ${SWL_API_KEY}
       WEBUI_SECRET_KEY: ${WEBUI_SECRET}
       ENABLE_SIGNUP: "false"
     volumes:
