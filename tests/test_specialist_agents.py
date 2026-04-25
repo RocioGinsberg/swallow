@@ -10,6 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.consistency_audit import ConsistencyAuditResult
+from swallow.agent_llm import AgentLLMResponse, AgentLLMUnavailable
 from swallow.consistency_reviewer import (
     CONSISTENCY_REVIEWER_MEMORY_AUTHORITY,
     CONSISTENCY_REVIEWER_SYSTEM_ROLE,
@@ -235,6 +236,92 @@ class SpecialistAgentTest(unittest.TestCase):
         self.assertIn("shared_headings: Overview", result.output)
         self.assertIn("analysis_method: heuristic", result.output)
 
+    def test_literature_specialist_uses_llm_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            doc_a = tmp_path / "doc-a.md"
+            doc_b = tmp_path / "doc-b.md"
+            doc_a.write_text("# Source\nArchitecture authority is explicit.\n", encoding="utf-8")
+            doc_b.write_text("# Target\nExecution policy depends on authority.\n", encoding="utf-8")
+            state = TaskState(
+                task_id="literature-llm-task",
+                title="Compare reference docs",
+                goal="Build a semantic literature summary",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Compare two design notes",
+                parent_task_id=state.task_id,
+                input_context={"document_paths": [str(doc_a), str(doc_b)]},
+            )
+
+            with patch(
+                "swallow.literature_specialist.call_agent_llm",
+                return_value=AgentLLMResponse(
+                    content=json.dumps(
+                        {
+                            "summary": "The documents describe authority boundaries and execution policy coupling.",
+                            "key_concepts": ["authority", "execution policy"],
+                            "relation_suggestions": [
+                                {
+                                    "source_object_id": "knowledge-0001",
+                                    "target_object_id": "knowledge-0002",
+                                    "relation_type": "extends",
+                                    "confidence": 0.88,
+                                    "context": "The execution policy extends the authority contract.",
+                                }
+                            ],
+                        }
+                    ),
+                    input_tokens=120,
+                    output_tokens=48,
+                    model="deepseek-chat",
+                ),
+            ):
+                result = LiteratureSpecialistAgent().execute(tmp_path, state, card, [])
+
+        self.assertEqual(result.status, "completed")
+        self.assertIn("analysis_method: llm", result.output)
+        self.assertIn("authority", result.output)
+        self.assertEqual(result.side_effects["analysis_method"], "llm")
+        self.assertEqual(result.side_effects["llm_usage"]["input_tokens"], 120)
+        self.assertEqual(result.side_effects["llm_usage"]["output_tokens"], 48)
+        self.assertEqual(result.side_effects["llm_usage"]["model"], "deepseek-chat")
+        self.assertEqual(len(result.side_effects["relation_suggestions"]), 1)
+        self.assertEqual(result.estimated_input_tokens, 120)
+        self.assertEqual(result.estimated_output_tokens, 48)
+
+    def test_literature_specialist_falls_back_to_heuristic_on_llm_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            doc_a = tmp_path / "doc-a.md"
+            doc_b = tmp_path / "doc-b.md"
+            doc_a.write_text("# Overview\nSwallow keeps task state explicit.\n", encoding="utf-8")
+            doc_b.write_text("# Overview\nSwallow keeps route state explicit.\n", encoding="utf-8")
+            state = TaskState(
+                task_id="literature-fallback-task",
+                title="Compare reference docs",
+                goal="Build a resilient literature summary",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Compare two design notes",
+                parent_task_id=state.task_id,
+                input_context={"document_paths": [str(doc_a), str(doc_b)]},
+            )
+
+            with patch(
+                "swallow.literature_specialist.call_agent_llm",
+                side_effect=AgentLLMUnavailable("timeout"),
+            ):
+                result = LiteratureSpecialistAgent().execute(tmp_path, state, card, [])
+
+        self.assertEqual(result.status, "completed")
+        self.assertIn("analysis_method: heuristic", result.output)
+        self.assertEqual(result.side_effects["analysis_method"], "heuristic")
+        self.assertEqual(result.side_effects["relation_suggestions"], [])
+        self.assertEqual(result.side_effects["llm_usage"], {})
+
     def test_quality_reviewer_agent_reports_pass_for_structured_actionable_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -268,6 +355,92 @@ class SpecialistAgentTest(unittest.TestCase):
         self.assertIn("# Quality Review", result.output)
         self.assertIn("overall_verdict: pass", result.output)
         self.assertEqual(result.side_effects["overall_verdict"], "pass")
+
+    def test_quality_reviewer_uses_llm_when_available(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifact = tmp_path / "artifact.md"
+            artifact.write_text(
+                "# Summary\n\n- Next step: implement the specialist agent.\n\n```text\nDone\n```\n",
+                encoding="utf-8",
+            )
+            state = TaskState(
+                task_id="quality-llm-task",
+                title="Review artifact quality",
+                goal="Check semantic quality",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Review one artifact",
+                parent_task_id=state.task_id,
+                input_context={
+                    "artifact_ref": str(artifact),
+                    "quality_criteria": ["non_empty", "has_structure", "has_actionable_content", "min_length"],
+                    "min_length": 20,
+                },
+            )
+
+            with patch(
+                "swallow.quality_reviewer.call_agent_llm",
+                return_value=AgentLLMResponse(
+                    content=json.dumps(
+                        {
+                            "verdicts": [
+                                {"name": "coherence", "verdict": "pass", "detail": "Argument flow stays consistent."},
+                                {
+                                    "name": "completeness",
+                                    "verdict": "warn",
+                                    "detail": "Implementation detail is still abbreviated.",
+                                },
+                                {
+                                    "name": "actionability",
+                                    "verdict": "pass",
+                                    "detail": "Next steps are concrete.",
+                                },
+                            ]
+                        }
+                    ),
+                    input_tokens=90,
+                    output_tokens=30,
+                    model="deepseek-chat",
+                ),
+            ):
+                result = QualityReviewerAgent().execute(tmp_path, state, card, [])
+
+        self.assertIn("analysis_method: llm", result.output)
+        self.assertIn("coherence: pass", result.output)
+        self.assertIn("completeness: warn", result.output)
+        self.assertEqual(result.side_effects["analysis_method"], "llm")
+        self.assertEqual(result.side_effects["llm_usage"]["model"], "deepseek-chat")
+        self.assertEqual(result.estimated_input_tokens, 90)
+        self.assertEqual(result.estimated_output_tokens, 30)
+
+    def test_quality_reviewer_falls_back_to_heuristic_on_llm_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            artifact = tmp_path / "artifact.md"
+            artifact.write_text("# Summary\n\nText only.\n", encoding="utf-8")
+            state = TaskState(
+                task_id="quality-fallback-task",
+                title="Review artifact quality",
+                goal="Check semantic quality",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Review one artifact",
+                parent_task_id=state.task_id,
+                input_context={"artifact_ref": str(artifact), "quality_criteria": ["non_empty", "has_structure"]},
+            )
+
+            with patch(
+                "swallow.quality_reviewer.call_agent_llm",
+                side_effect=AgentLLMUnavailable("timeout"),
+            ):
+                result = QualityReviewerAgent().execute(tmp_path, state, card, [])
+
+        self.assertIn("analysis_method: heuristic", result.output)
+        self.assertEqual(result.side_effects["analysis_method"], "heuristic")
+        self.assertEqual(result.side_effects["llm_usage"], {})
 
     def test_quality_reviewer_agent_reports_failure_for_empty_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

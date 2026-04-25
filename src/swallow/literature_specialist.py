@@ -6,6 +6,8 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
+from .agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
+from .knowledge_relations import KNOWLEDGE_RELATION_TYPES
 from .models import ExecutorResult, TaskCard, TaskState
 
 
@@ -181,6 +183,110 @@ class LiteratureSpecialistAgent:
         )
         return "\n".join(lines) + "\n"
 
+    def _system_prompt(self) -> str:
+        return (
+            "You are the Swallow Literature Specialist. Return strict JSON only. "
+            "Summarize the provided documents, extract key concepts, and suggest up to 5 high-value knowledge relations."
+        )
+
+    def _build_llm_prompt(self, state: TaskState, card: TaskCard, analyses: list[_DocumentAnalysis]) -> str:
+        lines = [
+            "# Literature Specialist LLM Task",
+            "",
+            f"task_id: {state.task_id}",
+            f"goal: {card.goal or state.goal}",
+            "Return JSON with keys: summary, key_concepts, relation_suggestions.",
+            "relation_suggestions must be a list of objects with: source_object_id, target_object_id, relation_type, confidence, context.",
+            f"Allowed relation_type values: {', '.join(KNOWLEDGE_RELATION_TYPES)}",
+            "",
+            "## Documents",
+        ]
+        for item in analyses:
+            if not item.exists:
+                lines.append(f"- path: {item.path} (missing)")
+                continue
+            headings = ", ".join(item.headings[:6]) if item.headings else "(none)"
+            terms = ", ".join(item.key_terms[:8]) if item.key_terms else "(none)"
+            lines.extend(
+                [
+                    f"- path: {item.path}",
+                    f"  headings: {headings}",
+                    f"  key_terms: {terms}",
+                    f"  preview: {item.preview or '(empty)'}",
+                ]
+            )
+        return "\n".join(lines)
+
+    def _normalize_relation_suggestions(self, raw_suggestions: object) -> list[dict[str, object]]:
+        if not isinstance(raw_suggestions, list):
+            return []
+        normalized: list[dict[str, object]] = []
+        for item in raw_suggestions[:5]:
+            if not isinstance(item, dict):
+                continue
+            source_object_id = str(item.get("source_object_id", "")).strip()
+            target_object_id = str(item.get("target_object_id", "")).strip()
+            relation_type = str(item.get("relation_type", "")).strip()
+            context = str(item.get("context", "")).strip()
+            if not source_object_id or not target_object_id or source_object_id == target_object_id:
+                continue
+            if relation_type not in KNOWLEDGE_RELATION_TYPES:
+                continue
+            try:
+                confidence = float(item.get("confidence", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                confidence = 0.0
+            normalized.append(
+                {
+                    "source_object_id": source_object_id,
+                    "target_object_id": target_object_id,
+                    "relation_type": relation_type,
+                    "confidence": max(confidence, 0.0),
+                    "context": context,
+                }
+            )
+        return normalized
+
+    def _build_llm_report(
+        self,
+        analyses: list[_DocumentAnalysis],
+        *,
+        goal: str,
+        summary: str,
+        key_concepts: list[str],
+        relation_suggestions: list[dict[str, object]],
+    ) -> str:
+        available = [item for item in analyses if item.exists]
+        lines = [
+            "# Literature Analysis",
+            "",
+            "- analysis_method: llm",
+            f"- goal: {goal or '(none)'}",
+            f"- analyzed_documents: {len(available)}",
+            f"- missing_documents: {len(analyses) - len(available)}",
+            "",
+            "## LLM Summary",
+            summary or "(empty)",
+            "",
+            "## Key Concepts",
+        ]
+        if key_concepts:
+            lines.extend(f"- {item}" for item in key_concepts)
+        else:
+            lines.append("- (none)")
+        lines.extend(["", "## Relation Suggestions"])
+        if relation_suggestions:
+            for item in relation_suggestions:
+                lines.append(
+                    "- "
+                    f"{item['source_object_id']} -> {item['target_object_id']} "
+                    f"[{item['relation_type']}, confidence={item['confidence']}] "
+                    f"{item['context'] or ''}".rstrip()
+                )
+        else:
+            lines.append("- (none)")
+        return "\n".join(lines) + "\n"
+
     def execute(
         self,
         base_dir: Path,
@@ -194,13 +300,46 @@ class LiteratureSpecialistAgent:
         prompt = self._build_prompt(state, card, document_paths=document_paths)
         analyses = [self._analyze_document(base_dir, path) for path in document_paths]
         analyzed_count = sum(1 for item in analyses if item.exists)
-        output = self._build_report(analyses, goal=card.goal or state.goal)
         if analyzed_count == 0:
             status = "failed"
             message = "LiteratureSpecialistAgent could not analyze any existing documents."
+            output = self._build_report(analyses, goal=card.goal or state.goal)
+            analysis_method = "heuristic"
+            llm_usage: dict[str, object] = {}
+            relation_suggestions: list[dict[str, object]] = []
         else:
-            status = "completed"
-            message = f"LiteratureSpecialistAgent analyzed {analyzed_count} document(s)."
+            try:
+                llm_response = call_agent_llm(
+                    self._build_llm_prompt(state, card, analyses),
+                    system=self._system_prompt(),
+                )
+                payload = extract_json_object(llm_response.content)
+                key_concepts = payload.get("key_concepts", [])
+                if not isinstance(key_concepts, list):
+                    key_concepts = []
+                relation_suggestions = self._normalize_relation_suggestions(payload.get("relation_suggestions", []))
+                output = self._build_llm_report(
+                    analyses,
+                    goal=card.goal or state.goal,
+                    summary=str(payload.get("summary", "")).strip(),
+                    key_concepts=[str(item).strip() for item in key_concepts if str(item).strip()][:10],
+                    relation_suggestions=relation_suggestions,
+                )
+                status = "completed"
+                message = f"LiteratureSpecialistAgent analyzed {analyzed_count} document(s) with LLM enhancement."
+                analysis_method = "llm"
+                llm_usage = {
+                    "input_tokens": llm_response.input_tokens,
+                    "output_tokens": llm_response.output_tokens,
+                    "model": llm_response.model,
+                }
+            except (AgentLLMUnavailable, ValueError):
+                output = self._build_report(analyses, goal=card.goal or state.goal)
+                status = "completed"
+                message = f"LiteratureSpecialistAgent analyzed {analyzed_count} document(s)."
+                analysis_method = "heuristic"
+                llm_usage = {}
+                relation_suggestions = []
         return ExecutorResult(
             executor_name=self.agent_name,
             status=status,
@@ -208,11 +347,15 @@ class LiteratureSpecialistAgent:
             output=output,
             prompt=prompt,
             dialect="plain_text",
+            estimated_input_tokens=int(llm_usage.get("input_tokens", 0) or 0),
+            estimated_output_tokens=int(llm_usage.get("output_tokens", 0) or 0),
             side_effects={
                 "kind": "literature_analysis",
-                "analysis_method": "heuristic",
+                "analysis_method": analysis_method,
                 "analyzed_document_count": analyzed_count,
                 "missing_document_count": len(analyses) - analyzed_count,
+                "relation_suggestions": relation_suggestions,
+                "llm_usage": llm_usage,
             },
         )
 

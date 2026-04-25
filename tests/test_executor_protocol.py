@@ -20,6 +20,7 @@ from swallow.executor import (
     LocalCLIExecutor,
     MockExecutor,
     UnknownExecutorError,
+    _attach_estimated_usage,
     resolve_executor,
     run_executor_inline,
     run_http_executor,
@@ -270,6 +271,55 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(result.output, "Gateway response")
         http_post.assert_called_once()
         self.assertEqual(http_post.call_args.kwargs["json"]["model"], "claude")
+
+    def test_run_http_executor_uses_api_usage_when_available(self) -> None:
+        state = _http_state(
+            route_name="local-http",
+            route_model_hint="claude",
+            route_dialect="claude_xml",
+        )
+        response = _FakeHTTPResponse(
+            payload={
+                "choices": [{"message": {"content": "Gateway response"}}],
+                "usage": {"prompt_tokens": 123, "completion_tokens": 45},
+            }
+        )
+
+        with patch("swallow.executor.httpx.post", return_value=response):
+            result = run_http_executor(state, [])
+
+        self.assertEqual(result.estimated_input_tokens, 123)
+        self.assertEqual(result.estimated_output_tokens, 45)
+
+    def test_attach_estimated_usage_skips_when_already_populated(self) -> None:
+        result = ExecutorResult(
+            executor_name="http",
+            status="completed",
+            message="done",
+            prompt="abcd efgh ijkl",
+            output="mnop qrst uvwx",
+            estimated_input_tokens=99,
+            estimated_output_tokens=33,
+        )
+
+        attached = _attach_estimated_usage(result)
+
+        self.assertEqual(attached.estimated_input_tokens, 99)
+        self.assertEqual(attached.estimated_output_tokens, 33)
+
+    def test_attach_estimated_usage_falls_back_for_non_http(self) -> None:
+        result = ExecutorResult(
+            executor_name="mock",
+            status="completed",
+            message="done",
+            prompt="abcd efgh",
+            output="ijkl mnop",
+        )
+
+        attached = _attach_estimated_usage(result)
+
+        self.assertEqual(attached.estimated_input_tokens, 2)
+        self.assertEqual(attached.estimated_output_tokens, 2)
 
     def test_run_http_executor_includes_authorization_header_when_key_is_configured(self) -> None:
         state = TaskState(

@@ -60,6 +60,7 @@ from swallow.models import (
 )
 from swallow.orchestrator import acknowledge_task, build_task_retrieval_request, create_task, decide_task_knowledge, run_task
 from swallow.paths import (
+    artifacts_dir,
     canonical_registry_path,
     canonical_reuse_policy_path,
     canonical_reuse_regression_path,
@@ -1664,6 +1665,184 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(expanded_hit["metadata"]["expansion_relation_type"], "related_to")
         self.assertIn("retrieval_reused_knowledge_count: 2", summary)
         self.assertIn("retrieval_reused_canonical_registry_count: 2", summary)
+
+    def test_cli_knowledge_apply_suggestions_creates_relations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(tmp_path, "task-a", [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}])
+            save_knowledge_objects(tmp_path, "task-b", [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}])
+            created = create_task(
+                base_dir=tmp_path,
+                title="Apply relation suggestions",
+                goal="Persist literature relation suggestions",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            (artifacts_dir(tmp_path, created.task_id) / "executor_side_effects.json").write_text(
+                json.dumps(
+                    {
+                        "relation_suggestions": [
+                            {
+                                "source_object_id": "knowledge-a",
+                                "target_object_id": "knowledge-b",
+                                "relation_type": "extends",
+                                "confidence": 0.9,
+                                "context": "A extends B",
+                            }
+                        ]
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "apply-suggestions",
+                            "--task-id",
+                            created.task_id,
+                        ]
+                    ),
+                    0,
+                )
+            relations_output = StringIO()
+            with redirect_stdout(relations_output):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "links", "knowledge-a"]), 0)
+
+        self.assertIn("applied_count: 1", stdout.getvalue())
+        self.assertIn("extends", relations_output.getvalue())
+        self.assertIn("knowledge-b", relations_output.getvalue())
+
+    def test_cli_knowledge_apply_suggestions_skips_duplicates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(tmp_path, "task-a", [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}])
+            save_knowledge_objects(tmp_path, "task-b", [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}])
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "knowledge",
+                        "link",
+                        "knowledge-a",
+                        "knowledge-b",
+                        "--type",
+                        "extends",
+                    ]
+                ),
+                0,
+            )
+            created = create_task(
+                base_dir=tmp_path,
+                title="Apply duplicate suggestions",
+                goal="Skip duplicate literature relation suggestions",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            (artifacts_dir(tmp_path, created.task_id) / "executor_side_effects.json").write_text(
+                json.dumps(
+                    {
+                        "relation_suggestions": [
+                            {
+                                "source_object_id": "knowledge-a",
+                                "target_object_id": "knowledge-b",
+                                "relation_type": "extends",
+                                "confidence": 0.9,
+                                "context": "A extends B",
+                            }
+                        ]
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "apply-suggestions",
+                            "--task-id",
+                            created.task_id,
+                        ]
+                    ),
+                    0,
+                )
+            relations_output = StringIO()
+            with redirect_stdout(relations_output):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "links", "knowledge-a"]), 0)
+
+        self.assertIn("applied_count: 0", stdout.getvalue())
+        self.assertIn("duplicate_count: 1", stdout.getvalue())
+        self.assertEqual(relations_output.getvalue().count("relation_type: extends"), 1)
+
+    def test_cli_knowledge_apply_suggestions_dry_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(tmp_path, "task-a", [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}])
+            save_knowledge_objects(tmp_path, "task-b", [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}])
+            created = create_task(
+                base_dir=tmp_path,
+                title="Dry run suggestions",
+                goal="Preview literature relation suggestions",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            (artifacts_dir(tmp_path, created.task_id) / "executor_side_effects.json").write_text(
+                json.dumps(
+                    {
+                        "relation_suggestions": [
+                            {
+                                "source_object_id": "knowledge-a",
+                                "target_object_id": "knowledge-b",
+                                "relation_type": "extends",
+                                "confidence": 0.9,
+                                "context": "A extends B",
+                            }
+                        ]
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "apply-suggestions",
+                            "--task-id",
+                            created.task_id,
+                            "--dry-run",
+                        ]
+                    ),
+                    0,
+                )
+            relations_output = StringIO()
+            with redirect_stdout(relations_output):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "links", "knowledge-a"]), 0)
+
+        self.assertIn("dry_run: True", stdout.getvalue())
+        self.assertIn("applied_count: 1", stdout.getvalue())
+        self.assertIn("count: 0", relations_output.getvalue())
 
     def test_cli_stage_promote_accepts_refined_text_without_mutating_staged_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

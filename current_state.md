@@ -21,18 +21,18 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `Phase 54`
+- latest_main_checkpoint_phase: `Phase 56`
 - latest_main_checkpoint_tag: `v1.0.0`
-- current_working_phase: `Phase 55`
-- checkpoint_type: `review_followup_complete_pending_commit_gate`
-- active_branch: `main`
+- current_working_phase: `Phase 56`
+- checkpoint_type: `reviewed_feature_branch_ready_for_merge`
+- active_branch: `feat/phase56-llm-enhanced-knowledge`
 - last_checked: `2026-04-25`
 
 说明：
 
-- `main` 上最近的稳定公开 checkpoint 仍是 `Phase 54 / v1.0.0`。
-- 当前 git 真相为 `main` 上的未提交工作树，需以此为恢复入口。
-- Phase 55 已完成实现、测试、review、closeout 与 review follow-up，当前状态为 **ready for commit gate**。
+- `main` 上最近的稳定公开 tag 仍是 `v1.0.0`，但当前默认开发恢复入口已切到 `feat/phase56-llm-enhanced-knowledge`。
+- Phase 56 已完成实现、测试、review 与 closeout，当前状态为 **ready for merge gate**。
+- 当前默认动作不是继续扩展 Phase 56，而是处理 merge gate / 分支收口，并为 Phase 57 做入口准备。
 
 ---
 
@@ -40,16 +40,16 @@
 
 当前推荐从以下状态继续：
 
-- active_branch: `main`
-- active_track: `Knowledge / RAG` (Primary) + `Evaluation / Policy` (Secondary)
-- active_phase: `Phase 55`
-- active_slice: `review_followup_complete_pending_commit_gate`
-- workflow_status: `phase55_commit_gate_ready`
+- active_branch: `feat/phase56-llm-enhanced-knowledge`
+- active_track: `Core Loop` (Primary) + `Knowledge / RAG` (Secondary)
+- active_phase: `Phase 56`
+- active_slice: `closeout_complete_pending_merge_gate`
+- workflow_status: `phase56_review_approved_ready_for_merge`
 
 说明：
 
-- 当前默认动作不是继续开发新 slice，而是处理人工 commit gate。
-- commit 完成后，再根据分支策略决定 PR / merge gate；Phase 55 稳定后，下一轮再回到 roadmap 选择 Phase 56 kickoff。
+- 当前默认动作不是继续开发新 slice，而是处理 merge gate / phase 收口后的分支动作。
+- 如 Phase 56 合并完成，则下一轮默认回到 roadmap，选择 Phase 57 kickoff。
 
 ---
 
@@ -61,9 +61,9 @@
 2. `docs/active_context.md`
 3. `docs/roadmap.md`
 4. `current_state.md`
-5. `docs/plans/phase55/closeout.md`
-6. `docs/plans/phase55/review_comments.md`
-7. `docs/cli_reference.md`
+5. `docs/plans/phase56/closeout.md`
+6. `docs/plans/phase56/review_comments.md`
+7. `docs/plans/phase56/design_decision.md`
 
 仅在需要时再读取：
 
@@ -80,23 +80,19 @@
 恢复工作前，建议至少执行以下检查：
 
 ```bash
-.venv/bin/python -m pytest tests/test_ingestion_pipeline.py tests/test_knowledge_relations.py tests/test_retrieval_adapters.py tests/test_sqlite_store.py tests/test_cli.py -k 'ingest or knowledge or retrieval or sqlite_task_store' --tb=short
-.venv/bin/python -m pytest tests/test_cli.py -q --tb=no -k "cli_end_to_end_local_file_promotion_link_and_relation_retrieval or create_task_preserves_existing_canonical_reuse_policy or stage_promote_updates_candidate_and_canonical_registry or retrieve_context_includes_canonical_reuse_visible_records"
-.venv/bin/python -m pytest tests/test_retrieval_adapters.py tests/test_knowledge_relations.py -q --tb=no
+.venv/bin/python -m pytest tests/test_cli.py tests/test_specialist_agents.py tests/test_executor_protocol.py tests/test_executor_async.py -q --tb=no
 git show --no-patch --decorate --oneline HEAD
-git log --oneline -3
+git log --oneline -4
 ```
 
 ---
 
 ## 当前已知边界
 
-- `knowledge_relations` 当前是 SQLite truth，不提供文件 mirror。
-- relation expansion 参数与 `knowledge_priority_bonus` 已集中到 `retrieval_config.py`，但仍是代码默认值，不是 operator-facing runtime config。
-- task-run 默认 retrieval 已包含 `knowledge` source；这使 graph-aware retrieval 进入正常执行主链。
-- canonical alias (`canonical-*`) 现可通过公共 helper 解析为底层 `source_object_id`，relation CLI 与 retrieval e2e 已覆盖该断点。
-- knowledge relation 当前仍依赖全局唯一 `object_id` 假设；若未来 task-local object id 语义改变，需要重新审视关系键设计。
-- 本阶段不包含 relation 自动推断、graph summarization、community detection 或 LLM-enhanced retrieval。
+- HTTP executor 与 agent LLM 调用现优先消费 API usage；无 usage 时仍回退到估算。
+- `LiteratureSpecialist` / `QualityReviewer` 已具备 LLM 增强能力，但仍保持 heuristic fallback，不依赖 LLM 可用性才能运行。
+- relation suggestions 当前以 `executor_side_effects.json` 作为 artifact truth，并通过 `swl knowledge apply-suggestions` gated 应用；不自动落库。
+- 本阶段不包含 agentic retrieval、多跳检索编排或 relation suggestion 的独立 proposal store。
 - Web Control Center 仍保持只读，不引入新的写路径。
 
 ---
@@ -127,7 +123,7 @@ curl http://localhost:3000/api/status
 ```bash
 cd /home/rocio/projects/swallow
 sed -n '1,220p' docs/active_context.md
-sed -n '1,220p' docs/plans/phase55/closeout.md
+sed -n '1,220p' docs/plans/phase56/closeout.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。

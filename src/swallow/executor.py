@@ -828,10 +828,14 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
 
 
 def _attach_estimated_usage(result: ExecutorResult) -> ExecutorResult:
+    input_tokens = int(result.estimated_input_tokens or 0)
+    output_tokens = int(result.estimated_output_tokens or 0)
+    if input_tokens > 0 and output_tokens > 0:
+        return result
     return replace(
         result,
-        estimated_input_tokens=estimate_tokens(result.prompt),
-        estimated_output_tokens=estimate_tokens(result.output),
+        estimated_input_tokens=input_tokens if input_tokens > 0 else estimate_tokens(result.prompt),
+        estimated_output_tokens=output_tokens if output_tokens > 0 else estimate_tokens(result.output),
     )
 
 
@@ -1139,6 +1143,23 @@ def _http_request_headers() -> dict[str, str]:
     return headers
 
 
+def extract_api_usage(response_data: object) -> tuple[int, int]:
+    if not isinstance(response_data, dict):
+        return (0, 0)
+    usage = response_data.get("usage", {})
+    if not isinstance(usage, dict):
+        return (0, 0)
+    try:
+        input_tokens = max(int(usage.get("prompt_tokens", 0) or 0), 0)
+    except (TypeError, ValueError):
+        input_tokens = 0
+    try:
+        output_tokens = max(int(usage.get("completion_tokens", 0) or 0), 0)
+    except (TypeError, ValueError):
+        output_tokens = 0
+    return (input_tokens, output_tokens)
+
+
 def run_http_executor(
     state: TaskState,
     retrieval_items: list[RetrievalItem],
@@ -1223,6 +1244,7 @@ def run_http_executor(
         choices = data["choices"]
         message = choices[0]["message"]
         content = _normalize_http_response_content(message.get("content"))
+        input_tokens, output_tokens = extract_api_usage(data)
     except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
         result = ExecutorResult(
             executor_name="http",
@@ -1242,15 +1264,19 @@ def run_http_executor(
             original_route_name=original_route_name,
         )
 
-    return ExecutorResult(
-        executor_name="http",
-        status="completed",
-        message="HTTP executor completed.",
-        output=content or "HTTP executor completed without a final text response.",
-        prompt=prompt,
-        failure_kind="",
-        stdout="",
-        stderr="",
+    return _attach_estimated_usage(
+        ExecutorResult(
+            executor_name="http",
+            status="completed",
+            message="HTTP executor completed.",
+            output=content or "HTTP executor completed without a final text response.",
+            prompt=prompt,
+            failure_kind="",
+            estimated_input_tokens=input_tokens,
+            estimated_output_tokens=output_tokens,
+            stdout="",
+            stderr="",
+        )
     )
 
 
@@ -1339,6 +1365,7 @@ async def run_http_executor_async(
         choices = data["choices"]
         message = choices[0]["message"]
         content = _normalize_http_response_content(message.get("content"))
+        input_tokens, output_tokens = extract_api_usage(data)
     except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError, AttributeError) as exc:
         result = ExecutorResult(
             executor_name="http",
@@ -1358,15 +1385,19 @@ async def run_http_executor_async(
             original_route_name=original_route_name,
         )
 
-    return ExecutorResult(
-        executor_name="http",
-        status="completed",
-        message="HTTP executor completed.",
-        output=content or "HTTP executor completed without a final text response.",
-        prompt=prompt,
-        failure_kind="",
-        stdout="",
-        stderr="",
+    return _attach_estimated_usage(
+        ExecutorResult(
+            executor_name="http",
+            status="completed",
+            message="HTTP executor completed.",
+            output=content or "HTTP executor completed without a final text response.",
+            prompt=prompt,
+            failure_kind="",
+            estimated_input_tokens=input_tokens,
+            estimated_output_tokens=output_tokens,
+            stdout="",
+            stderr="",
+        )
     )
 
 
