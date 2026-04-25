@@ -5532,6 +5532,7 @@ class CliLifecycleTest(unittest.TestCase):
             (["knowledge", "stage-promote", "--help"], "Promote one pending staged candidate into the canonical registry."),
             (["knowledge", "stage-reject", "--help"], "Reject one pending staged candidate."),
             (["knowledge", "canonical-audit", "--help"], "Audit canonical registry health."),
+            (["knowledge", "ingest-file", "--help"], "Ingest one local markdown/text file into staged knowledge."),
         ]
 
         for argv, expected in command_expectations:
@@ -5610,6 +5611,25 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("## Decisions (1)", output)
         self.assertIn("## Constraints (1)", output)
         self.assertIn("## Rejected Alternatives (0)", output)
+
+    def test_cli_knowledge_ingest_file_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "notes.md"
+            source.write_text("# Decisions\nKeep staged review manual.", encoding="utf-8")
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "ingest-file", str(source)]), 0)
+
+            staged_records = load_staged_candidates(tmp_path)
+
+        output = stdout.getvalue()
+        self.assertIn("# Ingestion Report", output)
+        self.assertIn("dry_run: no", output)
+        self.assertEqual(len(staged_records), 1)
+        self.assertEqual(staged_records[0].source_kind, "local_file_capture")
+        self.assertEqual(staged_records[0].source_ref, f"file://{source.resolve()}")
 
     def test_task_grounding_prints_grounding_evidence_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
