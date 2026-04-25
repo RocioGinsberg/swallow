@@ -369,6 +369,7 @@ class TaskState:
     updated_at: str = field(default_factory=utc_now)
     retrieval_count: int = 0
     executor_name: str = "aider"
+    input_context: dict[str, Any] = field(default_factory=dict)
     task_semantics: dict[str, Any] = field(default_factory=dict)
     knowledge_objects: list[dict[str, Any]] = field(default_factory=list)
     capability_manifest: dict[str, Any] = field(default_factory=dict)

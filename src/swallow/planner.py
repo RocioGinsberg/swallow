@@ -12,6 +12,7 @@ def _base_input_context(state: TaskState) -> dict[str, object]:
     return {
         "title": state.title,
         "workspace_root": state.workspace_root,
+        **dict(state.input_context or {}),
         "task_semantics": dict(state.task_semantics),
     }
 

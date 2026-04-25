@@ -1572,6 +1572,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Executor to persist for the task. Defaults to aider.",
     )
     create_parser.add_argument(
+        "--document-paths",
+        action="append",
+        default=[],
+        help="Local document path to pass into specialist input_context. Repeatable; currently used by literature-specialist.",
+    )
+    create_parser.add_argument(
         "--constraint",
         action="append",
         default=[],
@@ -2540,12 +2546,25 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "task" and args.task_command == "create":
+        input_context: dict[str, object] = {}
+        if args.executor.strip() == "literature-specialist" and args.document_paths:
+            document_paths: list[str] = []
+            seen_paths: set[str] = set()
+            for raw_path in args.document_paths:
+                normalized = str(Path(raw_path).resolve())
+                if not normalized or normalized in seen_paths:
+                    continue
+                document_paths.append(normalized)
+                seen_paths.add(normalized)
+            if document_paths:
+                input_context["document_paths"] = document_paths
         state = create_task(
             base_dir=base_dir,
             title=args.title.strip(),
             goal=args.goal.strip(),
             workspace_root=Path(args.workspace_root).resolve(),
             executor_name=args.executor.strip(),
+            input_context=input_context,
             constraints=args.constraint,
             acceptance_criteria=args.acceptance_criterion,
             priority_hints=args.priority_hint,

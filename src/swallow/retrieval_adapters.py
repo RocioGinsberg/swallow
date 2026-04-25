@@ -9,6 +9,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterable
 
+import httpx
+
+from .runtime_config import (
+    resolve_swl_api_key,
+    resolve_swl_embedding_api_base_url,
+    resolve_swl_embedding_dimensions,
+    resolve_swl_embedding_model,
+)
 
 TEXT_SUFFIXES = {
     ".md",
@@ -27,8 +35,11 @@ TEXT_SUFFIXES = {
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(?P<title>.+?)\s*$")
 REPO_SYMBOL_RE = re.compile(r"^\s*(?:def|class|function)\s+([A-Za-z0-9_]+)")
 REPO_CHUNK_LINE_COUNT = 40
+REPO_CHUNK_OVERLAP_LINES = 0
+MARKDOWN_CHUNK_OVERLAP_LINES = 0
+MARKDOWN_MAX_CHUNK_LINES = 80
 SEARCH_TOKEN_RE = re.compile(r"[A-Za-z0-9_./-]+")
-VECTOR_EMBEDDING_DIMENSIONS = 64
+VECTOR_EMBEDDING_DIMENSIONS = resolve_swl_embedding_dimensions()
 SQLITE_VEC_FALLBACK_WARNING = "[WARN] sqlite-vec unavailable, falling back to text search"
 
 
@@ -89,6 +100,10 @@ class VectorRetrievalUnavailable(RuntimeError):
     """Raised when sqlite-vec cannot be used for vector retrieval."""
 
 
+class EmbeddingAPIUnavailable(RuntimeError):
+    """Raised when API-backed embeddings are unavailable."""
+
+
 def matched_terms_for(token_list: list[str], *haystacks: str) -> list[str]:
     return sorted({token for token in token_list if any(haystack.count(token) > 0 for haystack in haystacks)})
 
@@ -142,8 +157,9 @@ def tokenize_embedding_text(text: str) -> list[str]:
     return [token.lower() for token in SEARCH_TOKEN_RE.findall(text) if token]
 
 
-def build_local_embedding(text: str, *, dimensions: int = VECTOR_EMBEDDING_DIMENSIONS) -> list[float]:
-    vector = [0.0] * dimensions
+def build_local_embedding(text: str, *, dimensions: int | None = None) -> list[float]:
+    resolved_dimensions = resolve_swl_embedding_dimensions(explicit_dimensions=dimensions)
+    vector = [0.0] * resolved_dimensions
     tokens = tokenize_embedding_text(text)
     if not tokens:
         return vector
@@ -156,7 +172,7 @@ def build_local_embedding(text: str, *, dimensions: int = VECTOR_EMBEDDING_DIMEN
     )
     for index, token in enumerate(weighted_tokens, start=1):
         digest = blake2b(token.encode("utf-8"), digest_size=8).digest()
-        bucket = int.from_bytes(digest[:4], "little") % dimensions
+        bucket = int.from_bytes(digest[:4], "little") % resolved_dimensions
         sign = 1.0 if digest[4] % 2 == 0 else -1.0
         weight = 1.0 if index <= len(tokens) else 0.5
         vector[bucket] += sign * weight
@@ -165,6 +181,63 @@ def build_local_embedding(text: str, *, dimensions: int = VECTOR_EMBEDDING_DIMEN
     if magnitude <= 0.0:
         return vector
     return [component / magnitude for component in vector]
+
+
+def build_api_embedding(
+    text: str,
+    *,
+    model: str | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    dimensions: int | None = None,
+    timeout_seconds: int = 20,
+) -> list[float]:
+    resolved_api_key = str(api_key or resolve_swl_api_key()).strip()
+    if not resolved_api_key:
+        raise EmbeddingAPIUnavailable("SWL_API_KEY is not configured.")
+
+    resolved_model = resolve_swl_embedding_model(explicit_model=model)
+    resolved_dimensions = resolve_swl_embedding_dimensions(explicit_dimensions=dimensions)
+    resolved_base_url = str(base_url or resolve_swl_embedding_api_base_url()).strip().rstrip("/")
+    if not resolved_base_url:
+        raise EmbeddingAPIUnavailable("SWL_EMBEDDING_API_BASE_URL is not configured.")
+
+    try:
+        response = httpx.post(
+            f"{resolved_base_url}/v1/embeddings",
+            json={"model": resolved_model, "input": text},
+            headers={
+                "Authorization": f"Bearer {resolved_api_key}",
+                "Content-Type": "application/json",
+            },
+            timeout=timeout_seconds,
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except httpx.HTTPError as exc:
+        raise EmbeddingAPIUnavailable(str(exc)) from exc
+    except (TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise EmbeddingAPIUnavailable(f"Unreadable embedding payload: {exc}") from exc
+
+    try:
+        data = payload["data"]
+        embedding = data[0]["embedding"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise EmbeddingAPIUnavailable(f"Embedding payload missing vector data: {exc}") from exc
+    if not isinstance(embedding, list) or not embedding:
+        raise EmbeddingAPIUnavailable("Embedding payload returned an empty vector.")
+
+    normalized: list[float] = []
+    for value in embedding:
+        try:
+            normalized.append(float(value))
+        except (TypeError, ValueError) as exc:
+            raise EmbeddingAPIUnavailable(f"Embedding payload contained a non-numeric value: {exc}") from exc
+    if len(normalized) != resolved_dimensions:
+        raise EmbeddingAPIUnavailable(
+            f"Embedding dimensions mismatch: expected {resolved_dimensions}, got {len(normalized)}."
+        )
+    return normalized
 
 
 def cosine_similarity(left: list[float], right: list[float]) -> float:
@@ -180,9 +253,10 @@ def rank_documents_by_local_embedding(
     query_plan: dict[str, Any],
     limit: int,
     adapter_name: str = "local_embedding",
-    embedding_dimensions: int = VECTOR_EMBEDDING_DIMENSIONS,
+    embedding_dimensions: int | None = None,
 ) -> list[RetrievalSearchMatch]:
-    query_embedding = build_local_embedding(query_text, dimensions=embedding_dimensions)
+    resolved_dimensions = resolve_swl_embedding_dimensions(explicit_dimensions=embedding_dimensions)
+    query_embedding = build_local_embedding(query_text, dimensions=resolved_dimensions)
     matches: list[RetrievalSearchMatch] = []
     for document in documents:
         text_score, text_breakdown, matched_terms = score_search_document(
@@ -196,7 +270,7 @@ def rank_documents_by_local_embedding(
             query_embedding,
             build_local_embedding(
                 f"{document.title}\n{document.text}",
-                dimensions=embedding_dimensions,
+                dimensions=resolved_dimensions,
             ),
         )
         similarity = max(-1.0, min(similarity, 1.0))
@@ -256,7 +330,7 @@ class TextFallbackAdapter:
 class VectorRetrievalAdapter:
     name: str = "sqlite_vec"
     module_name: str = "sqlite_vec"
-    embedding_dimensions: int = VECTOR_EMBEDDING_DIMENSIONS
+    embedding_dimensions: int = field(default_factory=resolve_swl_embedding_dimensions)
 
     def _load_module(self) -> Any:
         try:
@@ -291,10 +365,11 @@ class VectorRetrievalAdapter:
         if not documents:
             return []
 
-        query_embedding_json = json.dumps(
-            build_local_embedding(query_text, dimensions=self.embedding_dimensions),
-            separators=(",", ":"),
+        query_embedding = build_api_embedding(
+            query_text,
+            dimensions=self.embedding_dimensions,
         )
+        query_embedding_json = json.dumps(query_embedding, separators=(",", ":"))
         connection = self._connect()
         try:
             connection.execute(
@@ -328,7 +403,7 @@ class VectorRetrievalAdapter:
                             separators=(",", ":"),
                         ),
                         json.dumps(
-                            build_local_embedding(
+                            build_api_embedding(
                                 f"{document.title}\n{document.text}",
                                 dimensions=self.embedding_dimensions,
                             ),
@@ -381,9 +456,20 @@ class VectorRetrievalAdapter:
             score_breakdown = dict(text_breakdown)
             score_breakdown["vector_bonus"] = vector_bonus
             score_breakdown["vector_distance_milli"] = int(round(distance * 1000))
+            metadata = dict(document.metadata)
+            metadata["embedding_backend"] = "api_embedding"
             matches.append(
                 RetrievalSearchMatch(
-                    document=document,
+                    document=RetrievalSearchDocument(
+                        path=document.path,
+                        path_name=document.path_name,
+                        source_type=document.source_type,
+                        chunk_id=document.chunk_id,
+                        title=document.title,
+                        citation=document.citation,
+                        text=document.text,
+                        metadata=metadata,
+                    ),
                     score=max(text_score, 0) + vector_bonus,
                     score_breakdown=score_breakdown,
                     matched_terms=matched_terms,
@@ -399,7 +485,76 @@ def markdown_heading_level(line: str) -> int:
     return len(stripped) - len(stripped.lstrip("#"))
 
 
-def build_markdown_chunks(path: Path, text: str) -> list[RetrievalChunk]:
+def _expand_range_with_overlap(
+    lines: list[str],
+    line_start: int,
+    line_end: int,
+    *,
+    overlap_lines: int,
+    total_lines: int,
+) -> tuple[int, int]:
+    if overlap_lines <= 0:
+        return line_start, line_end
+    expanded_start = line_start
+    remaining = overlap_lines
+    while expanded_start > 1 and remaining > 0:
+        expanded_start -= 1
+        if lines[expanded_start - 1].strip():
+            remaining -= 1
+    return expanded_start, min(total_lines, line_end)
+
+
+def _split_range_by_max_lines(
+    lines: list[str],
+    *,
+    line_start: int,
+    line_end: int,
+    max_chunk_size: int,
+) -> list[tuple[int, int]]:
+    if line_end < line_start:
+        return []
+    if max_chunk_size <= 0 or (line_end - line_start + 1) <= max_chunk_size:
+        return [(line_start, line_end)]
+
+    ranges: list[tuple[int, int]] = []
+    cursor = line_start
+    while cursor <= line_end:
+        hard_end = min(cursor + max_chunk_size - 1, line_end)
+        split_end = hard_end
+        if hard_end < line_end:
+            for candidate in range(hard_end, cursor, -1):
+                if not lines[candidate - 1].strip():
+                    split_end = candidate - 1
+                    break
+            if split_end < cursor:
+                split_end = hard_end
+
+        while cursor <= split_end and not lines[cursor - 1].strip():
+            cursor += 1
+        while split_end >= cursor and not lines[split_end - 1].strip():
+            split_end -= 1
+        if cursor > split_end:
+            cursor = hard_end + 1
+            continue
+
+        ranges.append((cursor, split_end))
+        cursor = split_end + 1
+        while cursor <= line_end and not lines[cursor - 1].strip():
+            cursor += 1
+    return ranges
+
+
+def _build_chunk_text(lines: list[str], *, line_start: int, line_end: int) -> str:
+    return "\n".join(lines[line_start - 1 : line_end]).strip()
+
+
+def build_markdown_chunks(
+    path: Path,
+    text: str,
+    *,
+    overlap_lines: int = MARKDOWN_CHUNK_OVERLAP_LINES,
+    max_chunk_size: int = MARKDOWN_MAX_CHUNK_LINES,
+) -> list[RetrievalChunk]:
     lines = text.splitlines()
     if not lines:
         return []
@@ -411,55 +566,124 @@ def build_markdown_chunks(path: Path, text: str) -> list[RetrievalChunk]:
             headings.append((index, match.group("title").strip(), markdown_heading_level(line)))
 
     if not headings:
-        return [
-            RetrievalChunk(
-                chunk_id="full-file",
-                title=path.name,
-                title_source="filename",
-                chunk_kind="full_file",
-                line_start=1,
-                line_end=len(lines),
-                text=text,
-                metadata={"heading_level": 0},
+        chunks: list[RetrievalChunk] = []
+        ranges = _split_range_by_max_lines(
+            lines,
+            line_start=1,
+            line_end=len(lines),
+            max_chunk_size=max_chunk_size,
+        )
+        for index, (base_start, base_end) in enumerate(ranges, start=1):
+            chunk_start, chunk_end = _expand_range_with_overlap(
+                lines,
+                base_start,
+                base_end,
+                overlap_lines=overlap_lines,
+                total_lines=len(lines),
             )
-        ]
+            chunk_text = _build_chunk_text(lines, line_start=chunk_start, line_end=chunk_end)
+            if not chunk_text:
+                continue
+            chunk_id = "full-file" if len(ranges) == 1 else f"full-file-{index}"
+            chunks.append(
+                RetrievalChunk(
+                    chunk_id=chunk_id,
+                    title=path.name,
+                    title_source="filename",
+                    chunk_kind="full_file",
+                    line_start=chunk_start,
+                    line_end=chunk_end,
+                    text=chunk_text,
+                    metadata={
+                        "heading_level": 0,
+                        "base_line_start": base_start,
+                        "base_line_end": base_end,
+                        "overlap_lines": overlap_lines,
+                    },
+                )
+            )
+        return chunks
 
     chunks: list[RetrievalChunk] = []
     if headings[0][0] > 1:
         preface_end = headings[0][0] - 1
-        preface_text = "\n".join(lines[:preface_end]).strip()
-        if preface_text:
+        preface_ranges = _split_range_by_max_lines(
+            lines,
+            line_start=1,
+            line_end=preface_end,
+            max_chunk_size=max_chunk_size,
+        )
+        for index, (base_start, base_end) in enumerate(preface_ranges, start=1):
+            chunk_start, chunk_end = _expand_range_with_overlap(
+                lines,
+                base_start,
+                base_end,
+                overlap_lines=overlap_lines,
+                total_lines=len(lines),
+            )
+            preface_text = _build_chunk_text(lines, line_start=chunk_start, line_end=chunk_end)
+            if not preface_text:
+                continue
+            chunk_id = "preface" if len(preface_ranges) == 1 else f"preface-{index}"
             chunks.append(
                 RetrievalChunk(
-                    chunk_id="preface",
+                    chunk_id=chunk_id,
                     title=path.name,
                     title_source="filename",
                     chunk_kind="markdown_preface",
-                    line_start=1,
-                    line_end=preface_end,
+                    line_start=chunk_start,
+                    line_end=chunk_end,
                     text=preface_text,
-                    metadata={"heading_level": 0},
+                    metadata={
+                        "heading_level": 0,
+                        "base_line_start": base_start,
+                        "base_line_end": base_end,
+                        "overlap_lines": overlap_lines,
+                    },
                 )
             )
 
     for index, (line_start, title, heading_level) in enumerate(headings, start=1):
         line_end = headings[index][0] - 1 if index < len(headings) else len(lines)
-        chunk_lines = lines[line_start - 1 : line_end]
-        chunk_text = "\n".join(chunk_lines).strip()
-        if not chunk_text:
-            continue
-        chunks.append(
-            RetrievalChunk(
-                chunk_id=f"section-{index}",
-                title=title,
-                title_source="heading",
-                chunk_kind="markdown_section",
-                line_start=line_start,
-                line_end=line_end,
-                text=chunk_text,
-                metadata={"heading_level": heading_level},
-            )
+        section_ranges = _split_range_by_max_lines(
+            lines,
+            line_start=line_start,
+            line_end=line_end,
+            max_chunk_size=max_chunk_size,
         )
+        for segment_index, (base_start, base_end) in enumerate(section_ranges, start=1):
+            chunk_start, chunk_end = _expand_range_with_overlap(
+                lines,
+                base_start,
+                base_end,
+                overlap_lines=overlap_lines,
+                total_lines=len(lines),
+            )
+            chunk_text = _build_chunk_text(lines, line_start=chunk_start, line_end=chunk_end)
+            if not chunk_text:
+                continue
+            chunk_id = f"section-{index}"
+            if len(section_ranges) > 1:
+                chunk_id = f"section-{index}-{segment_index}"
+            chunks.append(
+                RetrievalChunk(
+                    chunk_id=chunk_id,
+                    title=title,
+                    title_source="heading",
+                    chunk_kind="markdown_section",
+                    line_start=chunk_start,
+                    line_end=chunk_end,
+                    text=chunk_text,
+                    metadata={
+                        "heading_level": heading_level,
+                        "base_line_start": base_start,
+                        "base_line_end": base_end,
+                        "overlap_lines": overlap_lines,
+                        "segment_index": segment_index,
+                        "segment_count": len(section_ranges),
+                    },
+                )
+            )
 
     return chunks
 
@@ -472,30 +696,46 @@ def infer_repo_chunk_title(path: Path, chunk_lines: Iterable[str]) -> tuple[str,
     return path.name, "filename"
 
 
-def build_repo_chunks(path: Path, text: str) -> list[RetrievalChunk]:
+def build_repo_chunks(
+    path: Path,
+    text: str,
+    *,
+    overlap_lines: int = REPO_CHUNK_OVERLAP_LINES,
+) -> list[RetrievalChunk]:
     lines = text.splitlines()
     if not lines:
         return []
 
     chunks: list[RetrievalChunk] = []
     for start_index in range(0, len(lines), REPO_CHUNK_LINE_COUNT):
-        line_start = start_index + 1
-        line_end = min(start_index + REPO_CHUNK_LINE_COUNT, len(lines))
-        chunk_lines = lines[start_index:line_end]
+        base_line_start = start_index + 1
+        base_line_end = min(start_index + REPO_CHUNK_LINE_COUNT, len(lines))
+        line_start, line_end = _expand_range_with_overlap(
+            lines,
+            base_line_start,
+            base_line_end,
+            overlap_lines=overlap_lines,
+            total_lines=len(lines),
+        )
+        chunk_lines = lines[line_start - 1 : line_end]
         chunk_text = "\n".join(chunk_lines).strip()
         if not chunk_text:
             continue
         title, title_source = infer_repo_chunk_title(path, chunk_lines)
         chunks.append(
             RetrievalChunk(
-                chunk_id=f"lines-{line_start}-{line_end}",
+                chunk_id=f"lines-{base_line_start}-{base_line_end}",
                 title=title,
                 title_source=title_source,
                 chunk_kind="repo_lines",
                 line_start=line_start,
                 line_end=line_end,
                 text=chunk_text,
-                metadata={},
+                metadata={
+                    "base_line_start": base_line_start,
+                    "base_line_end": base_line_end,
+                    "overlap_lines": overlap_lines,
+                },
             )
         )
 

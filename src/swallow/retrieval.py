@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from collections import deque
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from .knowledge_objects import is_retrieval_reuse_ready
 from .models import RetrievalItem, RetrievalRequest
 from .paths import canonical_reuse_policy_path
 from .retrieval_adapters import (
+    EmbeddingAPIUnavailable,
     SQLITE_VEC_FALLBACK_WARNING,
     RetrievalSearchDocument,
     TextFallbackAdapter,
@@ -21,8 +23,14 @@ from .retrieval_adapters import (
     score_search_document,
     select_retrieval_adapter,
 )
-from .retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RelationExpansionConfig
-from .retrieval_config import KNOWLEDGE_PRIORITY_BONUS
+from .retrieval_config import (
+    DEFAULT_RELATION_EXPANSION_CONFIG,
+    DEFAULT_RETRIEVAL_RERANK_CONFIG,
+    KNOWLEDGE_PRIORITY_BONUS,
+    RelationExpansionConfig,
+    RetrievalRerankConfig,
+    resolve_retrieval_rerank_config,
+)
 from .sqlite_store import SqliteTaskStore
 
 STOPWORDS = {
@@ -72,6 +80,7 @@ TASK_ARTIFACT_MARKDOWN_NAMES = {
 }
 logger = logging.getLogger(__name__)
 _sqlite_vec_warning_emitted = False
+_embedding_api_warning_emitted = False
 
 
 def citation_for_lines(relative_path: str, line_start: int, line_end: int) -> str:
@@ -188,6 +197,17 @@ def build_item_metadata(
     return metadata
 
 
+def _citation_line_range(chunk: object) -> tuple[int, int]:
+    metadata = getattr(chunk, "metadata", {})
+    if not isinstance(metadata, dict):
+        return chunk.line_start, chunk.line_end
+    base_line_start = metadata.get("base_line_start")
+    base_line_end = metadata.get("base_line_end")
+    if isinstance(base_line_start, int) and isinstance(base_line_end, int):
+        return base_line_start, base_line_end
+    return chunk.line_start, chunk.line_end
+
+
 def build_knowledge_item_metadata(
     knowledge_object: dict[str, Any],
     query_plan: dict[str, Any],
@@ -234,6 +254,14 @@ def _warn_sqlite_vec_fallback_once() -> None:
         return
     logger.warning(SQLITE_VEC_FALLBACK_WARNING)
     _sqlite_vec_warning_emitted = True
+
+
+def _warn_embedding_api_fallback_once() -> None:
+    global _embedding_api_warning_emitted
+    if _embedding_api_warning_emitted:
+        return
+    logger.warning("[WARN] embedding API unavailable, falling back to text search")
+    _embedding_api_warning_emitted = True
 
 
 def build_verified_knowledge_documents(
@@ -381,6 +409,14 @@ def iter_verified_knowledge_items(
             limit=request.limit,
         )
         retrieval_mode = "text_fallback"
+    except EmbeddingAPIUnavailable:
+        _warn_embedding_api_fallback_once()
+        matches = TextFallbackAdapter().search(
+            documents,
+            query_plan=query_plan,
+            limit=request.limit,
+        )
+        retrieval_mode = "text_fallback"
 
     items: list[RetrievalItem] = []
     for match in matches:
@@ -407,6 +443,148 @@ def iter_verified_knowledge_items(
     return items
 
 
+def _vector_or_text_matches(
+    documents: list[RetrievalSearchDocument],
+    *,
+    request: RetrievalRequest,
+    query_plan: dict[str, Any],
+    limit: int,
+) -> tuple[list[RetrievalSearchMatch], str]:
+    try:
+        return (
+            VectorRetrievalAdapter().search(
+                documents,
+                query_text=request.query,
+                query_plan=query_plan,
+                limit=limit,
+            ),
+            "vector",
+        )
+    except VectorRetrievalUnavailable:
+        _warn_sqlite_vec_fallback_once()
+        return (
+            TextFallbackAdapter().search(
+                documents,
+                query_plan=query_plan,
+                limit=limit,
+            ),
+            "text_fallback",
+        )
+    except EmbeddingAPIUnavailable:
+        _warn_embedding_api_fallback_once()
+        return (
+            TextFallbackAdapter().search(
+                documents,
+                query_plan=query_plan,
+                limit=limit,
+            ),
+            "text_fallback",
+        )
+
+
+def _rerank_system_prompt() -> str:
+    return (
+        "You are ranking retrieval results for Swallow. "
+        "Return strict JSON only with key ordered_indexes containing a list of 0-based item indexes "
+        "sorted from most relevant to least relevant."
+    )
+
+
+def _build_rerank_prompt(query: str, items: list[RetrievalItem]) -> str:
+    lines = [
+        "# Retrieval Rerank",
+        "",
+        f"query: {query}",
+        "Return JSON only: {\"ordered_indexes\": [ ... ]}",
+        "",
+        "## Candidates",
+    ]
+    for index, item in enumerate(items):
+        lines.extend(
+            [
+                f"- index: {index}",
+                f"  title: {item.title or item.path}",
+                f"  path: {item.path}",
+                f"  source_type: {item.source_type}",
+                f"  score: {item.score}",
+                f"  preview: {item.preview}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _parse_rerank_indexes(payload: dict[str, object], *, item_count: int) -> list[int]:
+    ordered_indexes = payload.get("ordered_indexes", [])
+    if not isinstance(ordered_indexes, list):
+        raise ValueError("rerank payload missing ordered_indexes list")
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for value in ordered_indexes:
+        if isinstance(value, bool):
+            continue
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            continue
+        if index < 0 or index >= item_count or index in seen:
+            continue
+        seen.add(index)
+        normalized.append(index)
+    if not normalized:
+        raise ValueError("rerank payload did not contain usable indexes")
+    for index in range(item_count):
+        if index not in seen:
+            normalized.append(index)
+    return normalized
+
+
+def rerank_retrieval_items(
+    items: list[RetrievalItem],
+    *,
+    query: str,
+    config: RetrievalRerankConfig | None = None,
+) -> list[RetrievalItem]:
+    from .agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
+
+    rerank_config = config or DEFAULT_RETRIEVAL_RERANK_CONFIG
+    if not rerank_config.enabled or len(items) < 2 or not query.strip():
+        return items
+
+    top_n = min(rerank_config.top_n, len(items))
+    if top_n < 2:
+        return items
+
+    candidate_items = items[:top_n]
+    try:
+        llm_response = call_agent_llm(
+            _build_rerank_prompt(query, candidate_items),
+            system=_rerank_system_prompt(),
+        )
+        payload = extract_json_object(llm_response.content)
+        ordered_indexes = _parse_rerank_indexes(payload, item_count=len(candidate_items))
+    except (AgentLLMUnavailable, ValueError):
+        return items
+
+    reranked_items: list[RetrievalItem] = []
+    for rerank_position, item_index in enumerate(ordered_indexes, start=1):
+        item = candidate_items[item_index]
+        metadata = dict(item.metadata)
+        metadata["rerank_applied"] = True
+        metadata["rerank_model"] = llm_response.model
+        metadata["rerank_position"] = rerank_position
+        score_breakdown = dict(item.score_breakdown)
+        score_breakdown["llm_rerank_applied"] = 1
+        reranked_items.append(
+            replace(
+                item,
+                metadata=metadata,
+                score_breakdown=score_breakdown,
+            )
+        )
+
+    return reranked_items + items[top_n:]
+
+
 def iter_canonical_reuse_items(
     workspace_root: Path,
     request: RetrievalRequest,
@@ -423,7 +601,7 @@ def iter_canonical_reuse_items(
     if not isinstance(visible_records, list):
         return []
 
-    items: list[RetrievalItem] = []
+    documents: list[RetrievalSearchDocument] = []
     for canonical_record in visible_records:
         if not isinstance(canonical_record, dict):
             continue
@@ -435,33 +613,53 @@ def iter_canonical_reuse_items(
         relative_path = ".swl/canonical_knowledge/reuse_policy.json"
         canonical_id = str(canonical_record.get("canonical_id", "canonical-record"))
         title = f"Canonical {canonical_id}"
-        score, score_breakdown, matched_terms = score_chunk(
-            query_plan=query_plan,
-            relative_path=relative_path,
-            path_name="reuse_policy.json",
-            title=title,
-            chunk_text=knowledge_text[:4000],
-        )
-        if score <= 0:
-            continue
-        preview = " ".join(knowledge_text.split())[:220]
-        score_breakdown["knowledge_priority_bonus"] = KNOWLEDGE_PRIORITY_BONUS
-        items.append(
-            RetrievalItem(
+        documents.append(
+            RetrievalSearchDocument(
                 path=relative_path,
+                path_name="reuse_policy.json",
                 source_type=KNOWLEDGE_SOURCE_TYPE,
-                score=score + KNOWLEDGE_PRIORITY_BONUS,
-                preview=preview,
                 chunk_id=canonical_id,
                 title=title,
                 citation=f"{relative_path}#{canonical_id}",
-                matched_terms=matched_terms,
-                score_breakdown=score_breakdown,
+                text=knowledge_text,
                 metadata=build_canonical_reuse_item_metadata(
                     canonical_record=canonical_record,
                     query_plan=query_plan,
                     current_task_id=request.current_task_id,
                 ),
+            )
+        )
+
+    if not documents:
+        return []
+
+    matches, retrieval_mode = _vector_or_text_matches(
+        documents,
+        request=request,
+        query_plan=query_plan,
+        limit=request.limit,
+    )
+
+    items: list[RetrievalItem] = []
+    for match in matches:
+        preview = " ".join(match.document.text.split())[:220]
+        metadata = dict(match.document.metadata)
+        metadata["knowledge_retrieval_adapter"] = match.adapter_name
+        metadata["knowledge_retrieval_mode"] = retrieval_mode
+        score_breakdown = dict(match.score_breakdown)
+        score_breakdown["knowledge_priority_bonus"] = KNOWLEDGE_PRIORITY_BONUS
+        items.append(
+            RetrievalItem(
+                path=match.document.path,
+                source_type=KNOWLEDGE_SOURCE_TYPE,
+                score=match.score + KNOWLEDGE_PRIORITY_BONUS,
+                preview=preview,
+                chunk_id=match.document.chunk_id,
+                title=match.document.title,
+                citation=match.document.citation,
+                matched_terms=match.matched_terms,
+                score_breakdown=score_breakdown,
+                metadata=metadata,
             )
         )
     return items
@@ -681,6 +879,7 @@ def retrieve_context(
 
             line_start = chunk.line_start
             line_end = chunk.line_end
+            citation_line_start, citation_line_end = _citation_line_range(chunk)
             preview = " ".join(chunk_text.split())[:220]
             items.append(
                 RetrievalItem(
@@ -690,7 +889,7 @@ def retrieve_context(
                     preview=preview,
                     chunk_id=chunk.chunk_id,
                     title=chunk.title,
-                    citation=citation_for_lines(relative_path, line_start, line_end),
+                    citation=citation_for_lines(relative_path, citation_line_start, citation_line_end),
                     matched_terms=matched_terms,
                     score_breakdown=score_breakdown,
                     metadata=build_item_metadata(
@@ -706,4 +905,9 @@ def retrieve_context(
             )
 
     items.sort(key=lambda item: (-item.score, item.path, item.chunk_id))
+    items = rerank_retrieval_items(
+        items,
+        query=retrieval_request.query,
+        config=resolve_retrieval_rerank_config(),
+    )
     return items[: retrieval_request.limit]
