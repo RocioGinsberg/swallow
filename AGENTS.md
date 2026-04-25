@@ -18,9 +18,9 @@
 
 ## 当前项目状态
 
-**当前 tag: `v1.0.0`** — Specialist Era：专项 Agent 生态、taxonomy 命名清理与延续的策略闭环能力
+**当前 tag: `v1.1.0`** — Knowledge Graph Era：本地文件摄入、显式知识关系与 relation-aware retrieval 闭环能力
 
-本仓库已形成新的稳定运行基线，452 tests passed + 8 eval passed。
+本仓库已形成新的稳定运行基线，470 tests passed + 8 eval passed。
 
 当前默认工作起点不是早期 MVP，而是：
 
@@ -46,6 +46,10 @@
 - **知识迁移与诊断入口**：`swl knowledge migrate` 支持 dry-run / 实迁 / 幂等回填；`swl doctor sqlite` 已包含知识层健康检查
 - **LibrarianAgent 边界化落地**：`LibrarianExecutor` 升级为 `LibrarianAgent` 主体，结构化 `KnowledgeChangeLog` 与 canonical 写入 authority guard 已成为稳定基线
 - **本地向量 RAG 与平滑退级**：`sqlite-vec` 作为可选依赖接入，可用时走向量检索，不可用时自动回退到文本匹配并输出 WARN
+- **本地文件知识摄入**：`swl knowledge ingest-file` 支持 markdown/text 文件直接进入 staged knowledge，保留 `file://` source_ref 与 dry-run 语义
+- **显式知识关系模型**：`knowledge_relations` SQLite 表与 `swl knowledge link/unlink/links` CLI 已成为稳定 operator 入口，支持跨 task 关系与双向遍历
+- **Relation-aware Retrieval**：`retrieve_context()` 已在 verified/canonical knowledge 之后接入 BFS relation expansion，支持深度限制、score 衰减、去重与 expansion metadata
+- **任务执行链知识检索默认贯通**：`run_task()` 默认 retrieval request 已包含 `knowledge` source，图谱知识可进入正常任务执行主链
 - **提案驱动策略闭环**：`OptimizationProposal` 已形成 bundle / review / apply 完整 operator gate，route weight 与 route capability 两类提案都可审计、可幂等应用、可保留 rollback 快照
 - **Meta-Optimizer Specialist Agent**：`MetaOptimizerAgent` / `MetaOptimizerExecutor` 已成为独立 specialist 实体，支持同步/异步执行、统一 resolver 接线与结构化 snapshot/report 输出
 - **自动一致性审计触发**：`AuditTriggerPolicy` + fire-and-forget 调度 + `verdict` 解析 + `swl audit policy show/set` CLI 已成为稳定基线

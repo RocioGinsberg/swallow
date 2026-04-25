@@ -98,9 +98,9 @@ Recommended reading order: ARCHITECTURE → STATE_AND_TRUTH → KNOWLEDGE → AG
 
 ## Current Version
 
-**Tag: `v1.0.0`** — Specialist Era: specialist agent ecosystem, taxonomy naming cleanup, and policy-loop carryover.
+**Tag: `v1.1.0`** — Knowledge Graph Era: local file ingestion, explicit knowledge relations, and relation-aware retrieval closure.
 
-Stable baseline: `452 tests passed + 8 eval passed`.
+Stable baseline: `470 tests passed + 8 eval passed`.
 
 For implementation details, see `CHANGELOG.md` and `docs/active_context.md`.
 
@@ -225,9 +225,9 @@ swl task artifacts <task-id>
 
 ## 当前版本
 
-**Tag: `v1.0.0`** — Specialist Era：专项 Agent 生态、taxonomy 命名清理与延续的策略闭环能力。
+**Tag: `v1.1.0`** — Knowledge Graph Era：本地文件摄入、显式知识关系与 relation-aware retrieval 闭环能力。
 
-稳定基线：`452 tests passed + 8 eval passed`。
+稳定基线：`470 tests passed + 8 eval passed`。
 
 实现细节见 `CHANGELOG.md` 和 `docs/active_context.md`。
 
