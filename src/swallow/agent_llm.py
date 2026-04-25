@@ -34,11 +34,10 @@ def resolve_agent_llm_model(explicit_model: str | None = None) -> str:
     configured = str(explicit_model or "").strip()
     if configured:
         return configured
-    for env_name in ("AIWF_AGENT_LLM_MODEL", "AIWF_NEW_API_DEFAULT_MODEL", "AIWF_HTTP_DEFAULT_MODEL"):
-        configured = os.environ.get(env_name, "").strip()
-        if configured:
-            return configured
-    return "deepseek-chat"
+    configured = os.environ.get("SWL_CHAT_MODEL", "").strip()
+    if configured:
+        return configured
+    return "gpt-4o-mini"
 
 
 def call_agent_llm(

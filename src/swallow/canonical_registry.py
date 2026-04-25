@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .models import utc_now
 from .paths import canonical_registry_path
@@ -74,6 +75,7 @@ def resolve_knowledge_object_id(base_dir: Path, object_id: str, *, store: Sqlite
     if not registry_file.exists():
         raise ValueError(f"Unknown knowledge object: {normalized_id}")
 
+    alias_matches: list[str] = []
     for line in registry_file.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped:
@@ -84,12 +86,39 @@ def resolve_knowledge_object_id(base_dir: Path, object_id: str, *, store: Sqlite
             continue
         if not isinstance(payload, dict):
             continue
-        if str(payload.get("canonical_id", "")).strip() != normalized_id:
-            continue
         source_object_id = str(payload.get("source_object_id", "")).strip()
-        if source_object_id and resolved_store.knowledge_object_exists(base_dir, source_object_id):
+        if not source_object_id or not resolved_store.knowledge_object_exists(base_dir, source_object_id):
+            continue
+        if str(payload.get("canonical_id", "")).strip() == normalized_id:
             return source_object_id
-        break
+
+        if str(payload.get("canonical_status", "active")).strip() == "superseded":
+            continue
+
+        aliases = {
+            str(payload.get("source_ref", "")).strip(),
+            str(payload.get("artifact_ref", "")).strip(),
+        }
+        source_ref = str(payload.get("source_ref", "")).strip()
+        if source_ref:
+            parsed = urlparse(source_ref)
+            source_path = parsed.path or source_ref
+            basename = Path(source_path).name.strip()
+            if basename:
+                aliases.add(basename)
+        artifact_ref = str(payload.get("artifact_ref", "")).strip()
+        if artifact_ref:
+            basename = Path(artifact_ref).name.strip()
+            if basename:
+                aliases.add(basename)
+
+        if normalized_id in aliases and source_object_id not in alias_matches:
+            alias_matches.append(source_object_id)
+
+    if len(alias_matches) == 1:
+        return alias_matches[0]
+    if len(alias_matches) > 1:
+        raise ValueError(f"Ambiguous knowledge object alias: {normalized_id}")
 
     raise ValueError(f"Unknown knowledge object: {normalized_id}")
 

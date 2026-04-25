@@ -128,10 +128,10 @@ def _check_http_endpoint(name: str, url: str, *, timeout: int = 5) -> LocalStack
 
 
 def resolve_new_api_base_url() -> str:
-    configured = os.environ.get("AIWF_NEW_API_BASE_URL", DEFAULT_NEW_API_BASE_URL).strip()
-    if not configured:
-        return DEFAULT_NEW_API_BASE_URL
-    return configured.rstrip("/")
+    configured = os.environ.get("SWL_API_BASE_URL", "").strip()
+    if configured:
+        return configured.rstrip("/")
+    return DEFAULT_NEW_API_BASE_URL
 
 
 def _check_new_api_endpoint(*, timeout: int = 5) -> LocalStackCheck:

@@ -473,29 +473,24 @@ async def run_executor_inline_async(state: TaskState, retrieval_items: list[Retr
 
 
 def resolve_new_api_chat_completions_url() -> str:
-    configured = os.environ.get("AIWF_NEW_API_BASE_URL", "").strip().rstrip("/")
+    configured = os.environ.get("SWL_API_BASE_URL", "").strip().rstrip("/")
     if configured:
         return f"{configured}/v1/chat/completions"
     return DEFAULT_NEW_API_CHAT_COMPLETIONS_URL
 
 
 def resolve_new_api_api_key() -> str:
-    for env_name in ("AIWF_NEW_API_KEY", "OPENAI_API_KEY", "NEW_API_KEY"):
-        configured = os.environ.get(env_name, "").strip()
-        if configured:
-            return configured
-    return ""
+    return os.environ.get("SWL_API_KEY", "").strip()
 
 
 def resolve_http_model_name(state: TaskState) -> str:
     configured_hint = str(state.route_model_hint or "").strip()
     if configured_hint and configured_hint not in {"http", "http-default"}:
         return configured_hint
-    for env_name in ("AIWF_NEW_API_DEFAULT_MODEL", "AIWF_HTTP_DEFAULT_MODEL"):
-        configured = os.environ.get(env_name, "").strip()
-        if configured:
-            return configured
-    return "deepseek-chat"
+    configured = os.environ.get("SWL_CHAT_MODEL", "").strip()
+    if configured:
+        return configured
+    return "gpt-4o-mini"
 
 
 def _executor_route_fallback_enabled(state: TaskState) -> bool:
@@ -1199,7 +1194,7 @@ def run_http_executor(
         if exc.response.status_code in {401, 403} and "Authorization" not in headers:
             response_text = (
                 response_text
-                or "Set AIWF_NEW_API_KEY, OPENAI_API_KEY, or NEW_API_KEY before using the HTTP executor."
+                or "Set SWL_API_KEY before using the HTTP executor."
             )
         failure_kind = "http_rate_limited" if exc.response.status_code == 429 else "http_error"
         result = ExecutorResult(
@@ -1320,7 +1315,7 @@ async def run_http_executor_async(
         if exc.response.status_code in {401, 403} and "Authorization" not in headers:
             response_text = (
                 response_text
-                or "Set AIWF_NEW_API_KEY, OPENAI_API_KEY, or NEW_API_KEY before using the HTTP executor."
+                or "Set SWL_API_KEY before using the HTTP executor."
             )
         failure_kind = "http_rate_limited" if exc.response.status_code == 429 else "http_error"
         result = ExecutorResult(

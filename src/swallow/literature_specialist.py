@@ -5,10 +5,11 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from .agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
 from .knowledge_relations import KNOWLEDGE_RELATION_TYPES
-from .models import ExecutorResult, TaskCard, TaskState
+from .models import ExecutorResult, RetrievalItem, TaskCard, TaskState
 
 
 LITERATURE_SPECIALIST_EXECUTOR_NAME = "literature-specialist"
@@ -189,7 +190,65 @@ class LiteratureSpecialistAgent:
             "Summarize the provided documents, extract key concepts, and suggest up to 5 high-value knowledge relations."
         )
 
-    def _build_llm_prompt(self, state: TaskState, card: TaskCard, analyses: list[_DocumentAnalysis]) -> str:
+    def _normalize_alias(self, value: str) -> str:
+        return str(value or "").strip()
+
+    def _build_object_alias_map(self, retrieval_items: list[object]) -> dict[str, str]:
+        unique_aliases: dict[str, str] = {}
+        ambiguous_aliases: set[str] = set()
+
+        for item in retrieval_items:
+            if isinstance(item, RetrievalItem):
+                metadata = item.metadata if isinstance(item.metadata, dict) else {}
+                aliases = {item.chunk_id, item.title, item.path, Path(item.path).name}
+            elif isinstance(item, dict):
+                metadata = item.get("metadata", {})
+                aliases = {
+                    str(item.get("chunk_id", "")).strip(),
+                    str(item.get("title", "")).strip(),
+                    str(item.get("path", "")).strip(),
+                    Path(str(item.get("path", "")).strip()).name,
+                }
+            else:
+                continue
+
+            if not isinstance(metadata, dict):
+                metadata = {}
+            object_id = str(metadata.get("knowledge_object_id", "")).strip()
+            canonical_id = str(metadata.get("canonical_id", "")).strip()
+            source_ref = str(metadata.get("source_ref", "")).strip()
+            if not object_id:
+                continue
+
+            aliases.add(object_id)
+            aliases.add(canonical_id)
+            aliases.add(source_ref)
+            if source_ref:
+                parsed = urlparse(source_ref)
+                source_path = parsed.path or source_ref
+                aliases.add(Path(source_path).name)
+
+            for raw_alias in aliases:
+                alias = self._normalize_alias(raw_alias)
+                if not alias or alias == object_id or alias in ambiguous_aliases:
+                    continue
+                existing = unique_aliases.get(alias)
+                if existing and existing != object_id:
+                    ambiguous_aliases.add(alias)
+                    unique_aliases.pop(alias, None)
+                    continue
+                unique_aliases[alias] = object_id
+
+        return unique_aliases
+
+    def _build_llm_prompt(
+        self,
+        state: TaskState,
+        card: TaskCard,
+        analyses: list[_DocumentAnalysis],
+        *,
+        object_aliases: dict[str, str],
+    ) -> str:
         lines = [
             "# Literature Specialist LLM Task",
             "",
@@ -197,10 +256,22 @@ class LiteratureSpecialistAgent:
             f"goal: {card.goal or state.goal}",
             "Return JSON with keys: summary, key_concepts, relation_suggestions.",
             "relation_suggestions must be a list of objects with: source_object_id, target_object_id, relation_type, confidence, context.",
+            "source_object_id and target_object_id must use the exact knowledge object ids listed below when available.",
             f"Allowed relation_type values: {', '.join(KNOWLEDGE_RELATION_TYPES)}",
             "",
-            "## Documents",
         ]
+        if object_aliases:
+            lines.extend(["## Available Knowledge Objects"])
+            for alias, object_id in sorted(object_aliases.items()):
+                if alias == object_id:
+                    continue
+                lines.append(f"- alias: {alias} -> object_id: {object_id}")
+            lines.append("")
+        lines.extend(
+            [
+            "## Documents",
+            ]
+        )
         for item in analyses:
             if not item.exists:
                 lines.append(f"- path: {item.path} (missing)")
@@ -217,15 +288,23 @@ class LiteratureSpecialistAgent:
             )
         return "\n".join(lines)
 
-    def _normalize_relation_suggestions(self, raw_suggestions: object) -> list[dict[str, object]]:
+    def _normalize_relation_suggestions(
+        self,
+        raw_suggestions: object,
+        *,
+        object_aliases: dict[str, str] | None = None,
+    ) -> list[dict[str, object]]:
         if not isinstance(raw_suggestions, list):
             return []
+        alias_map = object_aliases or {}
         normalized: list[dict[str, object]] = []
         for item in raw_suggestions[:5]:
             if not isinstance(item, dict):
                 continue
             source_object_id = str(item.get("source_object_id", "")).strip()
             target_object_id = str(item.get("target_object_id", "")).strip()
+            source_object_id = alias_map.get(source_object_id, source_object_id)
+            target_object_id = alias_map.get(target_object_id, target_object_id)
             relation_type = str(item.get("relation_type", "")).strip()
             context = str(item.get("context", "")).strip()
             if not source_object_id or not target_object_id or source_object_id == target_object_id:
@@ -294,11 +373,10 @@ class LiteratureSpecialistAgent:
         card: TaskCard,
         retrieval_items: list[object],
     ) -> ExecutorResult:
-        del retrieval_items
-
         document_paths = self._resolve_document_paths(card)
         prompt = self._build_prompt(state, card, document_paths=document_paths)
         analyses = [self._analyze_document(base_dir, path) for path in document_paths]
+        object_aliases = self._build_object_alias_map(retrieval_items)
         analyzed_count = sum(1 for item in analyses if item.exists)
         if analyzed_count == 0:
             status = "failed"
@@ -310,14 +388,17 @@ class LiteratureSpecialistAgent:
         else:
             try:
                 llm_response = call_agent_llm(
-                    self._build_llm_prompt(state, card, analyses),
+                    self._build_llm_prompt(state, card, analyses, object_aliases=object_aliases),
                     system=self._system_prompt(),
                 )
                 payload = extract_json_object(llm_response.content)
                 key_concepts = payload.get("key_concepts", [])
                 if not isinstance(key_concepts, list):
                     key_concepts = []
-                relation_suggestions = self._normalize_relation_suggestions(payload.get("relation_suggestions", []))
+                relation_suggestions = self._normalize_relation_suggestions(
+                    payload.get("relation_suggestions", []),
+                    object_aliases=object_aliases,
+                )
                 output = self._build_llm_report(
                     analyses,
                     goal=card.goal or state.goal,
