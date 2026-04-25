@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.orchestrator import create_task, run_task
 from swallow.models import Event
-from swallow.paths import app_root
+from swallow.paths import task_root
 from swallow.store import append_event, load_state, save_state
 from swallow.web.api import (
     build_task_artifact_diff_payload,
@@ -94,7 +94,7 @@ class WebApiPayloadsTest(unittest.TestCase):
             )
             run_task(tmp_path, created.task_id)
 
-            app_checksum_before = _tree_checksum(app_root(tmp_path))
+            task_checksum_before = _tree_checksum(task_root(tmp_path, created.task_id))
             tasks_payload = build_tasks_payload(tmp_path, focus="recent")
             task_payload = build_task_payload(tmp_path, created.task_id)
             events_payload = build_task_events_payload(tmp_path, created.task_id)
@@ -102,9 +102,9 @@ class WebApiPayloadsTest(unittest.TestCase):
             artifact_payload = build_task_artifact_payload(tmp_path, created.task_id, "summary.md")
             knowledge_payload = build_task_knowledge_payload(tmp_path, created.task_id)
             subtask_tree_payload = build_task_subtask_tree_payload(tmp_path, created.task_id)
-            app_checksum_after = _tree_checksum(app_root(tmp_path))
+            task_checksum_after = _tree_checksum(task_root(tmp_path, created.task_id))
 
-        self.assertEqual(app_checksum_before, app_checksum_after)
+        self.assertEqual(task_checksum_before, task_checksum_after)
         self.assertEqual(tasks_payload["count"], 1)
         self.assertEqual(tasks_payload["tasks"][0]["task_id"], created.task_id)
         self.assertEqual(task_payload["task_id"], created.task_id)
