@@ -25,6 +25,7 @@ from .knowledge_objects import (
     summarize_knowledge_stages,
 )
 from .knowledge_policy import build_knowledge_policy_report, evaluate_knowledge_policy
+from .knowledge_suggestions import persist_executor_side_effects
 from .models import (
     CompatibilityResult,
     EVENT_EXECUTOR_COMPLETED,
@@ -133,6 +134,7 @@ def run_execution(
     write_artifact(base_dir, state.task_id, "executor_output.md", executor_result.output or executor_result.message)
     write_artifact(base_dir, state.task_id, "executor_stdout.txt", executor_result.stdout)
     write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
+    persist_executor_side_effects(base_dir, state.task_id, executor_result.side_effects)
     append_event(
         base_dir,
         Event(

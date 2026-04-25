@@ -58,6 +58,7 @@ from .meta_optimizer import (
 )
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
+from .knowledge_suggestions import apply_relation_suggestions, build_relation_suggestion_application_report
 from .models import LIBRARIAN_MEMORY_AUTHORITY, RouteSelection
 from .orchestrator import (
     acknowledge_task,
@@ -1535,6 +1536,17 @@ def build_parser() -> argparse.ArgumentParser:
         description="List explicit relations for one knowledge object.",
     )
     knowledge_links_parser.add_argument("object_id", help="Knowledge object id.")
+    knowledge_apply_suggestions_parser = knowledge_subparsers.add_parser(
+        "apply-suggestions",
+        help="Apply relation suggestions recorded by a completed task.",
+        description="Apply relation suggestions recorded in executor_side_effects.json for one task.",
+    )
+    knowledge_apply_suggestions_parser.add_argument("--task-id", required=True, help="Task identifier.")
+    knowledge_apply_suggestions_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview which relation suggestions would be applied without writing knowledge relations.",
+    )
     knowledge_migrate_parser = knowledge_subparsers.add_parser(
         "migrate",
         help="Backfill file-based knowledge into the SQLite knowledge store.",
@@ -2325,6 +2337,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "knowledge" and args.knowledge_command == "links":
         relations = list_knowledge_relations(base_dir, args.object_id)
         print(build_knowledge_relations_report(args.object_id, relations))
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "apply-suggestions":
+        load_state(base_dir, args.task_id)
+        report = apply_relation_suggestions(base_dir, args.task_id, dry_run=bool(args.dry_run))
+        print(build_relation_suggestion_application_report(report), end="")
         return 0
 
     if args.command == "knowledge" and args.knowledge_command == "migrate":

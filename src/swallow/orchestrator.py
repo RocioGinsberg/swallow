@@ -56,6 +56,7 @@ from .knowledge_objects import (
 from .knowledge_index import build_knowledge_index, build_knowledge_index_report
 from .knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from .knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
+from .knowledge_suggestions import persist_executor_side_effects
 from .knowledge_store import (
     LIBRARIAN_AGENT_WRITE_AUTHORITY,
     OPERATOR_CANONICAL_WRITE_AUTHORITY,
@@ -593,6 +594,7 @@ def _write_parent_executor_artifacts(
     write_artifact(base_dir, state.task_id, "executor_output.md", executor_result.output or executor_result.message)
     write_artifact(base_dir, state.task_id, "executor_stdout.txt", executor_result.stdout)
     write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
+    persist_executor_side_effects(base_dir, state.task_id, executor_result.side_effects)
 
 
 def _clear_review_feedback_state(state: TaskState) -> None:
