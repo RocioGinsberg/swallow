@@ -4,6 +4,7 @@ import json
 import logging
 import re
 from collections import deque
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +22,14 @@ from .retrieval_adapters import (
     score_search_document,
     select_retrieval_adapter,
 )
-from .retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RelationExpansionConfig
-from .retrieval_config import KNOWLEDGE_PRIORITY_BONUS
+from .retrieval_config import (
+    DEFAULT_RELATION_EXPANSION_CONFIG,
+    DEFAULT_RETRIEVAL_RERANK_CONFIG,
+    KNOWLEDGE_PRIORITY_BONUS,
+    RelationExpansionConfig,
+    RetrievalRerankConfig,
+    resolve_retrieval_rerank_config,
+)
 from .sqlite_store import SqliteTaskStore
 
 STOPWORDS = {
@@ -436,6 +443,109 @@ def _vector_or_text_matches(
         )
 
 
+def _rerank_system_prompt() -> str:
+    return (
+        "You are ranking retrieval results for Swallow. "
+        "Return strict JSON only with key ordered_indexes containing a list of 0-based item indexes "
+        "sorted from most relevant to least relevant."
+    )
+
+
+def _build_rerank_prompt(query: str, items: list[RetrievalItem]) -> str:
+    lines = [
+        "# Retrieval Rerank",
+        "",
+        f"query: {query}",
+        "Return JSON only: {\"ordered_indexes\": [ ... ]}",
+        "",
+        "## Candidates",
+    ]
+    for index, item in enumerate(items):
+        lines.extend(
+            [
+                f"- index: {index}",
+                f"  title: {item.title or item.path}",
+                f"  path: {item.path}",
+                f"  source_type: {item.source_type}",
+                f"  score: {item.score}",
+                f"  preview: {item.preview}",
+            ]
+        )
+    return "\n".join(lines)
+
+
+def _parse_rerank_indexes(payload: dict[str, object], *, item_count: int) -> list[int]:
+    ordered_indexes = payload.get("ordered_indexes", [])
+    if not isinstance(ordered_indexes, list):
+        raise ValueError("rerank payload missing ordered_indexes list")
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for value in ordered_indexes:
+        if isinstance(value, bool):
+            continue
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            continue
+        if index < 0 or index >= item_count or index in seen:
+            continue
+        seen.add(index)
+        normalized.append(index)
+    if not normalized:
+        raise ValueError("rerank payload did not contain usable indexes")
+    for index in range(item_count):
+        if index not in seen:
+            normalized.append(index)
+    return normalized
+
+
+def rerank_retrieval_items(
+    items: list[RetrievalItem],
+    *,
+    query: str,
+    config: RetrievalRerankConfig | None = None,
+) -> list[RetrievalItem]:
+    from .agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
+
+    rerank_config = config or DEFAULT_RETRIEVAL_RERANK_CONFIG
+    if not rerank_config.enabled or len(items) < 2 or not query.strip():
+        return items
+
+    top_n = min(rerank_config.top_n, len(items))
+    if top_n < 2:
+        return items
+
+    candidate_items = items[:top_n]
+    try:
+        llm_response = call_agent_llm(
+            _build_rerank_prompt(query, candidate_items),
+            system=_rerank_system_prompt(),
+        )
+        payload = extract_json_object(llm_response.content)
+        ordered_indexes = _parse_rerank_indexes(payload, item_count=len(candidate_items))
+    except (AgentLLMUnavailable, ValueError):
+        return items
+
+    reranked_items: list[RetrievalItem] = []
+    for rerank_position, item_index in enumerate(ordered_indexes, start=1):
+        item = candidate_items[item_index]
+        metadata = dict(item.metadata)
+        metadata["rerank_applied"] = True
+        metadata["rerank_model"] = llm_response.model
+        metadata["rerank_position"] = rerank_position
+        score_breakdown = dict(item.score_breakdown)
+        score_breakdown["llm_rerank_applied"] = 1
+        reranked_items.append(
+            replace(
+                item,
+                metadata=metadata,
+                score_breakdown=score_breakdown,
+            )
+        )
+
+    return reranked_items + items[top_n:]
+
+
 def iter_canonical_reuse_items(
     workspace_root: Path,
     request: RetrievalRequest,
@@ -755,4 +865,9 @@ def retrieve_context(
             )
 
     items.sort(key=lambda item: (-item.score, item.path, item.chunk_id))
+    items = rerank_retrieval_items(
+        items,
+        query=retrieval_request.query,
+        config=resolve_retrieval_rerank_config(),
+    )
     return items[: retrieval_request.limit]

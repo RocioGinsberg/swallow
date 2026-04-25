@@ -9,9 +9,10 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import swallow.retrieval as retrieval_module
+from swallow.agent_llm import AgentLLMResponse, AgentLLMUnavailable
 from swallow.canonical_reuse import build_canonical_reuse_summary
-from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, retrieve_context
-from swallow.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG
+from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, rerank_retrieval_items, retrieve_context
+from swallow.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RetrievalRerankConfig
 from swallow.retrieval_adapters import (
     EmbeddingAPIUnavailable,
     RetrievalSearchDocument,
@@ -28,6 +29,111 @@ from swallow.store import append_canonical_record, save_canonical_reuse_policy, 
 
 
 class RetrievalAdaptersTest(unittest.TestCase):
+    def test_rerank_retrieval_items_reorders_top_candidates(self) -> None:
+        items = [
+            RetrievalSearchMatch(
+                document=RetrievalSearchDocument(
+                    path="results/knowledge.md",
+                    path_name="knowledge.md",
+                    source_type="notes",
+                    chunk_id="notes-1",
+                    title="Notes",
+                    citation="results/knowledge.md#L1",
+                    text="Noisy notes first.",
+                ),
+                score=100,
+                score_breakdown={"content_hits": 10},
+                matched_terms=["knowledge"],
+                adapter_name="text_fallback",
+            ),
+            RetrievalSearchMatch(
+                document=RetrievalSearchDocument(
+                    path=".swl/canonical_knowledge/reuse_policy.json",
+                    path_name="reuse_policy.json",
+                    source_type=KNOWLEDGE_SOURCE_TYPE,
+                    chunk_id="canonical-1",
+                    title="Canonical 1",
+                    citation=".swl/canonical_knowledge/reuse_policy.json#canonical-1",
+                    text="Canonical truth layer.",
+                ),
+                score=90,
+                score_breakdown={"content_hits": 8},
+                matched_terms=["truth"],
+                adapter_name="sqlite_vec",
+            ),
+        ]
+        retrieval_items = [
+            retrieval_module.RetrievalItem(
+                path=match.document.path,
+                source_type=match.document.source_type,
+                score=match.score,
+                preview=match.document.text,
+                chunk_id=match.document.chunk_id,
+                title=match.document.title,
+                citation=match.document.citation,
+                matched_terms=match.matched_terms,
+                score_breakdown=match.score_breakdown,
+                metadata=dict(match.document.metadata),
+            )
+            for match in items
+        ]
+
+        with patch(
+            "swallow.agent_llm.call_agent_llm",
+            return_value=AgentLLMResponse(
+                content='{"ordered_indexes":[1,0]}',
+                input_tokens=50,
+                output_tokens=10,
+                model="gpt-4o-mini",
+            ),
+        ):
+            reranked = rerank_retrieval_items(
+                retrieval_items,
+                query="knowledge truth",
+                config=RetrievalRerankConfig(enabled=True, top_n=2),
+            )
+
+        self.assertEqual(reranked[0].chunk_id, "canonical-1")
+        self.assertTrue(reranked[0].metadata["rerank_applied"])
+        self.assertEqual(reranked[0].metadata["rerank_position"], 1)
+
+    def test_rerank_retrieval_items_falls_back_on_llm_failure(self) -> None:
+        items = [
+            retrieval_module.RetrievalItem(
+                path="results/knowledge.md",
+                source_type="notes",
+                score=100,
+                preview="Noisy notes first.",
+                chunk_id="notes-1",
+                title="Notes",
+                citation="results/knowledge.md#L1",
+                matched_terms=["knowledge"],
+                score_breakdown={"content_hits": 10},
+                metadata={},
+            ),
+            retrieval_module.RetrievalItem(
+                path=".swl/canonical_knowledge/reuse_policy.json",
+                source_type=KNOWLEDGE_SOURCE_TYPE,
+                score=90,
+                preview="Canonical truth layer.",
+                chunk_id="canonical-1",
+                title="Canonical 1",
+                citation=".swl/canonical_knowledge/reuse_policy.json#canonical-1",
+                matched_terms=["truth"],
+                score_breakdown={"content_hits": 8},
+                metadata={},
+            ),
+        ]
+
+        with patch("swallow.agent_llm.call_agent_llm", side_effect=AgentLLMUnavailable("timeout")):
+            reranked = rerank_retrieval_items(
+                items,
+                query="knowledge truth",
+                config=RetrievalRerankConfig(enabled=True, top_n=2),
+            )
+
+        self.assertEqual([item.chunk_id for item in reranked], ["notes-1", "canonical-1"])
+
     def test_build_api_embedding_reads_openai_compatible_response(self) -> None:
         class _FakeResponse:
             def raise_for_status(self) -> None:
@@ -225,6 +331,49 @@ class RetrievalAdaptersTest(unittest.TestCase):
         self.assertEqual(len(items), 1)
         self.assertEqual(items[0].metadata["knowledge_retrieval_mode"], "vector")
         self.assertEqual(items[0].metadata["knowledge_retrieval_adapter"], "sqlite_vec")
+        self.assertEqual(items[0].chunk_id, "knowledge-0001")
+
+    def test_retrieve_context_can_disable_rerank_via_env(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "knowledge-task",
+                [
+                    {
+                        "object_id": "knowledge-0001",
+                        "text": "Vector retrieval should surface this verified knowledge first.",
+                        "stage": "verified",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/knowledge-task/artifacts/summary.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                    }
+                ],
+            )
+
+            def _mock_vector_search(documents, *, query_text, query_plan, limit):
+                return [
+                    RetrievalSearchMatch(
+                        document=documents[0],
+                        score=19,
+                        score_breakdown={"vector_bonus": 4, "content_hits": 3},
+                        matched_terms=["knowledge", "retrieval", "vector"],
+                        adapter_name="sqlite_vec",
+                    )
+                ]
+
+            with patch.dict("os.environ", {"SWL_RETRIEVAL_RERANK_ENABLED": "false"}, clear=False):
+                with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                    with patch("swallow.agent_llm.call_agent_llm") as rerank_mock:
+                        items = retrieve_context(
+                            tmp_path,
+                            query="vector retrieval verified knowledge",
+                            source_types=[KNOWLEDGE_SOURCE_TYPE],
+                            limit=4,
+                        )
+
+        rerank_mock.assert_not_called()
         self.assertEqual(items[0].chunk_id, "knowledge-0001")
 
     def test_retrieve_context_relation_expansion_includes_linked_objects(self) -> None:
