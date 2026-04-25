@@ -375,6 +375,44 @@ class RetrievalAdaptersTest(unittest.TestCase):
         self.assertEqual(items[0].metadata["knowledge_retrieval_mode"], "text_fallback")
         self.assertEqual(items[0].metadata["knowledge_retrieval_adapter"], "text_fallback")
 
+    def test_retrieve_context_falls_back_to_text_search_when_embedding_api_is_unavailable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "knowledge-task",
+                [
+                    {
+                        "object_id": "knowledge-0001",
+                        "text": "Embedding fallback should keep verified knowledge retrieval available.",
+                        "stage": "verified",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/knowledge-task/artifacts/summary.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                    }
+                ],
+            )
+
+            retrieval_module._embedding_api_warning_emitted = False
+            with self.assertLogs("swallow.retrieval", level="WARNING") as logs:
+                with patch(
+                    "swallow.retrieval.VectorRetrievalAdapter.search",
+                    side_effect=EmbeddingAPIUnavailable("SWL_API_KEY is not configured."),
+                ):
+                    items = retrieve_context(
+                        tmp_path,
+                        query="embedding fallback verified knowledge",
+                        source_types=[KNOWLEDGE_SOURCE_TYPE],
+                        limit=4,
+                    )
+
+        self.assertEqual(len(items), 1)
+        self.assertIn("[WARN] embedding API unavailable, falling back to text search", logs.output[0])
+        self.assertEqual(items[0].path, ".swl/tasks/knowledge-task/knowledge_objects.json")
+        self.assertEqual(items[0].metadata["knowledge_retrieval_mode"], "text_fallback")
+        self.assertEqual(items[0].metadata["knowledge_retrieval_adapter"], "text_fallback")
+
     def test_retrieve_context_uses_vector_adapter_results_when_available(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -729,6 +767,51 @@ class RetrievalAdaptersTest(unittest.TestCase):
         self.assertEqual(items[0].metadata["storage_scope"], "canonical_registry")
         self.assertEqual(items[0].metadata["knowledge_retrieval_mode"], "vector")
         self.assertEqual(items[0].metadata["knowledge_retrieval_adapter"], "sqlite_vec")
+
+    def test_retrieve_context_falls_back_to_text_search_for_canonical_reuse_when_embedding_api_is_unavailable(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            canonical_record = {
+                "canonical_id": "canonical-a",
+                "canonical_key": "task-object:task-a:knowledge-a",
+                "source_task_id": "task-a",
+                "source_object_id": "knowledge-a",
+                "promoted_at": "2026-04-25T00:00:00+00:00",
+                "promoted_by": "test",
+                "decision_note": "",
+                "decision_ref": ".swl/tasks/task-a/knowledge_decisions.jsonl#knowledge-a",
+                "artifact_ref": "",
+                "source_ref": "file://task-a",
+                "text": "Canonical reuse should stay searchable when embedding is unavailable.",
+                "evidence_status": "source_only",
+                "canonical_stage": "canonical",
+                "canonical_status": "active",
+                "superseded_by": "",
+                "superseded_at": "",
+            }
+            append_canonical_record(tmp_path, canonical_record)
+            save_canonical_reuse_policy(tmp_path, build_canonical_reuse_summary([canonical_record]))
+
+            retrieval_module._embedding_api_warning_emitted = False
+            with self.assertLogs("swallow.retrieval", level="WARNING") as logs:
+                with patch(
+                    "swallow.retrieval.VectorRetrievalAdapter.search",
+                    side_effect=EmbeddingAPIUnavailable("SWL_API_KEY is not configured."),
+                ):
+                    items = retrieve_context(
+                        tmp_path,
+                        query="canonical reuse embedding fallback",
+                        source_types=[KNOWLEDGE_SOURCE_TYPE],
+                        limit=4,
+                    )
+
+        self.assertEqual(len(items), 1)
+        self.assertIn("[WARN] embedding API unavailable, falling back to text search", logs.output[0])
+        self.assertEqual(items[0].metadata["storage_scope"], "canonical_registry")
+        self.assertEqual(items[0].metadata["knowledge_retrieval_mode"], "text_fallback")
+        self.assertEqual(items[0].metadata["knowledge_retrieval_adapter"], "text_fallback")
 
     def test_retrieve_context_relation_expansion_does_not_duplicate_seed_items(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

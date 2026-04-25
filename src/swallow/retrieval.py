@@ -14,6 +14,7 @@ from .knowledge_objects import is_retrieval_reuse_ready
 from .models import RetrievalItem, RetrievalRequest
 from .paths import canonical_reuse_policy_path
 from .retrieval_adapters import (
+    EmbeddingAPIUnavailable,
     SQLITE_VEC_FALLBACK_WARNING,
     RetrievalSearchDocument,
     TextFallbackAdapter,
@@ -79,6 +80,7 @@ TASK_ARTIFACT_MARKDOWN_NAMES = {
 }
 logger = logging.getLogger(__name__)
 _sqlite_vec_warning_emitted = False
+_embedding_api_warning_emitted = False
 
 
 def citation_for_lines(relative_path: str, line_start: int, line_end: int) -> str:
@@ -195,6 +197,17 @@ def build_item_metadata(
     return metadata
 
 
+def _citation_line_range(chunk: object) -> tuple[int, int]:
+    metadata = getattr(chunk, "metadata", {})
+    if not isinstance(metadata, dict):
+        return chunk.line_start, chunk.line_end
+    base_line_start = metadata.get("base_line_start")
+    base_line_end = metadata.get("base_line_end")
+    if isinstance(base_line_start, int) and isinstance(base_line_end, int):
+        return base_line_start, base_line_end
+    return chunk.line_start, chunk.line_end
+
+
 def build_knowledge_item_metadata(
     knowledge_object: dict[str, Any],
     query_plan: dict[str, Any],
@@ -241,6 +254,14 @@ def _warn_sqlite_vec_fallback_once() -> None:
         return
     logger.warning(SQLITE_VEC_FALLBACK_WARNING)
     _sqlite_vec_warning_emitted = True
+
+
+def _warn_embedding_api_fallback_once() -> None:
+    global _embedding_api_warning_emitted
+    if _embedding_api_warning_emitted:
+        return
+    logger.warning("[WARN] embedding API unavailable, falling back to text search")
+    _embedding_api_warning_emitted = True
 
 
 def build_verified_knowledge_documents(
@@ -388,6 +409,14 @@ def iter_verified_knowledge_items(
             limit=request.limit,
         )
         retrieval_mode = "text_fallback"
+    except EmbeddingAPIUnavailable:
+        _warn_embedding_api_fallback_once()
+        matches = TextFallbackAdapter().search(
+            documents,
+            query_plan=query_plan,
+            limit=request.limit,
+        )
+        retrieval_mode = "text_fallback"
 
     items: list[RetrievalItem] = []
     for match in matches:
@@ -433,6 +462,16 @@ def _vector_or_text_matches(
         )
     except VectorRetrievalUnavailable:
         _warn_sqlite_vec_fallback_once()
+        return (
+            TextFallbackAdapter().search(
+                documents,
+                query_plan=query_plan,
+                limit=limit,
+            ),
+            "text_fallback",
+        )
+    except EmbeddingAPIUnavailable:
+        _warn_embedding_api_fallback_once()
         return (
             TextFallbackAdapter().search(
                 documents,
@@ -840,6 +879,7 @@ def retrieve_context(
 
             line_start = chunk.line_start
             line_end = chunk.line_end
+            citation_line_start, citation_line_end = _citation_line_range(chunk)
             preview = " ".join(chunk_text.split())[:220]
             items.append(
                 RetrievalItem(
@@ -849,7 +889,7 @@ def retrieve_context(
                     preview=preview,
                     chunk_id=chunk.chunk_id,
                     title=chunk.title,
-                    citation=citation_for_lines(relative_path, line_start, line_end),
+                    citation=citation_for_lines(relative_path, citation_line_start, citation_line_end),
                     matched_terms=matched_terms,
                     score_breakdown=score_breakdown,
                     metadata=build_item_metadata(
