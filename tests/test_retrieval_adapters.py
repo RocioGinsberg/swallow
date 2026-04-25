@@ -15,6 +15,8 @@ from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, rerank_
 from swallow.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RetrievalRerankConfig
 from swallow.retrieval_adapters import (
     EmbeddingAPIUnavailable,
+    build_markdown_chunks,
+    build_repo_chunks,
     RetrievalSearchDocument,
     RetrievalSearchMatch,
     TextFallbackAdapter,
@@ -29,6 +31,93 @@ from swallow.store import append_canonical_record, save_canonical_reuse_policy, 
 
 
 class RetrievalAdaptersTest(unittest.TestCase):
+    def test_build_markdown_chunks_adds_overlap_between_sections(self) -> None:
+        chunks = build_markdown_chunks(
+            Path("notes.md"),
+            "\n".join(
+                [
+                    "# Intro",
+                    "line 1",
+                    "line 2",
+                    "# Next",
+                    "line 3",
+                    "line 4",
+                ]
+            ),
+            overlap_lines=2,
+            max_chunk_size=80,
+        )
+
+        self.assertEqual([chunk.chunk_id for chunk in chunks], ["section-1", "section-2"])
+        self.assertEqual(chunks[0].line_start, 1)
+        self.assertEqual(chunks[0].line_end, 3)
+        self.assertEqual(chunks[1].line_start, 2)
+        self.assertEqual(chunks[1].metadata["base_line_start"], 4)
+        self.assertEqual(chunks[1].metadata["overlap_lines"], 2)
+        self.assertIn("line 2", chunks[1].text)
+        self.assertIn("# Next", chunks[1].text)
+
+    def test_build_markdown_chunks_splits_long_section_by_paragraphs(self) -> None:
+        text = "\n".join(
+            [
+                "# Long",
+                "alpha 1",
+                "alpha 2",
+                "",
+                "beta 1",
+                "beta 2",
+                "",
+                "gamma 1",
+                "gamma 2",
+            ]
+        )
+
+        chunks = build_markdown_chunks(
+            Path("notes.md"),
+            text,
+            overlap_lines=1,
+            max_chunk_size=4,
+        )
+
+        self.assertEqual([chunk.chunk_id for chunk in chunks], ["section-1-1", "section-1-2", "section-1-3"])
+        self.assertEqual(chunks[0].metadata["segment_count"], 3)
+        self.assertEqual(chunks[1].line_start, 3)
+        self.assertEqual(chunks[1].metadata["base_line_start"], 5)
+        self.assertIn("alpha 2", chunks[1].text)
+        self.assertIn("beta 1", chunks[1].text)
+        self.assertIn("gamma 1", chunks[2].text)
+
+    def test_build_markdown_chunks_splits_plain_text_files(self) -> None:
+        text = "\n".join([f"line {index}" for index in range(1, 8)])
+
+        chunks = build_markdown_chunks(
+            Path("plain.md"),
+            text,
+            overlap_lines=1,
+            max_chunk_size=3,
+        )
+
+        self.assertEqual([chunk.chunk_id for chunk in chunks], ["full-file-1", "full-file-2", "full-file-3"])
+        self.assertEqual(chunks[1].line_start, 3)
+        self.assertEqual(chunks[1].metadata["base_line_start"], 4)
+        self.assertIn("line 3", chunks[1].text)
+
+    def test_build_repo_chunks_adds_overlap_without_changing_base_chunk_ids(self) -> None:
+        text = "\n".join([f"line {index}" for index in range(1, 46)])
+
+        chunks = build_repo_chunks(
+            Path("module.py"),
+            text,
+            overlap_lines=2,
+        )
+
+        self.assertEqual([chunk.chunk_id for chunk in chunks], ["lines-1-40", "lines-41-45"])
+        self.assertEqual(chunks[0].line_start, 1)
+        self.assertEqual(chunks[0].line_end, 40)
+        self.assertEqual(chunks[1].line_start, 39)
+        self.assertEqual(chunks[1].metadata["base_line_start"], 41)
+        self.assertIn("line 39", chunks[1].text)
+
     def test_rerank_retrieval_items_reorders_top_candidates(self) -> None:
         items = [
             RetrievalSearchMatch(

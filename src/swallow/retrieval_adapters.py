@@ -35,6 +35,9 @@ TEXT_SUFFIXES = {
 MARKDOWN_HEADING_RE = re.compile(r"^\s{0,3}#{1,6}\s+(?P<title>.+?)\s*$")
 REPO_SYMBOL_RE = re.compile(r"^\s*(?:def|class|function)\s+([A-Za-z0-9_]+)")
 REPO_CHUNK_LINE_COUNT = 40
+REPO_CHUNK_OVERLAP_LINES = 2
+MARKDOWN_CHUNK_OVERLAP_LINES = 2
+MARKDOWN_MAX_CHUNK_LINES = 80
 SEARCH_TOKEN_RE = re.compile(r"[A-Za-z0-9_./-]+")
 VECTOR_EMBEDDING_DIMENSIONS = resolve_swl_embedding_dimensions()
 SQLITE_VEC_FALLBACK_WARNING = "[WARN] sqlite-vec unavailable, falling back to text search"
@@ -482,7 +485,76 @@ def markdown_heading_level(line: str) -> int:
     return len(stripped) - len(stripped.lstrip("#"))
 
 
-def build_markdown_chunks(path: Path, text: str) -> list[RetrievalChunk]:
+def _expand_range_with_overlap(
+    lines: list[str],
+    line_start: int,
+    line_end: int,
+    *,
+    overlap_lines: int,
+    total_lines: int,
+) -> tuple[int, int]:
+    if overlap_lines <= 0:
+        return line_start, line_end
+    expanded_start = line_start
+    remaining = overlap_lines
+    while expanded_start > 1 and remaining > 0:
+        expanded_start -= 1
+        if lines[expanded_start - 1].strip():
+            remaining -= 1
+    return expanded_start, min(total_lines, line_end)
+
+
+def _split_range_by_max_lines(
+    lines: list[str],
+    *,
+    line_start: int,
+    line_end: int,
+    max_chunk_size: int,
+) -> list[tuple[int, int]]:
+    if line_end < line_start:
+        return []
+    if max_chunk_size <= 0 or (line_end - line_start + 1) <= max_chunk_size:
+        return [(line_start, line_end)]
+
+    ranges: list[tuple[int, int]] = []
+    cursor = line_start
+    while cursor <= line_end:
+        hard_end = min(cursor + max_chunk_size - 1, line_end)
+        split_end = hard_end
+        if hard_end < line_end:
+            for candidate in range(hard_end, cursor, -1):
+                if not lines[candidate - 1].strip():
+                    split_end = candidate - 1
+                    break
+            if split_end < cursor:
+                split_end = hard_end
+
+        while cursor <= split_end and not lines[cursor - 1].strip():
+            cursor += 1
+        while split_end >= cursor and not lines[split_end - 1].strip():
+            split_end -= 1
+        if cursor > split_end:
+            cursor = hard_end + 1
+            continue
+
+        ranges.append((cursor, split_end))
+        cursor = split_end + 1
+        while cursor <= line_end and not lines[cursor - 1].strip():
+            cursor += 1
+    return ranges
+
+
+def _build_chunk_text(lines: list[str], *, line_start: int, line_end: int) -> str:
+    return "\n".join(lines[line_start - 1 : line_end]).strip()
+
+
+def build_markdown_chunks(
+    path: Path,
+    text: str,
+    *,
+    overlap_lines: int = MARKDOWN_CHUNK_OVERLAP_LINES,
+    max_chunk_size: int = MARKDOWN_MAX_CHUNK_LINES,
+) -> list[RetrievalChunk]:
     lines = text.splitlines()
     if not lines:
         return []
@@ -494,55 +566,124 @@ def build_markdown_chunks(path: Path, text: str) -> list[RetrievalChunk]:
             headings.append((index, match.group("title").strip(), markdown_heading_level(line)))
 
     if not headings:
-        return [
-            RetrievalChunk(
-                chunk_id="full-file",
-                title=path.name,
-                title_source="filename",
-                chunk_kind="full_file",
-                line_start=1,
-                line_end=len(lines),
-                text=text,
-                metadata={"heading_level": 0},
+        chunks: list[RetrievalChunk] = []
+        ranges = _split_range_by_max_lines(
+            lines,
+            line_start=1,
+            line_end=len(lines),
+            max_chunk_size=max_chunk_size,
+        )
+        for index, (base_start, base_end) in enumerate(ranges, start=1):
+            chunk_start, chunk_end = _expand_range_with_overlap(
+                lines,
+                base_start,
+                base_end,
+                overlap_lines=overlap_lines,
+                total_lines=len(lines),
             )
-        ]
+            chunk_text = _build_chunk_text(lines, line_start=chunk_start, line_end=chunk_end)
+            if not chunk_text:
+                continue
+            chunk_id = "full-file" if len(ranges) == 1 else f"full-file-{index}"
+            chunks.append(
+                RetrievalChunk(
+                    chunk_id=chunk_id,
+                    title=path.name,
+                    title_source="filename",
+                    chunk_kind="full_file",
+                    line_start=chunk_start,
+                    line_end=chunk_end,
+                    text=chunk_text,
+                    metadata={
+                        "heading_level": 0,
+                        "base_line_start": base_start,
+                        "base_line_end": base_end,
+                        "overlap_lines": overlap_lines,
+                    },
+                )
+            )
+        return chunks
 
     chunks: list[RetrievalChunk] = []
     if headings[0][0] > 1:
         preface_end = headings[0][0] - 1
-        preface_text = "\n".join(lines[:preface_end]).strip()
-        if preface_text:
+        preface_ranges = _split_range_by_max_lines(
+            lines,
+            line_start=1,
+            line_end=preface_end,
+            max_chunk_size=max_chunk_size,
+        )
+        for index, (base_start, base_end) in enumerate(preface_ranges, start=1):
+            chunk_start, chunk_end = _expand_range_with_overlap(
+                lines,
+                base_start,
+                base_end,
+                overlap_lines=overlap_lines,
+                total_lines=len(lines),
+            )
+            preface_text = _build_chunk_text(lines, line_start=chunk_start, line_end=chunk_end)
+            if not preface_text:
+                continue
+            chunk_id = "preface" if len(preface_ranges) == 1 else f"preface-{index}"
             chunks.append(
                 RetrievalChunk(
-                    chunk_id="preface",
+                    chunk_id=chunk_id,
                     title=path.name,
                     title_source="filename",
                     chunk_kind="markdown_preface",
-                    line_start=1,
-                    line_end=preface_end,
+                    line_start=chunk_start,
+                    line_end=chunk_end,
                     text=preface_text,
-                    metadata={"heading_level": 0},
+                    metadata={
+                        "heading_level": 0,
+                        "base_line_start": base_start,
+                        "base_line_end": base_end,
+                        "overlap_lines": overlap_lines,
+                    },
                 )
             )
 
     for index, (line_start, title, heading_level) in enumerate(headings, start=1):
         line_end = headings[index][0] - 1 if index < len(headings) else len(lines)
-        chunk_lines = lines[line_start - 1 : line_end]
-        chunk_text = "\n".join(chunk_lines).strip()
-        if not chunk_text:
-            continue
-        chunks.append(
-            RetrievalChunk(
-                chunk_id=f"section-{index}",
-                title=title,
-                title_source="heading",
-                chunk_kind="markdown_section",
-                line_start=line_start,
-                line_end=line_end,
-                text=chunk_text,
-                metadata={"heading_level": heading_level},
-            )
+        section_ranges = _split_range_by_max_lines(
+            lines,
+            line_start=line_start,
+            line_end=line_end,
+            max_chunk_size=max_chunk_size,
         )
+        for segment_index, (base_start, base_end) in enumerate(section_ranges, start=1):
+            chunk_start, chunk_end = _expand_range_with_overlap(
+                lines,
+                base_start,
+                base_end,
+                overlap_lines=overlap_lines,
+                total_lines=len(lines),
+            )
+            chunk_text = _build_chunk_text(lines, line_start=chunk_start, line_end=chunk_end)
+            if not chunk_text:
+                continue
+            chunk_id = f"section-{index}"
+            if len(section_ranges) > 1:
+                chunk_id = f"section-{index}-{segment_index}"
+            chunks.append(
+                RetrievalChunk(
+                    chunk_id=chunk_id,
+                    title=title,
+                    title_source="heading",
+                    chunk_kind="markdown_section",
+                    line_start=chunk_start,
+                    line_end=chunk_end,
+                    text=chunk_text,
+                    metadata={
+                        "heading_level": heading_level,
+                        "base_line_start": base_start,
+                        "base_line_end": base_end,
+                        "overlap_lines": overlap_lines,
+                        "segment_index": segment_index,
+                        "segment_count": len(section_ranges),
+                    },
+                )
+            )
 
     return chunks
 
@@ -555,30 +696,46 @@ def infer_repo_chunk_title(path: Path, chunk_lines: Iterable[str]) -> tuple[str,
     return path.name, "filename"
 
 
-def build_repo_chunks(path: Path, text: str) -> list[RetrievalChunk]:
+def build_repo_chunks(
+    path: Path,
+    text: str,
+    *,
+    overlap_lines: int = REPO_CHUNK_OVERLAP_LINES,
+) -> list[RetrievalChunk]:
     lines = text.splitlines()
     if not lines:
         return []
 
     chunks: list[RetrievalChunk] = []
     for start_index in range(0, len(lines), REPO_CHUNK_LINE_COUNT):
-        line_start = start_index + 1
-        line_end = min(start_index + REPO_CHUNK_LINE_COUNT, len(lines))
-        chunk_lines = lines[start_index:line_end]
+        base_line_start = start_index + 1
+        base_line_end = min(start_index + REPO_CHUNK_LINE_COUNT, len(lines))
+        line_start, line_end = _expand_range_with_overlap(
+            lines,
+            base_line_start,
+            base_line_end,
+            overlap_lines=overlap_lines,
+            total_lines=len(lines),
+        )
+        chunk_lines = lines[line_start - 1 : line_end]
         chunk_text = "\n".join(chunk_lines).strip()
         if not chunk_text:
             continue
         title, title_source = infer_repo_chunk_title(path, chunk_lines)
         chunks.append(
             RetrievalChunk(
-                chunk_id=f"lines-{line_start}-{line_end}",
+                chunk_id=f"lines-{base_line_start}-{base_line_end}",
                 title=title,
                 title_source=title_source,
                 chunk_kind="repo_lines",
                 line_start=line_start,
                 line_end=line_end,
                 text=chunk_text,
-                metadata={},
+                metadata={
+                    "base_line_start": base_line_start,
+                    "base_line_end": base_line_end,
+                    "overlap_lines": overlap_lines,
+                },
             )
         )
 
