@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from .agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
 from .models import ExecutorResult, TaskCard, TaskState
 
 
@@ -145,6 +146,70 @@ class QualityReviewerAgent:
             lines.append(f"- {item.name}: {item.verdict} - {item.detail}")
         return "\n".join(lines) + "\n"
 
+    def _system_prompt(self) -> str:
+        return (
+            "You are the Swallow Quality Reviewer. Return strict JSON only. "
+            "Evaluate artifact quality semantically and produce verdicts with short details."
+        )
+
+    def _build_llm_prompt(self, state: TaskState, card: TaskCard, *, artifact_path: Path, artifact_text: str) -> str:
+        preview = artifact_text.strip()
+        if len(preview) > 4000:
+            preview = preview[:4000]
+        return "\n".join(
+            [
+                "# Quality Reviewer LLM Task",
+                "",
+                f"task_id: {state.task_id}",
+                f"goal: {card.goal or state.goal}",
+                f"artifact: {artifact_path}",
+                "Return JSON with one key: verdicts.",
+                "verdicts must be a list of objects with: name, verdict, detail.",
+                "Use verdict values pass, warn, or fail.",
+                "Focus on semantic quality dimensions such as coherence, completeness, and actionability.",
+                "",
+                "## Artifact",
+                preview or "(empty)",
+            ]
+        )
+
+    def _combine_overall_verdict(self, verdicts: list[_CriterionVerdict]) -> str:
+        overall = "pass"
+        if any(item.verdict == "fail" for item in verdicts):
+            overall = "fail"
+        elif any(item.verdict == "warn" for item in verdicts):
+            overall = "warn"
+        return overall
+
+    def _normalize_llm_verdicts(self, raw_verdicts: object) -> list[_CriterionVerdict]:
+        if not isinstance(raw_verdicts, list):
+            return []
+        verdicts: list[_CriterionVerdict] = []
+        for item in raw_verdicts:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("name", "")).strip()
+            verdict = str(item.get("verdict", "")).strip().lower()
+            detail = str(item.get("detail", "")).strip()
+            if not name or verdict not in {"pass", "warn", "fail"}:
+                continue
+            verdicts.append(_CriterionVerdict(name=name, verdict=verdict, detail=detail or "semantic review"))
+        return verdicts
+
+    def _build_llm_report(self, artifact_path: Path, overall_verdict: str, verdicts: list[_CriterionVerdict]) -> str:
+        lines = [
+            "# Quality Review",
+            "",
+            "- analysis_method: llm",
+            f"- artifact: {artifact_path}",
+            f"- overall_verdict: {overall_verdict}",
+            "",
+            "## Criteria",
+        ]
+        for item in verdicts:
+            lines.append(f"- {item.name}: {item.verdict} - {item.detail}")
+        return "\n".join(lines) + "\n"
+
     def execute(
         self,
         base_dir: Path,
@@ -159,7 +224,30 @@ class QualityReviewerAgent:
         min_length = self._resolve_min_length(card)
         prompt = self._build_prompt(state, card, artifact_path=artifact_path, criteria=criteria)
         overall_verdict, verdicts = self._evaluate_criteria(artifact_path, criteria, min_length=min_length)
+        analysis_method = "heuristic"
+        llm_usage: dict[str, object] = {}
         output = self._build_report(artifact_path, overall_verdict, verdicts)
+        if artifact_path.exists() and artifact_path.is_file():
+            artifact_text = artifact_path.read_text(encoding="utf-8", errors="replace")
+            try:
+                llm_response = call_agent_llm(
+                    self._build_llm_prompt(state, card, artifact_path=artifact_path, artifact_text=artifact_text),
+                    system=self._system_prompt(),
+                )
+                payload = extract_json_object(llm_response.content)
+                semantic_verdicts = self._normalize_llm_verdicts(payload.get("verdicts", []))
+                if semantic_verdicts:
+                    verdicts = [*verdicts, *semantic_verdicts]
+                    overall_verdict = self._combine_overall_verdict(verdicts)
+                    output = self._build_llm_report(artifact_path, overall_verdict, verdicts)
+                    analysis_method = "llm"
+                    llm_usage = {
+                        "input_tokens": llm_response.input_tokens,
+                        "output_tokens": llm_response.output_tokens,
+                        "model": llm_response.model,
+                    }
+            except (AgentLLMUnavailable, ValueError):
+                pass
         return ExecutorResult(
             executor_name=self.agent_name,
             status="completed" if overall_verdict != "fail" else "failed",
@@ -167,11 +255,14 @@ class QualityReviewerAgent:
             output=output,
             prompt=prompt,
             dialect="plain_text",
+            estimated_input_tokens=int(llm_usage.get("input_tokens", 0) or 0),
+            estimated_output_tokens=int(llm_usage.get("output_tokens", 0) or 0),
             side_effects={
                 "kind": "quality_review",
-                "analysis_method": "heuristic",
+                "analysis_method": analysis_method,
                 "overall_verdict": overall_verdict,
                 "criteria_count": len(verdicts),
+                "llm_usage": llm_usage,
             },
         )
 
