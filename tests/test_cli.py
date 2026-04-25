@@ -7295,6 +7295,93 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(expanded.metadata["expansion_relation_type"], "cites")
         self.assertEqual(expanded.metadata["knowledge_task_relation"], "cross_task")
 
+    def test_end_to_end_local_file_relation_expansion_reaches_task_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            seed_file = tmp_path / "seed.md"
+            seed_file.write_text("# Seed\n\ngraphseed anchor relation closure", encoding="utf-8")
+            linked_file = tmp_path / "linked.md"
+            linked_file.write_text("# Linked\n\ntaxonomy archive bundle only", encoding="utf-8")
+
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "ingest-file", str(seed_file)]), 0)
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "ingest-file", str(linked_file)]), 0)
+            staged = load_staged_candidates(tmp_path)
+            self.assertEqual(len(staged), 2)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Graphseed task",
+                        "--goal",
+                        "Use graphseed anchor",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "knowledge-capture",
+                        task_id,
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        f"file://{seed_file.resolve()}",
+                        "--knowledge-artifact-ref",
+                        str(seed_file),
+                        "--knowledge-artifact-ref",
+                        str(linked_file),
+                        "--knowledge-item",
+                        staged[0].text,
+                        "--knowledge-item",
+                        staged[1].text,
+                        "--knowledge-retrieval-eligible",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "knowledge",
+                        "link",
+                        "knowledge-0001",
+                        "knowledge-0002",
+                        "--type",
+                        "cites",
+                    ]
+                ),
+                0,
+            )
+
+            request = build_task_retrieval_request(load_state(tmp_path, task_id))
+            retrieved = retrieve_context(tmp_path, request=request)
+            expanded = next(item for item in retrieved if item.chunk_id == "knowledge-0002")
+            self.assertEqual(expanded.metadata["expansion_source"], "relation")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                final_state = run_task(tmp_path, task_id, executor_name="mock")
+
+            retrieval_payload = json.loads((tmp_path / ".swl" / "tasks" / task_id / "retrieval.json").read_text(encoding="utf-8"))
+            expanded_payload = next(item for item in retrieval_payload if item["chunk_id"] == "knowledge-0002")
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(expanded_payload["metadata"]["expansion_source"], "relation")
+        self.assertEqual(expanded_payload["metadata"]["expansion_relation_type"], "cites")
+
     def test_retrieve_context_excludes_source_only_verified_knowledge_from_reusable_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -7455,7 +7542,7 @@ class CliLifecycleTest(unittest.TestCase):
         request = build_task_retrieval_request(state)
 
         self.assertEqual(request.query, "Improve retrieval Refine harness boundary")
-        self.assertEqual(request.source_types, ["repo", "notes"])
+        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
         self.assertEqual(request.current_task_id, "request123")
         self.assertEqual(request.limit, 8)
@@ -7508,7 +7595,7 @@ class CliLifecycleTest(unittest.TestCase):
 
         request = captured_request["request"]
         self.assertEqual(request.query, "Request boundary Pass retrieval request explicitly")
-        self.assertEqual(request.source_types, ["repo", "notes"])
+        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
         self.assertEqual(request.current_task_id, "taskrequest")
         self.assertEqual(request.strategy, "system_baseline")
@@ -8263,7 +8350,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[3]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(events[4]["payload"]["count"], 1)
         self.assertEqual(events[4]["payload"]["query"], "Ordered lifecycle Check persisted phase ordering")
-        self.assertEqual(events[4]["payload"]["source_types_requested"], ["repo", "notes"])
+        self.assertEqual(events[4]["payload"]["source_types_requested"], ["repo", "notes", "knowledge"])
         self.assertEqual(events[4]["payload"]["context_layers"], ["workspace", "task"])
         self.assertEqual(events[4]["payload"]["limit"], 8)
         self.assertEqual(events[4]["payload"]["strategy"], "system_baseline")

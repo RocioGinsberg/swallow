@@ -3146,7 +3146,7 @@ def _route_knowledge_to_staged(base_dir: Path, state: TaskState) -> list[StagedC
 def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
     return build_retrieval_request(
         query=f"{state.title} {state.goal}".strip(),
-        source_types=["repo", "notes"],
+        source_types=["repo", "notes", "knowledge"],
         context_layers=["workspace", "task"],
         current_task_id=state.task_id,
         limit=8,
