@@ -22,17 +22,18 @@
 
 - repository_state: `runnable`
 - latest_main_checkpoint_phase: `Phase 56`
-- latest_main_checkpoint_tag: `v1.0.0`
-- current_working_phase: `Phase 56`
-- checkpoint_type: `reviewed_feature_branch_ready_for_merge`
-- active_branch: `feat/phase56-llm-enhanced-knowledge`
-- last_checked: `2026-04-25`
+- latest_main_checkpoint_tag: `v1.2.0`
+- current_working_phase: `Phase 57`
+- checkpoint_type: `implemented_feature_branch_pending_review`
+- active_branch: `feat/phase57-retrieval-quality`
+- last_checked: `2026-04-26`
 
 说明：
 
-- `main` 上最近的稳定公开 tag 仍是 `v1.0.0`，但当前默认开发恢复入口已切到 `feat/phase56-llm-enhanced-knowledge`。
-- Phase 56 已完成实现、测试、review 与 closeout，当前状态为 **ready for merge gate**。
-- 当前默认动作不是继续扩展 Phase 56，而是处理 merge gate / 分支收口，并为 Phase 57 做入口准备。
+- `main` 上最近的稳定公开 tag 仍是 `v1.2.0`。
+- 当前默认开发恢复入口已切到 `feat/phase57-retrieval-quality`。
+- Phase 57 已完成实现、slice 拆 commit 与 closeout 文档收口，当前状态为 **review pending / PR sync ready**。
+- 当前默认动作不是继续扩张 Phase 57，而是处理 review gate、吸收 follow-up，并在通过后准备 PR / merge 材料。
 
 ---
 
@@ -40,16 +41,16 @@
 
 当前推荐从以下状态继续：
 
-- active_branch: `feat/phase56-llm-enhanced-knowledge`
-- active_track: `Core Loop` (Primary) + `Knowledge / RAG` (Secondary)
-- active_phase: `Phase 56`
-- active_slice: `closeout_complete_pending_merge_gate`
-- workflow_status: `phase56_review_approved_ready_for_merge`
+- active_branch: `feat/phase57-retrieval-quality`
+- active_track: `Knowledge / RAG` (Primary) + `Workbench / UX` (Secondary)
+- active_phase: `Phase 57`
+- active_slice: `phase_closeout_ready_for_review`
+- workflow_status: `phase57_implementation_complete_review_pending`
 
 说明：
 
-- 当前默认动作不是继续开发新 slice，而是处理 merge gate / phase 收口后的分支动作。
-- 如 Phase 56 合并完成，则下一轮默认回到 roadmap，选择 Phase 57 kickoff。
+- 当前默认动作不是继续开发新 slice，而是发起 Claude review、处理 review follow-up，并同步 PR 材料。
+- 如 Phase 57 review / merge 完成，则下一轮默认回到 roadmap，选择新的 kickoff 方向。
 
 ---
 
@@ -61,15 +62,15 @@
 2. `docs/active_context.md`
 3. `docs/roadmap.md`
 4. `current_state.md`
-5. `docs/plans/phase56/closeout.md`
-6. `docs/plans/phase56/review_comments.md`
-7. `docs/plans/phase56/design_decision.md`
+5. `docs/plans/phase57/closeout.md`
+6. `docs/plans/phase57/design_decision.md`
+7. `docs/plans/phase57/risk_assessment.md`
 
 仅在需要时再读取：
 
-- `docs/plans/phase55/kickoff.md`
-- `docs/plans/phase55/design_decision.md`
-- `docs/plans/phase55/risk_assessment.md`
+- `docs/plans/phase57/kickoff.md`
+- `docs/plans/phase57/pre_kickoff_real_data_validation.md`
+- 后续新增的 `docs/plans/phase57/review_comments.md`
 - `pr.md`
 - 历史 phase closeout / review_comments
 
@@ -80,20 +81,22 @@
 恢复工作前，建议至少执行以下检查：
 
 ```bash
-.venv/bin/python -m pytest tests/test_cli.py tests/test_specialist_agents.py tests/test_executor_protocol.py tests/test_executor_async.py -q --tb=no
+.venv/bin/python -m pytest tests/test_retrieval_adapters.py tests/test_doctor.py
+.venv/bin/python -m pytest tests/test_cli.py -k "literature_specialist_input_context or persists_route_dialect_for_default_aider_route"
+.venv/bin/python -m pytest tests/test_specialist_agents.py -k "literature_specialist"
 git show --no-patch --decorate --oneline HEAD
-git log --oneline -4
+git log --oneline -6
 ```
 
 ---
 
 ## 当前已知边界
 
-- HTTP executor 与 agent LLM 调用现优先消费 API usage；无 usage 时仍回退到估算。
-- `LiteratureSpecialist` / `QualityReviewer` 已具备 LLM 增强能力，但仍保持 heuristic fallback，不依赖 LLM 可用性才能运行。
-- relation suggestions 当前以 `executor_side_effects.json` 作为 artifact truth，并通过 `swl knowledge apply-suggestions` gated 应用；不自动落库。
-- 本阶段不包含 agentic retrieval、多跳检索编排或 relation suggestion 的独立 proposal store。
-- Web Control Center 仍保持只读，不引入新的写路径。
+- vector retrieval 现要求 neural embedding；embedding API 不可用时显式失败，不再回退到 local hash embedding。
+- 仅 `sqlite-vec` 缺失时，检索退回 text fallback；这保证了检索链路在缺少向量扩展时仍可用，但不会掩盖 embedding 配置错误。
+- `retrieve_context()` 已具备 LLM rerank，但 rerank 是 additive 排序增强，不改变底层召回 truth，也不保证在所有真实数据分布下都显性进入 top-K。
+- chunking 优化仅作用于 retrieve-time 分段，不回填历史 canonical text 或 staged knowledge truth。
+- `literature-specialist` 的 CLI 输入透传已贯通到 `TaskState.input_context` / `TaskCard.input_context`，但未引入新的 specialist 配置层或生命周期语义。
 
 ---
 
@@ -123,7 +126,7 @@ curl http://localhost:3000/api/status
 ```bash
 cd /home/rocio/projects/swallow
 sed -n '1,220p' docs/active_context.md
-sed -n '1,220p' docs/plans/phase56/closeout.md
+sed -n '1,260p' docs/plans/phase57/closeout.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
