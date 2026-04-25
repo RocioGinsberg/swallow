@@ -21,17 +21,18 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_completed_phase: `Phase 51`
-- latest_completed_slice: `Policy Closure & Specialist Agent Lifecycle`
-- checkpoint_type: `main_tagged_release`
-- current_tag: `v0.8.0`
-- last_checked: `2026-04-24`
+- latest_main_checkpoint_phase: `Phase 54`
+- latest_main_checkpoint_tag: `v1.0.0`
+- current_working_phase: `Phase 55`
+- checkpoint_type: `reviewed_feature_branch_ready_for_merge`
+- active_branch: `feat/phase55-knowledge-graph-rag`
+- last_checked: `2026-04-25`
 
 说明：
 
-- Phase 51 已完成实现、review、merge 与 tag，当前 `main` 对齐 `v0.8.0` 稳定 checkpoint。
-- `docs/plans/phase51/closeout.md` 已反映上一轮稳定里程碑收口结论。
-- 当前仓库的默认恢复入口不再是 Phase 49/50 的 kickoff，而是已完成验证的 Phase 52 feature branch 收口状态。
+- `main` 上最近的稳定公开 checkpoint 仍是 `Phase 54 / v1.0.0`。
+- 当前默认开发恢复入口已切到 `feat/phase55-knowledge-graph-rag`。
+- Phase 55 已完成实现、测试、review 与 closeout，当前状态为 **ready for PR / merge gate**。
 
 ---
 
@@ -39,16 +40,16 @@
 
 当前推荐从以下状态继续：
 
-- active_branch: `feat/phase52_execution_topology`
-- active_track: `Core Loop` (Primary) + `Execution Topology` (Secondary)
-- active_phase: `Phase 52`
-- active_slice: `pr closeout / tag preflight`
-- workflow_status: `phase52_pr_ready_tag_preflight_pending`
+- active_branch: `feat/phase55-knowledge-graph-rag`
+- active_track: `Knowledge / RAG` (Primary) + `Agent Taxonomy` (Secondary)
+- active_phase: `Phase 55`
+- active_slice: `implementation_complete_pending_merge_gate`
+- workflow_status: `phase55_review_approved_ready_for_merge`
 
 说明：
 
-- `main` 的稳定基线仍是 `v0.8.0 / Phase 51`，但当前日常开发入口已位于 `feat/phase52_execution_topology`。
-- Phase 52 的实现、eval、review follow-up 与 PR 材料已完成；当前默认继续动作是 merge 决策与 tag preflight，而不是重新 kickoff。
+- 当前默认动作不是继续开发新 slice，而是处理 merge gate / PR / phase closeout 后的分支收口。
+- 如 Phase 55 合并完成，则下一轮默认回到 roadmap，选择 Phase 56 的 kickoff。
 
 ---
 
@@ -60,13 +61,15 @@
 2. `docs/active_context.md`
 3. `docs/roadmap.md`
 4. `current_state.md`
-5. `docs/plans/phase52/closeout.md`
+5. `docs/plans/phase55/closeout.md`
+6. `docs/plans/phase55/review_comments.md`
 
 仅在需要时再读取：
 
-- `docs/concerns_backlog.md`
-- `docs/plans/phase51/closeout.md`
-- `docs/system_tracks.md`
+- `docs/plans/phase55/kickoff.md`
+- `docs/plans/phase55/design_decision.md`
+- `docs/plans/phase55/risk_assessment.md`
+- `pr.md`
 - 历史 phase closeout / review_comments
 
 ---
@@ -76,8 +79,7 @@
 恢复工作前，建议至少执行以下检查：
 
 ```bash
-.venv/bin/python -m pytest --tb=short
-.venv/bin/python -m pytest -m eval --tb=short
+.venv/bin/python -m pytest tests/test_ingestion_pipeline.py tests/test_knowledge_relations.py tests/test_retrieval_adapters.py tests/test_sqlite_store.py tests/test_cli.py -k 'ingest or knowledge or retrieval or sqlite_task_store' --tb=short
 git show --no-patch --decorate --oneline HEAD
 git log --oneline -3
 ```
@@ -86,16 +88,12 @@ git log --oneline -3
 
 ## 当前已知边界
 
-- Web Control Center 仍保持严格只读；不会写入 `.swl/`，也未引入前端构建工具链。
-- SQLite 当前已同时承载 `TaskState` / `EventLog` 与知识层 truth；下一轮默认不再回退到知识层“双重真相”整理。
-- 默认 store 已切到 SQLite，但过渡期仍保留 file mirror/fallback；旧 `.swl/` 目录仍建议通过 `swl migrate` 回填。
-- `swl knowledge migrate`、`LibrarianAgent` 与 `sqlite-vec` 文本降级检索已成为 `v0.8.0` 稳定基线。
-- `AsyncCLIAgentExecutor` 已成为当前 feature branch 的 CLI agent 统一 async 入口；Runtime v0 仍通过 harness bridge 接入既有同步执行链，merge 前仍以 feature branch 验证结果为准。
-- `meta-optimize` 仍是只读分析入口，不会自动采纳策略提案，也不会直接修改 route policy 或 task state。
-- route policy / capability profile 当前已兼容 legacy route alias（`local-codex -> local-aider`，`local-cline -> local-claude-code`）。
-- `TaskCard.token_cost_limit` 仍按 task 全生命周期聚合真实 `token_cost`，不是按单 card 独立结算。
-- 一致性抽检仍是手动、只读入口，不自动进入主任务闭环。
-- 真实执行环境下的外部网络、代理与 provider 连通性仍受本地环境约束，`swl doctor` 只负责诊断，不负责修复。
+- `knowledge_relations` 当前是 SQLite truth，不提供文件 mirror。
+- relation expansion 参数已集中到 `retrieval_config.py`，但仍是代码默认值，不是 operator-facing runtime config。
+- task-run 默认 retrieval 已包含 `knowledge` source；这使 graph-aware retrieval 进入正常执行主链。
+- knowledge relation 当前仍依赖全局唯一 `object_id` 假设；若未来 task-local object id 语义改变，需要重新审视关系键设计。
+- 本阶段不包含 relation 自动推断、graph summarization、community detection 或 LLM-enhanced retrieval。
+- Web Control Center 仍保持只读，不引入新的写路径。
 
 ---
 
@@ -105,9 +103,9 @@ Phase 46 依赖的 Docker 栈位于 `~/ai-stack/`，与仓库分离。
 
 ```bash
 cd ~/ai-stack
-docker compose up -d new-api      # 起 new-api（SQLite，端口 3000）
-docker compose up -d openwebui    # 可选，起对话面板（端口 3002）
-docker compose ps                 # 确认容器状态
+docker compose up -d new-api
+docker compose up -d openwebui
+docker compose ps
 ```
 
 验证 new-api 可达：
@@ -115,8 +113,6 @@ docker compose ps                 # 确认容器状态
 ```bash
 curl http://localhost:3000/api/status
 ```
-
-WireGuard 出口代理（`HTTPS_PROXY`）当前未启用，需要时取消 `docker-compose.yml` 中的注释并重启 new-api。
 
 ---
 
@@ -126,7 +122,8 @@ WireGuard 出口代理（`HTTPS_PROXY`）当前未启用，需要时取消 `dock
 
 ```bash
 cd /home/rocio/projects/swallow
-sed -n '1,160p' current_state.md
+sed -n '1,220p' docs/active_context.md
+sed -n '1,220p' docs/plans/phase55/closeout.md
 ```
 
-然后按”恢复时优先读取”的顺序进入当前工作上下文。
+然后按“恢复时优先读取”的顺序进入当前工作上下文。

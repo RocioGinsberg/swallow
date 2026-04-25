@@ -11,12 +11,61 @@ from swallow.ingestion.pipeline import (
     EXTERNAL_SESSION_SOURCE_KIND,
     build_ingestion_report,
     build_ingestion_summary,
+    ingest_local_file,
     run_ingestion_pipeline,
 )
 from swallow.staged_knowledge import load_staged_candidates
 
 
 class IngestionPipelineTest(unittest.TestCase):
+    def test_ingest_local_markdown_creates_staged_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "notes.md"
+            source.write_text(
+                "# Decisions\nKeep staged review manual.\n\n## Constraints\nNo realtime sync.",
+                encoding="utf-8",
+            )
+
+            result = ingest_local_file(tmp_path, source)
+            staged_candidates = load_staged_candidates(tmp_path)
+
+        self.assertEqual(result.detected_format, "local_markdown")
+        self.assertEqual(len(result.staged_candidates), 2)
+        self.assertEqual(len(staged_candidates), 2)
+        self.assertEqual(staged_candidates[0].source_kind, "local_file_capture")
+        self.assertEqual(staged_candidates[0].source_ref, f"file://{source.resolve()}")
+        self.assertTrue(staged_candidates[0].source_task_id.startswith("ingest-notes"))
+        self.assertIn("Decisions", staged_candidates[0].text)
+        self.assertIn("Constraints", staged_candidates[1].text)
+
+    def test_ingest_local_text_creates_single_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "notes.txt"
+            source.write_text("Keep the operator gate explicit.", encoding="utf-8")
+
+            result = ingest_local_file(tmp_path, source, dry_run=True)
+
+        self.assertEqual(result.detected_format, "local_text")
+        self.assertEqual(len(result.staged_candidates), 1)
+        self.assertEqual(result.staged_candidates[0].source_kind, "local_file_capture")
+        self.assertEqual(result.staged_candidates[0].source_ref, f"file://{source.resolve()}")
+        self.assertEqual(result.staged_candidates[0].text, "Keep the operator gate explicit.")
+
+    def test_ingest_local_file_dry_run_does_not_persist_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "notes.md"
+            source.write_text("# Summary\nKeep local ingest separate.", encoding="utf-8")
+
+            result = ingest_local_file(tmp_path, source, dry_run=True)
+            staged_candidates = load_staged_candidates(tmp_path)
+
+        self.assertTrue(result.dry_run)
+        self.assertEqual(len(result.staged_candidates), 1)
+        self.assertEqual(staged_candidates, [])
+
     def test_run_ingestion_pipeline_persists_staged_candidates(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

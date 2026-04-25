@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import swallow.retrieval as retrieval_module
 from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, retrieve_context
+from swallow.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG
 from swallow.retrieval_adapters import (
     RetrievalSearchDocument,
     RetrievalSearchMatch,
@@ -17,6 +18,8 @@ from swallow.retrieval_adapters import (
     VectorRetrievalAdapter,
     VectorRetrievalUnavailable,
 )
+from swallow.knowledge_relations import create_knowledge_relation
+from swallow.models import RetrievalRequest
 from swallow.store import save_knowledge_objects
 
 
@@ -170,6 +173,189 @@ class RetrievalAdaptersTest(unittest.TestCase):
         self.assertEqual(items[0].metadata["knowledge_retrieval_mode"], "vector")
         self.assertEqual(items[0].metadata["knowledge_retrieval_adapter"], "sqlite_vec")
         self.assertEqual(items[0].chunk_id, "knowledge-0001")
+
+    def test_retrieve_context_relation_expansion_includes_linked_objects(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-a",
+                [
+                    {
+                        "object_id": "knowledge-a",
+                        "text": "Seed knowledge about retrieval graph expansion.",
+                        "stage": "verified",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/task-a/artifacts/summary.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                    }
+                ],
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "task-b",
+                [
+                    {
+                        "object_id": "knowledge-b",
+                        "text": "Linked knowledge should appear through relation expansion.",
+                        "stage": "verified",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/task-b/artifacts/summary.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                    }
+                ],
+            )
+            create_knowledge_relation(
+                tmp_path,
+                source_object_id="knowledge-a",
+                target_object_id="knowledge-b",
+                relation_type="cites",
+                confidence=1.0,
+            )
+
+            def _mock_vector_search(documents, *, query_text, query_plan, limit):
+                seed = next(document for document in documents if document.chunk_id == "knowledge-a")
+                return [
+                    RetrievalSearchMatch(
+                        document=seed,
+                        score=20,
+                        score_breakdown={"vector_bonus": 4},
+                        matched_terms=["retrieval", "graph"],
+                        adapter_name="sqlite_vec",
+                    )
+                ]
+
+            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                items = retrieve_context(
+                    tmp_path,
+                    query="retrieval graph expansion",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    limit=8,
+                )
+
+        self.assertEqual(items[0].chunk_id, "knowledge-a")
+        expanded = next(item for item in items if item.chunk_id == "knowledge-b")
+        self.assertEqual(expanded.metadata["expansion_source"], "relation")
+        self.assertEqual(expanded.metadata["expansion_depth"], 1)
+        self.assertEqual(expanded.metadata["expansion_relation_type"], "cites")
+
+    def test_retrieve_context_relation_expansion_respects_depth_limit_and_decay(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            for task_id, object_id, text in [
+                ("task-a", "knowledge-a", "Seed retrieval knowledge."),
+                ("task-b", "knowledge-b", "First hop linked knowledge."),
+                ("task-c", "knowledge-c", "Second hop linked knowledge."),
+                ("task-d", "knowledge-d", "Third hop linked knowledge."),
+            ]:
+                save_knowledge_objects(
+                    tmp_path,
+                    task_id,
+                    [
+                        {
+                            "object_id": object_id,
+                            "text": text,
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": f".swl/tasks/{task_id}/artifacts/summary.md",
+                            "retrieval_eligible": True,
+                            "knowledge_reuse_scope": "retrieval_candidate",
+                        }
+                    ],
+                )
+            create_knowledge_relation(tmp_path, source_object_id="knowledge-a", target_object_id="knowledge-b", relation_type="related_to")
+            create_knowledge_relation(tmp_path, source_object_id="knowledge-b", target_object_id="knowledge-c", relation_type="extends")
+            create_knowledge_relation(tmp_path, source_object_id="knowledge-c", target_object_id="knowledge-d", relation_type="refines")
+
+            def _mock_vector_search(documents, *, query_text, query_plan, limit):
+                seed = next(document for document in documents if document.chunk_id == "knowledge-a")
+                return [
+                    RetrievalSearchMatch(
+                        document=seed,
+                        score=20,
+                        score_breakdown={"vector_bonus": 4},
+                        matched_terms=["retrieval"],
+                        adapter_name="sqlite_vec",
+                    )
+                ]
+
+            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                items = retrieve_context(
+                    tmp_path,
+                    request=RetrievalRequest(
+                        query="seed retrieval knowledge",
+                        source_types=[KNOWLEDGE_SOURCE_TYPE],
+                        context_layers=["task", "history"],
+                        current_task_id="task-a",
+                        limit=8,
+                        strategy="system_baseline",
+                    ),
+                )
+
+        item_ids = [item.chunk_id for item in items]
+        self.assertIn("knowledge-b", item_ids)
+        self.assertIn("knowledge-c", item_ids)
+        self.assertNotIn("knowledge-d", item_ids)
+        hop_one = next(item for item in items if item.chunk_id == "knowledge-b")
+        hop_two = next(item for item in items if item.chunk_id == "knowledge-c")
+        self.assertGreater(hop_one.score, hop_two.score)
+        self.assertEqual(hop_two.metadata["expansion_depth"], DEFAULT_RELATION_EXPANSION_CONFIG.depth_limit)
+
+    def test_retrieve_context_relation_expansion_does_not_duplicate_seed_items(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            for task_id, object_id, text in [
+                ("task-a", "knowledge-a", "Seed retrieval knowledge."),
+                ("task-b", "knowledge-b", "Linked retrieval knowledge also directly matches."),
+            ]:
+                save_knowledge_objects(
+                    tmp_path,
+                    task_id,
+                    [
+                        {
+                            "object_id": object_id,
+                            "text": text,
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": f".swl/tasks/{task_id}/artifacts/summary.md",
+                            "retrieval_eligible": True,
+                            "knowledge_reuse_scope": "retrieval_candidate",
+                        }
+                    ],
+                )
+            create_knowledge_relation(tmp_path, source_object_id="knowledge-a", target_object_id="knowledge-b", relation_type="cites")
+
+            def _mock_vector_search(documents, *, query_text, query_plan, limit):
+                seed_a = next(document for document in documents if document.chunk_id == "knowledge-a")
+                seed_b = next(document for document in documents if document.chunk_id == "knowledge-b")
+                return [
+                    RetrievalSearchMatch(
+                        document=seed_a,
+                        score=20,
+                        score_breakdown={"vector_bonus": 4},
+                        matched_terms=["seed"],
+                        adapter_name="sqlite_vec",
+                    ),
+                    RetrievalSearchMatch(
+                        document=seed_b,
+                        score=18,
+                        score_breakdown={"vector_bonus": 3},
+                        matched_terms=["linked"],
+                        adapter_name="sqlite_vec",
+                    ),
+                ]
+
+            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                items = retrieve_context(
+                    tmp_path,
+                    query="seed linked retrieval knowledge",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    limit=8,
+                )
+
+        self.assertEqual([item.chunk_id for item in items].count("knowledge-b"), 1)
 
 
 if __name__ == "__main__":

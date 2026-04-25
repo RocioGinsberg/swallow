@@ -5532,6 +5532,10 @@ class CliLifecycleTest(unittest.TestCase):
             (["knowledge", "stage-promote", "--help"], "Promote one pending staged candidate into the canonical registry."),
             (["knowledge", "stage-reject", "--help"], "Reject one pending staged candidate."),
             (["knowledge", "canonical-audit", "--help"], "Audit canonical registry health."),
+            (["knowledge", "ingest-file", "--help"], "Ingest one local markdown/text file into staged knowledge."),
+            (["knowledge", "link", "--help"], "Create one explicit relation between two knowledge objects."),
+            (["knowledge", "unlink", "--help"], "Delete one explicit relation between two knowledge objects."),
+            (["knowledge", "links", "--help"], "List explicit relations for one knowledge object."),
         ]
 
         for argv, expected in command_expectations:
@@ -5610,6 +5614,134 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("## Decisions (1)", output)
         self.assertIn("## Constraints (1)", output)
         self.assertIn("## Rejected Alternatives (0)", output)
+
+    def test_cli_knowledge_ingest_file_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "notes.md"
+            source.write_text("# Decisions\nKeep staged review manual.", encoding="utf-8")
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "ingest-file", str(source)]), 0)
+
+            staged_records = load_staged_candidates(tmp_path)
+
+        output = stdout.getvalue()
+        self.assertIn("# Ingestion Report", output)
+        self.assertIn("dry_run: no", output)
+        self.assertEqual(len(staged_records), 1)
+        self.assertEqual(staged_records[0].source_kind, "local_file_capture")
+        self.assertEqual(staged_records[0].source_ref, f"file://{source.resolve()}")
+
+    def test_cli_knowledge_link_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-a",
+                [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}],
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "task-b",
+                [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}],
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "link",
+                            "knowledge-a",
+                            "knowledge-b",
+                            "--type",
+                            "cites",
+                            "--confidence",
+                            "0.8",
+                            "--context",
+                            "A cites B",
+                        ]
+                    ),
+                    0,
+                )
+
+        output = stdout.getvalue()
+        self.assertIn("relation_id: relation-", output)
+        self.assertIn("relation_type: cites", output)
+        self.assertIn("source_object_id: knowledge-a", output)
+        self.assertIn("target_object_id: knowledge-b", output)
+
+    def test_cli_knowledge_links_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(tmp_path, "task-a", [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}])
+            save_knowledge_objects(tmp_path, "task-b", [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}])
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "knowledge",
+                        "link",
+                        "knowledge-a",
+                        "knowledge-b",
+                        "--type",
+                        "related_to",
+                    ]
+                ),
+                0,
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "links", "knowledge-a"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("# Knowledge Relations", output)
+        self.assertIn("object_id: knowledge-a", output)
+        self.assertIn("relation_type: related_to", output)
+        self.assertIn("counterparty_object_id: knowledge-b", output)
+
+    def test_cli_knowledge_unlink_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(tmp_path, "task-a", [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}])
+            save_knowledge_objects(tmp_path, "task-b", [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}])
+            create_stdout = StringIO()
+
+            with redirect_stdout(create_stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "link",
+                            "knowledge-a",
+                            "knowledge-b",
+                            "--type",
+                            "extends",
+                        ]
+                    ),
+                    0,
+                )
+
+            relation_line = next(
+                line for line in create_stdout.getvalue().splitlines() if line.startswith("relation_id: ")
+            )
+            relation_id = relation_line.split(": ", 1)[1]
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "unlink", relation_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"deleted_relation_id: {relation_id}", output)
 
     def test_task_grounding_prints_grounding_evidence_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -7087,6 +7219,169 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(items[0].metadata["knowledge_task_id"], "task999")
         self.assertEqual(items[0].metadata["knowledge_task_relation"], "cross_task")
 
+    def test_retrieve_context_includes_relation_expansion_metadata_for_linked_knowledge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task123",
+                [
+                    {
+                        "object_id": "knowledge-0001",
+                        "text": "Current task graphseed retrieval anchor.",
+                        "stage": "verified",
+                        "source_kind": "external_knowledge_capture",
+                        "source_ref": "chat://task123",
+                        "task_linked": True,
+                        "captured_at": "2026-04-25T00:00:00+00:00",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/task123/artifacts/summary.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                    }
+                ],
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "task999",
+                [
+                    {
+                        "object_id": "knowledge-0002",
+                        "text": "Operator note about taxonomy closure and archived evidence bundle.",
+                        "stage": "verified",
+                        "source_kind": "external_knowledge_capture",
+                        "source_ref": "chat://task999",
+                        "task_linked": True,
+                        "captured_at": "2026-04-25T00:00:00+00:00",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/task999/artifacts/summary.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                    }
+                ],
+            )
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "link",
+                            "knowledge-0001",
+                            "knowledge-0002",
+                            "--type",
+                            "cites",
+                        ]
+                    ),
+                    0,
+                )
+
+            items = retrieve_context(
+                tmp_path,
+                request=RetrievalRequest(
+                    query="graphseed retrieval anchor",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    context_layers=["task", "history"],
+                    current_task_id="task123",
+                    limit=8,
+                    strategy="system_baseline",
+                ),
+            )
+
+        expanded = next(item for item in items if item.chunk_id == "knowledge-0002")
+        self.assertEqual(expanded.metadata["expansion_source"], "relation")
+        self.assertEqual(expanded.metadata["expansion_relation_type"], "cites")
+        self.assertEqual(expanded.metadata["knowledge_task_relation"], "cross_task")
+
+    def test_end_to_end_local_file_relation_expansion_reaches_task_run(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            seed_file = tmp_path / "seed.md"
+            seed_file.write_text("# Seed\n\ngraphseed anchor relation closure", encoding="utf-8")
+            linked_file = tmp_path / "linked.md"
+            linked_file.write_text("# Linked\n\ntaxonomy archive bundle only", encoding="utf-8")
+
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "ingest-file", str(seed_file)]), 0)
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "ingest-file", str(linked_file)]), 0)
+            staged = load_staged_candidates(tmp_path)
+            self.assertEqual(len(staged), 2)
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "Graphseed task",
+                        "--goal",
+                        "Use graphseed anchor",
+                        "--workspace-root",
+                        str(tmp_path),
+                    ]
+                ),
+                0,
+            )
+            task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "knowledge-capture",
+                        task_id,
+                        "--knowledge-stage",
+                        "verified",
+                        "--knowledge-source",
+                        f"file://{seed_file.resolve()}",
+                        "--knowledge-artifact-ref",
+                        str(seed_file),
+                        "--knowledge-artifact-ref",
+                        str(linked_file),
+                        "--knowledge-item",
+                        staged[0].text,
+                        "--knowledge-item",
+                        staged[1].text,
+                        "--knowledge-retrieval-eligible",
+                    ]
+                ),
+                0,
+            )
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "knowledge",
+                        "link",
+                        "knowledge-0001",
+                        "knowledge-0002",
+                        "--type",
+                        "cites",
+                    ]
+                ),
+                0,
+            )
+
+            request = build_task_retrieval_request(load_state(tmp_path, task_id))
+            retrieved = retrieve_context(tmp_path, request=request)
+            expanded = next(item for item in retrieved if item.chunk_id == "knowledge-0002")
+            self.assertEqual(expanded.metadata["expansion_source"], "relation")
+
+            with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "mock"}, clear=False):
+                final_state = run_task(tmp_path, task_id, executor_name="mock")
+
+            retrieval_payload = json.loads((tmp_path / ".swl" / "tasks" / task_id / "retrieval.json").read_text(encoding="utf-8"))
+            expanded_payload = next(item for item in retrieval_payload if item["chunk_id"] == "knowledge-0002")
+
+        self.assertEqual(final_state.status, "completed")
+        self.assertEqual(expanded_payload["metadata"]["expansion_source"], "relation")
+        self.assertEqual(expanded_payload["metadata"]["expansion_relation_type"], "cites")
+
     def test_retrieve_context_excludes_source_only_verified_knowledge_from_reusable_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -7247,7 +7542,7 @@ class CliLifecycleTest(unittest.TestCase):
         request = build_task_retrieval_request(state)
 
         self.assertEqual(request.query, "Improve retrieval Refine harness boundary")
-        self.assertEqual(request.source_types, ["repo", "notes"])
+        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
         self.assertEqual(request.current_task_id, "request123")
         self.assertEqual(request.limit, 8)
@@ -7300,7 +7595,7 @@ class CliLifecycleTest(unittest.TestCase):
 
         request = captured_request["request"]
         self.assertEqual(request.query, "Request boundary Pass retrieval request explicitly")
-        self.assertEqual(request.source_types, ["repo", "notes"])
+        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
         self.assertEqual(request.current_task_id, "taskrequest")
         self.assertEqual(request.strategy, "system_baseline")
@@ -8055,7 +8350,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[3]["payload"]["execution_lifecycle"], "prepared")
         self.assertEqual(events[4]["payload"]["count"], 1)
         self.assertEqual(events[4]["payload"]["query"], "Ordered lifecycle Check persisted phase ordering")
-        self.assertEqual(events[4]["payload"]["source_types_requested"], ["repo", "notes"])
+        self.assertEqual(events[4]["payload"]["source_types_requested"], ["repo", "notes", "knowledge"])
         self.assertEqual(events[4]["payload"]["context_layers"], ["workspace", "task"])
         self.assertEqual(events[4]["payload"]["limit"], 8)
         self.assertEqual(events[4]["payload"]["strategy"], "system_baseline")

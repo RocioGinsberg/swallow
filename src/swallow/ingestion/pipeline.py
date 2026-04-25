@@ -12,9 +12,11 @@ from .parsers import ConversationTurn, parse_ingestion_path
 
 
 EXTERNAL_SESSION_SOURCE_KIND = "external_session_ingestion"
+LOCAL_FILE_SOURCE_KIND = "local_file_capture"
 DEFAULT_INGESTION_SUBMITTED_BY = "swl_ingest"
 DEFAULT_INGESTION_TAXONOMY_ROLE = LIBRARIAN_SYSTEM_ROLE
 DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY = "staged-knowledge"
+LOCAL_MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 
 
 @dataclass(slots=True)
@@ -63,6 +65,48 @@ def run_ingestion_pipeline(
     )
 
 
+def ingest_local_file(
+    base_dir: Path,
+    source_path: Path,
+    *,
+    dry_run: bool = False,
+    submitted_by: str = DEFAULT_INGESTION_SUBMITTED_BY,
+    taxonomy_role: str = DEFAULT_INGESTION_TAXONOMY_ROLE,
+    taxonomy_memory_authority: str = DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY,
+) -> IngestionPipelineResult:
+    resolved_source = source_path.resolve()
+    candidate_texts = parse_local_file(resolved_source)
+    source_task_id = _build_source_task_id(resolved_source)
+    source_ref = f"file://{resolved_source}"
+
+    staged_candidates = [
+        StagedCandidate(
+            candidate_id="",
+            text=text,
+            source_task_id=source_task_id,
+            source_kind=LOCAL_FILE_SOURCE_KIND,
+            source_ref=source_ref,
+            source_object_id=_build_source_object_id(source_task_id, index),
+            submitted_by=submitted_by,
+            taxonomy_role=taxonomy_role,
+            taxonomy_memory_authority=taxonomy_memory_authority,
+        )
+        for index, text in enumerate(candidate_texts, start=1)
+        if text.strip()
+    ]
+
+    persisted_candidates = staged_candidates
+    if not dry_run:
+        persisted_candidates = [submit_staged_candidate(base_dir, candidate) for candidate in staged_candidates]
+
+    return IngestionPipelineResult(
+        source_path=str(resolved_source),
+        detected_format=_resolve_local_file_format(resolved_source),
+        staged_candidates=persisted_candidates,
+        dry_run=dry_run,
+    )
+
+
 def build_staged_candidates(
     fragments: list[ExtractedFragment],
     *,
@@ -89,6 +133,17 @@ def build_staged_candidates(
             )
         )
     return candidates
+
+
+def parse_local_file(source_path: Path) -> list[str]:
+    text = source_path.read_text(encoding="utf-8", errors="replace")
+    normalized = text.replace("\r\n", "\n").strip()
+    if not normalized:
+        return []
+    if source_path.suffix.lower() in {".md", ".markdown"}:
+        sections = _split_local_markdown(normalized)
+        return sections or [normalized]
+    return [normalized]
 
 
 def build_ingestion_summary(result: IngestionPipelineResult) -> str:
@@ -226,3 +281,30 @@ def _resolve_detected_format(source_path: Path, format_hint: str | None) -> str:
     if source_path.suffix.lower() in {".md", ".markdown"}:
         return "markdown"
     return "auto"
+
+
+def _resolve_local_file_format(source_path: Path) -> str:
+    if source_path.suffix.lower() in {".md", ".markdown"}:
+        return "local_markdown"
+    return "local_text"
+
+
+def _split_local_markdown(text: str) -> list[str]:
+    lines = text.split("\n")
+    headings: list[tuple[str, int]] = []
+    for index, line in enumerate(lines):
+        match = LOCAL_MARKDOWN_HEADING_PATTERN.match(line.strip())
+        if match:
+            headings.append((match.group(2).strip(), index))
+
+    if not headings:
+        return []
+
+    sections: list[str] = []
+    for current_index, (heading, line_index) in enumerate(headings):
+        next_line_index = headings[current_index + 1][1] if current_index + 1 < len(headings) else len(lines)
+        body = "\n".join(lines[line_index + 1 : next_line_index]).strip()
+        section = f"{heading}\n\n{body}".strip() if body else heading
+        if section:
+            sections.append(section)
+    return sections

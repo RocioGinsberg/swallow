@@ -74,6 +74,27 @@ CREATE TABLE IF NOT EXISTS knowledge_migrations (
     updated_at TEXT NOT NULL
 )
 """
+CREATE_KNOWLEDGE_RELATIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS knowledge_relations (
+    relation_id TEXT PRIMARY KEY,
+    source_object_id TEXT NOT NULL,
+    target_object_id TEXT NOT NULL,
+    relation_type TEXT NOT NULL,
+    confidence REAL NOT NULL DEFAULT 1.0,
+    context TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    created_by TEXT NOT NULL DEFAULT 'operator'
+)
+"""
+CREATE_KNOWLEDGE_RELATIONS_SOURCE_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_relations_source ON knowledge_relations(source_object_id)"
+)
+CREATE_KNOWLEDGE_RELATIONS_TARGET_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_relations_target ON knowledge_relations(target_object_id)"
+)
+CREATE_KNOWLEDGE_RELATIONS_TYPE_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_knowledge_relations_type ON knowledge_relations(relation_type)"
+)
 
 
 def _knowledge_entry_id(payload: dict[str, object]) -> str:
@@ -115,6 +136,10 @@ class SqliteTaskStore:
         connection.execute(CREATE_KNOWLEDGE_EVIDENCE_TASK_INDEX_SQL)
         connection.execute(CREATE_KNOWLEDGE_WIKI_TASK_INDEX_SQL)
         connection.execute(CREATE_KNOWLEDGE_MIGRATIONS_TABLE_SQL)
+        connection.execute(CREATE_KNOWLEDGE_RELATIONS_TABLE_SQL)
+        connection.execute(CREATE_KNOWLEDGE_RELATIONS_SOURCE_INDEX_SQL)
+        connection.execute(CREATE_KNOWLEDGE_RELATIONS_TARGET_INDEX_SQL)
+        connection.execute(CREATE_KNOWLEDGE_RELATIONS_TYPE_INDEX_SQL)
         return connection
 
     def _connect_existing(self, base_dir: Path) -> sqlite3.Connection | None:
@@ -399,6 +424,133 @@ class SqliteTaskStore:
             connection.execute("DELETE FROM knowledge_evidence WHERE task_id = ?", (task_id,))
             connection.execute("DELETE FROM knowledge_wiki WHERE task_id = ?", (task_id,))
         self._checkpoint(base_dir)
+
+    def knowledge_object_exists(self, base_dir: Path, object_id: str) -> bool:
+        normalized_id = str(object_id).strip()
+        if not normalized_id:
+            return False
+        connection = self._connect_existing(base_dir)
+        if connection is None:
+            return False
+        try:
+            evidence_table = _table_exists(connection, "knowledge_evidence")
+            wiki_table = _table_exists(connection, "knowledge_wiki")
+            if evidence_table:
+                row = connection.execute(
+                    "SELECT 1 FROM knowledge_evidence WHERE object_id = ? LIMIT 1",
+                    (normalized_id,),
+                ).fetchone()
+                if row is not None:
+                    return True
+            if wiki_table:
+                row = connection.execute(
+                    "SELECT 1 FROM knowledge_wiki WHERE entry_id = ? LIMIT 1",
+                    (normalized_id,),
+                ).fetchone()
+                if row is not None:
+                    return True
+            return False
+        finally:
+            connection.close()
+
+    def create_knowledge_relation(
+        self,
+        base_dir: Path,
+        relation: dict[str, object],
+    ) -> dict[str, object]:
+        payload = dict(relation)
+        with self._connect(base_dir) as connection:
+            connection.execute(
+                """
+                INSERT INTO knowledge_relations (
+                    relation_id,
+                    source_object_id,
+                    target_object_id,
+                    relation_type,
+                    confidence,
+                    context,
+                    created_at,
+                    created_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(payload.get("relation_id", "")).strip(),
+                    str(payload.get("source_object_id", "")).strip(),
+                    str(payload.get("target_object_id", "")).strip(),
+                    str(payload.get("relation_type", "")).strip(),
+                    float(payload.get("confidence", 1.0)),
+                    str(payload.get("context", "")).strip(),
+                    str(payload.get("created_at", "")).strip(),
+                    str(payload.get("created_by", "operator")).strip() or "operator",
+                ),
+            )
+        self._checkpoint(base_dir)
+        return payload
+
+    def delete_knowledge_relation(self, base_dir: Path, relation_id: str) -> bool:
+        normalized_id = str(relation_id).strip()
+        if not normalized_id:
+            return False
+        with self._connect(base_dir) as connection:
+            cursor = connection.execute(
+                "DELETE FROM knowledge_relations WHERE relation_id = ?",
+                (normalized_id,),
+            )
+        self._checkpoint(base_dir)
+        return int(cursor.rowcount) > 0
+
+    def list_knowledge_relations(self, base_dir: Path, object_id: str) -> list[dict[str, object]]:
+        normalized_id = str(object_id).strip()
+        if not normalized_id:
+            return []
+        connection = self._connect_existing(base_dir)
+        if connection is None:
+            return []
+        try:
+            if not _table_exists(connection, "knowledge_relations"):
+                return []
+            rows = connection.execute(
+                """
+                SELECT
+                    relation_id,
+                    source_object_id,
+                    target_object_id,
+                    relation_type,
+                    confidence,
+                    context,
+                    created_at,
+                    created_by
+                FROM knowledge_relations
+                WHERE source_object_id = ? OR target_object_id = ?
+                ORDER BY created_at ASC, relation_id ASC
+                """,
+                (normalized_id, normalized_id),
+            ).fetchall()
+        finally:
+            connection.close()
+
+        relations: list[dict[str, object]] = []
+        for row in rows:
+            source_object_id = str(row["source_object_id"])
+            target_object_id = str(row["target_object_id"])
+            direction = "outgoing" if source_object_id == normalized_id else "incoming"
+            counterparty_object_id = target_object_id if direction == "outgoing" else source_object_id
+            relations.append(
+                {
+                    "relation_id": str(row["relation_id"]),
+                    "source_object_id": source_object_id,
+                    "target_object_id": target_object_id,
+                    "relation_type": str(row["relation_type"]),
+                    "confidence": float(row["confidence"]),
+                    "context": str(row["context"]),
+                    "created_at": str(row["created_at"]),
+                    "created_by": str(row["created_by"]),
+                    "direction": direction,
+                    "counterparty_object_id": counterparty_object_id,
+                }
+            )
+        return relations
 
     def record_knowledge_migration(
         self,

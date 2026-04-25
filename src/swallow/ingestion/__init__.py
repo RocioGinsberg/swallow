@@ -14,6 +14,7 @@ from .pipeline import (
     EXTERNAL_SESSION_SOURCE_KIND,
     IngestionPipelineResult,
     build_ingestion_report,
+    ingest_local_file,
     run_ingestion_pipeline,
 )
 
@@ -26,6 +27,7 @@ __all__ = [
     "build_ingestion_report",
     "detect_ingestion_format",
     "filter_conversation_turns",
+    "ingest_local_file",
     "merge_conversation_turns",
     "parse_chatgpt_export",
     "parse_claude_export",
