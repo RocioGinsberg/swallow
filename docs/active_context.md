@@ -7,15 +7,15 @@
 - latest_completed_slice: `Phase Closeout`
 - active_track: `Knowledge / RAG` (Primary) + `Workbench / UX` (Secondary)
 - active_phase: `Phase 57`
-- active_slice: `pr_sync_pending`
+- active_slice: `merge_gate_pending`
 - active_branch: `feat/phase57-retrieval-quality`
-- status: `phase57_block_fixed_pr_pending`
+- status: `phase57_pr_synced_merge_gate_pending`
 
 ---
 
 ## 当前状态说明
 
-Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase 57 前置真实数据验证暴露检索质量为核心瓶颈：blake2b hash embedding 非语义、无 rerank、chunking 无 overlap。Phase 57 方向已切到"检索质量增强"（原 roadmap 编排增强后移至 Phase 58），当前 4 个 implementation slices 均已完成并提交，`docs/plans/phase57/closeout.md` 已产出。Claude review 的唯一 BLOCK 已修复并通过 `tests/test_cli.py` 全量回归，当前进入 `pr.md` / merge 材料同步阶段。
+Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase 57 前置真实数据验证暴露检索质量为核心瓶颈：blake2b hash embedding 非语义、无 rerank、chunking 无 overlap。Phase 57 方向已切到"检索质量增强"（原 roadmap 编排增强后移至 Phase 58），当前 4 个 implementation slices 均已完成并提交，`docs/plans/phase57/closeout.md` 与 `pr.md` 均已同步到 review 后真实状态。Claude review 的唯一 BLOCK 已修复并通过 `tests/test_cli.py` 全量回归，当前等待 Human merge gate 决策。
 
 ---
 
@@ -86,6 +86,9 @@ Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase
 - **[Codex]** Phase 57 后续收紧（2026-04-26）：
   - `src/swallow/retrieval_adapters.py` 已将 repo / notes 的默认 overlap 关闭（`REPO_CHUNK_OVERLAP_LINES=0`、`MARKDOWN_CHUNK_OVERLAP_LINES=0`）
   - 保留 heading / symbol 分段与 `max_chunk_size`，仅停止默认 overlap 扩张，后续如需实验仍可通过显式参数开启
+- **[Codex]** Phase 57 PR / closeout 已同步（2026-04-26）：
+  - `docs/plans/phase57/closeout.md` 已切到 review 后真实状态，纳入 BLOCK 修复、默认 overlap 关闭与最新验证结果
+  - `pr.md` 已重写为 Phase 57 PR 文案，反映当前实现、review 结论与 merge gate 状态
 
 进行中：
 
@@ -93,7 +96,6 @@ Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase
 
 待执行：
 
-- **[Codex]** 更新 `pr.md`，同步 review block 修复与最新验证结果。
 - **[Human]** 审阅当前 diff / PR 材料，决定 merge gate。
 
 当前阻塞项：
@@ -104,8 +106,7 @@ Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase
 
 ## 当前下一步
 
-1. **[Codex]** 更新 `pr.md`，同步 review block 修复与 `tests/test_cli.py` 全量通过结果。
-2. **[Human]** 审阅 phase57 当前 diff / `pr.md`，决定 merge gate。
+1. **[Human]** 审阅 phase57 当前 diff / `pr.md` / `docs/plans/phase57/closeout.md`，决定 merge gate。
 
 ---
 
@@ -117,6 +118,7 @@ Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase
 - `docs/plans/phase57/design_decision.md`（claude, 2026-04-26）
 - `docs/plans/phase57/risk_assessment.md`（claude, 2026-04-26）
 - `docs/plans/phase57/closeout.md`（codex, 2026-04-26）
+- `pr.md`（codex, 2026-04-26）
 - `docs/plans/phase57/pre_kickoff_real_data_validation.md`（codex, 2026-04-25）
 - `src/swallow/runtime_config.py`（codex, 2026-04-26）
 - `src/swallow/models.py`（codex, 2026-04-26）

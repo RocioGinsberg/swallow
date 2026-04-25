@@ -8,26 +8,27 @@ depends_on:
   - docs/plans/phase57/design_decision.md
   - docs/plans/phase57/risk_assessment.md
   - docs/plans/phase57/pre_kickoff_real_data_validation.md
+  - docs/plans/phase57/review_comments.md
 ---
 
 ## TL;DR
 
-Phase 57 已完成实现与 slice 拆 commit，当前状态为 **review pending / PR sync ready**。本轮将检索管线从“hash embedding + 单阶段排序”升级为“神经 embedding + LLM rerank + overlap chunking”，并补齐了 `literature-specialist` 的 CLI 输入透传缺口。结论：**phase implementation complete, ready for review / PR sync gate**。
+Phase 57 已完成实现、review follow-up 与 PR 同步。检索管线已从“hash embedding + 单阶段排序”升级为“神经 embedding + LLM rerank +结构化辅助检索”，`literature-specialist` 的 CLI 输入透传缺口也已补齐；review 唯一 BLOCK 已修复，当前状态为 **ready for human merge gate**。
 
 # Phase 57 Closeout
 
 ## 结论
 
-Phase 57 `Retrieval Quality Enhancement` 已完成实现与验证，当前分支状态为 **review pending / PR sync ready**。
+Phase 57 `Retrieval Quality Enhancement` 已完成实现、review 跟进与验证，当前分支状态为 **PR synced / ready for human merge gate**。
 
 本轮围绕 kickoff 定义的 4 个 slices，完成了以下能力增强：
 
 - S1：向量检索切换到 API neural embedding，并将 canonical reuse 路径与 verified knowledge 路径对齐
 - S2：`retrieve_context()` 出口新增可关闭、可退化的 LLM rerank
-- S3：markdown / repo 检索分段加入 overlap 与超长 section 二次切分
+- S3：markdown / repo 检索分段增强为结构化分段与超长 section 二次切分，默认 overlap 已在 review 后收紧为关闭
 - S4：`swl task create --executor literature-specialist` 支持 `--document-paths` 并贯通到 planner / specialist executor
 
-当前尚未进入 Claude review，因此本轮 closeout 的语义是“实现完成，等待 review / PR 同步”，而不是 merge ready。
+Claude review 已完成，结论为 `approved_with_concerns`。唯一 BLOCK 已在本轮 follow-up 中修复，唯一 CONCERN 已登记 backlog，不阻塞进入 merge gate。
 
 ## 已完成范围
 
@@ -38,8 +39,8 @@ Phase 57 `Retrieval Quality Enhancement` 已完成实现与验证，当前分支
   - `SWL_EMBEDDING_DIMENSIONS`
   - `SWL_EMBEDDING_API_BASE_URL`
 - `retrieval_adapters.py` 新增 `build_api_embedding()`
-- `VectorRetrievalAdapter` 改为强依赖 neural embedding；embedding API 不可用时显式报错
-- 仅 `sqlite-vec` 不可用时回退到文本检索
+- `VectorRetrievalAdapter` 改为强依赖 neural embedding；adapter 层继续对 embedding API 不可用显式报错
+- verified knowledge / canonical reuse 两条 retrieval 入口在 embedding 不可用时回退到文本检索
 - `iter_canonical_reuse_items()` 改为走与 verified knowledge 一致的 vector/text fallback 路径
 - `doctor.py` 新增 embedding API 探针
 
@@ -67,9 +68,9 @@ Phase 57 `Retrieval Quality Enhancement` 已完成实现与验证，当前分支
   - `overlap_lines`
   - `max_chunk_size`
 - markdown 长 section 优先按段落空行切分，不足时再按固定行数截断
-- overlap 改为回带前序非空行，避免只重叠空白行
-- `build_repo_chunks()` 增加固定窗口 overlap
-- repo `chunk_id` 继续按原始 base range 编码，避免引用语义漂移
+- overlap 回带逻辑已实现，但默认值已在 review 后收紧为 `0`
+- `build_repo_chunks()` 保持固定窗口 + symbol title；默认 overlap 已在 review 后关闭
+- repo `chunk_id` 与 citation 均继续按原始 base range 编码，避免引用语义漂移
 
 对应 commit：
 
@@ -92,19 +93,20 @@ Phase 57 `Retrieval Quality Enhancement` 已完成实现与验证，当前分支
 ### 已完成的目标
 
 - `VectorRetrievalAdapter` 已使用 API embedding
-- embedding API 失败时显式报错；`sqlite-vec` 缺失时退回文本检索
+- verified knowledge / canonical reuse 在 embedding API 失败或 `sqlite-vec` 缺失时都会退回文本检索
 - `retrieve_context()` 返回前已具备可关闭的 rerank 阶段
 - rerank 失败时不会阻断检索主流程
-- `build_markdown_chunks()` 已支持 overlap 与 max chunk size
+- `build_markdown_chunks()` 已支持 overlap 与 max chunk size，默认 overlap 当前关闭
 - `swl task create --executor literature-specialist --document-paths ...` 已可创建并透传 specialist 输入
-- neural embedding / rerank / chunking / CLI 透传均有 pytest 覆盖
+- neural embedding / rerank / chunking / CLI 透传 / review follow-up 均有 pytest 覆盖
 
 ### 与原设计存在的已记录偏差
 
 - kickoff / design 中曾写明 S1 在 embedding API 不可用时 fallback 到 local hash embedding；本轮实现已根据真实使用决策收紧为：
-  - embedding API 失败显式报错
-  - 仅 `sqlite-vec` 缺失时退回文本检索
+  - adapter 层 embedding API 失败显式报错
+  - retrieval 聚合入口在 embedding API 失败或 `sqlite-vec` 缺失时退回文本检索
 - S4 设计文档中写的是“写入 task card 的 `executor_config`”；实际仓库现有稳定承载位为 `TaskState.input_context`，并经 planner 透传到 `TaskCard.input_context`。本轮按现有系统结构落地，没有引入新配置层。
+- S3 设计文档默认建议 overlap 2-3 行；在实际实现与 review 后，本轮决定将默认 overlap 收紧回 `0`，保留显式参数能力但不再把 overlap 作为默认检索策略。
 
 以上偏差均为有意收敛，不构成未完成项。
 
@@ -122,10 +124,9 @@ Phase 57 `Retrieval Quality Enhancement` 已完成实现与验证，当前分支
 
 下一步应按如下顺序推进：
 
-1. Human push 当前分支
-2. Claude 执行 Phase 57 review
-3. Codex 根据 review follow-up 修正实现或文档
-4. Human 决定 PR / merge 节奏
+1. Human 审阅当前 diff 与 `pr.md`
+2. Human 决定 PR / merge 节奏
+3. 如需 follow-up，仅处理 review concern 或 merge 前小修
 
 ## 当前稳定边界
 
@@ -133,17 +134,29 @@ Phase 57 closeout 后，以下边界应视为当前实现候选的稳定 checkpo
 
 - 检索语义增强已落到 retrieval layer，不改 knowledge truth layer
 - rerank 是 additive 的排序增强，不替代 direct hits
-- chunking 优化仅影响 retrieve-time 分段，不回填历史 canonical text
+- chunking 仅保留辅助源结构化分段，不改变 knowledge-object 作为主检索单元的定位
 - `literature-specialist` 的 CLI 入口已贯通，但只补齐输入透传，不扩张 specialist 生命周期语义
 - 不引入 query rewrite / expansion、hybrid normalization 或 Graph RAG 新阶段
+
+## Review Follow-up 收口
+
+Claude review 后，本轮额外完成了以下收口：
+
+- 修复 `src/swallow/retrieval.py` 中 verified knowledge / canonical reuse fallback 链遗漏 `EmbeddingAPIUnavailable` 的 BLOCK
+- 新增 review regression 覆盖，确保 embedding API 不可用时主检索链退回文本检索
+- 统一 file retrieval citation 使用 base range，避免 overlap 扩张引用范围
+- 将 repo / notes 的默认 overlap 关闭，保留显式参数能力，避免继续把 chunk overlap 作为默认策略
+
+以上 follow-up 完成后，review 结论仍为 `approved_with_concerns`，但已无未解决 BLOCK。
 
 ## 当前已知问题 / 后续候选
 
 - rerank 是否在真实数据场景中稳定进入 top-K，仍取决于 direct hits 分布与 score 截断，不是代码 bug，但值得在真实数据验证中持续观察
 - Phase 57 目前主要依靠 targeted pytest；针对真实数据的 operator-facing eval 还需要在下一轮测试阶段继续沉淀
 - retrieval 配置仍分散在 `runtime_config.py` 与 `retrieval_config.py` 两层；若后续继续扩张检索策略，可考虑进一步整理 operator-facing 配置入口
+- `VECTOR_EMBEDDING_DIMENSIONS` 仍为模块 import 时求值；当前不阻塞，但后续如需进程内动态切换 embedding 维度，需单独清理
 
-以上问题均不阻塞进入 review 阶段。
+以上问题均不阻塞进入 merge gate。
 
 ## 测试结果
 
@@ -151,17 +164,21 @@ Phase 57 closeout 后，以下边界应视为当前实现候选的稳定 checkpo
 
 ```bash
 .venv/bin/python -m pytest tests/test_retrieval_adapters.py tests/test_doctor.py
-.venv/bin/python -m pytest tests/test_retrieval_adapters.py
-.venv/bin/python -m pytest tests/test_cli.py -k "literature_specialist_input_context or persists_route_dialect_for_default_aider_route"
+.venv/bin/python -m pytest tests/test_cli.py -k "literature_specialist_input_context"
 .venv/bin/python -m pytest tests/test_specialist_agents.py -k "literature_specialist"
+.venv/bin/python -m pytest tests/test_retrieval_adapters.py -k 'embedding_api_is_unavailable or sqlite_vec_is_unavailable'
+.venv/bin/python -m pytest tests/test_cli.py
+.venv/bin/python -m pytest tests/test_retrieval_adapters.py
 ```
 
 结果：
 
 - `21 passed`
-- `18 passed`
 - `2 passed, 218 deselected`
 - `5 passed, 11 deselected`
+- `4 passed, 16 deselected`
+- `220 passed`
+- `20 passed`
 
 ## 规则文件同步检查
 
@@ -174,24 +191,24 @@ Phase 57 closeout 后，以下边界应视为当前实现候选的稳定 checkpo
 
 ### 条件更新
 
-- [ ] `docs/plans/phase57/review_comments.md`
-- [ ] `./pr.md`
+- [x] `docs/plans/phase57/review_comments.md`
+- [x] `./pr.md`
 - [ ] `AGENTS.md`
 - [ ] `README.md`
 - [ ] `README.zh-CN.md`
 
 说明：
 
-- 当前尚未进入 review，因此不存在 `review_comments.md`
-- 本轮尚未进入 PR 文案同步，因此 `pr.md` 暂不更新
+- `review_comments.md` 已产出且 BLOCK 已吸收
+- `pr.md` 已同步到 Phase 57 当前实现与 review 结论
 - 本轮不涉及 tag-level 对外能力描述变更，暂不更新 `AGENTS.md` / README
 
 ## Git / Review 建议
 
 1. 使用当前分支 `feat/phase57-retrieval-quality`
-2. 以本 closeout 作为 review 前的 stop/go 参考
-3. Claude review 后如有 follow-up，继续在同一分支吸收
-4. review 通过后再同步 `pr.md` 并准备 merge
+2. 以本 closeout 与 `pr.md` 作为 merge gate 参考
+3. 当前仅剩 human 审阅 / merge 决策
+4. 如需继续 follow-up，仅处理 concern 消化或 merge 前小修
 
 ## 下一轮建议
 
