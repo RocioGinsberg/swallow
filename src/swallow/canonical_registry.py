@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from .models import utc_now
+from .paths import canonical_registry_path
+from .sqlite_store import SqliteTaskStore
 
 CANONICAL_REGISTRY_DEDUPE_KEY = "canonical_id"
 CANONICAL_REGISTRY_REPLACE_STRATEGY = "latest_record_wins"
@@ -54,6 +59,39 @@ def build_canonical_record(
         "superseded_by": "",
         "superseded_at": "",
     }
+
+
+def resolve_knowledge_object_id(base_dir: Path, object_id: str, *, store: SqliteTaskStore | None = None) -> str:
+    normalized_id = str(object_id).strip()
+    if not normalized_id:
+        raise ValueError("knowledge object id must be a non-empty string.")
+
+    resolved_store = store or SqliteTaskStore()
+    if resolved_store.knowledge_object_exists(base_dir, normalized_id):
+        return normalized_id
+
+    registry_file = canonical_registry_path(base_dir)
+    if not registry_file.exists():
+        raise ValueError(f"Unknown knowledge object: {normalized_id}")
+
+    for line in registry_file.read_text(encoding="utf-8").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
+            payload = json.loads(stripped)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        if str(payload.get("canonical_id", "")).strip() != normalized_id:
+            continue
+        source_object_id = str(payload.get("source_object_id", "")).strip()
+        if source_object_id and resolved_store.knowledge_object_exists(base_dir, source_object_id):
+            return source_object_id
+        break
+
+    raise ValueError(f"Unknown knowledge object: {normalized_id}")
 
 
 def build_canonical_registry_report(records: list[dict[str, object]]) -> str:
