@@ -34,7 +34,7 @@ from .doctor import (
     format_local_stack_doctor_result,
     format_sqlite_doctor_result,
 )
-from .ingestion.pipeline import build_ingestion_report, build_ingestion_summary, run_ingestion_pipeline
+from .ingestion.pipeline import build_ingestion_report, build_ingestion_summary, ingest_local_file, run_ingestion_pipeline
 from .knowledge_store import (
     OPERATOR_CANONICAL_WRITE_AUTHORITY,
     migrate_file_knowledge_to_sqlite,
@@ -1474,6 +1474,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Audit canonical registry health.",
         description="Audit canonical registry health.",
     )
+    knowledge_ingest_file_parser = knowledge_subparsers.add_parser(
+        "ingest-file",
+        help="Ingest one local markdown/text file into staged knowledge.",
+        description="Ingest one local markdown/text file into staged knowledge.",
+    )
+    knowledge_ingest_file_parser.add_argument("source_path", help="Path to the local markdown/text file.")
+    knowledge_ingest_file_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Parse the local file, but do not write staged candidates.",
+    )
+    knowledge_ingest_file_parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Append a structured ingestion summary after the standard report.",
+    )
     knowledge_migrate_parser = knowledge_subparsers.add_parser(
         "migrate",
         help="Backfill file-based knowledge into the SQLite knowledge store.",
@@ -2229,6 +2245,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "knowledge" and args.knowledge_command == "canonical-audit":
         canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
         print(build_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "ingest-file":
+        result = ingest_local_file(
+            base_dir,
+            Path(args.source_path).resolve(),
+            dry_run=bool(args.dry_run),
+        )
+        output = build_ingestion_report(result)
+        if bool(args.summary):
+            output = f"{output}\n\n{build_ingestion_summary(result)}"
+        print(output)
         return 0
 
     if args.command == "knowledge" and args.knowledge_command == "migrate":
