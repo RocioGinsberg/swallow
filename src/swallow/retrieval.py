@@ -407,6 +407,35 @@ def iter_verified_knowledge_items(
     return items
 
 
+def _vector_or_text_matches(
+    documents: list[RetrievalSearchDocument],
+    *,
+    request: RetrievalRequest,
+    query_plan: dict[str, Any],
+    limit: int,
+) -> tuple[list[RetrievalSearchMatch], str]:
+    try:
+        return (
+            VectorRetrievalAdapter().search(
+                documents,
+                query_text=request.query,
+                query_plan=query_plan,
+                limit=limit,
+            ),
+            "vector",
+        )
+    except VectorRetrievalUnavailable:
+        _warn_sqlite_vec_fallback_once()
+        return (
+            TextFallbackAdapter().search(
+                documents,
+                query_plan=query_plan,
+                limit=limit,
+            ),
+            "text_fallback",
+        )
+
+
 def iter_canonical_reuse_items(
     workspace_root: Path,
     request: RetrievalRequest,
@@ -423,7 +452,7 @@ def iter_canonical_reuse_items(
     if not isinstance(visible_records, list):
         return []
 
-    items: list[RetrievalItem] = []
+    documents: list[RetrievalSearchDocument] = []
     for canonical_record in visible_records:
         if not isinstance(canonical_record, dict):
             continue
@@ -435,33 +464,53 @@ def iter_canonical_reuse_items(
         relative_path = ".swl/canonical_knowledge/reuse_policy.json"
         canonical_id = str(canonical_record.get("canonical_id", "canonical-record"))
         title = f"Canonical {canonical_id}"
-        score, score_breakdown, matched_terms = score_chunk(
-            query_plan=query_plan,
-            relative_path=relative_path,
-            path_name="reuse_policy.json",
-            title=title,
-            chunk_text=knowledge_text[:4000],
-        )
-        if score <= 0:
-            continue
-        preview = " ".join(knowledge_text.split())[:220]
-        score_breakdown["knowledge_priority_bonus"] = KNOWLEDGE_PRIORITY_BONUS
-        items.append(
-            RetrievalItem(
+        documents.append(
+            RetrievalSearchDocument(
                 path=relative_path,
+                path_name="reuse_policy.json",
                 source_type=KNOWLEDGE_SOURCE_TYPE,
-                score=score + KNOWLEDGE_PRIORITY_BONUS,
-                preview=preview,
                 chunk_id=canonical_id,
                 title=title,
                 citation=f"{relative_path}#{canonical_id}",
-                matched_terms=matched_terms,
-                score_breakdown=score_breakdown,
+                text=knowledge_text,
                 metadata=build_canonical_reuse_item_metadata(
                     canonical_record=canonical_record,
                     query_plan=query_plan,
                     current_task_id=request.current_task_id,
                 ),
+            )
+        )
+
+    if not documents:
+        return []
+
+    matches, retrieval_mode = _vector_or_text_matches(
+        documents,
+        request=request,
+        query_plan=query_plan,
+        limit=request.limit,
+    )
+
+    items: list[RetrievalItem] = []
+    for match in matches:
+        preview = " ".join(match.document.text.split())[:220]
+        metadata = dict(match.document.metadata)
+        metadata["knowledge_retrieval_adapter"] = match.adapter_name
+        metadata["knowledge_retrieval_mode"] = retrieval_mode
+        score_breakdown = dict(match.score_breakdown)
+        score_breakdown["knowledge_priority_bonus"] = KNOWLEDGE_PRIORITY_BONUS
+        items.append(
+            RetrievalItem(
+                path=match.document.path,
+                source_type=KNOWLEDGE_SOURCE_TYPE,
+                score=match.score + KNOWLEDGE_PRIORITY_BONUS,
+                preview=preview,
+                chunk_id=match.document.chunk_id,
+                title=match.document.title,
+                citation=match.document.citation,
+                matched_terms=match.matched_terms,
+                score_breakdown=score_breakdown,
+                metadata=metadata,
             )
         )
     return items

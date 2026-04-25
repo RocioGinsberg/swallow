@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -8,9 +9,13 @@ from pathlib import Path
 from urllib import error, request
 
 from .knowledge_store import iter_file_knowledge_task_ids
+from .runtime_config import (
+    resolve_swl_api_base_url,
+    resolve_swl_api_key,
+    resolve_swl_embedding_api_base_url,
+    resolve_swl_embedding_model,
+)
 from .store import iter_file_task_ids, normalize_store_backend
-
-DEFAULT_NEW_API_BASE_URL = "http://localhost:3000"
 
 
 @dataclass(slots=True)
@@ -127,15 +132,8 @@ def _check_http_endpoint(name: str, url: str, *, timeout: int = 5) -> LocalStack
         return LocalStackCheck(name=name, status="fail", details=str(exc))
 
 
-def resolve_new_api_base_url() -> str:
-    configured = os.environ.get("SWL_API_BASE_URL", "").strip()
-    if configured:
-        return configured.rstrip("/")
-    return DEFAULT_NEW_API_BASE_URL
-
-
 def _check_new_api_endpoint(*, timeout: int = 5) -> LocalStackCheck:
-    url = f"{resolve_new_api_base_url()}/v1/models"
+    url = f"{resolve_swl_api_base_url()}/v1/models"
     try:
         with request.urlopen(url, timeout=timeout) as response:
             status = int(getattr(response, "status", 200))
@@ -154,6 +152,41 @@ def _check_new_api_endpoint(*, timeout: int = 5) -> LocalStackCheck:
         )
     except (error.URLError, TimeoutError, ValueError) as exc:
         return LocalStackCheck(name="new_api_endpoint", status="fail", details=str(exc))
+
+
+def _check_embedding_api_endpoint(*, timeout: int = 5) -> LocalStackCheck:
+    api_key = resolve_swl_api_key()
+    if not api_key:
+        return LocalStackCheck(name="embedding_api_endpoint", status="fail", details="SWL_API_KEY is not configured.")
+
+    url = f"{resolve_swl_embedding_api_base_url()}/v1/embeddings"
+    payload = json.dumps({"model": resolve_swl_embedding_model(), "input": "doctor probe"}).encode("utf-8")
+    req = request.Request(
+        url,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    try:
+        with request.urlopen(req, timeout=timeout) as response:
+            status = int(getattr(response, "status", 200))
+            return LocalStackCheck(
+                name="embedding_api_endpoint",
+                status="pass" if 200 <= status < 300 else "fail",
+                details=f"HTTP {status} ({url})",
+            )
+    except error.HTTPError as exc:
+        status = int(getattr(exc, "code", 0) or 0)
+        return LocalStackCheck(
+            name="embedding_api_endpoint",
+            status="fail",
+            details=f"HTTP {status} ({url})",
+        )
+    except (error.URLError, TimeoutError, ValueError) as exc:
+        return LocalStackCheck(name="embedding_api_endpoint", status="fail", details=str(exc))
 
 
 def _check_pgvector_extension() -> LocalStackCheck:
@@ -204,6 +237,7 @@ def diagnose_local_stack() -> tuple[int, LocalStackDoctorResult]:
         _check_pgvector_extension(),
         _check_http_endpoint("new_api_http", "http://localhost:3000/api/status"),
         _check_new_api_endpoint(),
+        _check_embedding_api_endpoint(),
         _check_command_success("wireguard_tunnel", ["ping", "-c", "1", "-W", "2", "10.8.0.1"], timeout=5),
         _check_command_success(
             "egress_proxy",

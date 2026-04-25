@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from .knowledge_objects import canonicalization_status_for, is_retrieval_reuse_ready
 from .models import utc_now
-from .retrieval_adapters import VECTOR_EMBEDDING_DIMENSIONS
+from .runtime_config import resolve_swl_embedding_dimensions
 
 
 def invalidation_reason_for(item: dict[str, object]) -> str:
@@ -19,6 +19,7 @@ def invalidation_reason_for(item: dict[str, object]) -> str:
 
 
 def build_knowledge_index(knowledge_objects: list[dict[str, object]]) -> dict[str, object]:
+    embedding_dimensions = resolve_swl_embedding_dimensions()
     reusable_records = []
     inactive_records = []
     for item in knowledge_objects:
@@ -39,12 +40,12 @@ def build_knowledge_index(knowledge_objects: list[dict[str, object]]) -> dict[st
         if is_retrieval_reuse_ready(item):
             record["index_status"] = "active"
             record["vector_index_status"] = "ready"
-            record["embedding_dimensions"] = VECTOR_EMBEDDING_DIMENSIONS
+            record["embedding_dimensions"] = embedding_dimensions
             reusable_records.append(record)
         else:
             record["index_status"] = "inactive"
             record["vector_index_status"] = "inactive"
-            record["embedding_dimensions"] = VECTOR_EMBEDDING_DIMENSIONS
+            record["embedding_dimensions"] = embedding_dimensions
             record["invalidation_reason"] = invalidation_reason_for(item)
             inactive_records.append(record)
     return {
@@ -54,7 +55,7 @@ def build_knowledge_index(knowledge_objects: list[dict[str, object]]) -> dict[st
         "vector_index": {
             "backend": "sqlite_vec_optional",
             "fallback_backend": "text_fallback",
-            "embedding_dimensions": VECTOR_EMBEDDING_DIMENSIONS,
+            "embedding_dimensions": embedding_dimensions,
             "active_candidate_count": len(reusable_records),
         },
         "reusable_records": reusable_records,
@@ -73,7 +74,7 @@ def build_knowledge_index_report(index_record: dict[str, object]) -> str:
         f"- inactive_reusable_count: {index_record.get('inactive_reusable_count', len(inactive_records))}",
         f"- vector_backend: {dict(index_record.get('vector_index', {})).get('backend', 'sqlite_vec_optional')}",
         f"- vector_fallback_backend: {dict(index_record.get('vector_index', {})).get('fallback_backend', 'text_fallback')}",
-        f"- embedding_dimensions: {dict(index_record.get('vector_index', {})).get('embedding_dimensions', VECTOR_EMBEDDING_DIMENSIONS)}",
+        f"- embedding_dimensions: {dict(index_record.get('vector_index', {})).get('embedding_dimensions', resolve_swl_embedding_dimensions())}",
         "",
         "## Active Reusable Records",
     ]
@@ -85,7 +86,7 @@ def build_knowledge_index_report(index_record: dict[str, object]) -> str:
                 [
                     f"- {item.get('object_id', 'unknown')} [{item.get('stage', 'raw')}/{item.get('evidence_status', 'unbacked')}/{item.get('knowledge_reuse_scope', 'task_only')}]",
                     f"  canonicalization: {item.get('canonicalization_intent', 'none')} / {item.get('canonicalization_status', 'not_requested')}",
-                    f"  vector_index_status: {item.get('vector_index_status', 'unknown')} ({item.get('embedding_dimensions', VECTOR_EMBEDDING_DIMENSIONS)} dims)",
+                    f"  vector_index_status: {item.get('vector_index_status', 'unknown')} ({item.get('embedding_dimensions', resolve_swl_embedding_dimensions())} dims)",
                     f"  artifact_ref: {item.get('artifact_ref', '') or 'none'}",
                     f"  source_ref: {item.get('source_ref', '') or 'none'}",
                     f"  text: {item.get('text', '') or '(empty)'}",
@@ -103,7 +104,7 @@ def build_knowledge_index_report(index_record: dict[str, object]) -> str:
                 f"- {item.get('object_id', 'unknown')} [{item.get('stage', 'raw')}/{item.get('evidence_status', 'unbacked')}/{item.get('knowledge_reuse_scope', 'task_only')}]",
                 f"  invalidation_reason: {item.get('invalidation_reason', 'unknown')}",
                 f"  canonicalization: {item.get('canonicalization_intent', 'none')} / {item.get('canonicalization_status', 'not_requested')}",
-                f"  vector_index_status: {item.get('vector_index_status', 'unknown')} ({item.get('embedding_dimensions', VECTOR_EMBEDDING_DIMENSIONS)} dims)",
+                f"  vector_index_status: {item.get('vector_index_status', 'unknown')} ({item.get('embedding_dimensions', resolve_swl_embedding_dimensions())} dims)",
                 f"  artifact_ref: {item.get('artifact_ref', '') or 'none'}",
                 f"  source_ref: {item.get('source_ref', '') or 'none'}",
                 f"  text: {item.get('text', '') or '(empty)'}",

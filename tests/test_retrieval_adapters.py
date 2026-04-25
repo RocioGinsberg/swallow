@@ -13,11 +13,13 @@ from swallow.canonical_reuse import build_canonical_reuse_summary
 from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, retrieve_context
 from swallow.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG
 from swallow.retrieval_adapters import (
+    EmbeddingAPIUnavailable,
     RetrievalSearchDocument,
     RetrievalSearchMatch,
     TextFallbackAdapter,
     VectorRetrievalAdapter,
     VectorRetrievalUnavailable,
+    build_api_embedding,
 )
 from swallow.knowledge_relations import create_knowledge_relation
 from swallow.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, persist_wiki_entry_from_record
@@ -26,6 +28,54 @@ from swallow.store import append_canonical_record, save_canonical_reuse_policy, 
 
 
 class RetrievalAdaptersTest(unittest.TestCase):
+    def test_build_api_embedding_reads_openai_compatible_response(self) -> None:
+        class _FakeResponse:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict[str, object]:
+                return {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
+
+        with patch("swallow.retrieval_adapters.httpx.post", return_value=_FakeResponse()) as http_post:
+            embedding = build_api_embedding(
+                "semantic retrieval",
+                model="text-embedding-3-small",
+                base_url="http://localhost:3000",
+                api_key="test-key",
+                dimensions=3,
+            )
+
+        self.assertEqual(embedding, [0.1, 0.2, 0.3])
+        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "text-embedding-3-small")
+
+    def test_vector_adapter_raises_when_embedding_api_is_unavailable(self) -> None:
+        adapter = VectorRetrievalAdapter(embedding_dimensions=3)
+
+        with patch("swallow.retrieval_adapters.VectorRetrievalAdapter._connect") as connect_mock:
+            with patch(
+                "swallow.retrieval_adapters.build_api_embedding",
+                side_effect=EmbeddingAPIUnavailable("embedding gateway unavailable"),
+            ):
+                with self.assertRaises(EmbeddingAPIUnavailable):
+                    adapter.search(
+                        [
+                            RetrievalSearchDocument(
+                                path="notes.md",
+                                path_name="notes.md",
+                                source_type="notes",
+                                chunk_id="full-file",
+                                title="Notes",
+                                citation="notes.md#L1",
+                                text="retrieval baseline",
+                            )
+                        ],
+                        query_text="retrieval baseline",
+                        query_plan=prepare_query_plan("retrieval baseline"),
+                        limit=1,
+                    )
+
+        connect_mock.assert_not_called()
+
     def test_text_fallback_adapter_prefers_relevant_document(self) -> None:
         adapter = TextFallbackAdapter()
         query_plan = prepare_query_plan("reviewer consensus budget gate")
@@ -59,24 +109,25 @@ class RetrievalAdaptersTest(unittest.TestCase):
     def test_vector_adapter_raises_when_sqlite_vec_is_missing(self) -> None:
         adapter = VectorRetrievalAdapter()
 
-        with patch("swallow.retrieval_adapters.importlib.import_module", side_effect=ImportError("sqlite_vec missing")):
-            with self.assertRaises(VectorRetrievalUnavailable):
-                adapter.search(
-                    [
-                        RetrievalSearchDocument(
-                            path="notes.md",
-                            path_name="notes.md",
-                            source_type="notes",
-                            chunk_id="full-file",
-                            title="Notes",
-                            citation="notes.md#L1",
-                            text="retrieval baseline",
-                        )
-                    ],
-                    query_text="retrieval baseline",
-                    query_plan=prepare_query_plan("retrieval baseline"),
-                    limit=1,
-                )
+        with patch("swallow.retrieval_adapters.build_api_embedding", return_value=[0.1, 0.2, 0.3]):
+            with patch("swallow.retrieval_adapters.importlib.import_module", side_effect=ImportError("sqlite_vec missing")):
+                with self.assertRaises(VectorRetrievalUnavailable):
+                    adapter.search(
+                        [
+                            RetrievalSearchDocument(
+                                path="notes.md",
+                                path_name="notes.md",
+                                source_type="notes",
+                                chunk_id="full-file",
+                                title="Notes",
+                                citation="notes.md#L1",
+                                text="retrieval baseline",
+                            )
+                        ],
+                        query_text="retrieval baseline",
+                        query_plan=prepare_query_plan("retrieval baseline"),
+                        limit=1,
+                    )
 
     def test_retrieve_context_falls_back_to_text_search_when_sqlite_vec_is_unavailable(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -365,18 +416,81 @@ class RetrievalAdaptersTest(unittest.TestCase):
                 relation_type="related_to",
             )
 
-            items = retrieve_context(
-                tmp_path,
-                query="truth layer retrieval architecture",
-                source_types=[KNOWLEDGE_SOURCE_TYPE, "notes"],
-                limit=8,
-            )
+            def _mock_vector_search(documents, *, query_text, query_plan, limit):
+                seed = next(document for document in documents if document.chunk_id == "canonical-a")
+                return [
+                    RetrievalSearchMatch(
+                        document=seed,
+                        score=20,
+                        score_breakdown={"vector_bonus": 4},
+                        matched_terms=["retrieval", "truth"],
+                        adapter_name="sqlite_vec",
+                    )
+                ]
+
+            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                items = retrieve_context(
+                    tmp_path,
+                    query="truth layer retrieval architecture",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE, "notes"],
+                    limit=8,
+                )
 
         self.assertEqual(items[0].source_type, KNOWLEDGE_SOURCE_TYPE)
         self.assertEqual(items[0].metadata["storage_scope"], "canonical_registry")
         expanded = next(item for item in items if item.metadata.get("expansion_source") == "relation")
         self.assertEqual(expanded.metadata["storage_scope"], "canonical_registry")
         self.assertEqual(expanded.metadata["knowledge_object_id"], "knowledge-b")
+
+    def test_retrieve_context_uses_vector_adapter_for_canonical_reuse_items(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            canonical_record = {
+                "canonical_id": "canonical-a",
+                "canonical_key": "task-object:task-a:knowledge-a",
+                "source_task_id": "task-a",
+                "source_object_id": "knowledge-a",
+                "promoted_at": "2026-04-25T00:00:00+00:00",
+                "promoted_by": "test",
+                "decision_note": "",
+                "decision_ref": ".swl/tasks/task-a/knowledge_decisions.jsonl#knowledge-a",
+                "artifact_ref": "",
+                "source_ref": "file://task-a",
+                "text": "Knowledge Truth Layer and retrieval architecture stay connected.",
+                "evidence_status": "source_only",
+                "canonical_stage": "canonical",
+                "canonical_status": "active",
+                "superseded_by": "",
+                "superseded_at": "",
+            }
+            append_canonical_record(tmp_path, canonical_record)
+            save_canonical_reuse_policy(tmp_path, build_canonical_reuse_summary([canonical_record]))
+
+            def _mock_vector_search(documents, *, query_text, query_plan, limit):
+                self.assertEqual(len(documents), 1)
+                self.assertEqual(documents[0].chunk_id, "canonical-a")
+                return [
+                    RetrievalSearchMatch(
+                        document=documents[0],
+                        score=18,
+                        score_breakdown={"vector_bonus": 5},
+                        matched_terms=["architecture", "retrieval"],
+                        adapter_name="sqlite_vec",
+                    )
+                ]
+
+            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                items = retrieve_context(
+                    tmp_path,
+                    query="truth layer retrieval architecture",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    limit=4,
+                )
+
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].metadata["storage_scope"], "canonical_registry")
+        self.assertEqual(items[0].metadata["knowledge_retrieval_mode"], "vector")
+        self.assertEqual(items[0].metadata["knowledge_retrieval_adapter"], "sqlite_vec")
 
     def test_retrieve_context_relation_expansion_does_not_duplicate_seed_items(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
