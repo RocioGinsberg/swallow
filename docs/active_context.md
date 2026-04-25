@@ -7,15 +7,15 @@
 - latest_completed_slice: `Phase Closeout`
 - active_track: `Knowledge / RAG` (Primary) + `Workbench / UX` (Secondary)
 - active_phase: `Phase 57`
-- active_slice: `phase_closeout_ready_for_review`
+- active_slice: `pr_sync_pending`
 - active_branch: `feat/phase57-retrieval-quality`
-- status: `phase57_implementation_complete_review_pending`
+- status: `phase57_block_fixed_pr_pending`
 
 ---
 
 ## 当前状态说明
 
-Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase 57 前置真实数据验证暴露检索质量为核心瓶颈：blake2b hash embedding 非语义、无 rerank、chunking 无 overlap。Phase 57 方向已切到"检索质量增强"（原 roadmap 编排增强后移至 Phase 58），当前 4 个 implementation slices 均已完成并提交，`docs/plans/phase57/closeout.md` 已产出，整体状态切换为“实现完成，等待 review / PR 同步”。
+Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase 57 前置真实数据验证暴露检索质量为核心瓶颈：blake2b hash embedding 非语义、无 rerank、chunking 无 overlap。Phase 57 方向已切到"检索质量增强"（原 roadmap 编排增强后移至 Phase 58），当前 4 个 implementation slices 均已完成并提交，`docs/plans/phase57/closeout.md` 已产出。Claude review 的唯一 BLOCK 已修复并通过 `tests/test_cli.py` 全量回归，当前进入 `pr.md` / merge 材料同步阶段。
 
 ---
 
@@ -73,33 +73,45 @@ Phase 56（知识质量与 LLM 增强检索）已完成并合并到 main。Phase
   - 新增 `docs/plans/phase57/closeout.md`
   - `docs/active_context.md` / `current_state.md` 已切到 review pending 恢复基线
   - 当前分支已具备 Claude review / PR 同步前置材料
+- **[Claude]** Phase 57 review 完成（2026-04-26），结论 `approved_with_concerns`：
+  - 1 BLOCK：`_vector_or_text_matches()` 未捕获 `EmbeddingAPIUnavailable`，导致 9 个预存在 `test_cli.py` 检索测试回归
+  - 1 CONCERN：模块级 `VECTOR_EMBEDDING_DIMENSIONS` import 时求值（已登记 backlog）
+  - 修复方向：`except VectorRetrievalUnavailable:` → `except (VectorRetrievalUnavailable, EmbeddingAPIUnavailable):`
+  - 见 `docs/plans/phase57/review_comments.md`
+- **[Codex]** Phase 57 review BLOCK 已修复（2026-04-26）：
+  - `src/swallow/retrieval.py` 现已在 verified knowledge 与 canonical reuse 两条 fallback 入口捕获 `EmbeddingAPIUnavailable` 并回退到文本检索
+  - embedding fallback 改为输出准确 WARN；`chunk_id` 保持 base range 时，file retrieval citation 也同步恢复为 base range，避免 overlap 扩大引用范围
+  - 回归验证：`tests/test_retrieval_adapters.py -k 'embedding_api_is_unavailable or sqlite_vec_is_unavailable'` 通过（`4 passed`）
+  - 全量 CLI 回归：`tests/test_cli.py` 通过（`220 passed`）
+- **[Codex]** Phase 57 后续收紧（2026-04-26）：
+  - `src/swallow/retrieval_adapters.py` 已将 repo / notes 的默认 overlap 关闭（`REPO_CHUNK_OVERLAP_LINES=0`、`MARKDOWN_CHUNK_OVERLAP_LINES=0`）
+  - 保留 heading / symbol 分段与 `max_chunk_size`，仅停止默认 overlap 扩张，后续如需实验仍可通过显式参数开启
 
 进行中：
 
-- **[Human]** 准备发起 Claude review / Phase 57 收口审查。
+- 无。
 
 待执行：
 
-- **[Human]** 触发 Claude review。
-- **[Codex]** 根据 review follow-up 吸收实现或文档修正。
-- **[Codex]** review 通过后整理 `pr.md` 并准备 merge 材料。
+- **[Codex]** 更新 `pr.md`，同步 review block 修复与最新验证结果。
+- **[Human]** 审阅当前 diff / PR 材料，决定 merge gate。
 
 当前阻塞项：
 
-- 等待 Claude review 结论与后续 follow-up
+- 无。
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** 发起 Phase 57 Claude review。
-2. **[Human]** 将 review 结论同步给 Codex。
-3. **[Codex]** 吸收 follow-up，并在通过后整理 PR 材料。
+1. **[Codex]** 更新 `pr.md`，同步 review block 修复与 `tests/test_cli.py` 全量通过结果。
+2. **[Human]** 审阅 phase57 当前 diff / `pr.md`，决定 merge gate。
 
 ---
 
 ## 当前产出物
 
+- `docs/plans/phase57/review_comments.md`（claude, 2026-04-26）
 - `docs/plans/phase57/context_brief.md`（claude, 2026-04-26）
 - `docs/plans/phase57/kickoff.md`（claude, 2026-04-26）
 - `docs/plans/phase57/design_decision.md`（claude, 2026-04-26）
