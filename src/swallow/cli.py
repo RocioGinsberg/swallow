@@ -40,6 +40,14 @@ from .knowledge_store import (
     migrate_file_knowledge_to_sqlite,
     persist_wiki_entry_from_record,
 )
+from .knowledge_relations import (
+    KNOWLEDGE_RELATION_TYPES,
+    build_knowledge_relation_report,
+    build_knowledge_relations_report,
+    create_knowledge_relation,
+    delete_knowledge_relation,
+    list_knowledge_relations,
+)
 from .meta_optimizer import (
     apply_reviewed_optimization_proposals,
     build_optimization_proposal_application_report,
@@ -1490,6 +1498,43 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Append a structured ingestion summary after the standard report.",
     )
+    knowledge_link_parser = knowledge_subparsers.add_parser(
+        "link",
+        help="Create one explicit relation between two knowledge objects.",
+        description="Create one explicit relation between two knowledge objects.",
+    )
+    knowledge_link_parser.add_argument("source_object_id", help="Source knowledge object id.")
+    knowledge_link_parser.add_argument("target_object_id", help="Target knowledge object id.")
+    knowledge_link_parser.add_argument(
+        "--type",
+        dest="relation_type",
+        required=True,
+        choices=KNOWLEDGE_RELATION_TYPES,
+        help="Explicit relation type.",
+    )
+    knowledge_link_parser.add_argument(
+        "--confidence",
+        type=float,
+        default=1.0,
+        help="Optional relation confidence. Defaults to 1.0.",
+    )
+    knowledge_link_parser.add_argument(
+        "--context",
+        default="",
+        help="Optional operator note describing the relation context.",
+    )
+    knowledge_unlink_parser = knowledge_subparsers.add_parser(
+        "unlink",
+        help="Delete one explicit relation between two knowledge objects.",
+        description="Delete one explicit relation between two knowledge objects.",
+    )
+    knowledge_unlink_parser.add_argument("relation_id", help="Knowledge relation id.")
+    knowledge_links_parser = knowledge_subparsers.add_parser(
+        "links",
+        help="List explicit relations for one knowledge object.",
+        description="List explicit relations for one knowledge object.",
+    )
+    knowledge_links_parser.add_argument("object_id", help="Knowledge object id.")
     knowledge_migrate_parser = knowledge_subparsers.add_parser(
         "migrate",
         help="Backfill file-based knowledge into the SQLite knowledge store.",
@@ -2257,6 +2302,29 @@ def main(argv: list[str] | None = None) -> int:
         if bool(args.summary):
             output = f"{output}\n\n{build_ingestion_summary(result)}"
         print(output)
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "link":
+        relation = create_knowledge_relation(
+            base_dir,
+            source_object_id=args.source_object_id,
+            target_object_id=args.target_object_id,
+            relation_type=args.relation_type,
+            confidence=float(args.confidence),
+            context=args.context,
+            created_by="swl_cli",
+        )
+        print(build_knowledge_relation_report(relation))
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "unlink":
+        delete_knowledge_relation(base_dir, args.relation_id)
+        print(f"deleted_relation_id: {args.relation_id}")
+        return 0
+
+    if args.command == "knowledge" and args.knowledge_command == "links":
+        relations = list_knowledge_relations(base_dir, args.object_id)
+        print(build_knowledge_relations_report(args.object_id, relations))
         return 0
 
     if args.command == "knowledge" and args.knowledge_command == "migrate":
