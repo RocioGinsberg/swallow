@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+KNOWLEDGE_PRIORITY_BONUS = 50
+
 
 @dataclass(frozen=True, slots=True)
 class RelationExpansionConfig:

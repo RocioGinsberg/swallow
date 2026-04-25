@@ -7,13 +7,14 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from swallow.canonical_registry import build_canonical_record
 from swallow.knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
     create_knowledge_relation,
     delete_knowledge_relation,
     list_knowledge_relations,
 )
-from swallow.store import save_knowledge_objects
+from swallow.store import append_canonical_record, save_knowledge_objects
 
 
 class KnowledgeRelationsTest(unittest.TestCase):
@@ -136,6 +137,64 @@ class KnowledgeRelationsTest(unittest.TestCase):
 
         self.assertEqual(len(relations), 2)
         self.assertEqual({item["direction"] for item in relations}, {"incoming", "outgoing"})
+
+    def test_relation_commands_accept_canonical_id_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-a",
+                [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}],
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "task-b",
+                [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}],
+            )
+            append_canonical_record(
+                tmp_path,
+                build_canonical_record(
+                    task_id="task-a",
+                    object_id="knowledge-a",
+                    knowledge_object={
+                        "object_id": "knowledge-a",
+                        "text": "A",
+                        "stage": "verified",
+                        "artifact_ref": ".swl/tasks/task-a/artifacts/summary.md",
+                        "source_ref": "file://task-a",
+                        "evidence_status": "artifact_backed",
+                    },
+                    decision_record={"decided_at": "2026-04-25T00:00:00+00:00", "decided_by": "test"},
+                ),
+            )
+            append_canonical_record(
+                tmp_path,
+                build_canonical_record(
+                    task_id="task-b",
+                    object_id="knowledge-b",
+                    knowledge_object={
+                        "object_id": "knowledge-b",
+                        "text": "B",
+                        "stage": "verified",
+                        "artifact_ref": ".swl/tasks/task-b/artifacts/summary.md",
+                        "source_ref": "file://task-b",
+                        "evidence_status": "artifact_backed",
+                    },
+                    decision_record={"decided_at": "2026-04-25T00:00:00+00:00", "decided_by": "test"},
+                ),
+            )
+
+            relation = create_knowledge_relation(
+                tmp_path,
+                source_object_id="canonical-task-a-knowledge-a",
+                target_object_id="canonical-task-b-knowledge-b",
+                relation_type="extends",
+            )
+            relations = list_knowledge_relations(tmp_path, "canonical-task-a-knowledge-a")
+
+        self.assertEqual(relation["source_object_id"], "knowledge-a")
+        self.assertEqual(relation["target_object_id"], "knowledge-b")
+        self.assertEqual(relations[0]["counterparty_object_id"], "knowledge-b")
 
 
 if __name__ == "__main__":

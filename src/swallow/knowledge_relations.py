@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
+from .canonical_registry import resolve_knowledge_object_id
 from .models import utc_now
 from .sqlite_store import SqliteTaskStore
 
@@ -14,7 +15,6 @@ KNOWLEDGE_RELATION_TYPES: tuple[str, ...] = (
     "extends",
     "related_to",
 )
-
 
 def create_knowledge_relation(
     base_dir: Path,
@@ -45,15 +45,15 @@ def create_knowledge_relation(
         raise ValueError("confidence must be non-negative.")
 
     store = SqliteTaskStore()
-    if not store.knowledge_object_exists(base_dir, normalized_source):
-        raise ValueError(f"Unknown knowledge object: {normalized_source}")
-    if not store.knowledge_object_exists(base_dir, normalized_target):
-        raise ValueError(f"Unknown knowledge object: {normalized_target}")
+    resolved_source = resolve_knowledge_object_id(base_dir, normalized_source, store=store)
+    resolved_target = resolve_knowledge_object_id(base_dir, normalized_target, store=store)
+    if resolved_source == resolved_target:
+        raise ValueError("source_object_id and target_object_id must resolve to different knowledge objects.")
 
     payload = {
         "relation_id": f"relation-{uuid4().hex[:10]}",
-        "source_object_id": normalized_source,
-        "target_object_id": normalized_target,
+        "source_object_id": resolved_source,
+        "target_object_id": resolved_target,
         "relation_type": normalized_type,
         "confidence": float(confidence),
         "context": normalized_context,
@@ -64,10 +64,8 @@ def create_knowledge_relation(
 
 
 def list_knowledge_relations(base_dir: Path, object_id: str) -> list[dict[str, object]]:
-    normalized_id = str(object_id).strip()
-    if not normalized_id:
-        raise ValueError("object_id must be a non-empty string.")
-    return SqliteTaskStore().list_knowledge_relations(base_dir, normalized_id)
+    store = SqliteTaskStore()
+    return store.list_knowledge_relations(base_dir, resolve_knowledge_object_id(base_dir, object_id, store=store))
 
 
 def delete_knowledge_relation(base_dir: Path, relation_id: str) -> None:

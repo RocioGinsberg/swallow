@@ -1524,6 +1524,147 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(wiki_entry["promoted_by"], "swl_cli")
         self.assertEqual(reuse_policy["reuse_visible_count"], 1)
 
+    def test_create_task_preserves_existing_canonical_reuse_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Promote this staged note into canonical guidance.",
+                    source_task_id="task-stage-promote",
+                    source_object_id="knowledge-0002",
+                ),
+            )
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", candidate.candidate_id]), 0)
+
+            before_reuse = json.loads(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"))
+            created = create_task(
+                base_dir=tmp_path,
+                title="Preserve canonical reuse",
+                goal="Do not reset global canonical reuse state when creating a task",
+                workspace_root=tmp_path,
+                executor_name="local",
+            )
+            after_reuse = json.loads(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"))
+            task_report = (
+                tmp_path / ".swl" / "tasks" / created.task_id / "artifacts" / "canonical_reuse_policy_report.md"
+            ).read_text(encoding="utf-8")
+
+        self.assertEqual(before_reuse["reuse_visible_count"], 1)
+        self.assertEqual(after_reuse["reuse_visible_count"], 1)
+        self.assertIn("reuse_visible_count: 1", task_report)
+
+    def test_cli_end_to_end_local_file_promotion_link_and_relation_retrieval(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            alpha_doc = tmp_path / "alpha.md"
+            beta_doc = tmp_path / "beta.md"
+            alpha_doc.write_text(
+                "# Alpha Anchor\n\nzephyranchor prismseed establishes the source concept.\n",
+                encoding="utf-8",
+            )
+            beta_doc.write_text(
+                "# Beta Expansion\n\nlatchboundary governs downstream policy edges.\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "ingest-file", str(alpha_doc)]), 0)
+            self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "ingest-file", str(beta_doc)]), 0)
+
+            candidates = load_staged_candidates(tmp_path)
+            alpha_candidate = next(
+                candidate
+                for candidate in candidates
+                if candidate.source_task_id == "ingest-alpha" and candidate.text.startswith("Alpha Anchor")
+            )
+            beta_candidate = next(
+                candidate
+                for candidate in candidates
+                if candidate.source_task_id == "ingest-beta" and candidate.text.startswith("Beta Expansion")
+            )
+
+            self.assertEqual(
+                main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", alpha_candidate.candidate_id]),
+                0,
+            )
+            self.assertEqual(
+                main(["--base-dir", str(tmp_path), "knowledge", "stage-promote", beta_candidate.candidate_id]),
+                0,
+            )
+
+            alpha_canonical_id = f"canonical-{alpha_candidate.candidate_id}"
+            beta_canonical_id = f"canonical-{beta_candidate.candidate_id}"
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "knowledge",
+                        "link",
+                        alpha_canonical_id,
+                        beta_canonical_id,
+                        "--type",
+                        "related_to",
+                        "--context",
+                        "alpha anchor expands to beta boundary",
+                    ]
+                ),
+                0,
+            )
+
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "task",
+                        "create",
+                        "--title",
+                        "CLI Relation E2E",
+                        "--goal",
+                        "Explain zephyranchor prismseed",
+                        "--workspace-root",
+                        str(tmp_path),
+                        "--executor",
+                        "local",
+                    ]
+                ),
+                0,
+            )
+
+            task_id = next(
+                entry.name
+                for entry in (tmp_path / ".swl" / "tasks").iterdir()
+                if entry.is_dir() and (entry / "state.json").exists()
+            )
+            self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
+
+            retrieval = json.loads((tmp_path / ".swl" / "tasks" / task_id / "retrieval.json").read_text(encoding="utf-8"))
+            summary = (tmp_path / ".swl" / "tasks" / task_id / "artifacts" / "summary.md").read_text(encoding="utf-8")
+
+        direct_hit = next(
+            item
+            for item in retrieval
+            if item.get("source_type") == "knowledge"
+            and item.get("metadata", {}).get("canonical_id") == alpha_canonical_id
+            and item.get("metadata", {}).get("expansion_source") != "relation"
+        )
+        expanded_hit = next(
+            item
+            for item in retrieval
+            if item.get("source_type") == "knowledge"
+            and item.get("metadata", {}).get("canonical_id") == beta_canonical_id
+            and item.get("metadata", {}).get("expansion_source") == "relation"
+        )
+
+        self.assertEqual(direct_hit["metadata"]["storage_scope"], "canonical_registry")
+        self.assertEqual(expanded_hit["metadata"]["storage_scope"], "canonical_registry")
+        self.assertEqual(expanded_hit["metadata"]["expansion_parent_object_id"], alpha_candidate.source_object_id)
+        self.assertEqual(expanded_hit["metadata"]["expansion_relation_type"], "related_to")
+        self.assertIn("retrieval_reused_knowledge_count: 2", summary)
+        self.assertIn("retrieval_reused_canonical_registry_count: 2", summary)
+
     def test_cli_stage_promote_accepts_refined_text_without_mutating_staged_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

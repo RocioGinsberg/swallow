@@ -22,6 +22,7 @@ from .retrieval_adapters import (
     select_retrieval_adapter,
 )
 from .retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RelationExpansionConfig
+from .retrieval_config import KNOWLEDGE_PRIORITY_BONUS
 from .sqlite_store import SqliteTaskStore
 
 STOPWORDS = {
@@ -387,17 +388,19 @@ def iter_verified_knowledge_items(
         metadata = dict(match.document.metadata)
         metadata["knowledge_retrieval_adapter"] = match.adapter_name
         metadata["knowledge_retrieval_mode"] = retrieval_mode
+        score_breakdown = dict(match.score_breakdown)
+        score_breakdown["knowledge_priority_bonus"] = KNOWLEDGE_PRIORITY_BONUS
         items.append(
             RetrievalItem(
                 path=match.document.path,
                 source_type=KNOWLEDGE_SOURCE_TYPE,
-                score=match.score,
+                score=match.score + KNOWLEDGE_PRIORITY_BONUS,
                 preview=preview,
                 chunk_id=match.document.chunk_id,
                 title=match.document.title,
                 citation=match.document.citation,
                 matched_terms=match.matched_terms,
-                score_breakdown=match.score_breakdown,
+                score_breakdown=score_breakdown,
                 metadata=metadata,
             )
         )
@@ -442,11 +445,12 @@ def iter_canonical_reuse_items(
         if score <= 0:
             continue
         preview = " ".join(knowledge_text.split())[:220]
+        score_breakdown["knowledge_priority_bonus"] = KNOWLEDGE_PRIORITY_BONUS
         items.append(
             RetrievalItem(
                 path=relative_path,
                 source_type=KNOWLEDGE_SOURCE_TYPE,
-                score=score,
+                score=score + KNOWLEDGE_PRIORITY_BONUS,
                 preview=preview,
                 chunk_id=canonical_id,
                 title=title,
@@ -473,7 +477,48 @@ def _build_retrieval_ready_knowledge_lookup(
         request=request,
         query_plan=query_plan,
     )
-    return {str(document.chunk_id): document for document in documents if str(document.chunk_id).strip()}
+    lookup = {str(document.chunk_id): document for document in documents if str(document.chunk_id).strip()}
+
+    policy_path = canonical_reuse_policy_path(workspace_root)
+    if not policy_path.exists():
+        return lookup
+    try:
+        payload = json.loads(policy_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return lookup
+    visible_records = payload.get("visible_records", [])
+    if not isinstance(visible_records, list):
+        return lookup
+
+    relative_path = ".swl/canonical_knowledge/reuse_policy.json"
+    for canonical_record in visible_records:
+        if not isinstance(canonical_record, dict):
+            continue
+        if not is_canonical_reuse_visible(canonical_record):
+            continue
+        object_id = str(canonical_record.get("source_object_id", "")).strip()
+        knowledge_text = str(canonical_record.get("text", "")).strip()
+        canonical_id = str(canonical_record.get("canonical_id", "")).strip()
+        if not object_id or not knowledge_text or not canonical_id:
+            continue
+        lookup.setdefault(
+            object_id,
+            RetrievalSearchDocument(
+                path=relative_path,
+                path_name="reuse_policy.json",
+                source_type=KNOWLEDGE_SOURCE_TYPE,
+                chunk_id=canonical_id,
+                title=f"Canonical {canonical_id}",
+                citation=f"{relative_path}#{canonical_id}",
+                text=knowledge_text,
+                metadata=build_canonical_reuse_item_metadata(
+                    canonical_record=canonical_record,
+                    query_plan=query_plan,
+                    current_task_id=request.current_task_id,
+                ),
+            ),
+        )
+    return lookup
 
 
 def expand_by_relations(

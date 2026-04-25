@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import swallow.retrieval as retrieval_module
+from swallow.canonical_reuse import build_canonical_reuse_summary
 from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, retrieve_context
 from swallow.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG
 from swallow.retrieval_adapters import (
@@ -19,8 +20,9 @@ from swallow.retrieval_adapters import (
     VectorRetrievalUnavailable,
 )
 from swallow.knowledge_relations import create_knowledge_relation
+from swallow.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, persist_wiki_entry_from_record
 from swallow.models import RetrievalRequest
-from swallow.store import save_knowledge_objects
+from swallow.store import append_canonical_record, save_canonical_reuse_policy, save_knowledge_objects
 
 
 class RetrievalAdaptersTest(unittest.TestCase):
@@ -302,6 +304,79 @@ class RetrievalAdaptersTest(unittest.TestCase):
         hop_two = next(item for item in items if item.chunk_id == "knowledge-c")
         self.assertGreater(hop_one.score, hop_two.score)
         self.assertEqual(hop_two.metadata["expansion_depth"], DEFAULT_RELATION_EXPANSION_CONFIG.depth_limit)
+
+    def test_retrieve_context_prioritizes_canonical_reuse_and_expands_relations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            canonical_records = [
+                {
+                    "canonical_id": "canonical-a",
+                    "canonical_key": "task-object:task-a:knowledge-a",
+                    "source_task_id": "task-a",
+                    "source_object_id": "knowledge-a",
+                    "promoted_at": "2026-04-25T00:00:00+00:00",
+                    "promoted_by": "test",
+                    "decision_note": "",
+                    "decision_ref": ".swl/tasks/task-a/knowledge_decisions.jsonl#knowledge-a",
+                    "artifact_ref": "",
+                    "source_ref": "file://task-a",
+                    "text": "Knowledge Truth Layer and retrieval architecture stay connected.",
+                    "evidence_status": "source_only",
+                    "canonical_stage": "canonical",
+                    "canonical_status": "active",
+                    "superseded_by": "",
+                    "superseded_at": "",
+                },
+                {
+                    "canonical_id": "canonical-b",
+                    "canonical_key": "task-object:task-b:knowledge-b",
+                    "source_task_id": "task-b",
+                    "source_object_id": "knowledge-b",
+                    "promoted_at": "2026-04-25T00:00:00+00:00",
+                    "promoted_by": "test",
+                    "decision_note": "",
+                    "decision_ref": ".swl/tasks/task-b/knowledge_decisions.jsonl#knowledge-b",
+                    "artifact_ref": "",
+                    "source_ref": "file://task-b",
+                    "text": "Memory Authority constrains the surrounding system role decisions.",
+                    "evidence_status": "source_only",
+                    "canonical_stage": "canonical",
+                    "canonical_status": "active",
+                    "superseded_by": "",
+                    "superseded_at": "",
+                },
+            ]
+            for record in canonical_records:
+                append_canonical_record(tmp_path, record)
+                persist_wiki_entry_from_record(
+                    tmp_path,
+                    record,
+                    write_authority=TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+                )
+            save_canonical_reuse_policy(tmp_path, build_canonical_reuse_summary(canonical_records))
+            (tmp_path / "notes.md").write_text(
+                "# Notes\n\nGeneric notes mention knowledge and retrieval but are not authoritative.\n",
+                encoding="utf-8",
+            )
+            create_knowledge_relation(
+                tmp_path,
+                source_object_id="canonical-a",
+                target_object_id="canonical-b",
+                relation_type="related_to",
+            )
+
+            items = retrieve_context(
+                tmp_path,
+                query="truth layer retrieval architecture",
+                source_types=[KNOWLEDGE_SOURCE_TYPE, "notes"],
+                limit=8,
+            )
+
+        self.assertEqual(items[0].source_type, KNOWLEDGE_SOURCE_TYPE)
+        self.assertEqual(items[0].metadata["storage_scope"], "canonical_registry")
+        expanded = next(item for item in items if item.metadata.get("expansion_source") == "relation")
+        self.assertEqual(expanded.metadata["storage_scope"], "canonical_registry")
+        self.assertEqual(expanded.metadata["knowledge_object_id"], "knowledge-b")
 
     def test_retrieve_context_relation_expansion_does_not_duplicate_seed_items(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

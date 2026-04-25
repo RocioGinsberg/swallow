@@ -2645,13 +2645,14 @@ def create_task(
     write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
     write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
     write_artifact(base_dir, task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report([]))
-    write_artifact(base_dir, task_id, "canonical_registry_report.md", build_canonical_registry_report([]))
-    empty_canonical_index = build_canonical_registry_index([])
-    save_canonical_registry_index(base_dir, empty_canonical_index)
-    write_artifact(base_dir, task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(empty_canonical_index))
-    empty_canonical_reuse = build_canonical_reuse_summary([])
-    save_canonical_reuse_policy(base_dir, empty_canonical_reuse)
-    write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(empty_canonical_reuse))
+    canonical_records = _load_json_lines(canonical_registry_path(base_dir))
+    write_artifact(base_dir, task_id, "canonical_registry_report.md", build_canonical_registry_report(canonical_records))
+    canonical_index = build_canonical_registry_index(canonical_records)
+    save_canonical_registry_index(base_dir, canonical_index)
+    write_artifact(base_dir, task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(canonical_index))
+    canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
+    save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
+    write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(canonical_reuse_summary))
     write_artifact(
         base_dir,
         task_id,
