@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -461,6 +462,116 @@ def iter_canonical_reuse_items(
     return items
 
 
+def _build_retrieval_ready_knowledge_lookup(
+    workspace_root: Path,
+    request: RetrievalRequest,
+    query_plan: dict[str, Any],
+) -> dict[str, RetrievalSearchDocument]:
+    documents = build_verified_knowledge_documents(
+        workspace_root=workspace_root,
+        request=request,
+        query_plan=query_plan,
+    )
+    return {str(document.chunk_id): document for document in documents if str(document.chunk_id).strip()}
+
+
+def expand_by_relations(
+    workspace_root: Path,
+    seed_items: list[RetrievalItem],
+    *,
+    request: RetrievalRequest,
+    query_plan: dict[str, Any],
+    depth_limit: int = 2,
+    min_confidence: float = 0.3,
+    decay_factor: float = 0.6,
+) -> list[RetrievalItem]:
+    if depth_limit <= 0 or decay_factor <= 0:
+        return []
+
+    lookup = _build_retrieval_ready_knowledge_lookup(
+        workspace_root=workspace_root,
+        request=request,
+        query_plan=query_plan,
+    )
+    if not lookup:
+        return []
+
+    seen_object_ids: set[str] = set()
+    queue: deque[tuple[str, float, int]] = deque()
+    for item in seed_items:
+        object_id = str(item.metadata.get("knowledge_object_id", item.chunk_id)).strip()
+        if not object_id:
+            continue
+        seen_object_ids.add(object_id)
+        queue.append((object_id, float(item.score), 0))
+
+    if not queue:
+        return []
+
+    store = SqliteTaskStore()
+    expanded_items: list[RetrievalItem] = []
+    traversed: set[tuple[str, str]] = set()
+
+    while queue:
+        source_object_id, source_score, depth = queue.popleft()
+        if depth >= depth_limit:
+            continue
+        try:
+            relations = store.list_knowledge_relations(workspace_root, source_object_id)
+        except OSError:
+            return []
+        for relation in relations:
+            target_object_id = str(relation.get("counterparty_object_id", "")).strip()
+            if not target_object_id:
+                continue
+            edge_key = (source_object_id, target_object_id)
+            if edge_key in traversed:
+                continue
+            traversed.add(edge_key)
+
+            relation_confidence = float(relation.get("confidence", 1.0))
+            expanded_score = float(source_score) * decay_factor * relation_confidence
+            next_depth = depth + 1
+            if expanded_score < min_confidence:
+                continue
+
+            if target_object_id not in seen_object_ids:
+                document = lookup.get(target_object_id)
+                if document is not None:
+                    preview = " ".join(document.text.split())[:220]
+                    metadata = dict(document.metadata)
+                    metadata.update(
+                        {
+                            "knowledge_retrieval_adapter": "relation_expansion",
+                            "knowledge_retrieval_mode": "relation_expansion",
+                            "expansion_source": "relation",
+                            "expansion_depth": next_depth,
+                            "expansion_relation_type": str(relation.get("relation_type", "")).strip(),
+                            "expansion_parent_object_id": source_object_id,
+                            "expansion_confidence": relation_confidence,
+                        }
+                    )
+                    expanded_items.append(
+                        RetrievalItem(
+                            path=document.path,
+                            source_type=KNOWLEDGE_SOURCE_TYPE,
+                            score=expanded_score,
+                            preview=preview,
+                            chunk_id=document.chunk_id,
+                            title=document.title,
+                            citation=document.citation,
+                            matched_terms=[],
+                            score_breakdown={"relation_expansion": next_depth},
+                            metadata=metadata,
+                        )
+                    )
+                seen_object_ids.add(target_object_id)
+                queue.append((target_object_id, expanded_score, next_depth))
+            elif next_depth < depth_limit:
+                queue.append((target_object_id, expanded_score, next_depth))
+    return expanded_items
+
+
 def retrieve_context(
     workspace_root: Path,
     query: str | None = None,
@@ -479,6 +590,14 @@ def retrieve_context(
     items.extend(
         iter_canonical_reuse_items(
             workspace_root=workspace_root,
+            request=retrieval_request,
+            query_plan=query_plan,
+        )
+    )
+    items.extend(
+        expand_by_relations(
+            workspace_root=workspace_root,
+            seed_items=list(items),
             request=retrieval_request,
             query_plan=query_plan,
         )

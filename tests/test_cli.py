@@ -7219,6 +7219,82 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(items[0].metadata["knowledge_task_id"], "task999")
         self.assertEqual(items[0].metadata["knowledge_task_relation"], "cross_task")
 
+    def test_retrieve_context_includes_relation_expansion_metadata_for_linked_knowledge(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task123",
+                [
+                    {
+                        "object_id": "knowledge-0001",
+                        "text": "Current task graphseed retrieval anchor.",
+                        "stage": "verified",
+                        "source_kind": "external_knowledge_capture",
+                        "source_ref": "chat://task123",
+                        "task_linked": True,
+                        "captured_at": "2026-04-25T00:00:00+00:00",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/task123/artifacts/summary.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                    }
+                ],
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "task999",
+                [
+                    {
+                        "object_id": "knowledge-0002",
+                        "text": "Operator note about taxonomy closure and archived evidence bundle.",
+                        "stage": "verified",
+                        "source_kind": "external_knowledge_capture",
+                        "source_ref": "chat://task999",
+                        "task_linked": True,
+                        "captured_at": "2026-04-25T00:00:00+00:00",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/task999/artifacts/summary.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                    }
+                ],
+            )
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "link",
+                            "knowledge-0001",
+                            "knowledge-0002",
+                            "--type",
+                            "cites",
+                        ]
+                    ),
+                    0,
+                )
+
+            items = retrieve_context(
+                tmp_path,
+                request=RetrievalRequest(
+                    query="graphseed retrieval anchor",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    context_layers=["task", "history"],
+                    current_task_id="task123",
+                    limit=8,
+                    strategy="system_baseline",
+                ),
+            )
+
+        expanded = next(item for item in items if item.chunk_id == "knowledge-0002")
+        self.assertEqual(expanded.metadata["expansion_source"], "relation")
+        self.assertEqual(expanded.metadata["expansion_relation_type"], "cites")
+        self.assertEqual(expanded.metadata["knowledge_task_relation"], "cross_task")
+
     def test_retrieve_context_excludes_source_only_verified_knowledge_from_reusable_source(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
