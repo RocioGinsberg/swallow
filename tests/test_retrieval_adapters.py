@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import swallow.retrieval as retrieval_module
 from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, retrieve_context
+from swallow.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG
 from swallow.retrieval_adapters import (
     RetrievalSearchDocument,
     RetrievalSearchMatch,
@@ -300,7 +301,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
         hop_one = next(item for item in items if item.chunk_id == "knowledge-b")
         hop_two = next(item for item in items if item.chunk_id == "knowledge-c")
         self.assertGreater(hop_one.score, hop_two.score)
-        self.assertEqual(hop_two.metadata["expansion_depth"], 2)
+        self.assertEqual(hop_two.metadata["expansion_depth"], DEFAULT_RELATION_EXPANSION_CONFIG.depth_limit)
 
     def test_retrieve_context_relation_expansion_does_not_duplicate_seed_items(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

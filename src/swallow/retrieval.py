@@ -21,6 +21,7 @@ from .retrieval_adapters import (
     score_search_document,
     select_retrieval_adapter,
 )
+from .retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RelationExpansionConfig
 from .sqlite_store import SqliteTaskStore
 
 STOPWORDS = {
@@ -481,10 +482,11 @@ def expand_by_relations(
     *,
     request: RetrievalRequest,
     query_plan: dict[str, Any],
-    depth_limit: int = 2,
-    min_confidence: float = 0.3,
-    decay_factor: float = 0.6,
+    config: RelationExpansionConfig = DEFAULT_RELATION_EXPANSION_CONFIG,
 ) -> list[RetrievalItem]:
+    depth_limit = int(config.depth_limit)
+    min_confidence = float(config.min_confidence)
+    decay_factor = float(config.decay_factor)
     if depth_limit <= 0 or decay_factor <= 0:
         return []
 
