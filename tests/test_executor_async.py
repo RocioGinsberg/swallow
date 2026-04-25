@@ -126,6 +126,29 @@ class ExecutorAsyncProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.output, "Async gateway response")
         self.assertEqual(client.calls[0]["kwargs"]["json"]["model"], "claude")
 
+    async def test_run_http_executor_async_uses_api_usage_when_available(self) -> None:
+        state = _http_state(
+            route_name="local-http",
+            route_model_hint="claude",
+            route_dialect="claude_xml",
+        )
+        client = _FakeAsyncClient(
+            [
+                _FakeHTTPResponse(
+                    payload={
+                        "choices": [{"message": {"content": "Async gateway response"}}],
+                        "usage": {"prompt_tokens": 210, "completion_tokens": 34},
+                    }
+                )
+            ]
+        )
+
+        with patch("swallow.executor.httpx.AsyncClient", return_value=client):
+            result = await run_http_executor_async(state, [])
+
+        self.assertEqual(result.estimated_input_tokens, 210)
+        self.assertEqual(result.estimated_output_tokens, 34)
+
     async def test_run_http_executor_async_falls_back_to_next_http_route_after_timeout(self) -> None:
         state = _http_state(
             route_name="http-claude",
