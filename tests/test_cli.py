@@ -86,6 +86,7 @@ from swallow.store import (
     save_retrieval,
     save_state,
 )
+from swallow.planner import plan
 from swallow.validator import build_validation_report, validate_run_outputs
 
 
@@ -9411,6 +9412,53 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(state.route_name, "local-aider")
         self.assertEqual(state.route_dialect, "plain_text")
         self.assertEqual(persisted["route_dialect"], "plain_text")
+
+    def test_task_create_passes_document_paths_to_literature_specialist_input_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            doc_a = base_dir / "docs" / "a.md"
+            doc_b = base_dir / "docs" / "b.md"
+            doc_a.parent.mkdir(parents=True, exist_ok=True)
+            doc_a.write_text("# A\n", encoding="utf-8")
+            doc_b.write_text("# B\n", encoding="utf-8")
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                exit_code = main(
+                    [
+                        "--base-dir",
+                        str(base_dir),
+                        "task",
+                        "create",
+                        "--title",
+                        "Literature specialist task",
+                        "--goal",
+                        "Inspect local literature inputs",
+                        "--workspace-root",
+                        str(base_dir),
+                        "--executor",
+                        "literature-specialist",
+                        "--document-paths",
+                        str(doc_a),
+                        "--document-paths",
+                        str(doc_b),
+                    ]
+                )
+
+            self.assertEqual(exit_code, 0)
+            task_id = stdout.getvalue().strip()
+            state = load_state(base_dir, task_id)
+            cards = plan(state)
+
+        self.assertEqual(
+            state.input_context["document_paths"],
+            [str(doc_a.resolve()), str(doc_b.resolve())],
+        )
+        self.assertEqual(state.executor_name, "literature-specialist")
+        self.assertEqual(
+            cards[0].input_context["document_paths"],
+            [str(doc_a.resolve()), str(doc_b.resolve())],
+        )
 
     def test_select_route_uses_override_before_legacy_mode(self) -> None:
         state = TaskState(
