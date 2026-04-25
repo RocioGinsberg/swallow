@@ -22,6 +22,7 @@ from swallow.executor import (
     UnknownExecutorError,
     _attach_estimated_usage,
     resolve_executor,
+    resolve_new_api_chat_completions_url,
     run_executor_inline,
     run_http_executor,
 )
@@ -325,7 +326,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         state = TaskState(
             task_id="task-http-auth",
             title="HTTP auth",
-            goal="Forward the configured new-api token",
+            goal="Forward the configured swl token",
             workspace_root="/tmp",
             executor_name="http",
             route_name="local-http",
@@ -336,13 +337,13 @@ class ExecutorProtocolTest(unittest.TestCase):
             payload={"choices": [{"message": {"content": "ok"}}]},
         )
 
-        with patch.dict("os.environ", {"AIWF_NEW_API_KEY": "phase46-test-token"}, clear=False):
+        with patch.dict("os.environ", {"SWL_API_KEY": "phase56-test-token"}, clear=False):
             with patch("swallow.executor.httpx.post", return_value=response) as http_post:
                 run_http_executor(state, [])
 
-        self.assertEqual(http_post.call_args.kwargs["headers"]["Authorization"], "Bearer phase46-test-token")
+        self.assertEqual(http_post.call_args.kwargs["headers"]["Authorization"], "Bearer phase56-test-token")
 
-    def test_run_http_executor_resolves_compatibility_alias_to_default_model(self) -> None:
+    def test_run_http_executor_uses_swl_chat_model_when_configured(self) -> None:
         state = _http_state(
             route_name="local-http",
             route_model_hint="http-default",
@@ -352,12 +353,33 @@ class ExecutorProtocolTest(unittest.TestCase):
             payload={"choices": [{"message": {"content": "ok"}}]},
         )
 
-        with patch.dict("os.environ", {"AIWF_NEW_API_DEFAULT_MODEL": "deepseek-chat"}, clear=False):
+        with patch.dict("os.environ", {"SWL_CHAT_MODEL": "google/gemma-4-26b-a4b-it"}, clear=False):
             with patch("swallow.executor.httpx.post", return_value=response) as http_post:
                 result = run_http_executor(state, [])
 
         self.assertEqual(result.status, "completed")
-        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "deepseek-chat")
+        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "google/gemma-4-26b-a4b-it")
+
+    def test_run_http_executor_defaults_to_gpt_4o_mini_without_swl_chat_model(self) -> None:
+        state = _http_state(
+            route_name="local-http",
+            route_model_hint="http-default",
+            route_dialect="plain_text",
+        )
+        response = _FakeHTTPResponse(payload={"choices": [{"message": {"content": "ok"}}]})
+
+        with patch.dict("os.environ", {"SWL_CHAT_MODEL": ""}, clear=False):
+            with patch("swallow.executor.httpx.post", return_value=response) as http_post:
+                result = run_http_executor(state, [])
+
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "gpt-4o-mini")
+
+    def test_resolve_new_api_chat_completions_url_accepts_swl_base_url_alias(self) -> None:
+        with patch.dict("os.environ", {"SWL_API_BASE_URL": "http://localhost:3001"}, clear=False):
+            resolved = resolve_new_api_chat_completions_url()
+
+        self.assertEqual(resolved, "http://localhost:3001/v1/chat/completions")
 
     def test_run_http_executor_falls_back_to_next_http_route_after_timeout(self) -> None:
         state = _http_state(

@@ -196,6 +196,60 @@ class KnowledgeRelationsTest(unittest.TestCase):
         self.assertEqual(relation["target_object_id"], "knowledge-b")
         self.assertEqual(relations[0]["counterparty_object_id"], "knowledge-b")
 
+    def test_relation_commands_accept_source_ref_filename_aliases(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "ingest-knowledge",
+                [{"object_id": "knowledge-doc", "text": "Knowledge", "stage": "verified"}],
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "ingest-architecture",
+                [{"object_id": "architecture-doc", "text": "Architecture", "stage": "verified"}],
+            )
+            append_canonical_record(
+                tmp_path,
+                build_canonical_record(
+                    task_id="ingest-knowledge",
+                    object_id="knowledge-doc",
+                    knowledge_object={
+                        "object_id": "knowledge-doc",
+                        "text": "Knowledge",
+                        "stage": "verified",
+                        "source_ref": "file:///workspace/docs/design/KNOWLEDGE.md",
+                        "evidence_status": "source_only",
+                    },
+                    decision_record={"decided_at": "2026-04-25T00:00:00+00:00", "decided_by": "test"},
+                ),
+            )
+            append_canonical_record(
+                tmp_path,
+                build_canonical_record(
+                    task_id="ingest-architecture",
+                    object_id="architecture-doc",
+                    knowledge_object={
+                        "object_id": "architecture-doc",
+                        "text": "Architecture",
+                        "stage": "verified",
+                        "source_ref": "file:///workspace/docs/design/ARCHITECTURE.md",
+                        "evidence_status": "source_only",
+                    },
+                    decision_record={"decided_at": "2026-04-25T00:00:00+00:00", "decided_by": "test"},
+                ),
+            )
+
+            relation = create_knowledge_relation(
+                tmp_path,
+                source_object_id="KNOWLEDGE.md",
+                target_object_id="ARCHITECTURE.md",
+                relation_type="related_to",
+            )
+
+        self.assertEqual(relation["source_object_id"], "knowledge-doc")
+        self.assertEqual(relation["target_object_id"], "architecture-doc")
+
 
 if __name__ == "__main__":
     unittest.main()

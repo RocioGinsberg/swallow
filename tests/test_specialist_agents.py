@@ -10,7 +10,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.consistency_audit import ConsistencyAuditResult
-from swallow.agent_llm import AgentLLMResponse, AgentLLMUnavailable
+from swallow.agent_llm import AgentLLMResponse, AgentLLMUnavailable, resolve_agent_llm_model
 from swallow.consistency_reviewer import (
     CONSISTENCY_REVIEWER_MEMORY_AUTHORITY,
     CONSISTENCY_REVIEWER_SYSTEM_ROLE,
@@ -64,6 +64,12 @@ def _load_events(base_dir: Path, task_id: str) -> list[dict[str, object]]:
 
 
 class SpecialistAgentTest(unittest.TestCase):
+    def test_resolve_agent_llm_model_defaults_to_gpt_4o_mini(self) -> None:
+        with patch.dict("os.environ", {"SWL_CHAT_MODEL": ""}, clear=False):
+            model = resolve_agent_llm_model()
+
+        self.assertEqual(model, "gpt-4o-mini")
+
     def test_ingestion_specialist_agent_wraps_pipeline_and_returns_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -290,6 +296,83 @@ class SpecialistAgentTest(unittest.TestCase):
         self.assertEqual(len(result.side_effects["relation_suggestions"]), 1)
         self.assertEqual(result.estimated_input_tokens, 120)
         self.assertEqual(result.estimated_output_tokens, 48)
+
+    def test_literature_specialist_normalizes_relation_aliases_from_retrieval_items(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            doc_a = tmp_path / "KNOWLEDGE.md"
+            doc_b = tmp_path / "ARCHITECTURE.md"
+            doc_a.write_text("# Knowledge\nTruth-first retrieval.\n", encoding="utf-8")
+            doc_b.write_text("# Architecture\nSix-layer system.\n", encoding="utf-8")
+            state = TaskState(
+                task_id="literature-alias-task",
+                title="Compare reference docs",
+                goal="Ground relation suggestions to real object ids",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Compare two design notes",
+                parent_task_id=state.task_id,
+                input_context={"document_paths": [str(doc_a), str(doc_b)]},
+            )
+            retrieval_items = [
+                RetrievalItem(
+                    path="docs/design/KNOWLEDGE.md",
+                    source_type="knowledge",
+                    score=80,
+                    preview="truth-first retrieval",
+                    chunk_id="canonical-staged-knowledge",
+                    title="Canonical canonical-staged-knowledge",
+                    metadata={
+                        "knowledge_object_id": "ingest-knowledge-fragment-0004",
+                        "canonical_id": "canonical-staged-knowledge",
+                        "source_ref": "file:///workspace/docs/design/KNOWLEDGE.md",
+                    },
+                ),
+                RetrievalItem(
+                    path="docs/design/ARCHITECTURE.md",
+                    source_type="knowledge",
+                    score=79,
+                    preview="six-layer system",
+                    chunk_id="canonical-staged-architecture",
+                    title="Canonical canonical-staged-architecture",
+                    metadata={
+                        "knowledge_object_id": "ingest-architecture-fragment-0003",
+                        "canonical_id": "canonical-staged-architecture",
+                        "source_ref": "file:///workspace/docs/design/ARCHITECTURE.md",
+                    },
+                ),
+            ]
+
+            with patch(
+                "swallow.literature_specialist.call_agent_llm",
+                return_value=AgentLLMResponse(
+                    content=json.dumps(
+                        {
+                            "summary": "The documents align on system structure.",
+                            "key_concepts": ["truth", "architecture"],
+                            "relation_suggestions": [
+                                {
+                                    "source_object_id": "KNOWLEDGE.md",
+                                    "target_object_id": "ARCHITECTURE.md",
+                                    "relation_type": "related_to",
+                                    "confidence": 0.91,
+                                    "context": "The architecture depends on the truth-layer design.",
+                                }
+                            ],
+                        }
+                    ),
+                    input_tokens=90,
+                    output_tokens=30,
+                    model="gpt-4o-mini",
+                ),
+            ):
+                result = LiteratureSpecialistAgent().execute(tmp_path, state, card, retrieval_items)
+
+        suggestions = result.side_effects["relation_suggestions"]
+        self.assertEqual(len(suggestions), 1)
+        self.assertEqual(suggestions[0]["source_object_id"], "ingest-knowledge-fragment-0004")
+        self.assertEqual(suggestions[0]["target_object_id"], "ingest-architecture-fragment-0003")
 
     def test_literature_specialist_falls_back_to_heuristic_on_llm_failure(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
