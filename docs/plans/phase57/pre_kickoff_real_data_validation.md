@@ -10,7 +10,7 @@ last_updated: 2026-04-25
 
 Phase 57 kickoff 前的真实数据验证已跑通最小闭环：`SWL_*` 环境变量已可驱动 HTTP / agent LLM 路径，design 文档已完成 ingest + promote + literature-specialist LLM 分析 + `apply-suggestions` 实落库。结论是：**Phase 56 的主链条成立，但暴露出两个真实场景缺口**：
 
-1. provider 侧 `google/gemma-4-26b-a4b-it` 当前不可用（`model_price_error`），不能作为当下默认 chat 测试模型；
+1. provider 侧 `google/gemma-4-26b-a4b-it` 当前不可用（`model_price_error`），因此后续验证应直接使用当前 provider 已确认可运行的 chat model；
 2. LiteratureSpecialist 原始 relation suggestion 未 grounding 到真实 knowledge object id，已在本轮修复。
 
 ## 1. 环境配置结论
@@ -31,6 +31,7 @@ export SWL_CHAT_MODEL='gpt-4o-mini'
 说明：
 
 - `SWL_API_KEY` / `SWL_API_BASE_URL` / `SWL_CHAT_MODEL` 已在运行时代码中生效，并有测试覆盖；
+- 默认 chat model 已抽到 `src/swallow/runtime_config.py` 统一管理，后续切换模型无需再分别修改 `executor.py` / `agent_llm.py`；
 - `google/gemma-4-26b-a4b-it` 在当前 provider 返回 `model_price_error`，属于 provider 配置问题，不是 swallow 代码问题；
 - `/v1/models` 可访问，`text-embedding-3-small` embeddings 可成功调用；
 - 用户候选的 `text-embedding-v1` 在当前 provider 上返回 `400 Model does not exist`，Phase 57 如要做 neural embedding，应先确认真实可用模型名。
@@ -178,9 +179,9 @@ export SWL_CHAT_MODEL='gpt-4o-mini'
 
 确认真实 provider 配置：
 
-- chat 默认模型先用当前真正可跑通的模型；
+- chat 默认模型直接用当前真正可跑通的模型，并通过 `SWL_CHAT_MODEL` / `runtime_config.py` 维护；
 - embedding 模型不要直接写死 `text-embedding-v1`，先以真实探针结果为准；
-- 若坚持使用 `google/gemma-4-26b-a4b-it`，需要先在 provider 侧完成价格 / 分组配置。
+- 如未来改回 `google/gemma-4-26b-a4b-it`，需要先在 provider 侧完成价格 / 分组配置。
 
 ### P1
 

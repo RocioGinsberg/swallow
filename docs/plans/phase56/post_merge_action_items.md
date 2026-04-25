@@ -84,7 +84,7 @@ swl task run <task_id>
 建议在执行前显式导出当前测试模型：
 
 ```bash
-export SWL_CHAT_MODEL="google/gemma-4-26b-a4b-it"
+export SWL_CHAT_MODEL="gpt-4o-mini"
 ```
 
 ## 5. Phase 57 方向决策
