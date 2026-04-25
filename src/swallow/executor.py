@@ -17,6 +17,7 @@ from .cost_estimation import estimate_tokens
 from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
 from .dialect_adapters import ClaudeXMLDialect, FIMDialect
 from .models import DialectSpec, ExecutorResult, RetrievalItem, RouteSpec, TaskCard, TaskState
+from .runtime_config import resolve_swl_chat_model
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
 DEFAULT_NEW_API_CHAT_COMPLETIONS_URL = "http://localhost:3000/v1/chat/completions"
@@ -487,10 +488,7 @@ def resolve_http_model_name(state: TaskState) -> str:
     configured_hint = str(state.route_model_hint or "").strip()
     if configured_hint and configured_hint not in {"http", "http-default"}:
         return configured_hint
-    configured = os.environ.get("SWL_CHAT_MODEL", "").strip()
-    if configured:
-        return configured
-    return "gpt-4o-mini"
+    return resolve_swl_chat_model()
 
 
 def _executor_route_fallback_enabled(state: TaskState) -> bool:

@@ -43,6 +43,7 @@ from swallow.quality_reviewer import (
     QUALITY_REVIEWER_SYSTEM_ROLE,
     QualityReviewerAgent,
 )
+from swallow.runtime_config import resolve_swl_chat_model
 from swallow.validator_agent import VALIDATOR_MEMORY_AUTHORITY, VALIDATOR_SYSTEM_ROLE, ValidatorAgent
 
 
@@ -64,6 +65,12 @@ def _load_events(base_dir: Path, task_id: str) -> list[dict[str, object]]:
 
 
 class SpecialistAgentTest(unittest.TestCase):
+    def test_resolve_swl_chat_model_defaults_to_gpt_4o_mini(self) -> None:
+        with patch.dict("os.environ", {"SWL_CHAT_MODEL": ""}, clear=False):
+            model = resolve_swl_chat_model()
+
+        self.assertEqual(model, "gpt-4o-mini")
+
     def test_resolve_agent_llm_model_defaults_to_gpt_4o_mini(self) -> None:
         with patch.dict("os.environ", {"SWL_CHAT_MODEL": ""}, clear=False):
             model = resolve_agent_llm_model()

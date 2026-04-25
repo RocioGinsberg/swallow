@@ -16,6 +16,7 @@ from .executor import (
     resolve_new_api_api_key,
     resolve_new_api_chat_completions_url,
 )
+from .runtime_config import resolve_swl_chat_model
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,13 +32,7 @@ class AgentLLMUnavailable(RuntimeError):
 
 
 def resolve_agent_llm_model(explicit_model: str | None = None) -> str:
-    configured = str(explicit_model or "").strip()
-    if configured:
-        return configured
-    configured = os.environ.get("SWL_CHAT_MODEL", "").strip()
-    if configured:
-        return configured
-    return "gpt-4o-mini"
+    return resolve_swl_chat_model(explicit_model=explicit_model)
 
 
 def call_agent_llm(
