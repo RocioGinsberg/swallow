@@ -5533,6 +5533,9 @@ class CliLifecycleTest(unittest.TestCase):
             (["knowledge", "stage-reject", "--help"], "Reject one pending staged candidate."),
             (["knowledge", "canonical-audit", "--help"], "Audit canonical registry health."),
             (["knowledge", "ingest-file", "--help"], "Ingest one local markdown/text file into staged knowledge."),
+            (["knowledge", "link", "--help"], "Create one explicit relation between two knowledge objects."),
+            (["knowledge", "unlink", "--help"], "Delete one explicit relation between two knowledge objects."),
+            (["knowledge", "links", "--help"], "List explicit relations for one knowledge object."),
         ]
 
         for argv, expected in command_expectations:
@@ -5630,6 +5633,115 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(len(staged_records), 1)
         self.assertEqual(staged_records[0].source_kind, "local_file_capture")
         self.assertEqual(staged_records[0].source_ref, f"file://{source.resolve()}")
+
+    def test_cli_knowledge_link_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-a",
+                [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}],
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "task-b",
+                [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}],
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "link",
+                            "knowledge-a",
+                            "knowledge-b",
+                            "--type",
+                            "cites",
+                            "--confidence",
+                            "0.8",
+                            "--context",
+                            "A cites B",
+                        ]
+                    ),
+                    0,
+                )
+
+        output = stdout.getvalue()
+        self.assertIn("relation_id: relation-", output)
+        self.assertIn("relation_type: cites", output)
+        self.assertIn("source_object_id: knowledge-a", output)
+        self.assertIn("target_object_id: knowledge-b", output)
+
+    def test_cli_knowledge_links_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(tmp_path, "task-a", [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}])
+            save_knowledge_objects(tmp_path, "task-b", [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}])
+            self.assertEqual(
+                main(
+                    [
+                        "--base-dir",
+                        str(tmp_path),
+                        "knowledge",
+                        "link",
+                        "knowledge-a",
+                        "knowledge-b",
+                        "--type",
+                        "related_to",
+                    ]
+                ),
+                0,
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "links", "knowledge-a"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("# Knowledge Relations", output)
+        self.assertIn("object_id: knowledge-a", output)
+        self.assertIn("relation_type: related_to", output)
+        self.assertIn("counterparty_object_id: knowledge-b", output)
+
+    def test_cli_knowledge_unlink_command(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(tmp_path, "task-a", [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}])
+            save_knowledge_objects(tmp_path, "task-b", [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}])
+            create_stdout = StringIO()
+
+            with redirect_stdout(create_stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "knowledge",
+                            "link",
+                            "knowledge-a",
+                            "knowledge-b",
+                            "--type",
+                            "extends",
+                        ]
+                    ),
+                    0,
+                )
+
+            relation_line = next(
+                line for line in create_stdout.getvalue().splitlines() if line.startswith("relation_id: ")
+            )
+            relation_id = relation_line.split(": ", 1)[1]
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "unlink", relation_id]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn(f"deleted_relation_id: {relation_id}", output)
 
     def test_task_grounding_prints_grounding_evidence_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

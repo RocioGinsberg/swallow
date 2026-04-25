@@ -157,6 +157,50 @@ class SqliteTaskStoreTest(unittest.TestCase):
         self.assertEqual(wiki_count, 1)
         self.assertEqual(after_delete, [])
 
+    def test_sqlite_task_store_round_trips_knowledge_relations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            store = SqliteTaskStore()
+            store.replace_task_knowledge(
+                base_dir,
+                "task-a",
+                [{"object_id": "knowledge-a", "text": "A", "stage": "verified"}],
+            )
+            store.replace_task_knowledge(
+                base_dir,
+                "task-b",
+                [{"object_id": "knowledge-b", "text": "B", "stage": "verified"}],
+            )
+
+            self.assertTrue(store.knowledge_object_exists(base_dir, "knowledge-a"))
+            self.assertFalse(store.knowledge_object_exists(base_dir, "missing-object"))
+            store.create_knowledge_relation(
+                base_dir,
+                {
+                    "relation_id": "relation-0001",
+                    "source_object_id": "knowledge-a",
+                    "target_object_id": "knowledge-b",
+                    "relation_type": "cites",
+                    "confidence": 0.8,
+                    "context": "A cites B",
+                    "created_at": "2026-04-25T10:00:00+00:00",
+                    "created_by": "test",
+                },
+            )
+            relations = store.list_knowledge_relations(base_dir, "knowledge-a")
+
+            with sqlite3.connect(swallow_db_path(base_dir)) as connection:
+                relation_count = int(connection.execute("SELECT COUNT(*) FROM knowledge_relations").fetchone()[0])
+
+            deleted = store.delete_knowledge_relation(base_dir, "relation-0001")
+            after_delete = store.list_knowledge_relations(base_dir, "knowledge-a")
+
+        self.assertEqual(relation_count, 1)
+        self.assertEqual(len(relations), 1)
+        self.assertEqual(relations[0]["relation_type"], "cites")
+        self.assertTrue(deleted)
+        self.assertEqual(after_delete, [])
+
     def test_sqlite_task_store_blocks_unauthorized_canonical_knowledge_write(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)
