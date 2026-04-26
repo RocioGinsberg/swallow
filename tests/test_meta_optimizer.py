@@ -261,7 +261,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 self.assertEqual(application_record.applied_count, 1)
                 self.assertEqual(application_record.noop_count, 0)
                 self.assertEqual(application_record.skipped_count, 0)
-                self.assertEqual(application_record.rollback_weights, {"local-aider": 1.0})
+                self.assertEqual(application_record.rollback_weights, {"local-codex": 1.0})
                 self.assertAlmostEqual(
                     route_by_name("local-codex").quality_weight,
                     route_weight_proposal.suggested_weight or 1.0,
@@ -535,11 +535,11 @@ class MetaOptimizerTest(unittest.TestCase):
 
                 self.assertEqual(application_record.applied_count, 1)
                 self.assertEqual(
-                    application_record.rollback_capability_profiles["local-aider"]["unsupported_task_types"],
+                    application_record.rollback_capability_profiles["local-codex"]["unsupported_task_types"],
                     [],
                 )
                 persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
-                self.assertEqual(persisted_profiles["local-aider"]["unsupported_task_types"], ["review"])
+                self.assertEqual(persisted_profiles["local-codex"]["unsupported_task_types"], ["review"])
                 apply_route_capability_profiles(base_dir)
                 self.assertEqual(route.unsupported_task_types, ["review"])
         finally:

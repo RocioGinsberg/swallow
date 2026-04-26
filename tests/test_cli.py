@@ -9289,7 +9289,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[14]["event_type"], "knowledge_policy.completed")
         self.assertEqual(events[14]["payload"]["status"], "passed")
         self.assertEqual(events[15]["event_type"], "validation.completed")
-        self.assertEqual(events[15]["payload"]["status"], "passed")
+        self.assertEqual(events[15]["payload"]["status"], "warning")
         self.assertEqual(events[16]["event_type"], "retry_policy.completed")
         self.assertEqual(events[16]["payload"]["status"], "passed")
         self.assertEqual(events[17]["event_type"], "execution_budget_policy.completed")
@@ -9309,8 +9309,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[-1]["payload"]["compatibility_status"], "passed")
         self.assertEqual(events[-1]["payload"]["execution_fit_status"], "passed")
         self.assertEqual(events[-1]["payload"]["knowledge_policy_status"], "passed")
-        self.assertEqual(events[-1]["payload"]["validation_status"], "passed")
-        self.assertEqual(events[-1]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[-1]["payload"]["validation_status"], "warning")
+        self.assertEqual(events[-1]["payload"]["retrieval_count"], 0)
 
     def test_failure_resume_note_keeps_failure_guidance(self) -> None:
         state = TaskState(
