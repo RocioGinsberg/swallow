@@ -5,189 +5,171 @@ status: living-document
 
 # 演进路线图 (Roadmap)
 
-## 一、能力现状与演进方向 (Post-v1.0.0)
+## 一、能力现状与演进方向
 
-> 最近更新：2026-04-24
+> 最近更新：2026-04-26（Phase 57 已 merge，准备重打 `v1.2.0`）
 
-系统已完成 **Foundation Era**（Phase 47-54），核心架构差距全部消化：异步底座（v0.6.0）、知识 SSOT（v0.7.0）、策略闭环（v0.8.0）、并行编排（v0.9.0）、Specialist Agent 体系（v1.0.0）、命名清理（v1.0.0）。452 tests passed，7 个 specialist/validator Agent 全部具备独立生命周期。
+系统已完成 **Foundation Era**（Phase 47-54，v1.0.0 收官）：从 Consensus → Async → Knowledge → Policy → Parallel → Specialist 六个能力代际，把架构债务消化清零，7 个专项 Agent 全部具备独立生命周期，core loop / async runtime / SQLite truth / Librarian / Meta-Optimizer 主线完整。
 
-### 已消化的蓝图差距（Foundation Era 回顾）
+进入 **Knowledge Loop Era**（Phase 55+）后，演进逻辑从"消化蓝图差距"转为"从可展示的知识闭环出发，逐步扩展系统能力"。每个 phase 是前一个的自然延伸，而不是从蓝图里挑 gap。
 
-| 差距 | 消化 Phase | 状态 |
-|------|-----------|------|
-| 知识真值”双重真相”风险（SSOT） | Phase 49 (v0.7.0) | ✅ SQLite-primary，文件系统仅保留 mirror |
-| Specialist Agent 缺位与提案应用流程 | Phase 50-51-53 (v0.7.0+ → v1.0.0) | ✅ 7 个 Agent 全部落地，提案应用闭环完整 |
-| 执行能力不完整（同步桥接、并发控制） | Phase 52 (v0.9.0) | ✅ AsyncCLIAgentExecutor + fan-out + timeout |
-| Taxonomy 命名品牌残留 | Phase 54 (v1.0.0) | ✅ codex_fim → fim，shim 保留 |
+### 当前 v1.2.0 候选基线（Phase 57 已 merge）
 
-### 前瞻性能力差距（Knowledge Loop Era 方向）
+| 维度 | 现状 |
+|------|------|
+| **知识治理** | truth-first 双层架构完整，Stage 1-5 全部实现，relation-aware retrieval 落地，LLM 增强 Literature/Quality |
+| **检索基础设施** | 神经 API embedding（`text-embedding-3-small`）+ LLM rerank + canonical/verified 路径对齐 |
+| **Agent 体系** | 7 个 Specialist Agent 全部独立生命周期，LLM 增强已接入 Literature/Quality |
+| **执行编排** | fan-out + timeout + subtask summary 已落地；planner 逻辑仍嵌入 orchestrator |
+| **自我进化** | Librarian 知识沉淀 + Meta-Optimizer 提案应用闭环 |
+| **CLI 路由** | 默认 CLI agent = aider + claude-code；codex CLI 未接入 |
 
-Foundation Era 以”消化蓝图差距”为驱动。v1.0.0 后，主要架构债务已清零，演进逻辑转为**从知识闭环出发，逐步扩展系统能力**。
+### 前瞻性差距表
 
 | 差距 | 蓝图来源 | 当前状态 | 演进方向 |
 |------|---------|---------|---------|
-| **知识图谱与关系检索** | `KNOWLEDGE.md` Stage 3 (Relation Expansion) | ✅ Phase 55 完成：双链图谱 + BFS relation expansion | 稳定期 |
-| **本地文件摄入** | `KNOWLEDGE.md` + `INTERACTION.md` | ✅ Phase 55 完成：`swl knowledge ingest-file` | 稳定期 |
-| **LLM 增强检索与知识质量** | `KNOWLEDGE.md` 远期方向 | ✅ Phase 56 完成：LLM 增强 Literature/Quality + gated suggestions | 稳定期 |
-| **检索基础设施（Embedding / Rerank）** | `KNOWLEDGE.md` §2.2 + §8 | blake2b hash 64 维（非神经网络），无 rerank | **Phase 57**：neural embedding + LLM rerank |
-| **路径感知的 Retrieval Policy（HTTP path 优先）** | `ARCHITECTURE.md` §4（HTTP path vs Agent black-box path）+ Phase 57 review 讨论 | retrieval 默认 source 与执行路径无关。HTTP path 是讨论 / brainstorm / 受控模型调用的主路径，最依赖 retrieval；CLI agent path（aider / claude-code / codex）有自主文件访问能力，repo retrieval 价值低 | **候选方向**：retrieval policy 感知 execution path — HTTP path 默认带 knowledge/notes（讨论场景），CLI agent path 默认只带 knowledge/notes 摘要，repo 不再由 swallow 切 chunk，统一交给 agent 自主探索 |
-| **灵感捕获低摩擦入口（`swl note`）** | Phase 57 review 讨论 + `KNOWLEDGE.md` staged knowledge raw 阶段 | operator 灵感目前只能走 `ingest-file` → 需建文件 / 选路径 / 切终端，对"突然冒出来的想法"摩擦太大；同时 notes source type 当前定位模糊（chunk-only，无治理） | **候选方向**：新增 `swl note <text>` CLI，wrap 现有 ingestion pipeline，自动写入 staged knowledge 的 raw 阶段（`source_kind=operator_note`、`source_task_id=note-<timestamp>`），灵感进入既有 review/promote 流程；同步评估让 notes source type 退场，内容流向 staged knowledge / artifacts / repo 三个治理清晰的层 |
-| **CLI Agent 生态完善（Codex CLI 接入）** | `ARCHITECTURE.md` §3 默认执行器分工 + 个人使用习惯 | 当前默认 CLI agent 只有 `local-aider` / `local-claude-code`；Codex CLI 作为 OpenAI 生态等价物未在默认 RouteRegistry 中注册 | **候选方向**：在 `AsyncCLIAgentExecutor + CLIAgentConfig` 框架下新增 `local-codex` route，与 aider / claude-code 同等地位；可能涉及 dialect adapter、binary 探测、能力画像默认值 |
-| **编排显式化（Planner / DAG）** | `ORCHESTRATION.md` | planner 逻辑嵌入 orchestrator | **Phase 58 方向**：独立组件 |
-| **能力画像自动学习** | `PROVIDER_ROUTER.md` + `SELF_EVOLUTION.md` | unsupported_task_types 字段存在但未消费 | **Phase 59 方向**：遥测驱动 |
+| **思考-讨论-沉淀一等流程** | `ORCHESTRATION.md` §2.5 (Brainstorm) + `KNOWLEDGE.md` §5 (外部会话摄入) + Phase 57 review 讨论 | ① Brainstorm topology 已设计（`DebateConfig`）但未实现；② Open WebUI 解析器已存在（`parse_open_webui_export`）但结论回流摩擦高（需导出文件 → 手动 ingest）；③ 灵感捕获只能走 `ingest-file`，对"突然冒出来的想法"太重；④ notes source type 定位模糊（chunk-only、无治理），应流向 staged knowledge | **候选方向 A**：`DebateConfig` + `BrainstormOrchestrator` 多模型群聊落地；brainstorm synthesis → staged knowledge 自动候选；`swl ingest --from-clipboard` 外部讨论低摩擦回收；`swl note` 灵感捕获；统一出口走 staged → review → promote |
+| **Codex CLI 接入（OpenAI 生态等价物）** | `ARCHITECTURE.md` §3 默认执行器分工 + 个人使用习惯 | 默认 CLI agent 只有 `local-aider` / `local-claude-code`；Codex CLI 作为 OpenAI 生态等价物未在默认 RouteRegistry 中注册 | **候选方向 B**：在 `AsyncCLIAgentExecutor + CLIAgentConfig` 框架下新增 `local-codex` route，与 aider / claude-code 同等地位；包含 dialect 选择、binary 探测、能力画像默认值、降级矩阵位置 |
+| **路径感知的 Retrieval Policy** | `ARCHITECTURE.md` §4 + Phase 57 review 讨论 | retrieval 默认 source 与执行路径无关；CLI agent（aider / claude-code / codex）有自主文件访问能力，repo retrieval 重复消耗；HTTP path 是讨论 / brainstorm 主路径，不必纠结 repo 读取 | **候选方向 C**：CLI agent path 默认只带 knowledge/notes 摘要，repo 交给 agent 自主探索；HTTP path 面向讨论场景，默认带 knowledge（repo 留给 agent） |
+| **编排显式化（Planner / DAG）** | `ORCHESTRATION.md`（Strategy Router、Planner、DAG 编排） | planner 逻辑嵌入 orchestrator | **候选方向 E**：Planner 抽取为独立组件、DAG-based subtask 依赖、Strategy Router 显式化 |
+| **能力画像自动学习** | `PROVIDER_ROUTER.md` + `SELF_EVOLUTION.md` | `unsupported_task_types` 字段存在但未消费 | **候选方向 F**：从遥测数据自动学习 route capability profiles、capability boundary guard 激活 |
 | **Runtime v1（原生 async subprocess）** | `HARNESS.md` | harness bridge 为 v0 约束 | 低优先级，功能正常 |
 | **远期方向** | 多处 | — | IDE 集成、Remote Worker、Hosted Control Plane |
 
 ---
 
-## 二、已完成 Phase 记录 (Completed Phases)
+## 二、已完成 Phase 记录
 
-### [Phase 47] 多模型共识与策略护栏 (v0.5.0)
-*   **成果**：系统进入 **Consensus Era**，实装 N-Reviewer 共识门禁与 TaskCard 级成本护栏。
+### Foundation Era (Phase 47-54) — v1.0.0 收官
 
-### [Phase 48] 存储引擎升级与全异步改造 (v0.6.0)
-*   **成果**：系统进入 **Async Era**，落地 `SqliteTaskStore` 与全链路 `async/await`。
+**一句话摘要**：6 个能力代际依次落地（Consensus → Async → Knowledge → Policy → Parallel → Specialist），架构债务清零，7 个 Specialist Agent 独立生命周期成型，452 tests passed。详细 phase 历史通过 git log 与 `docs/archive/` 追溯。
 
-### [Phase 49] 知识真值归一与向量 RAG (v0.7.0)
-*   **成果**：系统进入 **Knowledge Era**，落地知识层 SQLite SSOT、`LibrarianAgent` 与 `sqlite-vec` 可退级检索。
+### Knowledge Loop Era (Phase 55+)
 
-### [Phase 50] 路由策略闭环与专项审计 (v0.7.0+)
-*   **成果**：系统从”孤立的遥测记录”进化到”可感知的策略行为”，实现审计、提案、权重调整的单向数据流闭环。406 tests passed。
+#### [Phase 55] 知识图谱与本地 RAG (v1.1.0)
+*   **Primary Track**: Knowledge / RAG · **Secondary**: Agent Taxonomy
+*   **成果**：双链知识图谱（`knowledge_relations` SQLite 表）+ 本地文件摄入（`swl knowledge ingest-file`）+ relation-aware retrieval（BFS 遍历 + 置信度衰减）+ 端到端知识闭环。系统进入 **Knowledge Graph Era**。
 
-### [Phase 51] 策略闭环与 Specialist Agent 落地 (v0.8.0)
-*   **成果**：系统进入 **Policy Era**，实现”自我观察 → 提案生成 → operator 审批 → 自动应用”的完整闭环。Specialist Agent 体系初步成型（MetaOptimizerAgent / LibrarianAgent）。approved_with_concerns，2 CONCERN 登记。
+#### [Phase 56] 知识质量与 LLM 增强检索
+*   **Primary Track**: Knowledge / RAG · **Secondary**: Agent Taxonomy
+*   **成果**：LiteratureSpecialist / QualityReviewer 接入 LLM 语义分析，relation suggestions gated workflow 落地，HTTP executor token 统计统一为 API usage 优先。approved，无 CONCERN。
 
-### [Phase 52] 平台级多路并行与复杂拓扑 (v0.9.0)
-*   **成果**：系统进入 **Parallel Era**，落地 `AsyncCLIAgentExecutor`、`complexity_hint` 路由偏置、`AsyncSubtaskOrchestrator` fan-out + timeout 守卫。437 tests passed，approved_with_concerns，2 CONCERN 登记。
-
-### [Phase 53] Specialist Agent 生态落地 (v1.0.0)
-*   **成果**：系统进入 **Specialist Era**，5 个专项 Agent 独立生命周期全部落地（IngestionSpecialist、ConsistencyReviewer、Validator、LiteratureSpecialist、QualityReviewer），`EXECUTOR_REGISTRY` 替换 if-chain，`MEMORY_AUTHORITY_SEMANTICS` 落地，`AGENT_TAXONOMY.md §5` 补充 side effect 列。452 tests passed，approved_with_concerns（唯一 CONCERN 已在合并前消化）。
-
-### [Phase 54] Taxonomy 命名与品牌残留清理 (v1.0.0)
-*   **成果**：`codex_fim` 降级为 legacy shim，`fim` 成为主键，文件重命名 `codex_fim.py → fim_dialect.py`，Phase 52 CONCERN 消化完毕。452 tests passed，approved，无新 CONCERN。
-
-### [Phase 55] 知识图谱与本地 RAG (v1.1.0)
-*   **成果**：系统进入 **Knowledge Graph Era**，落地双链知识图谱（`knowledge_relations` SQLite 表）、本地文件摄入（`swl knowledge ingest-file`）、relation-aware retrieval（BFS 遍历 + 置信度衰减）与端到端知识闭环。
-
-### [Phase 56] 知识质量与 LLM 增强检索
-*   **成果**：LiteratureSpecialist / QualityReviewer 从启发式升级为 LLM 增强（`agent_llm.py` 共享 helper），HTTP executor token 统计切换为 API usage 优先，relation suggestions 进入 operator-gated CLI 工作流。approved，无 CONCERN。
+#### [Phase 57] 检索质量增强 (Retrieval Quality Enhancement) ✅ Done (待重打 v1.2.0)
+*   **Primary Track**: Knowledge / RAG · **Secondary**: Workbench / UX
+*   **成果**：
+    - S1：神经 API embedding 替换 blake2b hash，canonical reuse 路径与 verified knowledge 路径对齐
+    - S2：`retrieve_context()` 出口新增可关闭、可退化的 LLM rerank
+    - S3：markdown / repo 检索分段加入 max_chunk_size，默认 overlap 已关闭（review 后收紧）
+    - S4：`swl task create --executor literature-specialist --document-paths` CLI 透传
+*   **Review**：approved_with_concerns（1 BLOCK 已修复，1 CONCERN 已登记）。`tests/test_cli.py` 220 passed。
+*   **Tag**：v1.2.0（候选，待重打指向 Phase 57 merge commit）
 
 ---
 
-## 三、Phase 定义
+## 三、推荐 Phase 队列 (Claude 维护)
 
-### Foundation Era (Phase 47-54) — 已完成
-
-| Phase | 名称 | Tag | Primary Track | 状态 |
-|-------|------|-----|---------------|------|
-| 47 | 多模型共识与策略护栏 | v0.5.0 | Consensus | ✅ Done |
-| 48 | 存储引擎升级与全异步改造 | v0.6.0 | Core Loop | ✅ Done |
-| 49 | 知识真值归一与向量 RAG | v0.7.0 | Knowledge / RAG | ✅ Done |
-| 50 | 路由策略闭环与专项审计 | v0.7.0+ | Evaluation / Policy | ✅ Done |
-| 51 | 策略闭环与 Specialist Agent 落地 | v0.8.0 | Agent Taxonomy | ✅ Done |
-| 52 | 平台级多路并行与复杂拓扑 | v0.9.0 | Core Loop | ✅ Done |
-| 53 | Specialist Agent 生态落地 | v1.0.0 | Agent Taxonomy | ✅ Done |
-| 54 | Taxonomy 命名与品牌残留清理 | v1.0.0 | Agent Taxonomy | ✅ Done |
-
-### Knowledge Loop Era (Phase 55+) — 从知识闭环出发的能力扩展
-
-v1.0.0 后，演进逻辑从”消化蓝图差距”转为”从可展示的知识闭环出发，逐步扩展系统能力”。每个 phase 的输出是前一个 phase 的自然延伸，而非从蓝图中挑选 gap 填补。
-
-#### Phase 55: 知识图谱与本地 RAG (Knowledge Graph & Local RAG) ✅ Done
-*   **Primary Track**: Knowledge / RAG
-*   **Secondary Track**: Agent Taxonomy
-*   **成果**：系统进入 **Knowledge Graph Era**，双链知识图谱 + 本地文件摄入 + relation-aware retrieval + 端到端闭环全部落地。tag `v1.1.0`。
-
-#### Phase 56: 知识质量与 LLM 增强检索 ✅ Done
-*   **Primary Track**: Knowledge / RAG
-*   **Secondary Track**: Agent Taxonomy
-*   **成果**：LiteratureSpecialist / QualityReviewer 接入 LLM 语义分析，relation suggestions gated workflow 落地，HTTP executor token 统计统一为 API usage 优先。
-
-#### Phase 57: 检索质量增强 (Retrieval Quality Enhancement) 🚀 [Active]
-*   **Primary Track**: Knowledge / RAG
-*   **Secondary Track**: Workbench / UX
-*   **目标**：将检索管线从”本地 hash embedding + 单阶段评分”升级为”神经 API embedding + LLM rerank + chunking 优化”。
-*   **核心任务**：
-    - **S1: Neural Embedding**：API embedding 替换 blake2b hash，保留 local fallback。
-    - **S2: LLM Rerank**：`retrieve_context()` 出口插入 LLM rerank，复用 `call_agent_llm()`。
-    - **S3: Chunking 优化**：markdown/repo chunking 增加 overlap 和 max_chunk_size。
-    - **S4: Specialist CLI 补齐**：`swl task create --executor literature-specialist --document-paths` 透传。
-*   **风险等级**：中（S1 引入 API 依赖，但 graceful degradation 充分缓解）
-*   **依赖**：Phase 56 `runtime_config.py` + `call_agent_llm()` 基础设施
-*   **方向调整说明**：roadmap 原定 Phase 57 为”编排增强”，Phase 56 前置真实数据验证暴露检索质量为更紧迫瓶颈，编排增强后移至 Phase 58。
-
-#### Phase 58 方向: 编排增强
-*   **驱动**：检索质量稳定后，任务拆解和执行编排成为瓶颈。
-*   **方向**：Planner 显式化为独立组件、DAG-based subtask 依赖、Strategy Router 抽取。
-*   **蓝图对齐**：`ORCHESTRATION.md`（Strategy Router、Planner、DAG 编排）。
-
-#### Phase 59 方向: 能力画像自动学习
-*   **驱动**：编排能力上来后，路由决策的精度成为瓶颈。
-*   **方向**：从遥测数据自动学习 route capability profiles、capability boundary guard 激活。
-*   **蓝图对齐**：`PROVIDER_ROUTER.md`（能力画像评分）、`SELF_EVOLUTION.md`（隐式信号聚合）。
-
----
-
-## 四、队列与战略分析 (Claude 维护)
-
-> 最近更新：2026-04-26 (Phase 56 已完成，Phase 57 检索质量增强方向已确立)
+> 最近更新：2026-04-26（Phase 57 已 merge，等待 Direction Gate 选择 Phase 58 方向）
 
 ### 队列总览
 
 | 优先级 | Phase | 名称 | Primary Track | 状态 | 备注 |
 |--------|-------|------|---------------|------|------|
-| ~~1~~ | ~~47~~ | ~~多模型共识与策略护栏~~ | ~~Consensus~~ | ~~已完成~~ | tag `v0.5.0` |
-| ~~2~~ | ~~48~~ | ~~存储引擎升级与全异步改造~~ | ~~Core Loop~~ | ~~已完成~~ | tag `v0.6.0` |
-| ~~3~~ | ~~49~~ | ~~知识真值归一与向量 RAG~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | tag `v0.7.0` |
-| ~~4~~ | ~~50~~ | ~~路由策略闭环与专项审计~~ | ~~Evaluation / Policy~~ | ~~已完成~~ | tag `v0.7.0+` |
-| ~~5~~ | ~~51~~ | ~~策略闭环与 Specialist Agent 落地~~ | ~~Agent Taxonomy~~ | ~~已完成~~ | tag `v0.8.0` |
-| ~~6~~ | ~~52~~ | ~~平台级多路并行与复杂拓扑~~ | ~~Core Loop~~ | ~~已完成~~ | tag `v0.9.0` |
-| ~~7~~ | ~~53~~ | ~~Specialist Agent 生态落地~~ | ~~Agent Taxonomy~~ | ~~已完成~~ | tag `v1.0.0` |
-| ~~8~~ | ~~54~~ | ~~Taxonomy 命名与品牌残留清理~~ | ~~Agent Taxonomy~~ | ~~已完成~~ | tag `v1.0.0` |
-| ~~9~~ | ~~55~~ | ~~知识图谱与本地 RAG~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | tag `v1.1.0` |
-| ~~10~~ | ~~56~~ | ~~知识质量与 LLM 增强检索~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged |
-| **11** | **57** | **检索质量增强** | **Knowledge / RAG** | **Active** | Neural Embedding + LLM Rerank + Chunking |
-| 12 | 58 | 编排增强 | Core Loop | 方向 | Planner / DAG / Strategy Router |
-| 13 | 59 | 能力画像自动学习 | Evaluation / Policy | 方向 | 遥测驱动 capability profiles |
+| ~~1~~ | ~~55~~ | ~~知识图谱与本地 RAG~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | tag `v1.1.0` |
+| ~~2~~ | ~~56~~ | ~~知识质量与 LLM 增强检索~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged |
+| ~~3~~ | ~~57~~ | ~~检索质量增强~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged，待重打 `v1.2.0` |
+| **4** | **58** | **(待选)** | **(待选)** | **Direction Gate** | 4 个候选方向待评估 |
+| 5 | 59+ | (待选) | — | 方向 | 取决于 Phase 58 选择 |
+
+### Phase 58 候选方向评估
+
+下一 phase 应在以下四个方向中选一个作为主线（其他可作为后续 phase 候选）：
+
+#### 候选 A：思考-讨论-沉淀闭环（Brainstorm + 灵感捕获 + 知识落库）
+*   **核心价值**：让"思考-讨论-沉淀"成为系统一等流程，而不是 task 执行的边角附属。把 HTTP path 重新定位为"讨论 / brainstorm 主路径"，同时打通两条讨论入口（Open WebUI 外部 brainstorm + Swallow 内部多模型 brainstorm）到 staged knowledge 的落库通道。
+*   **设计要点**：
+    - **Swallow 内部 brainstorm**：基于 `ORCHESTRATION.md §2.5` Brainstorm 设计，落地 `DebateConfig` + `BrainstormOrchestrator`。每轮参与者顺序发言并累积上下文，最终由仲裁者收口为结构化 synthesis artifact。参与者绑定不同 HTTP route（`http-claude` / `http-qwen` / `http-glm` / `http-gemini`），形成多模型群聊。角色定义通过 prompt prefix 注入，不引入新 agent 类型。
+    - **外部 brainstorm 知识回收**：Open WebUI 等外部工具的讨论结论通过已有 ingestion pipeline（`parse_open_webui_export()` 等解析器已存在）回流到 staged knowledge。新增 `swl ingest --from-clipboard --format open-webui` 减少导出落盘摩擦。
+    - **灵感捕获**：`swl note <text> [--tag <topic>]` 直接 wrap ingestion pipeline，写入 staged knowledge raw 阶段（`source_kind=operator_note`），几秒钟入库，进入现有 review/promote 流程。
+    - **两条入口统一出口**：无论 Swallow 内部 brainstorm 的 synthesis artifact，还是 Open WebUI 外部讨论的导出，还是 `swl note` 灵感，全部走同一条 staged knowledge → review → promote/reject 管线。不引入新的知识存储通道。
+*   **可能 slice**：
+    - S1：`DebateConfig` 数据结构 + `BrainstormOrchestrator` 落地（多模型顺序发言 + 仲裁收口）
+    - S2：brainstorm synthesis artifact → staged knowledge 自动候选通道
+    - S3：`swl ingest --from-clipboard` 外部 brainstorm 低摩擦入口
+    - S4：`swl note <text>` 灵感捕获 CLI
+*   **风险**：中 — S1 涉及新编排组件但复用 HTTPExecutor 基础设施；S2/S3/S4 均为 additive 无破坏性
+*   **依赖**：Phase 56 `agent_llm.py` / HTTP executor 路由 + Phase 57 retrieval 基线 + 现有 ingestion pipeline（`parse_open_webui_export` 等）
+*   **优先级理由**：贴合个人使用习惯、能立刻见效；打通"灵感 → staged → review → canonical"闭环后，系统从"任务执行工具"升级为"思考-执行一体工具"，这是使用体验层面的质变
+
+#### 候选 B：CLI Agent 生态完善（Codex CLI 接入 + 默认配置整理）
+*   **核心价值**：让 OpenAI / Anthropic / Aider 三大 CLI agent 在系统里同等地位，符合个人使用习惯
+*   **可能 slice**：(1) `local-codex` route 注册 + CLIAgentConfig 实例；(2) dialect / binary / 能力画像默认值；(3) 降级矩阵位置；(4) doctor 探针
+*   **风险**：低 — 框架已就位，只是新增配置实例
+*   **依赖**：Phase 52 `AsyncCLIAgentExecutor` + Phase 54 dialect 体系
+*   **优先级理由**：单点缺口、范围明确、规模小（类似 Phase 54 的 cleanup phase）
+
+#### 候选 C：路径感知的 Retrieval Policy（执行路径分流）
+*   **核心价值**：retrieval 按 execution path 分流 — CLI agent 路径不再消耗 repo chunk（agent 自主探索更有效），HTTP path 面向讨论场景聚焦 knowledge（不必纠结 repo 读取）
+*   **可能 slice**：(1) execution path 判定接入 retrieval request 构造；(2) CLI agent path 默认 source 收紧为 knowledge/notes 摘要；(3) HTTP path 默认 source 面向讨论场景调整；(4) 评估 notes source type 退场可行性
+*   **风险**：中 — 涉及 retrieval 默认行为变化，需配套测试
+*   **依赖**：Phase 57 retrieval 基线；候选 A 落地后对 notes 角色有更清晰判断
+*   **优先级理由**：架构正确性提升，但当前 repo retrieval 不构成阻塞；建议在候选 A 的真实使用反馈后再决策
+
+#### 候选 D：编排增强（Planner / DAG / Strategy Router 显式化）
+*   **核心价值**：把嵌入 orchestrator 的 planner 逻辑抽出为独立组件，支持 DAG 依赖
+*   **可能 slice**：(1) Planner 接口抽取；(2) DAG-based subtask 依赖；(3) Strategy Router 显式化
+*   **风险**：高 — 涉及 orchestrator 主链路重构，回滚成本高
+*   **依赖**：Phase 52 fan-out 基线
+*   **优先级理由**：架构债务清理，但当前编排能力实际可用，没有真实瓶颈推动
+
+### Claude 推荐顺序
+
+**A → B → C → D**
+
+理由：
+1. **A 优先**：贴合你的实际使用场景（讨论 / 灵感捕获 / 多模型 brainstorm），低风险高反馈，系统从"任务执行工具"升级为"思考-执行一体工具"。且基础设施已大量就绪（ingestion pipeline、HTTP executor routing、agent_llm）
+2. **B 紧随**：单点缺口、规模小（类似 Phase 54 的 cleanup phase），能在 1-2 个 slice 内收口
+3. **C 中期**：架构正确性提升，但需要 A/B 之后真实使用反馈才知道当前 repo retrieval 是否真的造成困扰
+4. **D 后置**：当前编排能力够用，没有真实瓶颈；过早重构 orchestrator 主链路风险高
 
 ### 战略锚点分析
 
-| 维度 | 蓝图愿景 | v1.1.0 现状 | 下一步 |
-|------|---------|------------|--------|
-| **知识治理** | truth-first 知识系统，5 阶段检索（含 Relation Expansion） | 双层架构完整，Stage 1-5 全部实现，relation-aware retrieval 落地 | **Phase 57**：检索质量增强（neural embedding + rerank） |
-| **Agent 体系** | 6 个专项角色独立生命周期 | 7 个 Agent 全部落地，LLM 增强已接入 Literature/Quality | 稳定期 |
-| **自我进化** | Librarian 知识沉淀 + Meta-Optimizer 优化提案 | 两条主线完整，提案应用闭环已落地 | Phase 59：能力画像自动学习 |
-| **执行编排** | 高并发多路编排 + 复杂拓扑 | fan-out + timeout + subtask summary 已落地 | Phase 58：Planner 显式化 + DAG |
-| **命名体系** | taxonomy before brand | codex 品牌清理完成，http-claude 保留（描述性名称） | 无近期计划 |
-
-### 知识闭环驱动的能力扩展路线
-
-```
-Phase 55: 知识图谱 + 本地 RAG（核心闭环）✅
-    ↓ 闭环跑通后，启发式分析质量成为瓶颈
-Phase 56: LLM 增强检索 + 知识质量 ✅
-    ↓ LLM 增强后，检索基础设施（embedding/rerank）成为瓶颈
-Phase 57: 检索质量增强（Neural Embedding + Rerank）🚀
-    ↓ 检索质量稳定后，任务编排成为瓶颈
-Phase 58: 编排增强（Planner / DAG）
-    ↓ 编排能力上来后，路由精度成为瓶颈
-Phase 59: 能力画像自动学习
-```
-
-每个 phase 的详细 slice 拆解在前一个 phase 完成后再细化，避免过早规划。
+| 维度 | 蓝图愿景 | v1.2.0 现状 | 下一步候选 |
+|------|---------|------------|-----------|
+| **知识治理** | truth-first 5 阶段检索 + neural retrieval | Stage 1-5 全部实现，神经 embedding + rerank 已接入 | 稳定期 |
+| **思考-讨论-沉淀** | brainstorm 多模型群聊 + 灵感低摩擦捕获 + 外部讨论回收 + staged → canonical 管线 | brainstorm 已设计未实现；Open WebUI 解析器存在但回流摩擦高；灵感捕获无低摩擦入口；notes source type 定位模糊 | **候选 A** |
+| **CLI 生态** | aider + claude-code + codex 三足鼎立 | aider + claude-code 已默认，codex 缺失 | **候选 B** |
+| **检索分流** | retrieval policy 感知 execution path | retrieval 默认 source 不分流，CLI agent 路径仍消耗 repo chunk | **候选 C** |
+| **Agent 体系** | 7 个专项角色独立生命周期 | 全部落地，LLM 增强已接入 | 稳定期 |
+| **执行编排** | 高并发多路 + DAG | fan-out 已落地，planner 仍嵌入 orchestrator | **候选 D**（后置） |
+| **自我进化** | Librarian + Meta-Optimizer 提案应用闭环 | 主线完整 | 远期：能力画像自动学习 |
 
 ### Tag 评估
 
 | Phase | Tag | Era |
 |-------|-----|-----|
-| Phase 47 | `v0.5.0` | Consensus Era |
-| Phase 48 | `v0.6.0` | Async Era |
-| Phase 49 | `v0.7.0` | Knowledge Era |
-| Phase 50 | `v0.7.0+` | Policy Closure |
-| Phase 51 | `v0.8.0` | Policy Era |
-| Phase 52 | `v0.9.0` | Parallel Era |
-| Phase 53 | `v1.0.0` | Specialist Era |
-| Phase 54 | `v1.0.0` | Specialist Era (cleanup) |
 | Phase 55 | `v1.1.0` | Knowledge Graph Era |
 | Phase 56 | — | Knowledge Graph Era (LLM 增强) |
-| Phase 57 | `v1.2.0` (预估) | Retrieval Quality Era |
+| Phase 57 | `v1.2.0`（待重打） | Retrieval Quality Era |
+
+**Phase 57 tag 处理建议**：当前 `v1.2.0` 指向 Phase 56 merge commit（commit `ef7d0b1`，message "LLM enhaced retrieval"），与 Phase 57 实际能力增量不对齐。建议：
+
+1. Codex 同步 README / AGENTS.md 中的 v1.2.0 能力描述到 Phase 57（embedding + rerank）
+2. Human 执行 `git tag -d v1.2.0` + `git push origin :refs/tags/v1.2.0` 删除旧 tag
+3. Human 在 main 当前 head（Phase 57 merge commit `aa35ac9`）重新打 `git tag -a v1.2.0 -m "Retrieval Quality Era: neural embedding + LLM rerank"`
+
+也可以选择不重打，给 Phase 57 单独打 v1.3.0；但当前 v1.2.0 message 与实际不符的问题仍需修复。
+
+---
+
+## 四、本文件的职责边界
+
+`docs/roadmap.md` 是：
+- 跨 phase 蓝图对齐活文档
+- 推荐 phase 队列（Claude 维护优先级与风险批注）
+- 战略锚点分析（能力维度 × 现状 × 下一步）
+
+`docs/roadmap.md` 不是：
+- 当前 phase 状态板（→ `docs/active_context.md`）
+- 完整 phase 历史编年（→ git log + `docs/archive/`）
+- 设计文档（→ `docs/design/`）
+- closeout 索引（→ `docs/plans/<phase>/closeout.md`）
