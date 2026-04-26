@@ -8,15 +8,15 @@ depends_on:
   - docs/roadmap.md
 ---
 
-TL;DR: Phase 57 landed neural embedding + LLM rerank; the retrieval layer is now stable. Phase 58 (A-lite) targets three new input channels — `swl note`, clipboard ingest, and staged review visibility — all of which must flow into the existing `staged_knowledge.py` pipeline. The primary implementation constraints are: keep candidate_id as `staged-*`, add/preserve `topic`, normalize omitted `--format` to parser auto-detect, and store clipboard sources as `clipboard://...`.
+TL;DR: Phase 57 landed neural embedding + LLM rerank; the retrieval layer is now stable. Phase 58 (A-lite) targets low-friction knowledge capture through `swl note`, clipboard transport, bounded `generic_chat_json`, and staged review visibility, all flowing into the existing `staged_knowledge.py` pipeline. The primary implementation constraints are: keep candidate_id as `staged-*`, add/preserve `topic`, normalize omitted `--format` to parser auto-detect, store clipboard sources as `clipboard://...`, and keep generic chatbot JSON limited to flat message lists.
 
 ## 变更范围
 
 - **直接影响模块**:
-  - `src/swallow/cli.py` — new top-level `swl note` command; extend `swl ingest` parser with `--from-clipboard` + `--format`; update staged review output (`build_stage_candidate_list_report`, `build_stage_candidate_inspect_report`, `build_task_staged_report`)
+  - `src/swallow/cli.py` — new top-level `swl note` command; extend `swl ingest` parser with `--from-clipboard` + `--format generic_chat_json`; update staged review output (`build_stage_candidate_list_report`, `build_stage_candidate_inspect_report`, `build_task_staged_report`)
   - `src/swallow/ingestion/pipeline.py` — new `ingest_operator_note()` function (wraps `submit_staged_candidate` directly, bypasses `filter_conversation_turns`); new bytes/clipboard ingest helper or `source_ref` override for clipboard path
   - `src/swallow/staged_knowledge.py` — `StagedCandidate` dataclass; `submit_staged_candidate()`; `load_staged_candidates()`
-  - `src/swallow/ingestion/parsers.py` — already supports `open_webui_json` and `markdown`; no parser additions expected for S1/S2
+  - `src/swallow/ingestion/parsers.py` — add bounded `generic_chat_json` parser for flat message-list JSON; existing `chatgpt_json` / `claude_json` / `open_webui_json` / `markdown` behavior remains unchanged
 
 - **间接影响模块**:
   - `src/swallow/ingestion/filters.py` — `filter_conversation_turns()` is called for external session path; `swl note` should bypass it (operator text is already a conclusion, not a raw conversation)
@@ -46,7 +46,17 @@ TL;DR: Phase 57 landed neural embedding + LLM rerank; the retrieval layer is now
 
 **`swl ingest` 当前仅支持 file path**
 
-`ingest_parser.add_argument("source_path", ...)` — positional argument，不支持 stdin 或 clipboard。`parse_ingestion_bytes()` 已存在且接受 `bytes`，但 clipboard 读取不能把 `clipboard://...` 伪装成文件 `Path`；CLI 层新增 `--from-clipboard` 分支后，应调用 `parse_ingestion_bytes(clipboard_data, format_hint=normalized_format)`，其中 omitted `--format` 传 `None`，并通过 bytes/clipboard helper 或 `source_ref` override 写出 `source_ref=clipboard://<format-or-auto>`。
+`ingest_parser.add_argument("source_path", ...)` — positional argument，不支持 stdin 或 clipboard。`parse_ingestion_bytes()` 已存在且接受 `bytes`，但 clipboard 读取不能把 `clipboard://...` 伪装成文件 `Path`；CLI 层新增 `--from-clipboard` 分支后，应调用 `parse_ingestion_bytes(clipboard_data, format_hint=normalized_format)`，其中 omitted `--format` 传 `None`，并通过 bytes/clipboard helper 或 `source_ref` override 写出 `source_ref=clipboard://<format-or-auto>`。`--format` choices 需要增加 `generic_chat_json`，用于其他 chatbot 的 flat message-list JSON。
+
+**`generic_chat_json` 的定位**
+
+当前 parser 已有 provider-specific 格式：`chatgpt_json` 处理 ChatGPT `mapping` 树，`claude_json` 处理 `chat_messages`，`open_webui_json` 处理 OpenAI-compatible messages。其他 chatbot 常见导出往往只是 flat message list，字段可能是 `role/content`、`sender/text`、`from/message`。Phase 58 只应新增受限 `generic_chat_json`：
+
+- 支持 `[{"role": "...", "content": "..."}]`
+- 支持 `{"messages": [{"sender": "...", "text": "..."}]}`
+- 支持 string / string list / OpenAI-style text parts
+- 不处理 ChatGPT `mapping` 树、URL、HTML、登录态抓取或复杂 provider plugin
+- 对可能与 Open WebUI 冲突的 `{"messages": [...]}` 结构，推荐显式 `--format generic_chat_json`
 
 **`StagedCandidate` 字段清单（无 `topic` 字段）**
 
@@ -77,5 +87,6 @@ TL;DR: Phase 57 landed neural embedding + LLM rerank; the retrieval layer is now
 - `build_task_staged_report()` 不展示 `source_kind` / `source_ref`，若 S3 (review visibility) 仅修改 `build_stage_candidate_list_report` 而不同步此函数，task-level 视图仍然不透明
 - `swl ingest --from-clipboard` 与现有 `source_path` positional argument 存在 CLI 设计冲突：`source_path` 目前是必填 positional；引入 clipboard 分支需要将其改为 optional 或改用 `--file` flag，这是破坏性变更
 - `parse_ingestion_bytes()` 不接受 `"auto"` 作为 format hint；omitted `--format` 应传 `None`，或 CLI 层先把 `"auto"` 归一化为 `None`
-- clipboard ingest 需要 `source_ref=clipboard://...`；不能只复用当前 Path-only `build_staged_candidates()` 而不提供 source_ref override
+- clipboard transport 需要 `source_ref=clipboard://...`；不能只复用当前 Path-only `build_staged_candidates()` 而不提供 source_ref override
+- `generic_chat_json` 容易过度扩张；本轮必须限制为 flat message-list JSON，不做 URL/shared-link ingest 或 provider adapter framework
 - `filter_conversation_turns()` 的 chatter 过滤对短 note 文本（如"用 sqlite-vec 而不是 pgvector"）可能误判为 drop_chatter（该函数检查长度 ≤ 24 且以特定 prefix 开头），但不会误判不以 CHATTER_PREFIXES 开头的短句；需要验证

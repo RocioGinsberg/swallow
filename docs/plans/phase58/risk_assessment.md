@@ -9,7 +9,7 @@ depends_on:
 
 ## TL;DR
 
-Phase 58 总体风险极低。所有 slice 均为 additive 新增，不修改已有管线核心逻辑。最大风险点是 S2 的剪贴板读取平台差异与 clipboard source metadata 归一化，但 fallback / source_ref / format normalization 约束已明确。无高风险 slice，无需 Design Gate 之外的额外人工 gate。
+Phase 58 总体风险低。所有 slice 均为 additive 新增，不修改已有管线核心逻辑。最大风险点是 S2 的剪贴板读取平台差异、clipboard source metadata 归一化与 `generic_chat_json` schema 边界，但 fallback / source_ref / format normalization / flat-message-only 约束已明确。无高风险 slice，无需 Design Gate 之外的额外人工 gate。
 
 # Phase 58 Risk Assessment
 
@@ -18,7 +18,7 @@ Phase 58 总体风险极低。所有 slice 均为 additive 新增，不修改已
 | Slice | 影响范围 | 可逆性 | 依赖复杂度 | 总分 | 风险级别 |
 |-------|---------|--------|-----------|------|---------|
 | S1: swl note | 1 | 1 | 1 | **3** | 低 |
-| S2: clipboard ingest | 1 | 1 | 2 | **4** | 低 |
+| S2: clipboard transport + generic_chat_json | 2 | 1 | 2 | **5** | 低 |
 | S3: review visibility | 1 | 1 | 1 | **3** | 低 |
 
 所有 slice 总分 < 7，无高风险 slice。
@@ -47,7 +47,7 @@ Phase 58 总体风险极低。所有 slice 均为 additive 新增，不修改已
 
 **缓解**：`swl note` 创建 candidate 时传 `candidate_id=""`，复用现有 `generate_candidate_id()`，或显式生成 `staged-*`。`note-*` 只用于 `source_task_id` / `source_object_id`。
 
-## S2: clipboard ingest — 详细风险分析
+## S2: clipboard transport + generic_chat_json — 详细风险分析
 
 ### R2.1 剪贴板工具不可用
 
@@ -71,17 +71,29 @@ Phase 58 总体风险极低。所有 slice 均为 additive 新增，不修改已
 
 **缓解**：省略 `--format` 时向 parser 传 `format_hint=None`，复用现有探测逻辑；显式 `--format` 参数可跳过探测。不要把 `"auto"` 字符串直接传给 `parse_ingestion_bytes()`。
 
-### R2.4 clipboard source_ref 不能复用 Path-only 构造
+### R2.4 generic_chat_json 与 Open WebUI schema 冲突
+
+**风险**：`{"messages": [...]}` 结构可能既像 Open WebUI，也像其他 chatbot 的 generic flat message list。盲目 auto-detect 可能把 `sender/text` 这类 generic schema 错分给 Open WebUI parser。
+
+**缓解**：`generic_chat_json` 首轮以显式 `--format generic_chat_json` 为主；auto-detect 只处理无歧义 flat array。对 `{"messages": [...]}` 这类可能冲突的 dict schema，文档和测试都要求显式 format。
+
+### R2.5 clipboard source_ref 不能复用 Path-only 构造
 
 **风险**：现有 `build_staged_candidates()` 从 `Path` 生成 `source_ref`。如果 clipboard path 直接复用该函数，可能无法写出 `clipboard://<format-or-auto>`，或把 clipboard 来源伪装成文件路径。
 
 **缓解**：新增 bytes/clipboard ingest helper，或给 staged candidate 构造增加 `source_ref` override；测试必须断言 clipboard candidate 的 `source_ref` 以 `clipboard://` 开头。
 
-### R2.5 双来源 CLI 输入歧义
+### R2.6 双来源 CLI 输入歧义
 
 **风险**：`swl ingest <path> --from-clipboard` 同时给出文件与剪贴板来源，会让 source truth 不清晰。
 
 **缓解**：CLI 层显式拒绝 `source_path` 与 `--from-clipboard` 同时出现；两者都缺失时也报错。
+
+### R2.7 通用 parser 过度扩张
+
+**风险**：为了支持“所有 chatbot”，`generic_chat_json` 可能膨胀成复杂 provider adapter 框架，扩大 Phase 58 范围。
+
+**缓解**：本轮只支持 flat message-list JSON：`[{...}]` 与 `{ "messages": [...] }`。不支持 URL、HTML、provider-specific branch tree、登录态抓取、插件系统或 per-chatbot adapter class。ChatGPT 官方 `mapping` 导出继续走 `chatgpt_json`。
 
 ## S3: review visibility — 无风险
 
@@ -91,12 +103,12 @@ Phase 58 总体风险极低。所有 slice 均为 additive 新增，不修改已
 
 ### 向后兼容性
 
-Phase 58 不改变任何已有 CLI 命令语义（`swl note` 是新增命令，`swl ingest` 保持现有用法兼容）。不改变 staged knowledge 数据格式（新增 `topic` 字段向后兼容）。不改变 knowledge truth layer 或 retrieval pipeline。
+Phase 58 不改变任何已有 CLI 命令语义（`swl note` 是新增命令，`swl ingest` 保持现有用法兼容）。新增 `generic_chat_json` 只是 parser format choice，不改变已有 provider-specific parser 语义。不改变 staged knowledge 数据格式（新增 `topic` 字段向后兼容）。不改变 knowledge truth layer 或 retrieval pipeline。
 
 ### 测试策略
 
-所有 slice 均可通过 mock 测试覆盖，不需要真实 clipboard 或 API 连接。S2 的剪贴板读取通过 mock `subprocess.run` 验证，并额外断言 `source_ref=clipboard://...`、`--format` omitted 时传入 `None`、双来源输入被拒绝。
+所有 slice 均可通过 mock 测试覆盖，不需要真实 clipboard、URL 抓取或 API 连接。S2 的剪贴板读取通过 mock `subprocess.run` 验证，并额外断言 `source_ref=clipboard://...`、`--format` omitted 时传入 `None`、双来源输入被拒绝、`generic_chat_json` 支持 `{messages:[...]}` 与 `[{...}]`。
 
 ## 结论
 
-Phase 58 风险极低，所有 slice 总分 ≤ 4。主要工作是 CLI 层新增命令和参数，核心管线无改动。建议按设计顺序实施；通过既有 Design Gate 即可，无需 Design Gate 之外的额外人工 gate。
+Phase 58 风险低，所有 slice 总分 ≤ 5。主要工作是 CLI 层新增命令和参数，加一个受限 parser format，核心管线无改动。建议按设计顺序实施；通过既有 Design Gate 即可，无需 Design Gate 之外的额外人工 gate。
