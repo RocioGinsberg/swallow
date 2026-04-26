@@ -81,6 +81,7 @@ from .models import (
     TaskState,
     build_telemetry_fields,
     evaluate_dispatch_verdict,
+    infer_task_family,
 )
 from .paths import (
     artifacts_dir,
@@ -183,6 +184,11 @@ EXECUTOR_ARTIFACT_NAMES = (
 
 DEBATE_MAX_ROUNDS = 3
 _BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
+_RETRIEVAL_SOURCE_POLICY: dict[tuple[str, str], tuple[str, ...]] = {
+    ("autonomous_cli_coding", "*"): ("knowledge",),
+    ("legacy_local_fallback", "*"): ("repo", "notes", "knowledge"),
+    ("*", "*"): ("knowledge", "notes"),
+}
 
 
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
@@ -3149,10 +3155,43 @@ def _route_knowledge_to_staged(base_dir: Path, state: TaskState) -> list[StagedC
     return staged_candidates
 
 
+def _retrieval_policy_family(state: TaskState) -> str:
+    capabilities = state.route_capabilities if isinstance(state.route_capabilities, dict) else {}
+    executor_family = str(state.route_executor_family or "").strip().lower()
+    taxonomy_role = str(state.route_taxonomy_role or "").strip().lower()
+    execution_kind = str(capabilities.get("execution_kind", "")).strip().lower()
+    supports_tool_loop = capabilities.get("supports_tool_loop") is True
+    deterministic = capabilities.get("deterministic") is True
+
+    if executor_family == "cli" and supports_tool_loop and execution_kind == "code_execution":
+        if taxonomy_role in {"", "general-executor"}:
+            return "autonomous_cli_coding"
+    if executor_family == "api":
+        return "api"
+    if executor_family == "cli" and deterministic and not supports_tool_loop:
+        return "legacy_local_fallback"
+    return executor_family or "*"
+
+
+def _select_source_types(route_policy_family: str, task_family: str) -> list[str]:
+    normalized_task_family = str(task_family or "").strip().lower() or "*"
+    for policy_key in (
+        (route_policy_family, normalized_task_family),
+        (route_policy_family, "*"),
+        ("*", "*"),
+    ):
+        source_types = _RETRIEVAL_SOURCE_POLICY.get(policy_key)
+        if source_types is not None:
+            return list(source_types)
+    return ["knowledge", "notes"]
+
+
 def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
+    route_policy_family = _retrieval_policy_family(state)
+    task_family = infer_task_family(state)
     return build_retrieval_request(
         query=f"{state.title} {state.goal}".strip(),
-        source_types=["repo", "notes", "knowledge"],
+        source_types=_select_source_types(route_policy_family, task_family),
         context_layers=["workspace", "task"],
         current_task_id=state.task_id,
         limit=8,

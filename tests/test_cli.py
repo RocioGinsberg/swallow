@@ -8031,7 +8031,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(result.status, "failed")
         self.assertTrue(any(f.code == "knowledge.reuse.stage_not_ready" for f in result.findings))
 
-    def test_build_task_retrieval_request_uses_explicit_system_baseline(self) -> None:
+    def test_build_task_retrieval_request_uses_conservative_default_when_route_capabilities_are_missing(self) -> None:
         state = TaskState(
             task_id="request123",
             title="Improve retrieval",
@@ -8042,11 +8042,95 @@ class CliLifecycleTest(unittest.TestCase):
         request = build_task_retrieval_request(state)
 
         self.assertEqual(request.query, "Improve retrieval Refine harness boundary")
-        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
+        self.assertEqual(request.source_types, ["knowledge", "notes"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
         self.assertEqual(request.current_task_id, "request123")
         self.assertEqual(request.limit, 8)
         self.assertEqual(request.strategy, "system_baseline")
+
+    def test_build_task_retrieval_request_uses_knowledge_only_for_autonomous_cli_coding_routes(self) -> None:
+        route = route_by_name("local-codex")
+        self.assertIsNotNone(route)
+        assert route is not None
+        state = TaskState(
+            task_id="request-cli",
+            title="Improve retrieval",
+            goal="Refine harness boundary",
+            workspace_root="/tmp",
+            executor_name=route.executor_name,
+            route_name=route.name,
+            route_executor_family=route.executor_family,
+            route_taxonomy_role=route.taxonomy.system_role,
+            route_capabilities=route.capabilities.to_dict(),
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["knowledge"])
+
+    def test_build_task_retrieval_request_preserves_legacy_sources_for_non_autonomous_cli_fallback_routes(self) -> None:
+        route = route_by_name("local-summary")
+        self.assertIsNotNone(route)
+        assert route is not None
+        state = TaskState(
+            task_id="request-legacy-cli",
+            title="Summarize retrieval",
+            goal="Preserve fallback compatibility",
+            workspace_root="/tmp",
+            executor_name=route.executor_name,
+            route_name=route.name,
+            route_executor_family=route.executor_family,
+            route_taxonomy_role=route.taxonomy.system_role,
+            route_capabilities=route.capabilities.to_dict(),
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
+
+    def test_build_task_retrieval_request_keeps_http_routes_off_repo_by_default(self) -> None:
+        route = route_by_name("http-claude")
+        self.assertIsNotNone(route)
+        assert route is not None
+        state = TaskState(
+            task_id="request-http",
+            title="Review retrieval",
+            goal="Keep HTTP defaults conservative",
+            workspace_root="/tmp",
+            executor_name=route.executor_name,
+            route_name=route.name,
+            route_executor_family=route.executor_family,
+            route_taxonomy_role=route.taxonomy.system_role,
+            route_capabilities=route.capabilities.to_dict(),
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["knowledge", "notes"])
+
+    def test_build_task_retrieval_request_does_not_treat_specialist_cli_routes_as_autonomous_coding(self) -> None:
+        state = TaskState(
+            task_id="request-specialist-cli",
+            title="Specialist retrieval",
+            goal="Protect explicit input paths",
+            workspace_root="/tmp",
+            executor_name="librarian",
+            route_name="specialist-simulated",
+            route_executor_family="cli",
+            route_taxonomy_role="specialist",
+            route_capabilities={
+                "execution_kind": "code_execution",
+                "supports_tool_loop": True,
+                "filesystem_access": "workspace_write",
+                "network_access": "optional",
+                "deterministic": False,
+                "resumable": True,
+            },
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["knowledge", "notes"])
 
     def test_run_task_passes_explicit_retrieval_request_to_harness(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -8095,7 +8179,7 @@ class CliLifecycleTest(unittest.TestCase):
 
         request = captured_request["request"]
         self.assertEqual(request.query, "Request boundary Pass retrieval request explicitly")
-        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
+        self.assertEqual(request.source_types, ["knowledge"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
         self.assertEqual(request.current_task_id, "taskrequest")
         self.assertEqual(request.strategy, "system_baseline")
