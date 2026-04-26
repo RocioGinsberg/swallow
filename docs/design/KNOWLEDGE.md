@@ -121,6 +121,49 @@ Wiki 不是"RAG 之上的摘要页"，而是知识真值层内部的一类重要
 
 摄入流程负责：导入对话记录 → 过滤无效发散 → 保留有效结论与被否决路径 → 转换为结构化候选对象 → 进入 staged knowledge。
 
+### 5.1 外部输入格式边界
+
+外部对话摄入必须同时区分三个维度，避免把输入来源、传输方式和内容语义混成一个概念：
+
+| 维度 | 示例 | 设计含义 |
+|---|---|---|
+| **内容语义** | 完整对话、对话片段、已整理结论、知识文件 | 决定是否需要 conversation filtering，还是直接进入 staged candidate |
+| **输入载体** | 本地文件、剪贴板、未来可能的受控 URL | 只决定 bytes 从哪里来，不决定知识真值语义 |
+| **内容格式** | provider JSON、generic chat JSON、Markdown、text | 决定 parser 如何归一为 `ConversationTurn` 或 staged candidate |
+
+稳定规则：
+
+- **完整官方/平台导出**优先走 provider-specific JSON parser，例如 `chatgpt_json`、`claude_json`、`open_webui_json`。这类 parser 可以保留 provider 特有语义，例如 ChatGPT `mapping` 树、分支路径、conversation metadata。
+- **其他 chatbot 的普通聊天记录 JSON**走 `generic_chat_json`，但该格式只覆盖 flat message-list：`[{...}]` 或 `{ "messages": [...] }`。它只做 role/content 归一，不恢复 provider-specific branch semantics。
+- **非完整对话片段或复制出的 transcript**走 Markdown/document parser；输入载体可以是文件或剪贴板。
+- **已整理成结论、决策或灵感的内容**不应伪装成外部会话；应走 `swl note` 或本地文件 staged ingestion，绕过 conversation filtering。
+- **本地文件路径仍是稳定核心载体**；clipboard 是低摩擦补充载体，不替代文件路径，也不改变 parser / staged review 语义。
+- **URL / shared link 摄入不是默认知识能力**。抓取 `chatgpt.com/share/...`、网页分享链接或需要登录态的 remote URL 会引入网络、权限、隐私、可重复性和 HTML schema 稳定性问题；必须作为独立设计 slice 引入，不能隐式并入 external session ingestion。
+
+推荐命令语义：
+
+```bash
+# provider-specific 完整导出
+swl ingest conversations.json --format chatgpt_json
+swl ingest claude-export.json --format claude_json
+swl ingest open-webui.json --format open_webui_json
+
+# 其他 chatbot 的扁平消息列表 JSON
+swl ingest chat.json --format generic_chat_json
+swl ingest --from-clipboard --format generic_chat_json
+
+# Markdown / transcript 片段
+swl ingest transcript.md --format markdown
+swl ingest --from-clipboard --format markdown
+
+# 已整理结论或本地知识文件
+swl note "retrieval policy 应按 execution family 分流" --tag retrieval
+swl knowledge ingest-file notes.md
+swl knowledge ingest-file notes.txt
+```
+
+这条边界的核心原则是：`swl ingest` 负责 conversation-like raw material 的解析、过滤和 staging；`swl note` / `swl knowledge ingest-file` 负责已经由 operator 整理过的知识输入；所有路径最终都必须进入 staged → review → promote/reject 管线，不允许外部材料绕过治理边界直接写入 canonical memory。
+
 ### Schema Alignment
 
 handoff vocabulary 在代码层已统一到标准 schema。文档中的 `Context`、`Constraints`、`Goals` 等术语始终与实现的结构化字段对齐，而不是自由文本语义。
@@ -166,5 +209,7 @@ Graph RAG、社区发现、图结构摘要、agentic retrieval（动态工具选
 | **Vector-first 叙事** | 把向量索引写成知识 authoritative store |
 | **Wiki 浮层化** | 把 Wiki 写成飘在真值层之上的展示壳 |
 | **外部会话直通** | 外部对话导入绕过 staged / review / promotion 边界 |
+| **载体即语义** | 把 clipboard、文件、URL 当作不同知识语义，而不是不同 bytes 载体 |
+| **通用 JSON 过度承诺** | 把 `generic_chat_json` 扩张成任意 chatbot / URL / HTML / 登录态抓取框架 |
 | **材料 = 知识** | 把"底层材料很重要"误解为"底层材料直接等于可复用知识对象" |
 | **纯 RAG 回退** | 把系统重新拉回 chunk & embed 的单层叙事 |
