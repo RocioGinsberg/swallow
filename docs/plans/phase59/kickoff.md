@@ -46,7 +46,7 @@ Phase 59 的目标是消除 alias，让 Codex CLI 成为系统中的一等公民
 
 - **dispatch 架构重构**：不把 `run_prompt_executor` if-chain 改为 config-driven dict dispatch。当前 3 个 CLI agent 的 if-chain 可管理，重构应在第 4 个 CLI agent 出现时再考虑
 - **capability 自动学习**：不在本轮实现 Codex 的自动 `task_family_scores` 填充。初始画像为空，由 Meta-Optimizer 遥测后续自然积累
-- **`local-cline` alias 处理**：`local-cline -> local-claude-code` alias 保留不动，当前无真实 Cline route 计划
+- **Cline 兼容恢复**：不在本轮恢复或保留 `local-cline` alias；避免继续制造 route 语义误解
 - **complexity bias 修改**：`_apply_complexity_bias()` 当前对 `low/routine` 偏好 aider、`high` 偏好 claude-code。不在本轮为 codex 新增 complexity tier，保持现有偏好不变
 - **Codex CLI 深度集成**：不做 Codex 的 session resume、sandbox 配置透传、多模型切换等高级功能
 - **route_weights / route_capabilities 迁移工具**：如 `.swl/route_weights.json` 中有 `local-codex` 条目（通过旧 alias 写入），alias 移除后会自然关联到新 route。不需要专门迁移工具

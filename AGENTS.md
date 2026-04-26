@@ -59,7 +59,6 @@
 - **统一 async CLI 执行器入口**：`AsyncCLIAgentExecutor` 已成为 CLI agent 的统一 async entrypoint；Aider / Claude Code 通过配置复用同一执行路径，Runtime v0 仍通过 harness bridge 接入既有同步执行链
 - **complexity-aware Strategy Router**：`TaskSemantics.complexity_hint` 已贯通 create / planning handoff / route select，`parallel_intent` 进入 `RouteSelection.policy_inputs`
 - **带守卫的 fan-out 编排**：`AsyncSubtaskOrchestrator` 已补齐 subtask timeout、局部失败隔离、`AIWF_MAX_SUBTASK_WORKERS` 与 `subtask_summary.md` 父级收口
-- **Legacy route alias 兼容**：route lookup / route policy persistence 统一兼容 `local-codex -> local-aider`、`local-cline -> local-claude-code`
 - canonical registry、reuse visibility、dedupe / supersede audit、regression inspection
 - grounding evidence artifact、locked grounding refs、resume-stable grounding state
 - 有界 1:N TaskCard planning、DAG subtask orchestration、parent-task artifact/event aggregation

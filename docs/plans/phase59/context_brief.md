@@ -33,13 +33,13 @@ TL;DR: Phase 58 landed low-friction knowledge capture. Phase 59 targets roadmap 
 | Phase 52 | `AsyncCLIAgentExecutor` + `CLIAgentConfig` 统一 CLI agent 入口 | `executor.py` |
 | Phase 46 | CLI 执行器去品牌化：配置驱动的 CLIAgentConfig | `executor.py` |
 | Phase 42 | Meta-Optimizer 遥测修正 | `meta_optimizer.py` |
-| (legacy) | `ROUTE_NAME_ALIASES` 引入 `local-codex -> local-aider` 与 `local-cline -> local-claude-code` | `router.py` |
+| (legacy) | `ROUTE_NAME_ALIASES` 曾引入 `local-codex -> local-aider` 与 `local-cline -> local-claude-code` | `router.py` |
 
 ## 关键上下文
 
 **当前 `local-codex` 只是 alias**
 
-`router.py:43-46`：`ROUTE_NAME_ALIASES = {"local-codex": "local-aider", "local-cline": "local-claude-code"}`。`normalize_route_name()` (L593-600) 在 route lookup / policy persistence 时将 `local-codex` 归一化为 `local-aider`。这意味着：
+`router.py:43-46`：`ROUTE_NAME_ALIASES` 历史上曾包含 `local-codex -> local-aider` 与 `local-cline -> local-claude-code`。`normalize_route_name()` (L593-600) 在 route lookup / policy persistence 时会把别名归一化到真实 route。Phase 59 的目标是不仅移除 `local-codex` alias，也顺手清空剩余 `local-cline` 兼容，避免继续制造误解。这意味着：
 - 任何对 `local-codex` 的路由请求实际走 `local-aider` 的 executor config
 - route weights / capability profiles 中写 `local-codex` 会映射到 `local-aider` 的权重
 - Meta-Optimizer telemetry / diagnosis 中看到 `local-codex` 时是拿 aider 的配置在运行
@@ -105,7 +105,7 @@ CLI routes 的 capabilities：
 ## 风险信号
 
 - **`ROUTE_NAME_ALIASES` 移除 `local-codex` 后的迁移**：如 operator 已在 `.swl/route_weights.json` 中写入过 `local-codex` 权重（通过 alias 映射到 `local-aider`），移除 alias 后权重会直接关联到新的 `local-codex` route。这通常是期望行为，但如果权重是为 aider 调的，可能需要重新校准。实际风险低——当前系统只有一个 operator（你），且 route weights 通常通过 Meta-Optimizer 提案生成。
-- **`local-cline -> local-claude-code` alias 保留**：Phase 59 只处理 `local-codex`；`local-cline` alias 保留不变（当前无真实 Cline route 计划）。需确保只移除一个 alias。
+- **遗留 `local-cline` alias 的误导性**：虽然当前没有真实 Cline route 计划，但保留 `local-cline -> local-claude-code` 会继续暗示存在另一个 CLI executor 家族。Phase 59 可一并清理。
 - **Codex CLI 参数稳定性**：`codex-cli 0.125.0` 正处于活跃开发期（OpenAI 产品），CLI flag 可能发生变化。`fixed_args` 应保守设置，只包含稳定的 non-interactive 参数。
 - **`run_prompt_executor` if-chain 膨胀**：每新增一个 CLI agent 需在两个 dispatcher 函数各加一个分支。长期可能需要改为 config-driven dispatch（查 `CLI_AGENT_CONFIGS` dict），但 Phase 59 scope 内保持一致性更重要，不应在本轮做 dispatch 重构。
 - **doctor 探针只检查单一 binary**：`diagnose_executor()` 最终应支持多 binary 检查。Phase 59 范围内至少应让 `swl doctor` 输出 codex binary 是否可用，具体方案（扩展现有函数 vs. 新增函数）在设计阶段决定。
