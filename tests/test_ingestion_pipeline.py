@@ -11,7 +11,9 @@ from swallow.ingestion.pipeline import (
     EXTERNAL_SESSION_SOURCE_KIND,
     build_ingestion_report,
     build_ingestion_summary,
+    ingest_operator_note,
     ingest_local_file,
+    run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
 from swallow.staged_knowledge import load_staged_candidates
@@ -95,6 +97,20 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertEqual(len(result.staged_candidates), 1)
         self.assertEqual(staged_candidates, [])
 
+    def test_ingest_operator_note_persists_topic_and_source_kind(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            result = ingest_operator_note(tmp_path, "Use explicit route guards.", topic="routing")
+            staged_candidates = load_staged_candidates(tmp_path)
+
+        self.assertEqual(result.detected_format, "operator_note")
+        self.assertEqual(len(result.staged_candidates), 1)
+        self.assertEqual(staged_candidates[0].source_kind, "operator_note")
+        self.assertEqual(staged_candidates[0].topic, "routing")
+        self.assertEqual(staged_candidates[0].source_ref, "note://operator")
+        self.assertTrue(staged_candidates[0].source_task_id.startswith("note-"))
+
     def test_build_ingestion_report_includes_candidate_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -107,6 +123,25 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertIn("# Ingestion Report", report)
         self.assertIn("source_kind: external_session_ingestion", report)
         self.assertIn("dry_run: yes", report)
+
+    def test_run_ingestion_bytes_pipeline_uses_clipboard_source_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            result = run_ingestion_bytes_pipeline(
+                tmp_path,
+                b"# Decisions\nDecision: keep clipboard ingest explicit.",
+                source_name="clipboard.md",
+                source_ref="clipboard://auto",
+                source_task_id="ingest-clipboard-20260426-120000",
+                dry_run=True,
+            )
+
+        self.assertEqual(result.source_path, "clipboard://auto")
+        self.assertEqual(result.detected_format, "markdown")
+        self.assertEqual(len(result.staged_candidates), 1)
+        self.assertEqual(result.staged_candidates[0].source_ref, "clipboard://auto")
+        self.assertEqual(result.staged_candidates[0].source_task_id, "ingest-clipboard-20260426-120000")
 
     def test_build_ingestion_summary_groups_fragments(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
