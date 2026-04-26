@@ -5658,7 +5658,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("applied_count: 1", apply_stdout.getvalue())
                 persisted_weights = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
                 self.assertAlmostEqual(
-                    persisted_weights["local-aider"],
+                    persisted_weights["local-codex"],
                     route_weight.suggested_weight or 1.0,
                     places=2,
                 )
@@ -7085,8 +7085,9 @@ class CliLifecycleTest(unittest.TestCase):
     def test_doctor_executor_missing_binary_returns_nonzero(self) -> None:
         stdout = StringIO()
         with patch("swallow.doctor.shutil.which", return_value=None):
-            with redirect_stdout(stdout):
-                exit_code = main(["doctor", "executor"])
+            with patch("swallow.cli.diagnose_cli_agents", return_value=(1, [])):
+                with redirect_stdout(stdout):
+                    exit_code = main(["doctor", "executor"])
         self.assertNotEqual(exit_code, 0)
         output = stdout.getvalue()
         self.assertIn("binary_found=no", output)
@@ -7103,26 +7104,61 @@ class CliLifecycleTest(unittest.TestCase):
         )
         with patch("swallow.doctor.shutil.which", return_value="/usr/bin/aider"):
             with patch("swallow.doctor.subprocess.run", return_value=completed):
-                with redirect_stdout(stdout):
-                    exit_code = main(["doctor", "executor"])
+                with patch("swallow.cli.diagnose_cli_agents", return_value=(0, [])):
+                    with redirect_stdout(stdout):
+                        exit_code = main(["doctor", "executor"])
         self.assertEqual(exit_code, 0)
         output = stdout.getvalue()
         self.assertIn("binary_found=yes", output)
         self.assertIn("launch_ok=yes", output)
         self.assertIn("note_only_recommended=no", output)
 
+    def test_doctor_executor_includes_cli_agent_probe_results(self) -> None:
+        stdout = StringIO()
+        with patch("swallow.cli.diagnose_executor", return_value=(0, object())):
+            with patch(
+                "swallow.cli.diagnose_cli_agents",
+                return_value=(
+                    0,
+                    [
+                        type(
+                            "C",
+                            (),
+                            {
+                                "executor_name": "codex",
+                                "display_name": "Codex",
+                                "binary_found": True,
+                                "launch_ok": True,
+                                "executor_bin": "codex",
+                                "resolved_path": "/usr/bin/codex",
+                                "version": "codex-cli 0.125.0",
+                                "details": "",
+                            },
+                        )()
+                    ],
+                ),
+            ):
+                with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok\ncli_agents:\n- codex: ok"):
+                    with redirect_stdout(stdout):
+                        exit_code = main(["doctor", "executor"])
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("cli_agents:", stdout.getvalue())
+
     def test_doctor_without_subcommand_runs_executor_and_stack_checks(self) -> None:
         stdout = StringIO()
         with patch("swallow.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
-            with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok"):
-                with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
-                    with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
-                        with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
-                            with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
-                                with redirect_stdout(stdout):
-                                    exit_code = main(["doctor"])
+            with patch("swallow.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
+                with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok"):
+                    with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
+                        with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
+                            with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
+                                with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
+                                    with redirect_stdout(stdout):
+                                        exit_code = main(["doctor"])
         self.assertEqual(exit_code, 0)
         mocked_executor.assert_called_once_with()
+        mocked_cli_agents.assert_called_once_with()
         mocked_sqlite.assert_called_once()
         mocked_stack.assert_called_once_with()
         self.assertEqual(stdout.getvalue(), "executor-ok\n\nsqlite-ok\n\nstack-ok\n")
@@ -7130,14 +7166,16 @@ class CliLifecycleTest(unittest.TestCase):
     def test_doctor_skip_stack_only_runs_executor_check(self) -> None:
         stdout = StringIO()
         with patch("swallow.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
-            with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok"):
-                with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
-                    with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
-                        with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
-                            with redirect_stdout(stdout):
-                                exit_code = main(["doctor", "--skip-stack"])
+            with patch("swallow.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
+                with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok"):
+                    with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
+                        with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
+                            with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
+                                with redirect_stdout(stdout):
+                                    exit_code = main(["doctor", "--skip-stack"])
         self.assertEqual(exit_code, 0)
         mocked_executor.assert_called_once_with()
+        mocked_cli_agents.assert_called_once_with()
         mocked_sqlite.assert_called_once()
         mocked_stack.assert_not_called()
         self.assertEqual(stdout.getvalue(), "executor-ok\n\nsqlite-ok\n")
@@ -9421,6 +9459,7 @@ class CliLifecycleTest(unittest.TestCase):
     def test_normalize_executor_name_supports_aliases(self) -> None:
         self.assertEqual(normalize_executor_name("local-summary"), "local")
         self.assertEqual(normalize_executor_name("note_only"), "note-only")
+        self.assertEqual(normalize_executor_name("codex"), "codex")
         self.assertEqual(normalize_executor_name("unknown-executor"), "unknown-executor")
 
     def test_resolve_dialect_name_prefers_route_hint_and_falls_back_to_plain_text(self) -> None:

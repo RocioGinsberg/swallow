@@ -269,7 +269,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 )
                 persisted_weights = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
                 self.assertAlmostEqual(
-                    persisted_weights["local-aider"],
+                    persisted_weights["local-codex"],
                     route_weight_proposal.suggested_weight or 1.0,
                     places=2,
                 )
@@ -1226,8 +1226,8 @@ class MetaOptimizerTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertTrue(route_weights_path(base_dir).exists())
             persisted = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
-            self.assertEqual(persisted["local-aider"], 0.33)
-            self.assertIn("local-aider: 0.330000", stdout.getvalue())
+            self.assertEqual(persisted["local-codex"], 0.33)
+            self.assertIn("local-codex: 0.330000", stdout.getvalue())
 
             stdout = StringIO()
             with redirect_stdout(stdout):
@@ -1242,7 +1242,7 @@ class MetaOptimizerTest(unittest.TestCase):
                 )
 
             self.assertEqual(exit_code, 0)
-            self.assertIn("local-aider: 0.330000", stdout.getvalue())
+            self.assertIn("local-codex: 0.330000", stdout.getvalue())
             self.assertAlmostEqual(route_by_name("local-codex").quality_weight, 0.33, places=2)
 
         with tempfile.TemporaryDirectory() as reset_tmp:

@@ -30,6 +30,7 @@ from .canonical_registry import (
     build_staged_canonical_key,
 )
 from .doctor import (
+    diagnose_cli_agents,
     diagnose_executor,
     diagnose_local_stack,
     diagnose_sqlite_store,
@@ -3566,8 +3567,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "doctor":
         if args.doctor_command in {"executor", "codex"}:
             exit_code, result = diagnose_executor()
-            print(format_executor_doctor_result(result))
-            return exit_code
+            cli_exit_code, cli_results = diagnose_cli_agents()
+            print(format_executor_doctor_result(result, cli_results))
+            return 0 if exit_code == 0 and cli_exit_code == 0 else 1
         if args.doctor_command == "sqlite":
             exit_code, result = diagnose_sqlite_store(base_dir)
             print(format_sqlite_doctor_result(result))
@@ -3578,19 +3580,20 @@ def main(argv: list[str] | None = None) -> int:
             return exit_code
 
         executor_exit_code, executor_result = diagnose_executor()
-        print(format_executor_doctor_result(executor_result))
+        cli_exit_code, cli_results = diagnose_cli_agents()
+        print(format_executor_doctor_result(executor_result, cli_results))
 
         sqlite_exit_code, sqlite_result = diagnose_sqlite_store(base_dir)
         print()
         print(format_sqlite_doctor_result(sqlite_result))
 
         if args.skip_stack:
-            return 0 if executor_exit_code == 0 and sqlite_exit_code == 0 else 1
+            return 0 if executor_exit_code == 0 and cli_exit_code == 0 and sqlite_exit_code == 0 else 1
 
         stack_exit_code, stack_result = diagnose_local_stack()
         print()
         print(format_local_stack_doctor_result(stack_result))
-        return 0 if executor_exit_code == 0 and sqlite_exit_code == 0 and stack_exit_code == 0 else 1
+        return 0 if executor_exit_code == 0 and cli_exit_code == 0 and sqlite_exit_code == 0 and stack_exit_code == 0 else 1
 
     parser.error("Unsupported command.")
     return 2

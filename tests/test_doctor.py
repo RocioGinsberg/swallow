@@ -11,7 +11,13 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.doctor import diagnose_local_stack, diagnose_sqlite_store, format_sqlite_doctor_result
+from swallow.doctor import (
+    diagnose_cli_agents,
+    diagnose_local_stack,
+    diagnose_sqlite_store,
+    format_executor_doctor_result,
+    format_sqlite_doctor_result,
+)
 from swallow.models import Event, TaskState
 from swallow.store import append_event, save_knowledge_objects, save_state
 
@@ -55,6 +61,71 @@ class LocalStackDoctorTest(unittest.TestCase):
         self.assertEqual(statuses["embedding_api_endpoint"], "pass")
         self.assertEqual(statuses["wireguard_tunnel"], "pass")
         self.assertEqual(statuses["egress_proxy"], "pass")
+
+    def test_diagnose_cli_agents_reports_found_and_missing_binaries(self) -> None:
+        def fake_which(binary: str) -> str | None:
+            return {
+                "aider": "/usr/bin/aider",
+                "claude": None,
+                "codex": "/usr/bin/codex",
+            }.get(binary)
+
+        def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+            if args[0] == "aider":
+                return _completed(args, stdout="aider 1.2.3")
+            if args[0] == "codex":
+                return _completed(args, stdout="codex-cli 0.125.0")
+            raise AssertionError(f"unexpected command: {args}")
+
+        with patch("swallow.doctor.shutil.which", side_effect=fake_which):
+            with patch("swallow.doctor.subprocess.run", side_effect=fake_run):
+                exit_code, results = diagnose_cli_agents()
+
+        self.assertEqual(exit_code, 1)
+        by_name = {result.executor_name: result for result in results}
+        self.assertTrue(by_name["aider"].binary_found)
+        self.assertTrue(by_name["aider"].launch_ok)
+        self.assertEqual(by_name["aider"].version, "aider 1.2.3")
+        self.assertFalse(by_name["claude-code"].binary_found)
+        self.assertFalse(by_name["claude-code"].launch_ok)
+        self.assertTrue(by_name["codex"].binary_found)
+        self.assertEqual(by_name["codex"].version, "codex-cli 0.125.0")
+
+    def test_format_executor_doctor_result_includes_cli_agents_section(self) -> None:
+        rendered = format_executor_doctor_result(
+            result=type(
+                "R",
+                (),
+                {
+                    "binary_found": True,
+                    "launch_ok": True,
+                    "executor_mode": "aider",
+                    "note_only_recommended": False,
+                    "executor_bin": "/usr/bin/aider",
+                    "details": "",
+                },
+            )(),
+            cli_agents=[
+                type(
+                    "C",
+                    (),
+                    {
+                        "executor_name": "codex",
+                        "display_name": "Codex",
+                        "binary_found": True,
+                        "launch_ok": True,
+                        "executor_bin": "codex",
+                        "resolved_path": "/usr/bin/codex",
+                        "version": "codex-cli 0.125.0",
+                        "details": "",
+                    },
+                )()
+            ],
+        )
+
+        self.assertIn("cli_agents:", rendered)
+        self.assertIn("- codex: binary_found=yes launch_ok=yes bin=codex", rendered)
+        self.assertIn("version=codex-cli 0.125.0", rendered)
 
 
 class SqliteDoctorTest(unittest.TestCase):

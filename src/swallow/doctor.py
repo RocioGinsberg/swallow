@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib import error, request
 
+from .executor import CLI_AGENT_CONFIGS
 from .knowledge_store import iter_file_knowledge_task_ids
 from .runtime_config import (
     resolve_swl_api_base_url,
@@ -25,6 +26,18 @@ class DoctorResult:
     executor_mode: str
     note_only_recommended: bool
     executor_bin: str
+    details: str = ""
+
+
+@dataclass(slots=True)
+class CLIAgentDoctorResult:
+    executor_name: str
+    display_name: str
+    binary_found: bool
+    launch_ok: bool
+    executor_bin: str
+    resolved_path: str = ""
+    version: str = ""
     details: str = ""
 
 
@@ -350,7 +363,66 @@ def diagnose_executor() -> tuple[int, DoctorResult]:
     )
 
 
-def format_executor_doctor_result(result: DoctorResult) -> str:
+def diagnose_cli_agents() -> tuple[int, list[CLIAgentDoctorResult]]:
+    results: list[CLIAgentDoctorResult] = []
+    exit_code = 0
+    for config in CLI_AGENT_CONFIGS.values():
+        configured_bin = os.environ.get(config.bin_env_var, config.default_bin).strip() or config.default_bin
+        resolved = shutil.which(configured_bin)
+        if not resolved:
+            exit_code = 1
+            results.append(
+                CLIAgentDoctorResult(
+                    executor_name=config.executor_name,
+                    display_name=config.display_name,
+                    binary_found=False,
+                    launch_ok=False,
+                    executor_bin=configured_bin,
+                    details="CLI agent binary not found in PATH.",
+                )
+            )
+            continue
+
+        try:
+            completed = _run_command([configured_bin, "--version"])
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            exit_code = 1
+            results.append(
+                CLIAgentDoctorResult(
+                    executor_name=config.executor_name,
+                    display_name=config.display_name,
+                    binary_found=True,
+                    launch_ok=False,
+                    executor_bin=configured_bin,
+                    resolved_path=resolved,
+                    details=f"CLI agent launch check failed: {exc}",
+                )
+            )
+            continue
+
+        launch_ok = completed.returncode == 0
+        if not launch_ok:
+            exit_code = 1
+        version = _command_details(completed)
+        results.append(
+            CLIAgentDoctorResult(
+                executor_name=config.executor_name,
+                display_name=config.display_name,
+                binary_found=True,
+                launch_ok=launch_ok,
+                executor_bin=configured_bin,
+                resolved_path=resolved,
+                version=version,
+                details="" if launch_ok else version,
+            )
+        )
+    return exit_code, results
+
+
+def format_executor_doctor_result(
+    result: DoctorResult,
+    cli_agents: list[CLIAgentDoctorResult] | None = None,
+) -> str:
     lines = [
         f"binary_found={'yes' if result.binary_found else 'no'}",
         f"launch_ok={'yes' if result.launch_ok else 'no'}",
@@ -359,6 +431,23 @@ def format_executor_doctor_result(result: DoctorResult) -> str:
     ]
     if result.details:
         lines.append(f"details={result.details}")
+    if cli_agents:
+        lines.extend(["", "cli_agents:"])
+        for agent in cli_agents:
+            lines.append(
+                (
+                    f"- {agent.executor_name}: "
+                    f"binary_found={'yes' if agent.binary_found else 'no'} "
+                    f"launch_ok={'yes' if agent.launch_ok else 'no'} "
+                    f"bin={agent.executor_bin}"
+                )
+            )
+            if agent.resolved_path:
+                lines.append(f"  path={agent.resolved_path}")
+            if agent.version:
+                lines.append(f"  version={agent.version}")
+            if agent.details and not agent.version:
+                lines.append(f"  details={agent.details}")
     return "\n".join(lines)
 
 

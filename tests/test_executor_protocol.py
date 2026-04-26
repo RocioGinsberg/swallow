@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import asyncio
 from pathlib import Path
 import sys
 from unittest.mock import patch
@@ -14,6 +15,7 @@ from swallow.executor import (
     AIDER_CONFIG,
     AsyncCLIAgentExecutor,
     CLAUDE_CODE_CONFIG,
+    CODEX_CONFIG,
     EXECUTOR_REGISTRY,
     ExecutorProtocol,
     HTTPExecutor,
@@ -23,6 +25,8 @@ from swallow.executor import (
     _attach_estimated_usage,
     resolve_executor,
     resolve_new_api_chat_completions_url,
+    run_prompt_executor,
+    run_prompt_executor_async,
     run_executor_inline,
     run_http_executor,
 )
@@ -104,7 +108,55 @@ class ExecutorProtocolTest(unittest.TestCase):
     def test_resolve_executor_routes_http_and_cli_agent_names(self) -> None:
         self.assertIsInstance(resolve_executor("http", "http"), HTTPExecutor)
         self.assertIsInstance(resolve_executor("cli", "aider"), AsyncCLIAgentExecutor)
+        self.assertIsInstance(resolve_executor("cli", "codex"), AsyncCLIAgentExecutor)
         self.assertIsInstance(resolve_executor("cli", "claude-code"), AsyncCLIAgentExecutor)
+
+    def test_run_prompt_executor_dispatches_codex_to_cli_agent_config(self) -> None:
+        state = TaskState(
+            task_id="task-codex-inline",
+            title="Codex inline dispatch",
+            goal="Dispatch codex executor through CODEX_CONFIG",
+            workspace_root="/tmp",
+            executor_name="codex",
+        )
+        expected = ExecutorResult(
+            executor_name="codex",
+            status="completed",
+            message="Codex executor completed.",
+            output="done",
+        )
+
+        with patch("swallow.executor.run_cli_agent_executor", return_value=expected) as cli_mock:
+            result = run_prompt_executor(state, [], "prompt")
+
+        cli_mock.assert_called_once()
+        self.assertIs(cli_mock.call_args.args[0], CODEX_CONFIG)
+        self.assertEqual(result, expected)
+
+    def test_run_prompt_executor_async_dispatches_codex_to_cli_agent_config(self) -> None:
+        state = TaskState(
+            task_id="task-codex-async",
+            title="Codex async dispatch",
+            goal="Dispatch codex executor through CODEX_CONFIG",
+            workspace_root="/tmp",
+            executor_name="codex",
+        )
+        expected = ExecutorResult(
+            executor_name="codex",
+            status="completed",
+            message="Codex executor completed.",
+            output="done",
+        )
+
+        async def _run() -> ExecutorResult:
+            with patch("swallow.executor.run_cli_agent_executor_async", return_value=expected) as cli_mock:
+                result = await run_prompt_executor_async(state, [], "prompt")
+            cli_mock.assert_called_once()
+            self.assertIs(cli_mock.call_args.args[0], CODEX_CONFIG)
+            return result
+
+        result = asyncio.run(_run())
+        self.assertEqual(result, expected)
 
     def test_resolve_executor_keeps_local_summary_paths_on_local_cli_adapter(self) -> None:
         self.assertIsInstance(resolve_executor("cli", "local"), LocalCLIExecutor)
@@ -424,7 +476,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(state.route_name, "http-claude")
         self.assertEqual(http_post.call_count, 1)
 
-    def test_run_executor_inline_falls_back_from_http_to_local_summary_when_cline_is_unavailable(self) -> None:
+    def test_run_executor_inline_falls_back_from_http_to_local_summary_when_cli_fallback_is_unavailable(self) -> None:
         state = _http_state(
             route_name="http-glm",
             route_model_hint="glm-4.5-air",
@@ -460,6 +512,9 @@ class ExecutorProtocolTest(unittest.TestCase):
 
     def test_cli_agent_configs_cover_aider_and_claude_code(self) -> None:
         self.assertEqual(AIDER_CONFIG.executor_name, "aider")
+        self.assertEqual(CODEX_CONFIG.executor_name, "codex")
+        self.assertEqual(CODEX_CONFIG.fixed_args, ("exec",))
+        self.assertEqual(CODEX_CONFIG.output_path_flags, ("-o",))
         self.assertEqual(CLAUDE_CODE_CONFIG.executor_name, "claude-code")
 
 

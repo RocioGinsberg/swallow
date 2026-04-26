@@ -31,7 +31,7 @@ DOCUMENTS = [
         chunk_id="knowledge-route",
         title="Knowledge knowledge-route",
         citation=".swl/tasks/demo/knowledge_objects.json#knowledge-route",
-        text="The route degradation matrix keeps fallback ordering explicit across http-claude, qwen, glm, local-cline, and local-summary.",
+        text="The route degradation matrix keeps fallback ordering explicit across http-claude, qwen, glm, local-claude-code, and local-summary.",
     ),
     RetrievalSearchDocument(
         path=".swl/tasks/demo/knowledge_objects.json",
