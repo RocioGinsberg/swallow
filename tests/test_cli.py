@@ -5658,7 +5658,7 @@ class CliLifecycleTest(unittest.TestCase):
                 self.assertIn("applied_count: 1", apply_stdout.getvalue())
                 persisted_weights = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
                 self.assertAlmostEqual(
-                    persisted_weights["local-aider"],
+                    persisted_weights["local-codex"],
                     route_weight.suggested_weight or 1.0,
                     places=2,
                 )
