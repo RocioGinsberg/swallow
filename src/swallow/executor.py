@@ -168,9 +168,19 @@ CLAUDE_CODE_CONFIG = CLIAgentConfig(
     fixed_args=("--print",),
 )
 
+CODEX_CONFIG = CLIAgentConfig(
+    executor_name="codex",
+    display_name="Codex",
+    bin_env_var="AIWF_CODEX_BIN",
+    default_bin="codex",
+    fixed_args=("exec",),
+    output_path_flags=("-o",),
+)
+
 CLI_AGENT_CONFIGS = {
     AIDER_CONFIG.executor_name: AIDER_CONFIG,
     CLAUDE_CODE_CONFIG.executor_name: CLAUDE_CODE_CONFIG,
+    CODEX_CONFIG.executor_name: CODEX_CONFIG,
 }
 
 
@@ -615,6 +625,15 @@ def run_prompt_executor(
             visited_routes=visited_routes,
             original_route_name=original_route_name,
         )
+    if executor_name == "codex":
+        return run_cli_agent_executor(
+            CODEX_CONFIG,
+            state,
+            retrieval_items,
+            prompt,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
     raise UnknownExecutorError(f"Unknown executor name: {executor_name}")
 
 
@@ -655,6 +674,15 @@ async def run_prompt_executor_async(
     if executor_name == "claude-code":
         return await run_cli_agent_executor_async(
             CLAUDE_CODE_CONFIG,
+            state,
+            retrieval_items,
+            prompt,
+            visited_routes=visited_routes,
+            original_route_name=original_route_name,
+        )
+    if executor_name == "codex":
+        return await run_cli_agent_executor_async(
+            CODEX_CONFIG,
             state,
             retrieval_items,
             prompt,
