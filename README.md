@@ -98,9 +98,9 @@ Recommended reading order: ARCHITECTURE → STATE_AND_TRUTH → KNOWLEDGE → AG
 
 ## Current Version
 
-**Tag: `v1.1.0`** — Knowledge Graph Era: local file ingestion, explicit knowledge relations, and relation-aware retrieval closure.
+**Tag: `v1.2.0`** — Retrieval Quality Era: neural API embeddings, LLM rerank, retrieval-time chunk tightening, and literature-specialist document-path passthrough.
 
-Stable baseline: `470 tests passed + 8 eval passed`.
+Stable baseline: Phase 57 is merged on `main`; Phase 57 closeout passed full `tests/test_cli.py` regression plus targeted retrieval, doctor, and specialist-path pytest coverage.
 
 For implementation details, see `CHANGELOG.md` and `docs/active_context.md`.
 
@@ -225,9 +225,9 @@ swl task artifacts <task-id>
 
 ## 当前版本
 
-**Tag: `v1.1.0`** — Knowledge Graph Era：本地文件摄入、显式知识关系与 relation-aware retrieval 闭环能力。
+**Tag: `v1.2.0`** — Retrieval Quality Era：神经 API embedding、LLM rerank、检索期 chunk 收紧，以及 `literature-specialist` 的 `document-paths` 全链路透传。
 
-稳定基线：`470 tests passed + 8 eval passed`。
+稳定基线：Phase 57 已合并到 `main`；Phase 57 closeout 已通过 `tests/test_cli.py` 全量回归，以及 retrieval / doctor / specialist-path 相关 pytest 覆盖。
 
 实现细节见 `CHANGELOG.md` 和 `docs/active_context.md`。
 
