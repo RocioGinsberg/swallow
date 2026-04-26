@@ -680,6 +680,7 @@ def build_stage_candidate_list_report(candidates: list[StagedCandidate]) -> str:
             [
                 f"- {candidate.candidate_id}",
                 f"  source_task_id: {candidate.source_task_id}",
+                f"  topic: {candidate.topic or '-'}",
                 f"  source_kind: {candidate.source_kind or '-'}",
                 f"  source_ref: {candidate.source_ref or '-'}",
                 f"  source_object_id: {candidate.source_object_id or 'none'}",
@@ -698,6 +699,7 @@ def build_stage_candidate_inspect_report(candidate: StagedCandidate) -> str:
             f"Staged Candidate: {candidate.candidate_id}",
             f"status: {candidate.status}",
             f"source_task_id: {candidate.source_task_id}",
+            f"topic: {candidate.topic or '-'}",
             f"source_kind: {candidate.source_kind or '-'}",
             f"source_ref: {candidate.source_ref or '-'}",
             f"source_object_id: {candidate.source_object_id or '-'}",
@@ -757,6 +759,9 @@ def build_task_staged_report(
                 f"- {candidate.candidate_id}",
                 f"  status: {candidate.status}",
                 f"  source_task_id: {candidate.source_task_id}",
+                f"  topic: {candidate.topic or '-'}",
+                f"  source_kind: {candidate.source_kind or '-'}",
+                f"  source_ref: {candidate.source_ref or '-'}",
                 f"  submitted_at: {candidate.submitted_at}",
                 f"  text: {summarize_text_preview(candidate.text, 80)}",
             ]

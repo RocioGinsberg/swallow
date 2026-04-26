@@ -1364,6 +1364,9 @@ class CliLifecycleTest(unittest.TestCase):
                     candidate_id="",
                     text="Pending staged note should appear in the task queue output.",
                     source_task_id="task-stage-queue",
+                    topic="queueing",
+                    source_kind="operator_note",
+                    source_ref="note://operator",
                 ),
             )
             promoted = submit_staged_candidate(
@@ -1386,6 +1389,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Task Staged Knowledge", output)
         self.assertIn("status_filter: pending", output)
         self.assertIn(pending.candidate_id, output)
+        self.assertIn("topic: queueing", output)
+        self.assertIn("source_kind: operator_note", output)
+        self.assertIn("source_ref: note://operator", output)
         self.assertNotIn(promoted.candidate_id, output)
 
     def test_cli_task_staged_filters_by_status_and_task(self) -> None:
@@ -1397,6 +1403,9 @@ class CliLifecycleTest(unittest.TestCase):
                     candidate_id="",
                     text="Promoted staged note should be shown when explicitly requested.",
                     source_task_id="task-stage-queue-a",
+                    topic="routing",
+                    source_kind="external_session_ingestion",
+                    source_ref="/tmp/export.json",
                     status="promoted",
                     decided_at="2026-04-14T00:00:00+00:00",
                     decided_by="swl_cli",
@@ -1436,6 +1445,9 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("status_filter: promoted", output)
         self.assertIn("task_filter: task-stage-queue-a", output)
         self.assertIn(promoted.candidate_id, output)
+        self.assertIn("topic: routing", output)
+        self.assertIn("source_kind: external_session_ingestion", output)
+        self.assertIn("source_ref: /tmp/export.json", output)
         self.assertIn("text: Promoted staged note should be shown when explicitly requested.", output)
         self.assertNotIn("Different task should be filtered out.", output)
 
@@ -1448,6 +1460,7 @@ class CliLifecycleTest(unittest.TestCase):
                     candidate_id="",
                     text="Candidate knowledge should be visible to operators.",
                     source_task_id="task-stage-inspect",
+                    topic="visibility",
                     source_object_id="knowledge-0001",
                     submitted_by="mock-remote",
                     taxonomy_role="specialist",
@@ -1463,9 +1476,34 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn(f"Staged Candidate: {candidate.candidate_id}", output)
         self.assertIn("status: pending", output)
         self.assertIn("source_task_id: task-stage-inspect", output)
+        self.assertIn("topic: visibility", output)
         self.assertIn("taxonomy_role: specialist", output)
         self.assertIn("taxonomy_memory_authority: staged-knowledge", output)
         self.assertIn("Candidate knowledge should be visible to operators.", output)
+
+    def test_cli_stage_list_includes_topic_when_present(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="List view should show the topic field.",
+                    source_task_id="task-stage-list",
+                    topic="knowledge-capture",
+                    source_kind="operator_note",
+                    source_ref="note://operator",
+                ),
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(main(["--base-dir", str(tmp_path), "knowledge", "stage-list"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("topic: knowledge-capture", output)
+        self.assertIn("source_kind: operator_note", output)
+        self.assertIn("source_ref: note://operator", output)
 
     def test_cli_note_persists_operator_note_with_topic(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
