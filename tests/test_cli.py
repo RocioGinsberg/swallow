@@ -58,7 +58,14 @@ from swallow.models import (
     evaluate_dispatch_verdict,
     validate_remote_handoff_contract_payload,
 )
-from swallow.orchestrator import acknowledge_task, build_task_retrieval_request, create_task, decide_task_knowledge, run_task
+from swallow.orchestrator import (
+    acknowledge_task,
+    build_task_retrieval_request,
+    create_task,
+    decide_task_knowledge,
+    run_task,
+    update_task_planning_handoff,
+)
 from swallow.paths import (
     artifacts_dir,
     canonical_registry_path,
@@ -652,6 +659,67 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(task_semantics["complexity_hint"], "parallel")
         self.assertIn("- complexity_hint: parallel", semantics_report)
         self.assertEqual(events[-1]["payload"]["task_semantics"]["complexity_hint"], "parallel")
+
+    def test_create_task_persists_explicit_retrieval_source_override_in_task_semantics(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Explicit retrieval sources",
+                goal="Persist override in task semantics",
+                workspace_root=tmp_path,
+                retrieval_source_types=["repo", "knowledge", "repo", ARTIFACTS_SOURCE_TYPE],
+            )
+            task_dir = tmp_path / ".swl" / "tasks" / state.task_id
+            persisted_state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
+            task_semantics = json.loads((task_dir / "task_semantics.json").read_text(encoding="utf-8"))
+            semantics_report = (task_dir / "artifacts" / "task_semantics_report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(task_semantics["retrieval_source_types"], ["repo", "knowledge", ARTIFACTS_SOURCE_TYPE])
+        self.assertEqual(
+            persisted_state["task_semantics"]["retrieval_source_types"],
+            ["repo", "knowledge", ARTIFACTS_SOURCE_TYPE],
+        )
+        self.assertIn("- retrieval_source_types: repo, knowledge, artifacts", semantics_report)
+
+    def test_planning_handoff_preserves_existing_retrieval_source_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            state = create_task(
+                base_dir=tmp_path,
+                title="Preserve retrieval sources",
+                goal="Keep explicit override during planning handoff",
+                workspace_root=tmp_path,
+                retrieval_source_types=["notes", KNOWLEDGE_SOURCE_TYPE],
+            )
+
+            update_task_planning_handoff(
+                tmp_path,
+                state.task_id,
+                constraints=["Do not drop retrieval override"],
+                planning_source="chat://phase60-handoff",
+            )
+
+            task_dir = tmp_path / ".swl" / "tasks" / state.task_id
+            task_semantics = json.loads((task_dir / "task_semantics.json").read_text(encoding="utf-8"))
+            semantics_report = (task_dir / "artifacts" / "task_semantics_report.md").read_text(encoding="utf-8")
+
+        self.assertEqual(task_semantics["retrieval_source_types"], ["notes", KNOWLEDGE_SOURCE_TYPE])
+        self.assertEqual(task_semantics["source_ref"], "chat://phase60-handoff")
+        self.assertIn("- retrieval_source_types: notes, knowledge", semantics_report)
+
+    def test_create_task_rejects_invalid_explicit_retrieval_source_override(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            with self.assertRaisesRegex(ValueError, "Invalid retrieval source type"):
+                create_task(
+                    base_dir=tmp_path,
+                    title="Invalid retrieval override",
+                    goal="Reject unsupported retrieval source types",
+                    workspace_root=tmp_path,
+                    retrieval_source_types=["repo", "unsupported-source"],
+                )
 
     def test_cli_route_select_reports_policy_inputs_for_task(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -8031,7 +8099,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(result.status, "failed")
         self.assertTrue(any(f.code == "knowledge.reuse.stage_not_ready" for f in result.findings))
 
-    def test_build_task_retrieval_request_uses_explicit_system_baseline(self) -> None:
+    def test_build_task_retrieval_request_uses_conservative_default_when_route_capabilities_are_missing(self) -> None:
         state = TaskState(
             task_id="request123",
             title="Improve retrieval",
@@ -8042,11 +8110,158 @@ class CliLifecycleTest(unittest.TestCase):
         request = build_task_retrieval_request(state)
 
         self.assertEqual(request.query, "Improve retrieval Refine harness boundary")
-        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
+        self.assertEqual(request.source_types, ["knowledge", "notes"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
         self.assertEqual(request.current_task_id, "request123")
         self.assertEqual(request.limit, 8)
         self.assertEqual(request.strategy, "system_baseline")
+
+    def test_build_task_retrieval_request_uses_knowledge_only_for_autonomous_cli_coding_routes(self) -> None:
+        route = route_by_name("local-codex")
+        self.assertIsNotNone(route)
+        assert route is not None
+        state = TaskState(
+            task_id="request-cli",
+            title="Improve retrieval",
+            goal="Refine harness boundary",
+            workspace_root="/tmp",
+            executor_name=route.executor_name,
+            route_name=route.name,
+            route_executor_family=route.executor_family,
+            route_taxonomy_role=route.taxonomy.system_role,
+            route_capabilities=route.capabilities.to_dict(),
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["knowledge"])
+
+    def test_build_task_retrieval_request_preserves_legacy_sources_for_non_autonomous_cli_fallback_routes(self) -> None:
+        route = route_by_name("local-summary")
+        self.assertIsNotNone(route)
+        assert route is not None
+        state = TaskState(
+            task_id="request-legacy-cli",
+            title="Summarize retrieval",
+            goal="Preserve fallback compatibility",
+            workspace_root="/tmp",
+            executor_name=route.executor_name,
+            route_name=route.name,
+            route_executor_family=route.executor_family,
+            route_taxonomy_role=route.taxonomy.system_role,
+            route_capabilities=route.capabilities.to_dict(),
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
+
+    def test_build_task_retrieval_request_keeps_http_routes_off_repo_by_default(self) -> None:
+        route = route_by_name("http-claude")
+        self.assertIsNotNone(route)
+        assert route is not None
+        state = TaskState(
+            task_id="request-http",
+            title="Review retrieval",
+            goal="Keep HTTP defaults conservative",
+            workspace_root="/tmp",
+            executor_name=route.executor_name,
+            route_name=route.name,
+            route_executor_family=route.executor_family,
+            route_taxonomy_role=route.taxonomy.system_role,
+            route_capabilities=route.capabilities.to_dict(),
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["knowledge", "notes"])
+
+    def test_build_task_retrieval_request_keeps_http_routes_off_repo_across_task_families(self) -> None:
+        route = route_by_name("http-claude")
+        self.assertIsNotNone(route)
+        assert route is not None
+
+        for source_kind in (
+            "planning_session",
+            "review_feedback",
+            "operator_entry",
+            "knowledge_capture",
+            "retrieval_probe",
+        ):
+            with self.subTest(source_kind=source_kind):
+                state = TaskState(
+                    task_id=f"request-http-{source_kind}",
+                    title="HTTP retrieval family",
+                    goal="Keep HTTP defaults conservative",
+                    workspace_root="/tmp",
+                    executor_name=route.executor_name,
+                    route_name=route.name,
+                    route_executor_family=route.executor_family,
+                    route_taxonomy_role=route.taxonomy.system_role,
+                    route_capabilities=route.capabilities.to_dict(),
+                    task_semantics={"source_kind": source_kind},
+                )
+
+                request = build_task_retrieval_request(state)
+
+                self.assertEqual(request.source_types, ["knowledge", "notes"])
+
+    def test_build_task_retrieval_request_prefers_explicit_retrieval_source_override(self) -> None:
+        route = route_by_name("local-codex")
+        self.assertIsNotNone(route)
+        assert route is not None
+        state = TaskState(
+            task_id="request-override",
+            title="Override retrieval sources",
+            goal="Bypass default policy when explicitly configured",
+            workspace_root="/tmp",
+            executor_name=route.executor_name,
+            route_name=route.name,
+            route_executor_family=route.executor_family,
+            route_taxonomy_role=route.taxonomy.system_role,
+            route_capabilities=route.capabilities.to_dict(),
+            task_semantics={"retrieval_source_types": ["repo", "knowledge", "repo", ARTIFACTS_SOURCE_TYPE]},
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["repo", "knowledge", ARTIFACTS_SOURCE_TYPE])
+
+    def test_build_task_retrieval_request_rejects_invalid_explicit_retrieval_source_override(self) -> None:
+        state = TaskState(
+            task_id="request-invalid-override",
+            title="Invalid retrieval override",
+            goal="Reject unsupported retrieval sources",
+            workspace_root="/tmp",
+            task_semantics={"retrieval_source_types": ["repo", "unsupported-source"]},
+        )
+
+        with self.assertRaisesRegex(ValueError, "Invalid retrieval source type"):
+            build_task_retrieval_request(state)
+
+    def test_build_task_retrieval_request_does_not_treat_specialist_cli_routes_as_autonomous_coding(self) -> None:
+        state = TaskState(
+            task_id="request-specialist-cli",
+            title="Specialist retrieval",
+            goal="Protect explicit input paths",
+            workspace_root="/tmp",
+            executor_name="librarian",
+            route_name="specialist-simulated",
+            route_executor_family="cli",
+            route_taxonomy_role="specialist",
+            route_capabilities={
+                "execution_kind": "code_execution",
+                "supports_tool_loop": True,
+                "filesystem_access": "workspace_write",
+                "network_access": "optional",
+                "deterministic": False,
+                "resumable": True,
+            },
+        )
+
+        request = build_task_retrieval_request(state)
+
+        self.assertEqual(request.source_types, ["knowledge", "notes"])
 
     def test_run_task_passes_explicit_retrieval_request_to_harness(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -8095,7 +8310,7 @@ class CliLifecycleTest(unittest.TestCase):
 
         request = captured_request["request"]
         self.assertEqual(request.query, "Request boundary Pass retrieval request explicitly")
-        self.assertEqual(request.source_types, ["repo", "notes", "knowledge"])
+        self.assertEqual(request.source_types, ["knowledge"])
         self.assertEqual(request.context_layers, ["workspace", "task"])
         self.assertEqual(request.current_task_id, "taskrequest")
         self.assertEqual(request.strategy, "system_baseline")
@@ -9074,7 +9289,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[14]["event_type"], "knowledge_policy.completed")
         self.assertEqual(events[14]["payload"]["status"], "passed")
         self.assertEqual(events[15]["event_type"], "validation.completed")
-        self.assertEqual(events[15]["payload"]["status"], "passed")
+        self.assertEqual(events[15]["payload"]["status"], "warning")
         self.assertEqual(events[16]["event_type"], "retry_policy.completed")
         self.assertEqual(events[16]["payload"]["status"], "passed")
         self.assertEqual(events[17]["event_type"], "execution_budget_policy.completed")
@@ -9094,8 +9309,8 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(events[-1]["payload"]["compatibility_status"], "passed")
         self.assertEqual(events[-1]["payload"]["execution_fit_status"], "passed")
         self.assertEqual(events[-1]["payload"]["knowledge_policy_status"], "passed")
-        self.assertEqual(events[-1]["payload"]["validation_status"], "passed")
-        self.assertEqual(events[-1]["payload"]["retrieval_count"], 1)
+        self.assertEqual(events[-1]["payload"]["validation_status"], "warning")
+        self.assertEqual(events[-1]["payload"]["retrieval_count"], 0)
 
     def test_failure_resume_note_keeps_failure_guidance(self) -> None:
         state = TaskState(

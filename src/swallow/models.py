@@ -201,6 +201,7 @@ class TaskSemantics:
     source_kind: str = "operator_entry"
     source_ref: str = ""
     complexity_hint: str = ""
+    retrieval_source_types: list[str] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

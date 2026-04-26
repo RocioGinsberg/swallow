@@ -83,6 +83,36 @@ graph TD
 
 核心定位：**object-first retrieval, vector-assisted recall**。
 
+### 2.3 Retrieval Source Types 的职责边界
+
+`RetrievalRequest.source_types` 是上下文来源的**语义选择**，不是简单的文件后缀过滤开关。每个 source type 的权威性、生命周期和默认适用路径不同：
+
+| Source Type | 当前语义 | 典型来源 | 权威性 | 默认用途 |
+|---|---|---|---|---|
+| `knowledge` | 已治理或可复用的知识对象召回 | verified knowledge、Wiki、Canonical、retrieval-candidate objects | 高 | 长期原则、已确认约束、跨任务复用结论 |
+| `notes` | 工作区 Markdown / 文档现场召回 | `docs/`、phase plans、roadmap、active context、review notes | 中 | 当前 phase 现场、设计材料、roadmap / closeout 背景 |
+| `repo` | 当前工作区代码 / 配置 / 非 Markdown 文本 chunk | 源码、配置、脚本、非 `.md` 文本 | 局部事实，但 chunk 视野有限 | 显式源码辅助、legacy fallback、无 tool-loop 的受控场景 |
+| `artifacts` | 任务产物上下文 | reports、summaries、review outputs、generated artifacts | 取决于产物类型 | 显式任务交接、review / audit 输入 |
+
+稳定边界：
+
+- `knowledge` 不等于所有文本资料。它指经过治理、可复用、可追踪的知识对象；未 review 的 staged raw 不应通过 `knowledge` 默认进入主链。
+- `notes` 不等于 staged knowledge raw。它当前由 Markdown/document retrieval 提供，表示工作区文档现场，可能是 draft、phase-local 或历史材料。
+- `repo` 不等于完整代码库理解。repo chunk 是局部片段召回，不能替代能自主读文件、跑命令、追踪调用链的 CLI tool-loop。
+- `artifacts` 应通过明确 task / artifact pointer 消费；不应作为隐式全局记忆池。
+
+默认使用规则：
+
+| 执行场景 | 默认 source_types | 理由 |
+|---|---|---|
+| Autonomous CLI coding route | `["knowledge"]` | 长期约束由知识层提供；当前 repo/docs 由 CLI agent 自主读取或由显式文件路径提供 |
+| HTTP planning / review / synthesis / extraction | `["knowledge", "notes"]` | HTTP 是无 tool-loop 的模型思考层，需要长期原则 + 当前文档现场 |
+| HTTP codebase Q&A / source analysis | 不作为默认路径 | 应优先路由到 autonomous CLI route；若必须走 HTTP，需 explicit override 请求 `repo` |
+| Specialist Agent | 由专项目标和 explicit input_context 决定 | Specialist 是窄工作流封装，默认不应泛扫 repo/notes |
+| Legacy deterministic fallback | 可暂保留 `["repo", "notes", "knowledge"]` | 兼容无 tool-loop 的旧路径；不代表长期主策略 |
+
+若 operator 明确需要源码 chunk，可通过 `task_semantics["retrieval_source_types"]` 显式指定，例如 `["repo", "notes", "knowledge"]`。显式 override 是能力出口，不是默认设计目标。
+
 ---
 
 ## 3. Wiki 的定位
@@ -212,4 +242,7 @@ Graph RAG、社区发现、图结构摘要、agentic retrieval（动态工具选
 | **载体即语义** | 把 clipboard、文件、URL 当作不同知识语义，而不是不同 bytes 载体 |
 | **通用 JSON 过度承诺** | 把 `generic_chat_json` 扩张成任意 chatbot / URL / HTML / 登录态抓取框架 |
 | **材料 = 知识** | 把"底层材料很重要"误解为"底层材料直接等于可复用知识对象" |
+| **repo chunk = 代码库理解** | 把局部源码 chunk 当成完整 workspace exploration，替代 CLI agent 自主读文件和验证 |
+| **notes = raw knowledge** | 把 Markdown 文档检索误当成 staged raw 或 canonical knowledge，绕过 review / promotion 语义 |
+| **HTTP 默认源码 RAG** | 让 HTTP executor 默认携带 repo chunk 承担代码库问答，掩盖误路由和 partial context 风险 |
 | **纯 RAG 回退** | 把系统重新拉回 chunk & embed 的单层叙事 |

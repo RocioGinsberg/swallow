@@ -81,6 +81,7 @@ from .models import (
     TaskState,
     build_telemetry_fields,
     evaluate_dispatch_verdict,
+    infer_task_family,
 )
 from .paths import (
     artifacts_dir,
@@ -163,7 +164,7 @@ from .store import (
     save_task_semantics,
     write_artifact,
 )
-from .task_semantics import build_task_semantics
+from .task_semantics import build_task_semantics, normalize_retrieval_source_types
 from .models import utc_now
 
 
@@ -183,6 +184,12 @@ EXECUTOR_ARTIFACT_NAMES = (
 
 DEBATE_MAX_ROUNDS = 3
 _BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
+_RETRIEVAL_SOURCE_POLICY: dict[tuple[str, str], tuple[str, ...]] = {
+    ("autonomous_cli_coding", "*"): ("knowledge",),
+    ("api", "*"): ("knowledge", "notes"),
+    ("legacy_local_fallback", "*"): ("repo", "notes", "knowledge"),
+    ("*", "*"): ("knowledge", "notes"),
+}
 
 
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
@@ -2512,6 +2519,7 @@ def create_task(
     next_action_proposals: list[str] | None = None,
     planning_source: str | None = None,
     complexity_hint: str | None = None,
+    retrieval_source_types: list[str] | tuple[str, ...] | None = None,
     knowledge_items: list[str] | None = None,
     knowledge_stage: str = "raw",
     knowledge_source: str | None = None,
@@ -2540,6 +2548,7 @@ def create_task(
         next_action_proposals=next_action_proposals,
         planning_source=planning_source,
         complexity_hint=complexity_hint,
+        retrieval_source_types=retrieval_source_types,
     )
     knowledge_objects = build_knowledge_objects(
         items=knowledge_items,
@@ -2755,6 +2764,7 @@ def update_task_planning_handoff(
     next_action_proposals: list[str] | None = None,
     planning_source: str | None = None,
     complexity_hint: str | None = None,
+    retrieval_source_types: list[str] | tuple[str, ...] | None = None,
 ) -> TaskState:
     state = load_state(base_dir, task_id)
     current_semantics = state.task_semantics or {}
@@ -2763,6 +2773,11 @@ def update_task_planning_handoff(
         str(current_semantics.get("complexity_hint", ""))
         if complexity_hint is None
         else str(complexity_hint)
+    )
+    effective_retrieval_source_types = (
+        current_semantics.get("retrieval_source_types")
+        if retrieval_source_types is None
+        else retrieval_source_types
     )
     merged_semantics = build_task_semantics(
         title=state.title,
@@ -2777,6 +2792,7 @@ def update_task_planning_handoff(
         ),
         planning_source=effective_planning_source or None,
         complexity_hint=effective_complexity_hint,
+        retrieval_source_types=effective_retrieval_source_types,
     )
     state.task_semantics = merged_semantics.to_dict()
     save_state(base_dir, state)
@@ -3149,10 +3165,45 @@ def _route_knowledge_to_staged(base_dir: Path, state: TaskState) -> list[StagedC
     return staged_candidates
 
 
+def _retrieval_policy_family(state: TaskState) -> str:
+    capabilities = state.route_capabilities if isinstance(state.route_capabilities, dict) else {}
+    executor_family = str(state.route_executor_family or "").strip().lower()
+    taxonomy_role = str(state.route_taxonomy_role or "").strip().lower()
+    execution_kind = str(capabilities.get("execution_kind", "")).strip().lower()
+    supports_tool_loop = capabilities.get("supports_tool_loop") is True
+    deterministic = capabilities.get("deterministic") is True
+
+    if executor_family == "cli" and supports_tool_loop and execution_kind == "code_execution":
+        if taxonomy_role in {"", "general-executor"}:
+            return "autonomous_cli_coding"
+    if executor_family == "api":
+        return "api"
+    if executor_family == "cli" and deterministic and not supports_tool_loop:
+        return "legacy_local_fallback"
+    return executor_family or "*"
+
+
+def _select_source_types(route_policy_family: str, task_family: str) -> list[str]:
+    normalized_task_family = str(task_family or "").strip().lower() or "*"
+    for policy_key in (
+        (route_policy_family, normalized_task_family),
+        (route_policy_family, "*"),
+        ("*", "*"),
+    ):
+        source_types = _RETRIEVAL_SOURCE_POLICY.get(policy_key)
+        if source_types is not None:
+            return list(source_types)
+    return ["knowledge", "notes"]
+
+
 def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
+    semantics = state.task_semantics if isinstance(state.task_semantics, dict) else {}
+    explicit_source_types = normalize_retrieval_source_types(semantics.get("retrieval_source_types"))
+    route_policy_family = _retrieval_policy_family(state)
+    task_family = infer_task_family(state)
     return build_retrieval_request(
         query=f"{state.title} {state.goal}".strip(),
-        source_types=["repo", "notes", "knowledge"],
+        source_types=explicit_source_types or _select_source_types(route_policy_family, task_family),
         context_layers=["workspace", "task"],
         current_task_id=state.task_id,
         limit=8,
@@ -3744,6 +3795,7 @@ def run_task(
 
 def build_task_semantics_report(state: TaskState) -> str:
     semantics = state.task_semantics or {}
+    retrieval_source_types = normalize_retrieval_source_types(semantics.get("retrieval_source_types"))
     lines = [
         "# Task Semantics Report",
         "",
@@ -3752,6 +3804,7 @@ def build_task_semantics_report(state: TaskState) -> str:
         f"- source_kind: {semantics.get('source_kind', 'unknown')}",
         f"- source_ref: {semantics.get('source_ref', '') or 'none'}",
         f"- complexity_hint: {semantics.get('complexity_hint', '') or 'none'}",
+        f"- retrieval_source_types: {', '.join(retrieval_source_types) if retrieval_source_types else 'policy_default'}",
         "",
         "## Imported Planning Constraints",
     ]

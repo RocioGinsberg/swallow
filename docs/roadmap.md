@@ -7,13 +7,13 @@ status: living-document
 
 ## 一、能力现状与演进方向
 
-> 最近更新：2026-04-26（Phase 59 已 merge；候选 A/B 已完成；`v1.2.0` 仍需 tag 决策）
+> 最近更新：2026-04-26（Phase 60 已开启；Phase 60 设计已与 retrieval source / executor ecology 长期文档对齐；Phase 58/59 已 merge；`v1.3.0` tag 已存在，但 tag-level release docs 仍需同步）
 
 系统已完成 **Foundation Era**（Phase 47-54，v1.0.0 收官）：从 Consensus → Async → Knowledge → Policy → Parallel → Specialist 六个能力代际，把架构债务消化清零，7 个专项 Agent 全部具备独立生命周期，core loop / async runtime / SQLite truth / Librarian / Meta-Optimizer 主线完整。
 
 进入 **Knowledge Loop Era**（Phase 55+）后，演进逻辑从"消化蓝图差距"转为"从可展示的知识闭环出发，逐步扩展系统能力"。每个 phase 是前一个的自然延伸，而不是从蓝图里挑 gap。
 
-### 当前 v1.2.0 候选基线（Phase 59 已 merge）
+### 当前实现基线（Phase 59 / v1.3.0，release docs 待同步）
 
 | 维度 | 现状 |
 |------|------|
@@ -31,9 +31,9 @@ status: living-document
 |------|---------|---------|---------| 
 | ~~**思考-讨论-沉淀一等流程**~~ | `ORCHESTRATION.md` §2.5 + `KNOWLEDGE.md` §5 | ~~Phase 58 已完成 A-lite：`swl note` + clipboard + `generic_chat_json` + review visibility~~ | ~~**候选 A 已完成**~~。完整 Brainstorm topology 后置为候选 E |
 | ~~**Codex CLI 接入**~~ | `ARCHITECTURE.md` §3 | ~~Phase 59 已完成：真实 `local-codex` route + `CODEX_CONFIG` + dispatch + doctor probe~~ | ~~**候选 B 已完成**~~ |
-| **路径感知的 Retrieval Policy** | `ARCHITECTURE.md` §4 | retrieval 默认 source 与执行路径无关；CLI agent 有自主文件访问能力，repo retrieval 可能重复消耗 | **候选 C**：按 `execution_family + task_intent` 分流 retrieval request |
+| **路径感知的 Retrieval Policy** | `KNOWLEDGE.md` §2.3 + `ARCHITECTURE.md` §4.1 + `AGENT_TAXONOMY.md` §7.4 | retrieval 默认 source 与执行路径无关；自主 CLI coding route 可能被重复灌入 repo chunk，HTTP route 也容易被误塑造成代码库 Q&A 的 repo RAG 辅助链路 | **候选 C / Phase 60**：按 route capability + execution family + task_family 分流 retrieval request，repo source 显式化 |
 | **编排显式化（Planner / DAG）** | `ORCHESTRATION.md` | `planner.py` 已承接部分构造，Planner / DAG / Strategy Router 仍未一等化 | **候选 D**：Planner 独立组件、DAG subtask 依赖、Strategy Router 显式化 |
-| **完整 Brainstorm topology** | `ORCHESTRATION.md` §2.5 | A-lite 已落地低摩擦捕获；`DebateConfig` + `BrainstormOrchestrator` + 多模型群聊仍未实现 | **候选 E**：受控 Brainstorm topology，依赖 A-lite 真实使用反馈 |
+| **完整 Brainstorm topology** | `ORCHESTRATION.md` §2.5 | A-lite 已落地低摩擦捕获；`DebateConfig` + `BrainstormOrchestrator` + 受控 multi-route synthesis 仍未实现 | **候选 E**：受控 Brainstorm topology，依赖 A-lite 真实使用反馈 |
 | **能力画像自动学习** | `PROVIDER_ROUTER.md` + `SELF_EVOLUTION.md` | 已被路由消费；自动学习质量与 guard 可观测性仍需提升 | **后续方向** |
 | **Runtime v1** | `HARNESS.md` | harness bridge 为 v0 约束 | 低优先级 |
 | **远期方向** | 多处 | — | IDE 集成、Remote Worker、Hosted Control Plane |
@@ -56,7 +56,7 @@ status: living-document
 *   **Primary Track**: Knowledge / RAG · **Secondary**: Agent Taxonomy
 *   **成果**：LiteratureSpecialist / QualityReviewer 接入 LLM 语义分析，relation suggestions gated workflow 落地，HTTP executor token 统计统一为 API usage 优先。approved，无 CONCERN。
 
-#### [Phase 57] 检索质量增强 (Retrieval Quality Enhancement) ✅ Done (待重打 v1.2.0)
+#### [Phase 57] 检索质量增强 (Retrieval Quality Enhancement) ✅ Done
 *   **Primary Track**: Knowledge / RAG · **Secondary**: Workbench / UX
 *   **成果**：
     - S1：神经 API embedding 替换 blake2b hash，canonical reuse 路径与 verified knowledge 路径对齐
@@ -64,7 +64,7 @@ status: living-document
     - S3：markdown / repo 检索分段加入 max_chunk_size，默认 overlap 已关闭（review 后收紧）
     - S4：`swl task create --executor literature-specialist --document-paths` CLI 透传
 *   **Review**：approved_with_concerns（1 BLOCK 已修复，1 CONCERN 已登记）。`tests/test_cli.py` 220 passed。
-*   **Tag**：v1.2.0（候选，待 release docs 同步后重打）
+*   **Tag**：v1.2.0
 
 #### [Phase 58] 知识捕获闭环 (Knowledge Capture Loop Tightening) ✅ Done
 *   **Primary Track**: Knowledge / RAG · **Secondary**: Workbench / UX
@@ -86,7 +86,7 @@ status: living-document
 
 ## 三、推荐 Phase 队列 (Claude 维护)
 
-> 最近更新：2026-04-26（Phase 59 已 merge，进入 Phase 60 Direction Gate）
+> 最近更新：2026-04-26（Phase 60 已开启，进入 Implementation）
 
 ### 队列总览
 
@@ -94,21 +94,21 @@ status: living-document
 |--------|-------|------|---------------|------|------|
 | ~~1~~ | ~~55~~ | ~~知识图谱与本地 RAG~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | tag `v1.1.0` |
 | ~~2~~ | ~~56~~ | ~~知识质量与 LLM 增强检索~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged |
-| ~~3~~ | ~~57~~ | ~~检索质量增强~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged，待重打 `v1.2.0` |
+| ~~3~~ | ~~57~~ | ~~检索质量增强~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged，已重打 `v1.2.0` |
 | ~~4~~ | ~~58~~ | ~~知识捕获闭环~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged |
-| ~~5~~ | ~~59~~ | ~~Codex CLI Route 接入~~ | ~~CLI / Routing~~ | ~~已完成~~ | merged |
-| **6** | **60** | **(待选)** | **(待选)** | **Direction Gate** | 3 个候选方向待评估 |
+| ~~5~~ | ~~59~~ | ~~Codex CLI Route 接入~~ | ~~CLI / Routing~~ | ~~已完成~~ | merged，已打 `v1.3.0` |
+| **6** | **60** | **路径感知的 Retrieval Policy** | **Knowledge / RAG** | **Design aligned / Implementation pending** | 候选 C 已选定；需避免把 repo source 恢复为 HTTP 默认，且避免把 Specialist 当作通用 executor family |
 
 ### Phase 60 候选方向评估
 
 候选 A/B 已完成。剩余方向重新编号为 C/D/E：
 
-#### 候选 C：路径感知的 Retrieval Policy（执行路径分流）
-*   **核心价值**：retrieval 按 execution path 和 task intent 分流。CLI coding path 可减少 repo chunk（CLI agent 能自主探索文件）；HTTP brainstorm path 可聚焦 knowledge / explicit materials；HTTP code-analysis path 保留受控 repo 检索。
-*   **可能 slice**：(1) execution family + task intent 判定接入 retrieval request 构造；(2) CLI coding path 默认 source 收紧为 knowledge / explicit refs；(3) HTTP brainstorm path 聚焦 knowledge / explicit materials；(4) HTTP code-analysis 保留可控 repo 检索
+#### 候选 C / Phase 60：路径感知的 Retrieval Policy（执行路径分流）
+*   **核心价值**：retrieval 按 execution path、route capability 和 task_family 分流，并落实 `KNOWLEDGE.md §2.3` 的 source type 语义。自主 CLI coding path（aider / claude-code / codex）默认减少 repo chunk，代码库上下文由 CLI tool-loop 主动读取；HTTP API path 默认聚焦 knowledge / notes；Specialist Agent 依赖 explicit input_context 与专属 artifacts；repo source 降级为 explicit override 或 legacy fallback 辅助源。
+*   **实施 slice**：(1) route capability + executor family 判定接入 retrieval request 构造；(2) 自主 CLI coding path 默认 source 收紧为 knowledge，并保护非自主 local fallback / deterministic route 兼容；(3) HTTP planning/review/execution/extraction/retrieval 默认聚焦 knowledge / notes，不因 task_family 自动启用 repo；(4) `task_semantics.retrieval_source_types` 显式 override，并测试 Specialist / explicit input_context 不被通用 HTTP/CLI policy 误伤
 *   **风险**：中 — 涉及 retrieval 默认行为变化，需配套测试
 *   **依赖**：Phase 57 retrieval 基线 + Phase 58 知识捕获入口（notes 角色更清晰）
-*   **优先级理由**：架构正确性提升。Phase 58/59 落地后，retrieval 是下一个最有价值的分流点
+*   **优先级理由**：架构正确性提升。Phase 58/59 落地后，retrieval 是下一个最有价值的分流点；`docs/concerns_backlog.md` 中的 retrieval-adjacent Open 项不阻塞本 phase，但实现时不要顺手触碰 retrieval adapter / embedding 配置层
 
 #### 候选 D：编排增强（Planner / DAG / Strategy Router 显式化）
 *   **核心价值**：把已部分抽出的 planning 能力继续一等化，形成明确 Planner 接口、DAG dependency orchestration 与 Strategy Router 可观测边界
@@ -117,8 +117,8 @@ status: living-document
 *   **依赖**：Phase 52 fan-out 基线
 *   **优先级理由**：架构债务清理，但当前编排能力实际可用，没有真实瓶颈推动
 
-#### 候选 E：完整 Brainstorm topology（受控多模型群聊）
-*   **核心价值**：基于 `ORCHESTRATION.md §2.5` Brainstorm 设计，落地 `DebateConfig` + `BrainstormOrchestrator` + 多模型 synthesis，产出结构化 artifact 进入 staged knowledge
+#### 候选 E：完整 Brainstorm topology（受控多模型 synthesis）
+*   **核心价值**：基于 `ORCHESTRATION.md §2.5` Brainstorm 设计，落地 `DebateConfig` + `BrainstormOrchestrator` + 受控 HTTP multi-route synthesis，产出结构化 artifact 进入 staged knowledge
 *   **可能 slice**：(1) `BrainstormConfig` + topology 定义；(2) multi-route synthesis orchestration；(3) synthesis artifact → staged knowledge 自动候选通道
 *   **风险**：中到高 — 涉及新编排组件，需在低摩擦捕获（Phase 58）的真实使用反馈基础上再做
 *   **依赖**：Phase 58 A-lite 稳定 + Phase 52 fan-out 基线
@@ -129,8 +129,8 @@ status: living-document
 **C → E → D**
 
 理由：
-1. **C 优先**：Phase 58/59 完成后，retrieval 分流是下一个最直接有价值的优化——CLI agent 有自主文件访问能力，让 retrieval 不再盲目给 CLI path 灌 repo chunk 可以降噪提效。风险可控
-2. **E 中期**：Brainstorm topology 是使用体验层面的下一个大跃升。但复杂度高，且需要 Phase 58 入口的真实使用反馈来校准 topology 设计
+1. **C 优先**：Phase 58/59 完成后，retrieval 分流是下一个最直接有价值的优化。需要收紧的是自主 CLI coding route 和 HTTP 默认源，而不是所有 `executor_family="cli"` route；`local-mock` / `local-note` / `local-summary` 这类非自主 fallback 路径可作为 legacy 兼容暂保留旧三源。代码库问答应优先走 CLI tool-loop，repo chunk 不应继续作为 HTTP 默认辅助链路；Specialist Agent 不应被误归类成第三种通用 executor family
+2. **E 中期**：Brainstorm topology 是 HTTP 认知层的自然主场，也是使用体验层面的下一个大跃升。但复杂度高，且需要 Phase 58 入口的真实使用反馈来校准 topology 设计
 3. **D 后置**：编排能力实际可用，没有真实瓶颈。Planner / DAG 重构回滚成本高，应在真实需求明确后再做
 
 ### 战略锚点分析
@@ -140,30 +140,21 @@ status: living-document
 | **知识治理** | truth-first 5 阶段检索 + neural retrieval | Stage 1-5 全部实现，神经 embedding + rerank 已接入 | 稳定期 |
 | **知识捕获** | 低摩擦入口 + 外部讨论回收 + staged review | Phase 58 已完成 A-lite | 稳定期（完整 Brainstorm 后置为候选 E） |
 | **CLI 生态** | aider + claude-code + codex 三足鼎立 | Phase 59 已完成，三者均为独立 route | 稳定期 |
-| **检索分流** | retrieval policy 感知 execution family + task intent | 默认 source 不分流，CLI path 可能重复 repo chunk | **候选 C** |
+| **检索分流** | retrieval policy 感知 execution family + task intent，并遵守 source type / executor ecology 长期边界 | 默认 source 不分流，自主 CLI coding path 可能重复 repo chunk，HTTP route 可能被误当作代码库 RAG 链路 | **候选 C / Phase 60** |
 | **Agent 体系** | 7 个专项角色独立生命周期 | 全部落地，LLM 增强已接入 | 稳定期 |
 | **执行编排** | 高并发多路 + DAG | fan-out 已落地，Planner / DAG 仍未一等化 | **候选 D**（后置） |
 | **思考-讨论-沉淀（完整）** | 受控 Brainstorm topology + multi-route synthesis | A-lite 已落地低摩擦捕获 | **候选 E**（中期） |
 | **自我进化** | Librarian + Meta-Optimizer 提案应用闭环 | 已基本完成；自动学习质量仍需提升 | 远期 |
 
-### Tag 评估
+### Tag / Release Docs 状态
 
-| Phase | Tag | Era |
-|-------|-----|-----|
-| Phase 55 | `v1.1.0` | Knowledge Graph Era |
-| Phase 56 | — | Knowledge Graph Era (LLM 增强) |
-| Phase 57 | `v1.2.0`（待重打） | Retrieval Quality Era |
-| Phase 58-59 | — | Knowledge Capture + CLI Era |
+| Phase | Tag | Era | 文档状态 |
+|-------|-----|-----|----------|
+| Phase 55 | `v1.1.0` | Knowledge Graph Era | 已完成 |
+| Phase 57 | `v1.2.0` | Retrieval Quality Era | tag 存在 |
+| Phase 58-59 | `v1.3.0` | Knowledge Capture + CLI Era | tag 存在；`AGENTS.md` / `README.md` 仍有 v1.2.0 描述，已登记 `docs/concerns_backlog.md` |
 
-**Phase 59 tag 评估**：
-
-Phase 58-59 一起构成了一个有意义的能力增量：知识捕获入口打通 + CLI 三足鼎立。建议：
-
-- **选项 1（推荐）**：先处理 `v1.2.0` retag（对齐到 Phase 57 embedding + rerank），然后给 Phase 59 merge 后的 main head 打 `v1.3.0`（Knowledge Capture + CLI Era）
-- **选项 2**：跳过 v1.2.0 retag，直接在 Phase 59 后打 `v1.3.0`，覆盖 Phase 57-59 全部增量
-- **选项 3**：不打 tag，等候选 C 完成后再打一个更大的里程碑 tag
-
-当前 main 稳定（Phase 59 测试全量通过），无进行中的重构或已知破坏性问题，无即将消化的 concern 会改变公共 API。从稳定性角度适合打 tag。
+Phase 60 不消费 release-doc sync debt。若 Phase 60 后决定打新 tag，应先补齐 `AGENTS.md` / `README.md` 的 v1.3.0 能力描述，再进行下一轮 tag-level 文档同步。
 
 ---
 
