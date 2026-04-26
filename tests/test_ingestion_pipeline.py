@@ -13,6 +13,7 @@ from swallow.ingestion.pipeline import (
     build_ingestion_summary,
     ingest_operator_note,
     ingest_local_file,
+    run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
 from swallow.staged_knowledge import load_staged_candidates
@@ -122,6 +123,25 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertIn("# Ingestion Report", report)
         self.assertIn("source_kind: external_session_ingestion", report)
         self.assertIn("dry_run: yes", report)
+
+    def test_run_ingestion_bytes_pipeline_uses_clipboard_source_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            result = run_ingestion_bytes_pipeline(
+                tmp_path,
+                b"# Decisions\nDecision: keep clipboard ingest explicit.",
+                source_name="clipboard.md",
+                source_ref="clipboard://auto",
+                source_task_id="ingest-clipboard-20260426-120000",
+                dry_run=True,
+            )
+
+        self.assertEqual(result.source_path, "clipboard://auto")
+        self.assertEqual(result.detected_format, "markdown")
+        self.assertEqual(len(result.staged_candidates), 1)
+        self.assertEqual(result.staged_candidates[0].source_ref, "clipboard://auto")
+        self.assertEqual(result.staged_candidates[0].source_task_id, "ingest-clipboard-20260426-120000")
 
     def test_build_ingestion_summary_groups_fragments(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

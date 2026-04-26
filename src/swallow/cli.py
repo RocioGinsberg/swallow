@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import sys
+from datetime import datetime
 from pathlib import Path
 
 from .canonical_reuse_eval import (
@@ -39,6 +42,7 @@ from .ingestion.pipeline import (
     build_ingestion_summary,
     ingest_local_file,
     ingest_operator_note,
+    run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
 from .knowledge_store import (
@@ -1431,10 +1435,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Ingest an external session export into staged knowledge.",
         description="Parse an external session export, filter it into staged candidates, and optionally persist them.",
     )
-    ingest_parser.add_argument("source_path", help="Path to the source export file.")
+    ingest_parser.add_argument("source_path", nargs="?", help="Path to the source export file.")
+    ingest_parser.add_argument(
+        "--from-clipboard",
+        action="store_true",
+        help="Read ingestion input from the system clipboard instead of a file path.",
+    )
     ingest_parser.add_argument(
         "--format",
-        choices=("chatgpt_json", "claude_json", "open_webui_json", "markdown"),
+        choices=("chatgpt_json", "claude_json", "open_webui_json", "generic_chat_json", "markdown"),
         default=None,
         help="Optional explicit input format override.",
     )
@@ -2235,6 +2244,34 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_clipboard_source_task_id() -> str:
+    return f"ingest-clipboard-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+
+def _read_clipboard_bytes() -> bytes:
+    commands: list[list[str]]
+    if sys.platform == "darwin":
+        commands = [["pbpaste"]]
+    elif sys.platform.startswith("linux"):
+        commands = [["xclip", "-selection", "clipboard", "-o"], ["xsel", "--clipboard", "--output"]]
+    elif sys.platform.startswith("win"):
+        commands = [["powershell", "-command", "Get-Clipboard"]]
+    else:
+        raise ValueError(f"Clipboard ingestion is not supported on platform: {sys.platform}")
+
+    errors: list[str] = []
+    for command in commands:
+        try:
+            completed = subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            return completed.stdout
+        except FileNotFoundError:
+            errors.append(f"{command[0]} not available")
+        except subprocess.CalledProcessError as exc:
+            stderr = exc.stderr.decode("utf-8", errors="replace").strip()
+            errors.append(stderr or f"{command[0]} failed")
+    raise ValueError(f"Unable to read clipboard contents: {'; '.join(errors)}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -2550,12 +2587,29 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "ingest":
-        result = run_ingestion_pipeline(
-            base_dir,
-            Path(args.source_path).resolve(),
-            format_hint=args.format,
-            dry_run=bool(args.dry_run),
-        )
+        source_path = str(getattr(args, "source_path", "") or "").strip()
+        from_clipboard = bool(getattr(args, "from_clipboard", False))
+        if bool(source_path) == from_clipboard:
+            parser.error("swl ingest requires exactly one input source: provide a source_path or use --from-clipboard.")
+        if from_clipboard:
+            format_label = str(args.format or "auto").strip().lower() or "auto"
+            source_name = "clipboard.md" if format_label == "markdown" else "clipboard.json"
+            result = run_ingestion_bytes_pipeline(
+                base_dir,
+                _read_clipboard_bytes(),
+                source_name=source_name,
+                source_ref=f"clipboard://{format_label}",
+                source_task_id=_build_clipboard_source_task_id(),
+                format_hint=args.format,
+                dry_run=bool(args.dry_run),
+            )
+        else:
+            result = run_ingestion_pipeline(
+                base_dir,
+                Path(source_path).resolve(),
+                format_hint=args.format,
+                dry_run=bool(args.dry_run),
+            )
         output = build_ingestion_report(result)
         if bool(args.summary):
             output = f"{output}\n\n{build_ingestion_summary(result)}"

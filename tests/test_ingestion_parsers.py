@@ -13,6 +13,7 @@ from swallow.ingestion.parsers import (
     detect_ingestion_format,
     parse_chatgpt_export,
     parse_claude_export,
+    parse_generic_chat_export,
     parse_ingestion_bytes,
     parse_markdown_text,
     parse_open_webui_export,
@@ -154,10 +155,51 @@ class IngestionParsersTest(unittest.TestCase):
         self.assertEqual(turns[0].metadata["heading"], "Decisions")
         self.assertIn("No realtime API sync.", turns[1].content)
 
+    def test_parse_generic_chat_export_supports_flat_message_array(self) -> None:
+        payload = [
+            {"role": "user", "content": "Capture the main decision."},
+            {"role": "assistant", "content": ["Decision: keep staged promotion manual.", "Constraint: stay local-first."]},
+        ]
+
+        turns = parse_generic_chat_export(payload)
+
+        self.assertEqual([turn.role for turn in turns], ["user", "assistant"])
+        self.assertIn("Constraint: stay local-first.", turns[1].content)
+
+    def test_parse_generic_chat_export_supports_messages_wrapper_and_aliases(self) -> None:
+        payload = {
+            "messages": [
+                {"sender": "human", "text": "Summarize the outcome."},
+                {"from": "assistant", "message": "Decision: support generic chat JSON."},
+            ]
+        }
+
+        turns = parse_generic_chat_export(payload)
+
+        self.assertEqual([turn.role for turn in turns], ["human", "assistant"])
+        self.assertEqual(turns[1].content, "Decision: support generic chat JSON.")
+
+    def test_parse_generic_chat_export_supports_openai_style_text_parts(self) -> None:
+        payload = [
+            {
+                "author": {"role": "assistant"},
+                "content": [
+                    {"type": "text", "text": "Decision: add clipboard transport."},
+                    {"type": "text", "text": "Constraint: do not add URL ingestion."},
+                ],
+            }
+        ]
+
+        turns = parse_generic_chat_export(payload)
+
+        self.assertEqual(turns[0].role, "assistant")
+        self.assertIn("Constraint: do not add URL ingestion.", turns[0].content)
+
     def test_detect_ingestion_format_distinguishes_supported_payloads(self) -> None:
         self.assertEqual(detect_ingestion_format({"chat_messages": []}), "claude_json")
         self.assertEqual(detect_ingestion_format({"messages": []}), "open_webui_json")
         self.assertEqual(detect_ingestion_format([{"mapping": {}}]), "chatgpt_json")
+        self.assertEqual(detect_ingestion_format([{"role": "user", "content": "hello"}]), "generic_chat_json")
 
     def test_detect_ingestion_format_rejects_empty_json_array(self) -> None:
         with self.assertRaisesRegex(IngestionParseError, "Unsupported ingestion payload"):
@@ -183,6 +225,16 @@ class IngestionParsersTest(unittest.TestCase):
 
         self.assertEqual(len(turns), 1)
         self.assertEqual(turns[0].role, "assistant")
+
+    def test_parse_ingestion_bytes_supports_generic_chat_json_format_hint(self) -> None:
+        turns = parse_ingestion_bytes(
+            json.dumps({"messages": [{"sender": "user", "text": "hello"}]}).encode("utf-8"),
+            format_hint="generic_chat_json",
+            source_name="clipboard.json",
+        )
+
+        self.assertEqual(len(turns), 1)
+        self.assertEqual(turns[0].role, "user")
 
     def test_parse_ingestion_bytes_reports_meaningful_errors(self) -> None:
         with self.assertRaisesRegex(IngestionParseError, "valid JSON or Markdown"):

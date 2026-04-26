@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 import sys
 import subprocess
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from unittest.mock import patch
 
@@ -5946,6 +5946,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("Parse an external session export, filter it into staged candidates", output)
         self.assertIn("--dry-run", output)
         self.assertIn("--format", output)
+        self.assertIn("--from-clipboard", output)
         self.assertIn("--summary", output)
 
     def test_cli_ingest_dry_run_prints_report_without_persisting_registry(self) -> None:
@@ -6003,6 +6004,78 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("## Decisions (1)", output)
         self.assertIn("## Constraints (1)", output)
         self.assertIn("## Rejected Alternatives (0)", output)
+
+    def test_cli_ingest_from_clipboard_supports_generic_chat_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stdout = StringIO()
+
+            with patch(
+                "swallow.cli._read_clipboard_bytes",
+                return_value=json.dumps([{"role": "user", "content": "Decision: keep it simple."}]).encode("utf-8"),
+            ):
+                with redirect_stdout(stdout):
+                    self.assertEqual(
+                        main(
+                            [
+                                "--base-dir",
+                                str(tmp_path),
+                                "ingest",
+                                "--from-clipboard",
+                                "--format",
+                                "generic_chat_json",
+                            ]
+                        ),
+                        0,
+                    )
+
+            staged_records = load_staged_candidates(tmp_path)
+
+        output = stdout.getvalue()
+        self.assertIn("source_path: clipboard://generic_chat_json", output)
+        self.assertEqual(len(staged_records), 1)
+        self.assertEqual(staged_records[0].source_ref, "clipboard://generic_chat_json")
+        self.assertTrue(staged_records[0].source_task_id.startswith("ingest-clipboard-"))
+
+    def test_cli_ingest_from_clipboard_uses_auto_source_ref_when_format_omitted(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stdout = StringIO()
+
+            with patch(
+                "swallow.cli._read_clipboard_bytes",
+                return_value=b"# Constraints\nConstraint: clipboard path is supplemental.",
+            ):
+                with redirect_stdout(stdout):
+                    self.assertEqual(main(["--base-dir", str(tmp_path), "ingest", "--from-clipboard", "--dry-run"]), 0)
+
+        output = stdout.getvalue()
+        self.assertIn("source_path: clipboard://auto", output)
+        self.assertIn("detected_format: markdown", output)
+
+    def test_cli_ingest_rejects_both_file_and_clipboard_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "session.md"
+            source.write_text("# Decisions\nDecision: keep one input path.", encoding="utf-8")
+            stderr = StringIO()
+
+            with redirect_stderr(stderr):
+                with self.assertRaises(SystemExit) as raised:
+                    main(["--base-dir", str(tmp_path), "ingest", str(source), "--from-clipboard"])
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("requires exactly one input source", stderr.getvalue())
+
+    def test_cli_ingest_rejects_missing_input_source(self) -> None:
+        stderr = StringIO()
+
+        with redirect_stderr(stderr):
+            with self.assertRaises(SystemExit) as raised:
+                main(["ingest"])
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("requires exactly one input source", stderr.getvalue())
 
     def test_cli_knowledge_ingest_file_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

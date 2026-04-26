@@ -7,7 +7,13 @@ from pathlib import Path
 from typing import Any
 
 
-SUPPORTED_INGESTION_FORMATS: tuple[str, ...] = ("chatgpt_json", "claude_json", "open_webui_json", "markdown")
+SUPPORTED_INGESTION_FORMATS: tuple[str, ...] = (
+    "chatgpt_json",
+    "claude_json",
+    "open_webui_json",
+    "generic_chat_json",
+    "markdown",
+)
 MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
 
 
@@ -50,16 +56,11 @@ def parse_ingestion_bytes(
     format_hint: str | None = None,
     source_name: str = "<memory>",
 ) -> list[ConversationTurn]:
-    normalized_hint = (format_hint or "").strip().lower()
+    normalized_hint = normalize_ingestion_format_hint(format_hint)
     if normalized_hint == "markdown":
         return parse_markdown_text(data.decode("utf-8"), source_name=source_name)
 
-    if normalized_hint and normalized_hint not in SUPPORTED_INGESTION_FORMATS:
-        raise IngestionParseError(
-            f"Unsupported ingestion format '{format_hint}'. Expected one of: {', '.join(SUPPORTED_INGESTION_FORMATS)}"
-        )
-
-    if normalized_hint in {"chatgpt_json", "claude_json", "open_webui_json"}:
+    if normalized_hint in {"chatgpt_json", "claude_json", "open_webui_json", "generic_chat_json"}:
         payload = _load_json_payload(data, source_name=source_name)
         return _parse_json_payload(payload, normalized_hint)
 
@@ -71,6 +72,15 @@ def parse_ingestion_bytes(
     return _parse_json_payload(payload, detected_format)
 
 
+def normalize_ingestion_format_hint(format_hint: str | None) -> str:
+    normalized_hint = (format_hint or "").strip().lower()
+    if normalized_hint and normalized_hint not in SUPPORTED_INGESTION_FORMATS:
+        raise IngestionParseError(
+            f"Unsupported ingestion format '{format_hint}'. Expected one of: {', '.join(SUPPORTED_INGESTION_FORMATS)}"
+        )
+    return normalized_hint
+
+
 def detect_ingestion_format(payload: Any) -> str:
     if _is_chatgpt_export(payload):
         return "chatgpt_json"
@@ -78,8 +88,10 @@ def detect_ingestion_format(payload: Any) -> str:
         return "claude_json"
     if _is_open_webui_export(payload):
         return "open_webui_json"
+    if _is_generic_chat_export(payload):
+        return "generic_chat_json"
     raise IngestionParseError(
-        "Unsupported ingestion payload. Expected ChatGPT JSON, Claude JSON, Open WebUI JSON, or Markdown."
+        "Unsupported ingestion payload. Expected ChatGPT JSON, Claude JSON, Open WebUI JSON, generic chat JSON, or Markdown."
     )
 
 
@@ -199,6 +211,28 @@ def parse_open_webui_export(payload: Any) -> list[ConversationTurn]:
     return turns
 
 
+def parse_generic_chat_export(payload: Any) -> list[ConversationTurn]:
+    messages = _extract_generic_chat_messages(payload)
+    turns: list[ConversationTurn] = []
+    for index, message in enumerate(messages, start=1):
+        role = _extract_generic_chat_role(message)
+        content = _extract_generic_chat_content(message)
+        if not role or not content:
+            continue
+        turn_id = str(message.get("id", message.get("turn_id", f"generic-{index}"))).strip() or f"generic-{index}"
+        turns.append(
+            ConversationTurn(
+                role=role,
+                content=content,
+                timestamp=_stringify_timestamp(message.get("timestamp", message.get("created_at"))),
+                turn_id=turn_id,
+            )
+        )
+    if not turns:
+        raise IngestionParseError("Generic chat JSON did not contain any parseable messages.")
+    return turns
+
+
 def parse_markdown_text(text: str, source_name: str = "<memory>") -> list[ConversationTurn]:
     normalized = text.replace("\r\n", "\n").strip()
     if not normalized:
@@ -248,6 +282,8 @@ def _parse_json_payload(payload: Any, format_name: str) -> list[ConversationTurn
         return parse_claude_export(payload)
     if format_name == "open_webui_json":
         return parse_open_webui_export(payload)
+    if format_name == "generic_chat_json":
+        return parse_generic_chat_export(payload)
     raise IngestionParseError(f"Unsupported ingestion format '{format_name}'.")
 
 
@@ -271,7 +307,8 @@ def _looks_like_markdown(data: bytes, source_name: str) -> bool:
     stripped = text.lstrip()
     if not stripped:
         return False
-    return bool(MARKDOWN_HEADING_PATTERN.search(text)) and not stripped.startswith(("{", "["))
+    has_heading = any(MARKDOWN_HEADING_PATTERN.match(line.strip()) for line in text.splitlines())
+    return has_heading and not stripped.startswith(("{", "["))
 
 
 def _is_chatgpt_export(payload: Any) -> bool:
@@ -289,11 +326,14 @@ def _is_claude_export(payload: Any) -> bool:
 
 
 def _is_open_webui_export(payload: Any) -> bool:
-    if isinstance(payload, dict) and isinstance(payload.get("messages"), list):
-        return True
-    if isinstance(payload, list) and payload:
-        return all(isinstance(item, dict) and "role" in item for item in payload)
-    return False
+    return isinstance(payload, dict) and isinstance(payload.get("messages"), list)
+
+
+def _is_generic_chat_export(payload: Any) -> bool:
+    messages = _extract_generic_chat_messages(payload, required=False)
+    if not messages:
+        return False
+    return all(_looks_like_generic_chat_message(message) for message in messages)
 
 
 def _extract_chatgpt_role(message: dict[str, Any]) -> str:
@@ -371,6 +411,67 @@ def _extract_open_webui_content(content: Any) -> str:
                     fragments.append(text)
         return "\n".join(fragments).strip()
     return ""
+
+
+def _extract_generic_chat_messages(payload: Any, *, required: bool = True) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    if isinstance(payload, list):
+        messages = [item for item in payload if isinstance(item, dict)]
+    elif isinstance(payload, dict) and isinstance(payload.get("messages"), list):
+        messages = [item for item in payload["messages"] if isinstance(item, dict)]
+    if required and not messages:
+        raise IngestionParseError("Generic chat JSON must contain a top-level message list.")
+    return messages
+
+
+def _looks_like_generic_chat_message(message: dict[str, Any]) -> bool:
+    return bool(_extract_generic_chat_role(message) and _extract_generic_chat_content(message))
+
+
+def _extract_generic_chat_role(message: dict[str, Any]) -> str:
+    for key in ("role", "sender", "from", "author"):
+        value = message.get(key)
+        if value is None:
+            continue
+        if isinstance(value, dict):
+            nested_value = value.get("role", value.get("name", ""))
+            if nested_value is None:
+                continue
+            nested_role = str(nested_value).strip().lower()
+            if nested_role:
+                return nested_role
+            continue
+        normalized = str(value).strip().lower()
+        if normalized:
+            return normalized
+    return ""
+
+
+def _extract_generic_chat_content(message: dict[str, Any]) -> str:
+    for key in ("content", "text", "message"):
+        normalized = _normalize_generic_chat_content(message.get(key))
+        if normalized:
+            return normalized
+    return ""
+
+
+def _normalize_generic_chat_content(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if not isinstance(value, list):
+        return ""
+    fragments: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            fragments.append(item.strip())
+            continue
+        if not isinstance(item, dict):
+            continue
+        item_type = str(item.get("type", "")).strip().lower()
+        text = str(item.get("text", "")).strip()
+        if item_type in {"", "text"} and text:
+            fragments.append(text)
+    return "\n".join(fragments).strip()
 
 
 def _stringify_timestamp(value: Any) -> str:

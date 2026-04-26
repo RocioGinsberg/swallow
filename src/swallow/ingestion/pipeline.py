@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -10,7 +11,13 @@ from uuid import uuid4
 from ..models import LIBRARIAN_SYSTEM_ROLE
 from ..staged_knowledge import StagedCandidate, submit_staged_candidate
 from .filters import ExtractedFragment, filter_conversation_turns
-from .parsers import ConversationTurn, parse_ingestion_path
+from .parsers import (
+    ConversationTurn,
+    detect_ingestion_format,
+    normalize_ingestion_format_hint,
+    parse_ingestion_bytes,
+    parse_ingestion_path,
+)
 
 
 EXTERNAL_SESSION_SOURCE_KIND = "external_session_ingestion"
@@ -47,7 +54,7 @@ def run_ingestion_pipeline(
     fragments = filter_conversation_turns(turns)
     staged_candidates = build_staged_candidates(
         fragments,
-        source_path=resolved_source,
+        source_ref=str(resolved_source),
         source_task_id=_build_source_task_id(resolved_source),
         submitted_by=submitted_by,
         taxonomy_role=taxonomy_role,
@@ -60,7 +67,45 @@ def run_ingestion_pipeline(
 
     return IngestionPipelineResult(
         source_path=str(resolved_source),
-        detected_format=_resolve_detected_format(resolved_source, format_hint),
+        detected_format=_resolve_detected_format(source_name=resolved_source.name, format_hint=format_hint, source_bytes=None),
+        turns=turns,
+        fragments=fragments,
+        staged_candidates=persisted_candidates,
+        dry_run=dry_run,
+    )
+
+
+def run_ingestion_bytes_pipeline(
+    base_dir: Path,
+    source_bytes: bytes,
+    *,
+    source_name: str,
+    source_ref: str,
+    source_task_id: str,
+    format_hint: str | None = None,
+    dry_run: bool = False,
+    submitted_by: str = DEFAULT_INGESTION_SUBMITTED_BY,
+    taxonomy_role: str = DEFAULT_INGESTION_TAXONOMY_ROLE,
+    taxonomy_memory_authority: str = DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY,
+) -> IngestionPipelineResult:
+    turns = parse_ingestion_bytes(source_bytes, format_hint=format_hint, source_name=source_name)
+    fragments = filter_conversation_turns(turns)
+    staged_candidates = build_staged_candidates(
+        fragments,
+        source_ref=source_ref,
+        source_task_id=source_task_id,
+        submitted_by=submitted_by,
+        taxonomy_role=taxonomy_role,
+        taxonomy_memory_authority=taxonomy_memory_authority,
+    )
+
+    persisted_candidates = staged_candidates
+    if not dry_run:
+        persisted_candidates = [submit_staged_candidate(base_dir, candidate) for candidate in staged_candidates]
+
+    return IngestionPipelineResult(
+        source_path=source_ref,
+        detected_format=_resolve_detected_format(source_name=source_name, format_hint=format_hint, source_bytes=source_bytes),
         turns=turns,
         fragments=fragments,
         staged_candidates=persisted_candidates,
@@ -148,14 +193,13 @@ def ingest_operator_note(
 def build_staged_candidates(
     fragments: list[ExtractedFragment],
     *,
-    source_path: Path,
+    source_ref: str,
     source_task_id: str,
     submitted_by: str,
     taxonomy_role: str,
     taxonomy_memory_authority: str,
 ) -> list[StagedCandidate]:
     candidates: list[StagedCandidate] = []
-    source_ref = str(source_path)
     for index, fragment in enumerate(fragments, start=1):
         candidates.append(
             StagedCandidate(
@@ -313,11 +357,27 @@ def _build_source_object_id(source_task_id: str, index: int) -> str:
     return f"{source_task_id}-fragment-{index:04d}"
 
 
-def _resolve_detected_format(source_path: Path, format_hint: str | None) -> str:
-    if format_hint:
-        return format_hint.strip().lower()
-    if source_path.suffix.lower() in {".md", ".markdown"}:
+def _resolve_detected_format(source_name: str, format_hint: str | None, source_bytes: bytes | None) -> str:
+    normalized_hint = normalize_ingestion_format_hint(format_hint)
+    if normalized_hint:
+        return normalized_hint
+    if source_name.lower().endswith((".md", ".markdown")):
         return "markdown"
+    if source_bytes is not None:
+        try:
+            text = source_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            text = ""
+        stripped = text.lstrip()
+        if stripped and not stripped.startswith(("{", "[")):
+            has_heading = any(LOCAL_MARKDOWN_HEADING_PATTERN.match(line.strip()) for line in text.splitlines())
+            if has_heading:
+                return "markdown"
+        try:
+            payload = json.loads(source_bytes.decode("utf-8"))
+            return detect_ingestion_format(payload)
+        except Exception:
+            return "auto"
     return "auto"
 
 
