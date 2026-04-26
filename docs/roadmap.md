@@ -94,9 +94,9 @@ status: living-document
 |--------|-------|------|---------------|------|------|
 | ~~1~~ | ~~55~~ | ~~知识图谱与本地 RAG~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | tag `v1.1.0` |
 | ~~2~~ | ~~56~~ | ~~知识质量与 LLM 增强检索~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged |
-| ~~3~~ | ~~57~~ | ~~检索质量增强~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged，待重打 `v1.2.0` |
+| ~~3~~ | ~~57~~ | ~~检索质量增强~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged，已重打 `v1.2.0` |
 | ~~4~~ | ~~58~~ | ~~知识捕获闭环~~ | ~~Knowledge / RAG~~ | ~~已完成~~ | merged |
-| ~~5~~ | ~~59~~ | ~~Codex CLI Route 接入~~ | ~~CLI / Routing~~ | ~~已完成~~ | merged |
+| ~~5~~ | ~~59~~ | ~~Codex CLI Route 接入~~ | ~~CLI / Routing~~ | ~~已完成~~ | merged 已打v1.3.0|
 | **6** | **60** | **(待选)** | **(待选)** | **Direction Gate** | 3 个候选方向待评估 |
 
 ### Phase 60 候选方向评估
