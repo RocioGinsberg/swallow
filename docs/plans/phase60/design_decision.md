@@ -10,7 +10,7 @@ depends_on:
 
 ## TL;DR
 
-Phase 60 的核心改动是在 `orchestrator.py:build_task_retrieval_request()` 中插入一个 policy 查表步骤，用 route capability + `state.route_executor_family` + `infer_task_family(state)` 选择 source_types。三个 slice 依次落地：S1 收紧自主 CLI coding path，S2 对 HTTP path 按 task_family 细分，S3 补充 explicit override 机制。不触碰 retrieval 管线内部。
+Phase 60 的核心改动是在 `orchestrator.py:build_task_retrieval_request()` 中插入一个 policy 查表步骤，用 route capability + `state.route_executor_family` + `infer_task_family(state)` 选择 source_types。三个 slice 依次落地：S1 收紧自主 CLI coding path 并引入不含 repo 的保守 fallback，S2 补充显式 HTTP knowledge + notes 规则，S3 补充 explicit override 机制。不触碰 retrieval 管线内部。repo source 不再作为 HTTP 默认路径，只作为显式 override 或 legacy fallback 辅助源。
 
 # Phase 60 Design Decision: 路径感知的 Retrieval Policy
 
@@ -37,21 +37,19 @@ Phase 60 的核心改动是在 `orchestrator.py:build_task_retrieval_request()` 
 
 - `autonomous_cli_coding`：`route_executor_family == "cli"` + `route_capabilities.supports_tool_loop == True` + `route_capabilities.execution_kind == "code_execution"`
 - `api`：`route_executor_family == "api"`
-- `default`：其他情况，包括 `local-mock` / `local-note` / `local-summary` / `mock-remote` 等非自主 local fallback route
+- `legacy_local_fallback`：`route_executor_family == "cli"` 但 `supports_tool_loop == False` 的 deterministic / fallback route，包括 `local-mock` / `local-note` / `local-summary` / `mock-remote`
+- `default`：未知或 capability 不完整的 route，采用不含 repo 的保守默认值，避免把 repo chunk 静默放回主链
 
 ```python
 _RETRIEVAL_SOURCE_POLICY: dict[tuple[str, str], list[str]] = {
     # Autonomous CLI coding agents can explore repo files themselves.
     ("autonomous_cli_coding", "*"): ["knowledge"],
-    # HTTP brainstorm/planning path: 聚焦知识与文档，不需要 repo chunk
-    ("api", "planning"): ["knowledge", "notes"],
-    ("api", "review"): ["knowledge", "notes"],
-    # HTTP code-analysis path: 保留完整三源
-    ("api", "execution"): ["repo", "notes", "knowledge"],
-    ("api", "extraction"): ["repo", "notes", "knowledge"],
-    ("api", "retrieval"): ["repo", "notes", "knowledge"],
-    # fallback: 保持现有行为
-    ("*", "*"): ["repo", "notes", "knowledge"],
+    # HTTP routes are not the default codebase-Q&A path.
+    ("api", "*"): ["knowledge", "notes"],
+    # Non-autonomous local fallback routes keep legacy context for compatibility.
+    ("legacy_local_fallback", "*"): ["repo", "notes", "knowledge"],
+    # Unknown routes avoid repo by default; explicit override can opt in.
+    ("*", "*"): ["knowledge", "notes"],
 }
 ```
 
@@ -65,6 +63,11 @@ def _retrieval_policy_family(state: TaskState) -> str:
         and capabilities.get("execution_kind") == "code_execution"
     ):
         return "autonomous_cli_coding"
+    if (
+        state.route_executor_family == "cli"
+        and capabilities.get("supports_tool_loop") is False
+    ):
+        return "legacy_local_fallback"
     if state.route_executor_family == "api":
         return "api"
     return "default"
@@ -83,8 +86,9 @@ def _select_source_types(route_policy_family: str, task_family: str) -> list[str
 
 **理由**：
 - 常量表比 if-chain 更易读、更易测试、更易扩展
-- `("autonomous_cli_coding", "*")` 通配覆盖 aider / claude-code / codex 等自主 CLI coding route，避免误伤 `local-summary` / `local-note` / `local-mock`
-- fallback 保证向后兼容
+- `("autonomous_cli_coding", "*")` 通配覆盖 aider / claude-code / codex 等自主 CLI coding route，让代码库上下文由 agent tool-loop 读取，而不是预灌 repo chunk
+- HTTP API route 默认聚焦 knowledge / notes，避免把 HTTP executor 误塑造成代码库问答的辅助 RAG 链路
+- 只有明确识别的非自主 fallback route 保留旧三源兼容；未知 route 不默认打开 repo，降低噪声与语义误导
 
 ---
 
@@ -126,47 +130,45 @@ else:
 2. 修改 `build_task_retrieval_request(state: TaskState)` 函数：
    - 当前：`source_types = ["repo", "notes", "knowledge"]`（硬编码）
    - 改为：调用 `_select_source_types(_retrieval_policy_family(state), infer_task_family(state))`
-   - S1 阶段只实现 `("autonomous_cli_coding", "*")` 和 `("*", "*")` 两条规则，HTTP 细分在 S2 补充
+   - S1 阶段只实现 `("autonomous_cli_coding", "*")`、`("legacy_local_fallback", "*")` 和 `("*", "*")` 三类基础规则；HTTP route 会先落入不含 repo 的全局 fallback，S2 再补充显式 `("api", "*")` 规则与 task_family 测试覆盖
 
 3. `infer_task_family` 已在 `models.py` 中定义，`orchestrator.py` 已 import `models`，直接调用即可
 
-**S1 的 policy 表（简化版，S2 再补充 HTTP 细分）**：
+**S1 的 policy 表（简化版，S2 再补充 HTTP 显式规则）**：
 ```python
 _RETRIEVAL_SOURCE_POLICY = {
     ("autonomous_cli_coding", "*"): ["knowledge"],
-    ("*", "*"): ["repo", "notes", "knowledge"],
+    ("legacy_local_fallback", "*"): ["repo", "notes", "knowledge"],
+    ("*", "*"): ["knowledge", "notes"],
 }
 ```
 
 **测试**：
 - `test_build_task_retrieval_request_autonomous_cli_coding_path_uses_knowledge_only`：构造 `route_executor_family="cli"` + `supports_tool_loop=True` + `execution_kind="code_execution"` 的 state，断言返回 source_types == `["knowledge"]`
-- `test_build_task_retrieval_request_non_autonomous_cli_path_uses_full_sources`：构造 `route_executor_family="cli"` + `supports_tool_loop=False` 的 state，断言返回 source_types == `["repo", "notes", "knowledge"]`
-- `test_build_task_retrieval_request_api_path_uses_full_sources`：构造 `route_executor_family="api"` 的 state，断言返回 source_types == `["repo", "notes", "knowledge"]`
-- `test_build_task_retrieval_request_unknown_family_fallback`：构造 `route_executor_family=""` 的 state，断言 fallback 到 `["repo", "notes", "knowledge"]`
+- `test_build_task_retrieval_request_non_autonomous_cli_path_uses_legacy_sources`：构造 `route_executor_family="cli"` + `supports_tool_loop=False` 的 state，断言返回 source_types == `["repo", "notes", "knowledge"]`
+- `test_build_task_retrieval_request_api_path_uses_conservative_sources_before_s2`：构造 `route_executor_family="api"` 的 state，断言返回 source_types == `["knowledge", "notes"]`
+- `test_build_task_retrieval_request_unknown_family_fallback`：构造 `route_executor_family=""` 的 state，断言 fallback 到 `["knowledge", "notes"]`
 
 ---
 
-### S2: HTTP path 按 task_family 细分
+### S2: HTTP path 显式规则 + task_family 覆盖
 
 **改动文件**：`src/swallow/orchestrator.py`
 
 **具体改动**：
 
-扩充 `_RETRIEVAL_SOURCE_POLICY` 常量，补充 HTTP path 的 task_family 细分条目：
+扩充 `_RETRIEVAL_SOURCE_POLICY` 常量，补充 HTTP path 的默认条目。`task_family` 仍可传入 `_select_source_types()`，但本 phase 不因 `"execution"` / `"extraction"` / `"retrieval"` 自动启用 repo。
 
 ```python
 _RETRIEVAL_SOURCE_POLICY = {
     # Autonomous CLI coding routes: all task_family values stay knowledge-only
     ("autonomous_cli_coding", "*"): ["knowledge"],
-    # HTTP brainstorm/planning path
-    ("api", "planning"): ["knowledge", "notes"],
-    ("api", "review"): ["knowledge", "notes"],
-    # HTTP code-analysis path（保留完整三源）
-    ("api", "execution"): ["repo", "notes", "knowledge"],
-    ("api", "extraction"): ["repo", "notes", "knowledge"],
-    ("api", "retrieval"): ["repo", "notes", "knowledge"],
-    # fallback
-    ("*", "*"): ["repo", "notes", "knowledge"],
+    # HTTP routes are for planning/review/synthesis/knowledge reuse by default.
+    ("api", "*"): ["knowledge", "notes"],
+    # Legacy deterministic local routes do not have an autonomous repo-reading loop.
+    ("legacy_local_fallback", "*"): ["repo", "notes", "knowledge"],
+    # Unknown routes avoid repo by default.
+    ("*", "*"): ["knowledge", "notes"],
 }
 ```
 
@@ -175,8 +177,10 @@ _RETRIEVAL_SOURCE_POLICY = {
 **测试**：
 - `test_build_task_retrieval_request_api_planning_uses_knowledge_notes`
 - `test_build_task_retrieval_request_api_review_uses_knowledge_notes`
-- `test_build_task_retrieval_request_api_execution_uses_full_sources`
-- `test_build_task_retrieval_request_api_unknown_task_family_fallback`
+- `test_build_task_retrieval_request_api_execution_uses_knowledge_notes`
+- `test_build_task_retrieval_request_api_extraction_uses_knowledge_notes`
+- `test_build_task_retrieval_request_api_retrieval_uses_knowledge_notes`
+- `test_build_task_retrieval_request_api_unknown_task_family_fallback_uses_knowledge_notes`
 
 ---
 
@@ -217,9 +221,11 @@ _RETRIEVAL_SOURCE_POLICY = {
 |------|------|---------|
 | 不修改 `retrieve_context()` 内部 | 设计边界 | policy 只在 request 构造层 |
 | 不修改 `infer_task_family()` | 设计边界 | 直接复用，不扩展分类 |
-| `executor_family` 未知时 fallback | 风险缓解 | `("*", "*")` fallback 条目 |
+| `executor_family` 未知时 fallback | 风险缓解 | `("*", "*")` fallback 到 `["knowledge", "notes"]`，不静默启用 repo |
 | explicit override 优先于 policy | 设计边界 | override 检查在 policy 查表之前 |
-| 不引入新 source_type | 非目标 | 默认 policy 只使用现有 `"repo"` / `"notes"` / `"knowledge"`；explicit override 可使用既有 `"artifacts"` |
+| 不引入新 source_type | 非目标 | 默认 policy 只使用现有 `"repo"` / `"notes"` / `"knowledge"`；`"repo"` 只在 autonomous CLI 之外的 legacy fallback 或 explicit override 中出现；explicit override 可使用既有 `"artifacts"` |
+| source type 语义 | `KNOWLEDGE.md §2.3` | `knowledge` 是治理后的长期知识；`notes` 是 Markdown 文档现场；`repo` 是局部源码 chunk，不代表完整代码库理解 |
+| executor 生态位 | `ARCHITECTURE.md §4.1` / `AGENT_TAXONOMY.md §7.4` | HTTP 是模型认知层，CLI 是 workspace 行动层，Specialist 是固定专精流程封装 |
 
 ---
 
