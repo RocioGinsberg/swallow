@@ -8108,6 +8108,36 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertEqual(request.source_types, ["knowledge", "notes"])
 
+    def test_build_task_retrieval_request_keeps_http_routes_off_repo_across_task_families(self) -> None:
+        route = route_by_name("http-claude")
+        self.assertIsNotNone(route)
+        assert route is not None
+
+        for source_kind in (
+            "planning_session",
+            "review_feedback",
+            "operator_entry",
+            "knowledge_capture",
+            "retrieval_probe",
+        ):
+            with self.subTest(source_kind=source_kind):
+                state = TaskState(
+                    task_id=f"request-http-{source_kind}",
+                    title="HTTP retrieval family",
+                    goal="Keep HTTP defaults conservative",
+                    workspace_root="/tmp",
+                    executor_name=route.executor_name,
+                    route_name=route.name,
+                    route_executor_family=route.executor_family,
+                    route_taxonomy_role=route.taxonomy.system_role,
+                    route_capabilities=route.capabilities.to_dict(),
+                    task_semantics={"source_kind": source_kind},
+                )
+
+                request = build_task_retrieval_request(state)
+
+                self.assertEqual(request.source_types, ["knowledge", "notes"])
+
     def test_build_task_retrieval_request_does_not_treat_specialist_cli_routes_as_autonomous_coding(self) -> None:
         state = TaskState(
             task_id="request-specialist-cli",

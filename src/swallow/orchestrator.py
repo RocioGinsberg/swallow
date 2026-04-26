@@ -186,6 +186,7 @@ DEBATE_MAX_ROUNDS = 3
 _BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
 _RETRIEVAL_SOURCE_POLICY: dict[tuple[str, str], tuple[str, ...]] = {
     ("autonomous_cli_coding", "*"): ("knowledge",),
+    ("api", "*"): ("knowledge", "notes"),
     ("legacy_local_fallback", "*"): ("repo", "notes", "knowledge"),
     ("*", "*"): ("knowledge", "notes"),
 }
