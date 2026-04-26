@@ -366,17 +366,14 @@ def _resolve_detected_format(source_name: str, format_hint: str | None, source_b
     if source_bytes is not None:
         try:
             text = source_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            text = ""
-        stripped = text.lstrip()
-        if stripped and not stripped.startswith(("{", "[")):
-            has_heading = any(LOCAL_MARKDOWN_HEADING_PATTERN.match(line.strip()) for line in text.splitlines())
-            if has_heading:
-                return "markdown"
-        try:
-            payload = json.loads(source_bytes.decode("utf-8"))
+            stripped = text.lstrip()
+            if stripped and not stripped.startswith(("{", "[")):
+                has_heading = any(LOCAL_MARKDOWN_HEADING_PATTERN.match(line.strip()) for line in text.splitlines())
+                if has_heading:
+                    return "markdown"
+            payload = json.loads(text)
             return detect_ingestion_format(payload)
-        except Exception:
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError, TypeError):
             return "auto"
     return "auto"
 
