@@ -34,7 +34,13 @@ from .doctor import (
     format_local_stack_doctor_result,
     format_sqlite_doctor_result,
 )
-from .ingestion.pipeline import build_ingestion_report, build_ingestion_summary, ingest_local_file, run_ingestion_pipeline
+from .ingestion.pipeline import (
+    build_ingestion_report,
+    build_ingestion_summary,
+    ingest_local_file,
+    ingest_operator_note,
+    run_ingestion_pipeline,
+)
 from .knowledge_store import (
     OPERATOR_CANONICAL_WRITE_AUTHORITY,
     migrate_file_knowledge_to_sqlite,
@@ -1408,6 +1414,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply the approved proposals from a proposal review record.",
     )
     proposal_apply_parser.add_argument("review_file", help="Path to the proposal review record JSON file.")
+    note_parser = subparsers.add_parser(
+        "note",
+        help="Capture one operator note directly into staged knowledge.",
+        description="Capture one operator note directly into staged knowledge.",
+    )
+    note_parser.add_argument("text", type=str, help="Note text to stage.")
+    note_parser.add_argument("--tag", dest="topic", default="", help="Optional topic tag for the staged note.")
     ingest_parser = subparsers.add_parser(
         "ingest",
         help="Ingest an external session export into staged knowledge.",
@@ -2520,6 +2533,15 @@ def main(argv: list[str] | None = None) -> int:
             ),
             end="",
         )
+        return 0
+
+    if args.command == "note":
+        result = ingest_operator_note(
+            base_dir,
+            args.text,
+            topic=str(args.topic or "").strip(),
+        )
+        print(result.staged_candidates[0].candidate_id)
         return 0
 
     if args.command == "ingest":

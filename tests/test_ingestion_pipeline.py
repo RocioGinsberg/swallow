@@ -11,6 +11,7 @@ from swallow.ingestion.pipeline import (
     EXTERNAL_SESSION_SOURCE_KIND,
     build_ingestion_report,
     build_ingestion_summary,
+    ingest_operator_note,
     ingest_local_file,
     run_ingestion_pipeline,
 )
@@ -94,6 +95,20 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertTrue(result.dry_run)
         self.assertEqual(len(result.staged_candidates), 1)
         self.assertEqual(staged_candidates, [])
+
+    def test_ingest_operator_note_persists_topic_and_source_kind(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+
+            result = ingest_operator_note(tmp_path, "Use explicit route guards.", topic="routing")
+            staged_candidates = load_staged_candidates(tmp_path)
+
+        self.assertEqual(result.detected_format, "operator_note")
+        self.assertEqual(len(result.staged_candidates), 1)
+        self.assertEqual(staged_candidates[0].source_kind, "operator_note")
+        self.assertEqual(staged_candidates[0].topic, "routing")
+        self.assertEqual(staged_candidates[0].source_ref, "note://operator")
+        self.assertTrue(staged_candidates[0].source_task_id.startswith("note-"))
 
     def test_build_ingestion_report_includes_candidate_summary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -17,6 +17,7 @@ class StagedCandidate:
     candidate_id: str
     text: str
     source_task_id: str
+    topic: str = ""
     source_kind: str = ""
     source_ref: str = ""
     source_object_id: str = ""
@@ -33,6 +34,7 @@ class StagedCandidate:
         self.candidate_id = self.candidate_id.strip() or generate_candidate_id()
         self.text = self.text.strip()
         self.source_task_id = self.source_task_id.strip()
+        self.topic = self.topic.strip()
         self.source_kind = self.source_kind.strip()
         self.source_ref = self.source_ref.strip()
         self.source_object_id = self.source_object_id.strip()
@@ -68,6 +70,7 @@ class StagedCandidate:
             candidate_id=str(payload.get("candidate_id", "")).strip(),
             text=str(payload.get("text", "")),
             source_task_id=str(payload.get("source_task_id", "")).strip(),
+            topic=str(payload.get("topic", "")).strip(),
             source_kind=str(payload.get("source_kind", "")).strip(),
             source_ref=str(payload.get("source_ref", "")).strip(),
             source_object_id=str(payload.get("source_object_id", "")).strip(),
@@ -132,6 +135,7 @@ def update_staged_candidate(
             candidate_id=candidate.candidate_id,
             text=candidate.text,
             source_task_id=candidate.source_task_id,
+            topic=candidate.topic,
             source_kind=candidate.source_kind,
             source_ref=candidate.source_ref,
             source_object_id=candidate.source_object_id,

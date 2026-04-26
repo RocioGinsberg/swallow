@@ -105,6 +105,33 @@ class StagedKnowledgeTest(unittest.TestCase):
         self.assertEqual(reloaded[0].status, "promoted")
         self.assertEqual(reloaded[0].decision_note, "Approved after manual review.")
 
+    def test_topic_round_trips_through_registry_and_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Tag this staged note for retrieval follow-up.",
+                    source_task_id="task-topic",
+                    topic="retrieval",
+                    submitted_by="validator",
+                ),
+            )
+
+            updated = update_staged_candidate(
+                tmp_path,
+                candidate.candidate_id,
+                "rejected",
+                "human-operator",
+                "Need stronger evidence.",
+            )
+            reloaded = load_staged_candidates(tmp_path)
+
+        self.assertEqual(candidate.topic, "retrieval")
+        self.assertEqual(updated.topic, "retrieval")
+        self.assertEqual(reloaded[0].topic, "retrieval")
+
     def test_load_staged_candidates_returns_empty_list_when_registry_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

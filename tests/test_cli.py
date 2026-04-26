@@ -1467,6 +1467,36 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("taxonomy_memory_authority: staged-knowledge", output)
         self.assertIn("Candidate knowledge should be visible to operators.", output)
 
+    def test_cli_note_persists_operator_note_with_topic(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(tmp_path),
+                            "note",
+                            "Use explicit route guards for fallback behavior.",
+                            "--tag",
+                            "routing",
+                        ]
+                    ),
+                    0,
+                )
+
+            staged_records = load_staged_candidates(tmp_path)
+
+        note_id = stdout.getvalue().strip()
+        self.assertTrue(note_id.startswith("staged-"))
+        self.assertEqual(len(staged_records), 1)
+        self.assertEqual(staged_records[0].candidate_id, note_id)
+        self.assertEqual(staged_records[0].source_kind, "operator_note")
+        self.assertEqual(staged_records[0].topic, "routing")
+        self.assertEqual(staged_records[0].submitted_by, "swl_note")
+
     def test_cli_stage_promote_updates_candidate_and_canonical_registry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

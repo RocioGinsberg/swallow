@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
+from uuid import uuid4
 
 from ..models import LIBRARIAN_SYSTEM_ROLE
 from ..staged_knowledge import StagedCandidate, submit_staged_candidate
@@ -13,6 +15,7 @@ from .parsers import ConversationTurn, parse_ingestion_path
 
 EXTERNAL_SESSION_SOURCE_KIND = "external_session_ingestion"
 LOCAL_FILE_SOURCE_KIND = "local_file_capture"
+OPERATOR_NOTE_SOURCE_KIND = "operator_note"
 DEFAULT_INGESTION_SUBMITTED_BY = "swl_ingest"
 DEFAULT_INGESTION_TAXONOMY_ROLE = LIBRARIAN_SYSTEM_ROLE
 DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY = "staged-knowledge"
@@ -103,6 +106,41 @@ def ingest_local_file(
         source_path=str(resolved_source),
         detected_format=_resolve_local_file_format(resolved_source),
         staged_candidates=persisted_candidates,
+        dry_run=dry_run,
+    )
+
+
+def ingest_operator_note(
+    base_dir: Path,
+    text: str,
+    *,
+    topic: str = "",
+    dry_run: bool = False,
+    submitted_by: str = "swl_note",
+    taxonomy_role: str = DEFAULT_INGESTION_TAXONOMY_ROLE,
+    taxonomy_memory_authority: str = DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY,
+) -> IngestionPipelineResult:
+    normalized_text = text.strip()
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    source_task_id = f"note-{timestamp}"
+    candidate = StagedCandidate(
+        candidate_id="",
+        text=normalized_text,
+        source_task_id=source_task_id,
+        topic=topic,
+        source_kind=OPERATOR_NOTE_SOURCE_KIND,
+        source_ref="note://operator",
+        source_object_id=f"note-{uuid4().hex[:12]}",
+        submitted_by=submitted_by,
+        taxonomy_role=taxonomy_role,
+        taxonomy_memory_authority=taxonomy_memory_authority,
+    )
+
+    persisted_candidate = candidate if dry_run else submit_staged_candidate(base_dir, candidate)
+    return IngestionPipelineResult(
+        source_path="note://operator",
+        detected_format="operator_note",
+        staged_candidates=[persisted_candidate],
         dry_run=dry_run,
     )
 
