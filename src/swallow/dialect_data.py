@@ -19,6 +19,7 @@ DEFAULT_EXECUTOR = "aider"
 EXECUTOR_ALIASES = {
     "": DEFAULT_EXECUTOR,
     "aider": "aider",
+    "codex": "codex",
     "claude-code": "claude-code",
     "claude_code": "claude-code",
     "http": "http",

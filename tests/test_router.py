@@ -17,6 +17,7 @@ from swallow.router import (
     build_detached_route,
     current_route_capability_profiles,
     current_route_weights,
+    normalize_route_name,
     route_by_name,
     route_for_executor,
     route_for_mode,
@@ -76,6 +77,13 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(route.name, "local-aider")
         self.assertEqual(route.fallback_route_name, "local-summary")
 
+    def test_route_for_executor_returns_builtin_codex_route(self) -> None:
+        route = route_for_executor("codex")
+
+        self.assertEqual(route.name, "local-codex")
+        self.assertEqual(route.executor_name, "codex")
+        self.assertEqual(route.fallback_route_name, "local-summary")
+
     def test_route_for_executor_returns_builtin_http_route(self) -> None:
         route = route_for_executor("http")
 
@@ -88,6 +96,10 @@ class RouteRegistryTest(unittest.TestCase):
 
         self.assertEqual(route.name, "local-claude-code")
         self.assertEqual(route.fallback_route_name, "local-summary")
+
+    def test_normalize_route_name_keeps_local_codex_stable(self) -> None:
+        self.assertEqual(normalize_route_name("local-codex"), "local-codex")
+        self.assertEqual(normalize_route_name("local-codex-detached"), "local-codex-detached")
 
     def test_route_for_mode_supports_http_mode(self) -> None:
         route = route_for_mode("http")

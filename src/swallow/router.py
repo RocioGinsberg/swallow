@@ -40,10 +40,7 @@ ROUTE_MODE_ALIASES = {
     "summary": "summary",
 }
 
-ROUTE_NAME_ALIASES = {
-    "local-codex": "local-aider",
-    "local-cline": "local-claude-code",
-}
+ROUTE_NAME_ALIASES: dict[str, str] = {}
 
 
 def _registered_executor_name(raw_name: str | None) -> str:
@@ -281,6 +278,30 @@ def _build_builtin_route_registry() -> RouteRegistry:
                 executor_name="aider",
                 backend_kind="local_cli",
                 model_hint="aider",
+                dialect_hint="plain_text",
+                fallback_route_name="local-summary",
+                executor_family="cli",
+                execution_site="local",
+                remote_capable=False,
+                transport_kind="local_process",
+                capabilities=RouteCapabilities(
+                    execution_kind="code_execution",
+                    supports_tool_loop=True,
+                    filesystem_access="workspace_write",
+                    network_access="optional",
+                    deterministic=False,
+                    resumable=True,
+                ),
+                taxonomy=TaxonomyProfile(
+                    system_role="general-executor",
+                    memory_authority="task-state",
+                ),
+            ),
+            RouteSpec(
+                name="local-codex",
+                executor_name="codex",
+                backend_kind="local_cli",
+                model_hint="codex",
                 dialect_hint="plain_text",
                 fallback_route_name="local-summary",
                 executor_family="cli",

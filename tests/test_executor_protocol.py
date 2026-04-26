@@ -424,7 +424,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(state.route_name, "http-claude")
         self.assertEqual(http_post.call_count, 1)
 
-    def test_run_executor_inline_falls_back_from_http_to_local_summary_when_cline_is_unavailable(self) -> None:
+    def test_run_executor_inline_falls_back_from_http_to_local_summary_when_cli_fallback_is_unavailable(self) -> None:
         state = _http_state(
             route_name="http-glm",
             route_model_hint="glm-4.5-air",
