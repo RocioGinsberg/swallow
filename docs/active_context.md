@@ -7,9 +7,9 @@
 - latest_completed_slice: `Phase Closeout`
 - active_track: `Knowledge / RAG`
 - active_phase: `Phase 60`
-- active_slice: `Implementation`
+- active_slice: `Phase Closeout`
 - active_branch: `feat/phase60-retrieval-policy`
-- status: `phase60_design_gate_ready_for_commit`
+- status: `phase60_ready_for_human_merge_gate`
 
 ---
 
@@ -38,17 +38,21 @@ Phase 58 (Knowledge Capture) 和 Phase 59 (Codex CLI Route) 均已合并到 main
 - **[Codex]** Phase 60 文档口径修正（2026-04-26）：移除 HTTP 默认 repo 表述，明确 repo source 显式化
 - **[Codex]** 长期设计文档补充（2026-04-26）：`KNOWLEDGE.md` 明确 repo/notes/knowledge source 语义，`AGENT_TAXONOMY.md` 明确 HTTP/CLI/Specialist 生态位，`ARCHITECTURE.md` 增加全局执行生态位表
 - **[Codex]** roadmap / kickoff 复核修正（2026-04-26）：补充长期设计锚点、Specialist 不误分类约束、当前分支与文档 gate 状态
+- **[Human]** Phase 60 S1 已提交：`feat(retrieval): add phase60 s1 route-aware source policy`
+- **[Human]** Phase 60 S2 已提交：`test(retrieval): cover explicit http source policy`
+- **[Human]** Phase 60 S3 已提交：`feat(retrieval): add explicit retrieval source overrides`
+- **[Human]** Phase 60 review fix 已提交：`test(phase60): fix review regression assertions`
+- **[Codex]** Phase 60 S3 已完成实现并通过 `.venv` 定向 pytest：`TaskSemantics.retrieval_source_types` 已支持显式 override、合法 source 校验、保序去重；planning handoff / semantics report 不再丢失 override
+- **[Claude]** Phase 60 review 已完成（2026-04-26）：1 BLOCK + 1 CONCERN，详见 `docs/plans/phase60/review_comments.md`
+- **[Codex]** Phase 60 closeout 已完成：`docs/plans/phase60/closeout.md` 与 `pr.md` 已同步，`.venv` 全量非 eval pytest `535 passed`
 
 进行中：
 
-- Phase 60 implementation 尚未开始；当前先完成文档对齐。
+- 无。
 
 待执行：
 
-- **[Codex]** S1: `_RETRIEVAL_SOURCE_POLICY` 常量 + `_select_source_types()` + autonomous CLI path 收紧（`orchestrator.py`）
-- **[Codex]** S2: HTTP path 显式规则为 `["knowledge", "notes"]`，补齐 task_family 覆盖；legacy fallback 保留旧三源兼容
-- **[Codex]** S3: `TaskSemantics.retrieval_source_types` 可选 key + explicit override 机制，并覆盖 Specialist / explicit input_context 不被误伤
-- **[Claude]** 实现完成后进行 review
+- **[Human]** 审阅 closeout / PR 文案并执行 push / PR / merge 决策
 
 当前阻塞项：
 
@@ -58,8 +62,9 @@ Phase 58 (Knowledge Capture) 和 Phase 59 (Codex CLI Route) 均已合并到 main
 
 ## 当前下一步
 
-1. **[Human]** 审查并提交文档口径修正。
-2. **[Codex]** 提交后开始 S1 实现，先核实 `build_task_retrieval_request()` 所有调用点的 `route_executor_family` 写入时机（见 risk_assessment.md R2）。
+1. **[Human]** 审阅 `docs/plans/phase60/closeout.md` 与 `pr.md`。
+2. **[Human]** push 当前分支并创建 / 更新 PR。
+3. **[Human]** 基于 review、closeout 与全量测试结果执行 merge 决策。
 
 ---
 
@@ -70,3 +75,6 @@ Phase 58 (Knowledge Capture) 和 Phase 59 (Codex CLI Route) 均已合并到 main
 - `docs/plans/phase60/kickoff.md`（claude, 2026-04-26）
 - `docs/plans/phase60/design_decision.md`（claude, 2026-04-26）
 - `docs/plans/phase60/risk_assessment.md`（claude, 2026-04-26）
+- `docs/plans/phase60/review_comments.md`（claude, 2026-04-26）
+- `docs/plans/phase60/closeout.md`（codex, 2026-04-26）
+- `pr.md`（codex, 2026-04-26, Phase 60 merge prep）
