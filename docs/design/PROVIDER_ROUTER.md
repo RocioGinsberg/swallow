@@ -1,225 +1,282 @@
-# 模型路由与能力协商 (Provider Router)
+# Provider Router & Negotiation
 
 > **Design Statement**
-> Provider Router 负责把上层已经做过策略判断的逻辑能力需求，映射到物理模型路由上。它主要服务于受控 HTTP 调用路径，在 route 选择、方言适配、fallback 与 telemetry 上提供强控制；对黑盒 agent 路径只保留边界化的外部治理与观测能力。它不是全能 negotiator，也不是编排层的替代品。
+> Provider Router 把上层(Orchestrator)已经做过策略判断的逻辑能力需求,映射到物理模型路由上。它服务于 Path A 和 Path C(Path C 内部多次调用 Path A,治理穿透),不参与 Path B。它在 route 选择、方言适配、fallback 与 telemetry 上提供强控制——**仅此而已**。
 
-> 全局原则见 → `ARCHITECTURE.md §1`。两条调用路径的定义见 → `ARCHITECTURE.md §4`。
+> 项目不变量见 → `INVARIANTS.md`(权威)。三条调用路径定义见 `INVARIANTS.md §4`。
 
 ---
 
-## 1. Gateway 设计哲学
+## 1. Provider Router 做什么 / 不做什么
 
-### 1.1 核心职责
+### 1.1 做什么
+
+```python
+def resolve(logical_request: LogicalCallRequest) -> PhysicalCallPlan:
+    # 1. 接收逻辑能力需求(由 Orchestrator 组装好的)
+    # 2. 查 route_registry,过 capability boundary guard(unsupported_task_types)
+    # 3. 按 quality_weight 排序候选 routes
+    # 4. 选第一个 healthy 的 route,返回 PhysicalCallPlan(provider, endpoint, payload_template, fallback_chain)
+```
 
 | 职责 | 说明 |
 |---|---|
-| 接收逻辑需求 | 上层（编排层）已完成策略判断后，传入 route hint / dialect hint / capability 需求 |
-| 选择物理 route | 从 Route Registry 中匹配最合适的物理通道 |
+| 接收逻辑需求 | 上层传入 route hint / dialect hint / capability 需求 |
+| 选择物理 route | 从 `route_registry` 中匹配最合适的物理通道 |
 | 方言适配 | 把统一语义请求翻译成目标模型的最优输入格式 |
 | Fallback 执行 | 物理通道不可用时沿降级链切换 |
-| Telemetry 回收 | 记录 route 维度的遥测数据供 Meta-Optimizer 消费 |
+| Telemetry 回收 | 写入 `event_telemetry` 与 `route_health` 供 Meta-Optimizer 消费 |
 
-### 1.2 不承担的职责
+### 1.2 不做什么
 
-以下决策属于编排层，Provider Router 不应越权：
+以下决策属于 Orchestrator,Provider Router **不得越权**:
 
-- 任务域判断（工程 / 研究 / 日常）
+- 任务域判断(工程 / 研究 / 日常)
 - 风险等级判断
-- 是否进入 `waiting_human` 的最终裁决
+- 任务复杂度评估
+- 是否进入 `waiting_human` 的决策
 - 高层任务分解与执行器角色分派
+- 失败重试是否进行 / 重试次数(只做单次 fallback chain 切换,不做语义级 retry)
+- 是否切换 Path A / B / C(那是 Strategy Router 的职责)
 
-### 1.3 四条设计准则
+`test_path_b_does_not_call_provider_router`(INVARIANTS §9 守卫)从代码层确保 Path B 不调用 Provider Router。Path C 通过 Path A 间接调用,不绕过。
+
+---
+
+## 2. 三条调用路径下的 Router 角色
+
+| 路径 | Router 是否参与 | 控制粒度 |
+|---|---|---|
+| **Path A**(controlled HTTP) | ✅ 主战场 | route selection + dialect + fallback + telemetry |
+| **Path B**(agent black-box) | ❌ 不参与 | agent 内部决定模型,Swallow 不直接控制 |
+| **Path C**(specialist internal) | ✅ 穿透 | Specialist 内部多次调用 Path A,每次都经过 Router |
+
+Path C 穿透规则:Specialist 不允许在内部维护自己的 provider 连接、自己的方言适配或自己的 fallback 链。它发出的每次 LLM 调用都是一次 Path A 调用,完整经过 `resolve()`。
+
+`test_specialist_internal_llm_calls_go_through_router` 守卫验证 Specialist 代码路径中没有绕过 Router 的直连。
+
+---
+
+## 3. 四条设计准则
 
 | 准则 | 含义 |
 |---|---|
-| **逻辑身份 ≠ 物理身份** | 系统请求"强推理"或"长上下文"等逻辑能力，网关负责翻译为物理 endpoint |
-| **能力语义 ≠ 供应商语义** | Swallow 内部词汇（task family / capability tier / dialect hint）与供应商产品命名互不混淆 |
-| **聚合器是上游，不是网关** | OpenRouter / AiHubMix / new-api 等是连接层，不是 Swallow 的架构中心 |
-| **本地模型是一等公民** | 本地 HTTP 兼容接口、CLI 路径与云端 API 共享同一套 route metadata 体系 |
+| **逻辑身份 ≠ 物理身份** | 系统请求"强推理"或"长上下文"等逻辑能力,Router 翻译为物理 endpoint |
+| **能力语义 ≠ 供应商语义** | Swallow 内部词汇(task family / capability tier / dialect hint)与供应商产品命名互不混淆 |
+| **聚合器是上游,不是网关** | OpenRouter / AiHubMix / new-api 等是连接层,不是 Swallow 的架构中心 |
+| **本地模型是一等公民** | 本地 HTTP 兼容接口与云端 API 共享同一套 route metadata 体系 |
 
 ---
 
-## 2. Controlled HTTP Path vs Black-box Agent Path
+## 4. 推迟绑定原则
 
-这是 Provider Router 最关键的作用域边界。
+### 4.1 上层传入的标准契约
 
-### 2.1 受控 HTTP 路径——Provider Router 的主战场
-
-```
-TaskState + RetrievalItems → Router → route_model_hint / dialect_hint → HTTPExecutor → HTTP API
-```
-
-Provider Router 在此路径上精细控制：route selection、model 字段映射、dialect / request formatting、payload shape、fallback chain、degraded telemetry。
-
-### 2.2 黑盒 agent 路径——边界化治理
-
-```
-TaskState → CLIAgentExecutor / external agent → agent 内部模型处理 → model/provider
+```python
+class LogicalCallRequest:
+    capability_tier: str           # "strong_reasoning" / "long_context" / ...
+    task_family: str               # 用于 telemetry 关联
+    dialect_hint: str | None       # "claude_xml" / "plain_text" / "fim" / None
+    executor_id: str               # 用于 capability boundary check
+    prompt_ingredients: PromptBundle    # 结构化 prompt 片段
+    context_assembly: AssembledContext  # 已组装好的上下文
+    # 不传入厂商专有 payload
 ```
 
-Agent 内部的模型选择、prompt 组织、工具调用和 subagent 行为不受 Provider Router 直接控制。Swallow 转向控制任务边界、rules / skills / subagents、input/output contract、升级/降级策略、成本与行为观测。
+### 4.2 推迟绑定
 
-**结论**：方言适配器主要服务于受控 HTTP path；黑盒 agent path 主要依赖 executor governance。
+直到实际发起网络调用的最后一刻,才将统一语义绑定到具体 provider / endpoint / payload。
+
+应用层禁止出现 `if provider == "openai":` 之类的硬编码。`grep` 守卫检测此类分支。
 
 ---
 
-## 3. 统一语义与推迟绑定
+## 5. 方言适配
 
-### 3.1 上层传入网关的标准契约
+### 5.1 什么是方言适配器
 
-- 逻辑 route hint
-- dialect hint
-- executor / backend selection result
-- 结构化 prompt ingredients
-- context assembly output
+把统一语义请求翻译成特定模型 / 后端更擅长接收的格式的翻译层。当前已知的方言:
 
-不传入厂商专有 payload。
+- Claude XML 风格
+- Plain Text 风格
+- FIM(Fill-in-the-Middle)风格
 
-### 3.2 推迟绑定原则
+### 5.2 它解决什么
 
-直到实际发起网络调用的最后一刻，才将统一语义绑定到具体 provider / endpoint / payload 结构。应用层不应出现 `if provider == "xxx"` 之类的硬编码。
+同一任务意图在不同模型上的最优输入格式不同;同一上下文在不同后端的 payload 结构不同。
 
----
+### 5.3 作用域边界
 
-## 4. 方言适配的正确定位
+**方言适配器只服务于 Path A / Path C**(它们的本质都是 controlled HTTP)。它不是:
 
-### 什么是方言适配器
-
-把统一语义请求翻译成特定模型/后端更擅长接收的格式的翻译层。已有适配器包括 Claude XML 风格、Plain Text 风格、FIM 风格。
-
-### 它解决什么
-
-同一任务意图在不同模型上的最优输入格式不同；同一上下文在不同后端的 payload 结构不同。
-
-### 它的作用域
-
-限定在 **HTTPExecutor 能直接控制的调用路径**。它不是所有 agent 内部 prompt 的统一控制器，也不是编排层的替代品。
+- Path B 的 prompt 控制器(Path B 由 agent 内部决定)
+- Orchestrator 的替代品(它不做策略决策)
+- 跨任务的全局 prompt 模板(那是 Harness 的 skills 层)
 
 ---
 
-## 5. Route 选择策略
+## 6. Route 选择策略
 
-### 5.1 Route Metadata
+### 6.1 Route Metadata
 
-每条 route 携带以下元数据：
+每条 route 的元数据由 `route_registry` 表持久化(见 DATA_MODEL.md §3.4)。核心字段:
 
 | 字段 | 说明 |
 |---|---|
-| model family / model hint | 模型族与具体模型提示 |
-| dialect hint | 方言适配器标识 |
-| backend kind | HTTP / CLI / local |
-| transport kind | 传输方式 |
-| fallback route | 降级目标 |
-| quality_weight | operator 可调整的质量权重（1.0=正常，<1.0=降权，0.0=禁用） |
-| unsupported_task_types | 该 route 明确不支持的任务类型列表（如 `image_generation`、`audio_synthesis`） |
-| cost / latency / reliability traits | 成本、延迟与可靠性画像 |
+| `model_family` / `model_hint` | 模型族与具体模型提示 |
+| `dialect_hint` | 方言适配器标识 |
+| `backend_kind` | http / cli / local |
+| `transport_kind` | 传输方式 |
+| `fallback_route_id` | 降级目标 |
+| `quality_weight` | operator 可调整的质量权重(1.0=正常,<1.0=降权,0.0=禁用) |
+| `unsupported_task_types` | 该 route 明确不支持的任务类型列表 |
+| `cost_profile` | 成本、延迟与可靠性画像 |
 
-### 5.1.1 能力画像（Route Capability Profile）
+### 6.2 选择算法
 
-Route metadata 的长期演进方向是支持**能力画像评分**——在 quality_weight 之上，为每条 route 维护任务维度的能力评分（如 reasoning / code_edit / long_context），用于多候选时的评分匹配，替代纯规则的确定性选择。
+```python
+def resolve(req: LogicalCallRequest) -> PhysicalCallPlan:
+    # 第一层:capability boundary guard(硬过滤,零 LLM 成本)
+    candidates = [r for r in route_registry
+                  if req.task_family not in r.unsupported_task_types]
 
-能力画像的维护原则：
-- **隐式信号优先**：从 event truth 自动聚合（成功率、review gate 通过率、retry 次数、成本）
-- **外部知识摄入**：官网/文档对模型能力边界的描述（如"不支持生图"）通过 `swl ingest` 管道以 `source=model-intel` 标签进入 staged knowledge，operator 确认后 promote 为 route metadata 更新提案
-- **Proposal over mutation**（P7 原则）：画像更新以提案形式产出，operator 确认后应用，不自动突变
-- **Meta-Optimizer 消费**：Meta-Optimizer 扫描遥测数据后可产出能力画像更新提案，与路由优化提案共享同一 proposal 机制
+    # 第二层:健康过滤
+    candidates = [r for r in candidates if route_health[r].status != "down"]
 
-### 5.1.2 能力边界守卫（Capability Boundary Guard）
+    # 第三层:能力 tier 匹配
+    candidates = [r for r in candidates
+                  if matches_capability(r, req.capability_tier)]
 
-`unsupported_task_types` 字段服务于**第一层规则匹配**（零 LLM 成本）：Strategy Router 在路由决策前检测任务类型与 route 的不支持列表是否冲突，冲突时直接拒绝并建议替换 route，不进入后续匹配逻辑。
+    # 第四层:按 quality_weight 排序(quality_weight=0 等价于完全淘汰)
+    candidates.sort(key=lambda r: -r.quality_weight)
+    candidates = [r for r in candidates if r.quality_weight > 0]
 
-设计动机：模型能力边界是相对稳定的事实（Opus 不能生图、纯文本模型不能处理音频），不需要每次路由时调用 LLM 判断。把这类知识静态维护在 route metadata 里，比第三层 LLM 辅助路由更轻、更可靠、更可维护。
+    if not candidates:
+        raise NoRouteAvailable(req)
 
-`unsupported_task_types` 的维护路径：
-1. 官网/文档描述 → `swl ingest --source model-intel` → staged knowledge
-2. operator review → promote → route metadata 更新提案
-3. `swl route weights apply` 或专用 CLI 应用更新
+    return build_plan(candidates[0], req, fallback_chain=candidates[1:])
+```
 
-当前实现（Phase 50）：quality_weight 字段已落地，多候选按权重排序。`unsupported_task_types` 与能力画像评分为未来扩展方向，不在当前 phase 实现。
+### 6.3 `unsupported_task_types` 与 `quality_weight` 的合并规则
 
-### 5.2 选择关注点
+权威定义:
 
-1. 逻辑能力是否匹配
-2. 物理 route 是否健康
-3. 后端是否可用
-4. 降级链是否存在
-5. 该 route 属于 HTTP controlled path 还是 black-box agent path
+> **`unsupported_task_types` 是硬过滤(出局),`quality_weight` 是软排序(降权)。先硬过滤再软排序。`quality_weight = 0.0` 等价于把所有 task_type 都加进 `unsupported_task_types` 的语法糖。**
 
-### 5.3 编排层 vs 网关层的决策边界
+不允许实现层把这两个字段当成"二选一"或"AND/OR 任意组合"——顺序固定:**第一层硬过滤 → 第二层健康 → 第三层能力 tier → 第四层 quality_weight 排序**。
 
-| 决策 | 编排层 | 网关层 |
-|---|---|---|
-| 任务值不值得走高阶执行器 | ✅ | — |
-| 应否降级任务粒度 | ✅ | — |
-| 该不该进入 waiting_human | ✅ | — |
-| 选定路径后如何发出请求 | — | ✅ |
-| 失败后沿哪条 fallback 切换 | — | ✅ |
-| 切换后如何记录 degraded telemetry | — | ✅ |
+### 6.4 能力画像(远期方向)
 
+为每条 route 维护任务维度的能力评分(reasoning / code_edit / long_context),用于多候选时的评分匹配,替代纯 quality_weight 排序。
+
+维护原则:
+
+- **隐式信号优先**:从 `event_telemetry` 自动聚合(成功率、review pass rate、retry 次数、成本)
+- **外部知识摄入**:官网/文档对模型能力边界的描述通过 `swl ingest --source model-intel` 进入 staged knowledge,operator 确认后 promote 为 route metadata 更新提案
+- **Proposal over mutation**(P7):画像更新以提案形式产出,operator 确认后通过 `apply_proposal` 应用,不自动突变
+- **Meta-Optimizer 消费**:Meta-Optimizer 扫描遥测后可产出能力画像更新提案
+
+当前 phase 不实现,但 schema 不阻塞此扩展。
+
+### 6.4.1 聚合 → proposal → 应用,不允许直接修改
+
+从遥测聚合产生的画像更新**只能产生 proposal artifact**,不能直接修改 `route_registry.quality_weight` 或其他 metadata 字段。完整路径:
+```
+event_telemetry 聚合
+    → Meta-Optimizer / 画像聚合器 产出 proposal artifact
+    → operator 审阅
+    → operator 通过 apply_proposal 应用
+    → route_registry 更新
+```
+
+理由:聚合本身是一种推断,可能产生误判(短期波动、特定任务族的偶发失败)。把"聚合"和"应用"分离,确保短期遥测异常不会自动突变长期路由策略。这是 P7(Proposal over mutation)在 Provider Router 域的具体体现。
+
+`test_route_metadata_writes_only_via_apply_proposal` 守卫测试验证 `route_registry` 的 metadata 字段写入路径只来自 `apply_proposal`(`route_health` 表的 append-only 写入不在此约束内,见 §1.1)。
 ---
 
-## 6. Graceful Degradation & Fallback
+## 7. Fallback 与降级
 
-### 6.1 Provider Router 处理的 fallback 范围
+### 7.1 Provider Router 处理的 fallback 范围
 
-- 物理通道不可用（HTTP 429 / timeout / 5xx）
+- 物理通道不可用(HTTP 429 / timeout / 5xx)
 - route health 异常
-- 预定义 fallback route chain 切换
+- 预定义 `fallback_route_id` 链切换
 
-它**不**独立决定：是否允许弱模型承担高风险任务、是否挂起到 waiting_human、是否缩小任务粒度。这些由编排层裁决。
+它**不**独立决定:
 
-### 6.2 降级优先级
+- 是否允许弱模型承担高风险任务(那是 Strategy Router 的能力下限断言)
+- 是否挂起到 `waiting_human`(那是 Review Gate)
+- 是否缩小任务粒度(那是 Planner)
 
-1. HTTP 内部降级优先——先在同类 HTTP 路径内切换
-2. CLI / agent 兜底——受控 HTTP path 全链路不可用时再考虑
-3. Review 校准信任——降级后产出信任度不自动等同于主路径产出
+### 7.2 降级优先级
 
-### 6.3 Degraded Telemetry
+1. **同 path 内降级优先**——先在 Path A 内切换到 fallback route
+2. **不跨 path 自动切换**——Path A 全链路不可用时,Router 返回失败,由 Orchestrator 决定是否降级到 Path B 或挂起
+3. **Review 校准信任**——降级后产出信任度由 Review Gate 处理,不由 Router 决定
 
-所有降级事件显式记录：`degraded` 标记、`original_route`、`fallback_route`、关联的 task family / logical model / physical route。
+### 7.3 Degraded Telemetry
+
+所有降级事件显式记录到 `event_telemetry`:
+
+```
+{
+  "degraded": true,
+  "original_route": "<route_id>",
+  "fallback_route": "<route_id>",
+  "task_family": "<family>",
+  "logical_capability": "<tier>",
+  "physical_route": "<route_id>",  # 实际使用的 route
+  "error_code": "<code>",
+}
+```
 
 ---
 
-## 7. Swallow Gateway Core vs Provider Connector Layer
+## 8. Swallow Gateway Core vs Provider Connector Layer
 
 | 层 | 持有者 | 职责 |
 |---|---|---|
-| **Swallow Gateway Core**（自建） | Swallow | route resolution、dialect adapters、fallback semantics、telemetry semantics |
-| **Provider Connector Layer** | new-api / OpenRouter / AiHubMix 等 | 渠道管理、key 管理、协议兼容、格式互转 |
+| **Swallow Gateway Core**(自建) | Swallow | route resolution、dialect adapters、fallback semantics、telemetry semantics |
+| **Provider Connector Layer**(可选上游) | new-api / OpenRouter / AiHubMix 等 | 渠道管理、key 管理、协议兼容、格式互转 |
 
-Swallow 保留 route identity、routing semantics、fallback semantics 和 telemetry semantics 的核心控制权，不坍缩为某个聚合器的薄封装。
+Swallow 保留 route identity、routing semantics、fallback semantics 与 telemetry semantics 的核心控制权,**不坍缩为某个聚合器的薄封装**。
 
 ---
 
-## 8. 可观测性要求
+## 9. 可观测性要求
 
-网关遥测不能只停留在 HTTP 状态码 / QPS / token usage / latency。更关键的是与任务语义绑定：
+`event_telemetry` 不能只停留在 HTTP 状态码 / QPS / token usage / latency。必须与任务语义绑定:
 
 | 观测维度 | 价值 |
 |---|---|
 | 哪类 task family 上某 route 最不稳定 | 帮助 Meta-Optimizer 做战略判断 |
 | 哪类 fallback 最常发生 | 识别系统性通道问题 |
-| 哪类 degraded 结果最容易触发 review failure | 帮助编排层调整能力下限断言 |
+| 哪类 degraded 结果最容易触发 review failure | 帮助 Strategy Router 调整能力下限断言 |
 
 ---
 
-## 9. 与其他层的接口
+## 10. 与其他文档的接口
 
-| 对接层 | 接口关系 |
+| 对接文档 | 接口关系 |
 |---|---|
-| **Orchestrator** | 编排层做策略判断后，传入逻辑需求；网关层返回执行结果与 telemetry |
-| **Harness** | Harness 提供执行环境，Provider Router 提供物理路径选择 |
-| **State & Truth** | route / degraded / fallback 元数据记录到 Route Truth |
-| **Self-Evolution** | Meta-Optimizer 只读消费 route telemetry，产出优化提案 |
+| `INVARIANTS.md` | 三条路径定义、写权限矩阵的权威 |
+| `DATA_MODEL.md` | `route_registry` / `route_health` / `event_telemetry` 物理 schema |
+| `ORCHESTRATION.md` | Strategy Router(在 Orchestrator 内)做策略判断后,传入逻辑需求;Router 返回执行结果与 telemetry |
+| `HARNESS.md` | Harness 提供执行环境,Router 提供物理路径选择 |
+| `EXECUTOR_REGISTRY.md` | executor 与 Path 的映射;HTTP Executor 是 Router 的主要客户 |
+| `SELF_EVOLUTION.md` | Meta-Optimizer 只读消费 route telemetry,产出优化提案 |
 
 ---
 
-## 附录 A：Anti-Patterns
+## 附录 A:Anti-Patterns
 
 | 反模式 | 说明 |
 |---|---|
-| **方言 = 通用 prompt 控制** | 把方言适配器误写成黑盒 agent 的内部 prompt 控制器 |
-| **网关越权** | 网关层接管编排层的任务域判断或 waiting_human 裁决 |
-| **聚合器中心化** | 让 new-api / OpenRouter 成为架构中心，Swallow 退化为薄封装 |
-| **无差别硬降级** | fallback 逻辑变成"任何情况都自动降级"，不经编排层确认 |
-| **路径不分** | 忽略 controlled HTTP path 与 black-box agent path 的根本差异 |
+| **方言 = 通用 prompt 控制** | 把方言适配器误写成 Path B 的内部 prompt 控制器 |
+| **Router 越权** | Router 接管任务域判断、复杂度评估或 waiting_human 决策 |
+| **聚合器中心化** | 让 new-api / OpenRouter 成为架构中心,Swallow 退化为薄封装 |
+| **无差别硬降级** | fallback 逻辑变成"任何情况都自动降级",不经 Orchestrator 确认 |
+| **Specialist 直连 Provider** | Specialist 内部维护自己的 provider 连接,绕过 Router(违反 INVARIANTS §4 Path C) |
+| **Path B 调用 Router** | Path B executor 试图通过 Router 选择模型(违反 INVARIANTS §4 Path B) |
+| **`unsupported_task_types` 与 `quality_weight` 混用** | 把两个字段当成可任意组合的过滤器,不遵循 §6.3 的顺序 |
+| **Provider 硬编码** | `if provider == "xxx"` 类型的分支出现在应用层 |
