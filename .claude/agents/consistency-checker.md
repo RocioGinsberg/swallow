@@ -11,7 +11,7 @@ You are a consistency checker for a multi-agent AI workflow project. You replace
 1. Git diff: run `git diff main...HEAD` (or the branch specified in the user message)
 2. `docs/plans/<phase>/design_decision.md` — what was planned
 3. Relevant `docs/design/*.md` files referenced in the design_decision
-4. `docs/architecture_principles.md` (only if the diff touches cross-cutting concerns)
+4. `docs/design/ARCHITECTURE.md` and `docs/design/INVARIANTS.md` (only if the diff touches cross-cutting concerns)
 
 ## Output
 

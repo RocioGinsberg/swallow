@@ -1,6 +1,6 @@
 # 共享规则
 
-本文件规定所有 agent（Gemini、Claude、Codex）在本仓库中工作时应共同遵守的规则。
+本文件规定所有 agent（Claude、Codex）在本仓库中工作时应共同遵守的规则。
 角色专属规则见各 agent 目录下的 `rules.md`。
 
 ---
@@ -111,7 +111,7 @@
 #### 条件更新
 - `AGENTS.md`（active 方向变化时）
 - `.codex/session_bootstrap.md`（读取顺序或 phase 路径变化时）
-- `README.md` / `README.zh-CN.md`（对外使用方式变化时）
+- `README.md`（对外使用方式变化时；本仓库当前使用单文件双语 README）
 
 ---
 
@@ -133,7 +133,7 @@
 
 ```yaml
 ---
-author: gemini | claude | codex
+author: claude | codex
 phase: <phase-number>
 slice: <slice-name>
 status: draft | review | approved | final
@@ -191,7 +191,7 @@ frontmatter 之后、正文之前，必须有 ≤3 行的 TL;DR 摘要。
 
 - **Claude**：kickoff 中为适用的 slice 定义 eval 验收条件（如 precision ≥ 0.8 / recall ≥ 0.7），标注哪些 slice 需要 eval 覆盖
 - **Codex**：实现 `tests/eval/` 下的 eval 测试，准备 golden dataset fixture
-- **Gemini**：context_brief 中识别哪些模块的体验质量需要 eval 覆盖
+- **context-analyst subagent**：context_brief 中识别哪些模块的体验质量需要 eval 覆盖
 
 ### 何时需要 eval
 

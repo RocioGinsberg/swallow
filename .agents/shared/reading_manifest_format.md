@@ -30,7 +30,7 @@ Ready to: <这一轮准备做什么>
 
 `(<one-line summary>)` 不是文件全文摘要,只是**让 human 看一眼就知道 agent 抓到了关键 anchor**。例如:
 
-- INVARIANTS.md 的 summary 应该是 "constitution v1.x" 或包含具体的 §X 锚点
+- `docs/design/INVARIANTS.md` 的 summary 应该是 "constitution v1.x" 或包含具体的 §X 锚点
 - active_context.md 的 summary 应该是 "current: Phase 60 S2 in progress"
 - closeout.md 的 summary 应该是 "Phase 59 closed, no open BLOCK"
 
@@ -46,11 +46,11 @@ Reading manifest:
   ✓ .agents/shared/document_discipline.md (5 disciplines acknowledged)
   ✓ .agents/claude/role.md (role: planner / reviewer / risk assessor)
   ✓ .agents/claude/rules.md (no codegen / no commit / no PR)
-  ✓ INVARIANTS.md (constitution loaded; 4 inviolable rules)
+  ✓ docs/design/INVARIANTS.md (constitution loaded; 4 inviolable rules)
   ✓ AGENTS.md (collaboration rules; 2-agent + human)
   ✓ docs/active_context.md (current: Phase 60 design phase)
-  ✓ docs/plans/Phase60/kickoff.md (retrieval policy slicing identified)
-  ⚠ docs/plans/Phase60/design_decision.md (does not exist yet, will produce this session)
+  ✓ docs/plans/phase60/kickoff.md (retrieval policy slicing identified)
+  ⚠ docs/plans/phase60/design_decision.md (does not exist yet, will produce this session)
 Ready to: produce design_decision.md and risk_assessment.md for Phase 60
 ```
 
@@ -66,12 +66,12 @@ Reading manifest:
   ✓ .agents/shared/document_discipline.md
   ✓ .agents/codex/role.md (role: implement / test / commit suggestions)
   ✓ .agents/codex/rules.md
-  ✓ INVARIANTS.md (constitution loaded)
+  ✓ docs/design/INVARIANTS.md (constitution loaded)
   ✓ AGENTS.md (collaboration rules)
   ✓ docs/active_context.md (current: Phase 60 S2 implementation pending)
-  ✓ docs/plans/Phase60/design_decision.md (approved; retrieval source policy)
-  ✓ docs/plans/Phase60/breakdown.md (S2: HTTP path default sources)
-  ✗ docs/plans/Phase59/closeout.md (skipped; Phase 59 already merged, no relevance)
+  ✓ docs/plans/phase60/design_decision.md (approved; retrieval source policy)
+  ✓ docs/plans/phase60/breakdown.md (S2: HTTP path default sources)
+  ✗ docs/plans/phase59/closeout.md (skipped; Phase 59 already merged, no relevance)
 Ready to: implement S2 (HTTP path default retrieval sources tightening) per breakdown
 ```
 
@@ -83,10 +83,10 @@ Subagent 的 manifest 更短,只列与其职责相关的输入/输出文件:
 
 ```
 Reading manifest (consistency-checker):
-  ✓ INVARIANTS.md
-  ✓ docs/plans/Phase60/design_decision.md
+  ✓ docs/design/INVARIANTS.md
+  ✓ docs/plans/phase60/design_decision.md
   ✓ swallow/retrieval/__init__.py (latest commit on feat/phase-60-s2)
-  ⚠ docs/plans/Phase60/consistency_report.md (will produce, output_path)
+  ⚠ docs/plans/phase60/consistency_report.md (will produce, output_path)
 Ready to: compare implementation against design_decision and produce consistency_report.md
 ```
 

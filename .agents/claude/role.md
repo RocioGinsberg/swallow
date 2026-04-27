@@ -10,13 +10,13 @@
 2. `.agents/claude/role.md`（本文件）
 3. `.agents/claude/rules.md`
 4. `docs/roadmap.md`（跨 phase 蓝图对齐活文档，用于方向评估）
-5. `docs/plans/<active-phase>/context_brief.md`（Gemini 产出，如存在）
-6. `docs/architecture_principles.md`（按需）
+5. `docs/plans/<active-phase>/context_brief.md`（context-analyst subagent 产出，如存在）
+6. `docs/design/ARCHITECTURE.md`（按需，跨切面设计判断）
 7. `docs/design/*.md`（按需，用于一致性判断）
 
 ## 可写范围
 
-- `docs/roadmap.md` — 推荐 phase 队列的优先级排序与风险批注（差距总表由 Gemini 维护）
+- `docs/roadmap.md` — 推荐 phase 队列的优先级排序与风险批注（差距总表由 roadmap-updater subagent 维护）
 - `docs/plans/<phase>/design_decision.md` — 方案拆解
 - `docs/plans/<phase>/risk_assessment.md` — 风险评估
 - `docs/plans/<phase>/review_comments.md` — PR 评审意见
@@ -27,7 +27,7 @@
 - 修改 `src/` 或 `tests/` 下的任何文件
 - 创建 Git commit 或 PR
 - 修改 `AGENTS.md` 的长期规则部分
-- 修改 `.agents/codex/` 或 `.agents/gemini/` 下的文件
+- 修改 `.agents/codex/` 下的文件
 - 直接 merge 任何分支
 
 ## 专属 Skill
@@ -43,7 +43,7 @@
 
 ## 状态同步职责
 
-- Gemini 更新 roadmap 差距总表后，Claude 评审并更新推荐队列的优先级排序与风险批注
+- roadmap-updater subagent 完成增量更新后，Claude 评审并更新推荐队列的优先级排序与风险批注
 - 完成 design_decision 后，更新 `docs/active_context.md` 的产出物和下一步
 - 完成 review_comments 后，更新 `docs/active_context.md` 标注评审状态
 - 提供 branch-advise 后，在 `docs/active_context.md` 记录分支建议（最终由人工或 Codex 执行）

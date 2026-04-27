@@ -19,7 +19,9 @@ Claude: Roadmap Priority Review
         ↓
 Claude: Design Decomposition
         ↓
- Human: Design Gate ⛔
+[subagent: design-auditor]: Pre-Implementation Design Audit
+        ↓
+ Human: Design Gate ⛔  (审阅 design_decision + design_audit)
         ↓
  Codex: Implementation
         ↓
@@ -93,7 +95,8 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 **输入**：
 - `docs/plans/<phase>/context_brief.md`
-- `docs/architecture_principles.md`
+- `docs/design/INVARIANTS.md`
+- 相关 `docs/design/*.md`（按 kickoff / context_brief 指向按需读取）
 - `docs/plans/<phase>/kickoff.md`
 
 **产出**：
@@ -105,15 +108,43 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 - 执行 `phase-guard`：检查是否越出 scope
 
 **完成后**：
-- 更新 `docs/active_context.md`：登记产出物，下一步设为"等待人工审批 design_decision"
+- 更新 `docs/active_context.md`：登记产出物，下一步设为"运行 design-auditor subagent"
+
+---
+
+## Step 2.5: subagent `design-auditor` — Pre-Implementation Design Audit
+
+**触发条件**：design_decision.md 和 risk_assessment.md 已产出。
+
+**输入**：
+- `docs/plans/<phase>/kickoff.md`
+- `docs/plans/<phase>/design_decision.md`
+- `docs/plans/<phase>/risk_assessment.md`
+
+**产出**：
+- `docs/plans/<phase>/design_audit.md`
+
+**审计视角**：从实现者（Codex）角度检查：
+- 每个 slice 的目标是否足够清晰可以直接开始编码
+- 验收条件是否具体可测
+- 是否有跨 slice 的依赖顺序缺失
+- 是否有 risk_assessment 未覆盖的实现层风险
+
+**发现 [BLOCKER] 时**：
+- 在 `docs/active_context.md` 标注"design-audit BLOCKED: <原因>"
+- 回到 Step 2，Claude 修正 design_decision 后重新运行 design-auditor
+
+**完成后**：
+- 更新 `docs/active_context.md`：登记产出物，下一步设为"Human: Design Gate"
 
 ---
 
 ## Step 3: Human — Design Gate ⛔
 
-**触发条件**：design_decision.md 和 risk_assessment.md 已产出。
+**触发条件**：design_decision.md、risk_assessment.md、design_audit.md 均已产出。
 
 **人工动作**：
+- 阅读 design_audit.md（重点看 Overall verdict 和 [BLOCKER] 项）
 - 阅读 design_decision.md（重点看 TL;DR + slice 拆解 + 风险评级）
 - 阅读 risk_assessment.md（重点看高风险项）
 - 审阅 branch-advise 建议
@@ -219,35 +250,16 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 ## Step 7: Claude & Human — Tag Evaluation Gate
 
-**触发条件**：phase 已 merge 到 main，`current_state.md` 和 `AGENTS.md` 已由 Codex 完成 post-merge 同步。
+**触发条件**：phase 已 merge 到 main，`current_state.md` 和 `docs/active_context.md` 已由 Codex 完成 post-merge 同步。
 
-**Claude 动作（`tag-evaluate` skill）**：
-评估当前 main 是否构成一个有意义的能力里程碑，给出明确建议：
+**详细流程见**：`.agents/workflows/tag_release.md`
 
-- **打 tag**：自上一个 tag 以来有用户可感知的能力增量，且 main 处于稳定状态
-- **不打 tag**：增量较小，建议等下一个 phase 合并后再打
-- **等待**：存在即将消化的 concern 可能改变公共 API，建议 concern 消化后再打
+**本步骤摘要**：
 
-评估时必须考虑：
-- 自上一个 tag 以来的能力增量（对照 `docs/concerns_backlog.md` 中的 Open 项）
-- 当前 main 稳定性（无进行中的重构或已知破坏性问题）
-- 待消化 concern 是否影响公共 API
-
-在 `docs/active_context.md` 记录 tag 建议（打 / 不打 / 等待，附理由）。
-
-**人工动作 (Tag Gate)**：
-- 阅读 Claude 的 tag 建议
-- 决策：打 tag → 执行 `git tag -a v0.x.0 -m "<tag message>"` 并 push
-- 决策：不打 → 在 `docs/active_context.md` 标注"tag deferred"
-
-**Codex 动作（仅在打 tag 后触发）**：
-- 更新 `README.md` / `README.zh-CN.md` 的"当前实现概况"章节与新 tag 对齐
-- 更新 `AGENTS.md` 的"当前系统能力"章节与新 tag 对齐
-- 更新 `AGENTS.md` 顶部的 `当前 tag` 引用
-
-**完成后**：
-- 更新 `docs/active_context.md`：标注 tag 状态，下一步设为"进入下一轮 phase 规划"
-- 运行 `roadmap-updater` subagent 完成本 phase 的 roadmap 增量更新
+1. Claude 运行 `tag-evaluate` skill，在 `docs/active_context.md` 记录建议（打 / 不打 / 等待）
+2. Human 决策（Tag Gate ⛔）
+3. 如打 tag：Codex 同步 release docs → Human commit + 执行 tag → roadmap-updater 更新 tag 记录
+4. 如不打/延迟：在 `docs/active_context.md` 标注原因，流程结束
 
 ---
 

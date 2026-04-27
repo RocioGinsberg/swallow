@@ -6,14 +6,14 @@
 
 ## 一、Roadmap 优先级评审规则
 
-Claude 与 Gemini 共同维护 `docs/roadmap.md`。分工如下：
+Claude 与 roadmap-updater subagent 共同维护 `docs/roadmap.md`。分工如下：
 
-- **Gemini 负责**：蓝图差距总表的事实层（差距发现、蓝图对齐、消化登记）
+- **roadmap-updater subagent 负责**：差距总表的事实层（phase 完成登记、差距状态更新、蓝图对齐标注）
 - **Claude 负责**：推荐 phase 队列的优先级排序与风险批注
 
 ### 评审时机
 
-- Gemini 完成 roadmap 差距总表的增量更新后
+- roadmap-updater subagent 完成增量更新后
 - Human 请求方向建议时
 
 ### 评审内容
@@ -26,8 +26,8 @@ Claude 与 Gemini 共同维护 `docs/roadmap.md`。分工如下：
 
 ### 不做的事
 
-- 不修改差距总表中的蓝图对齐内容（那是 Gemini 的领域）
-- 不自行新增差距条目（发现新差距时通知 Gemini 补充）
+- 不修改差距总表中的蓝图对齐内容（那是 roadmap-updater subagent 的领域）
+- 不自行新增差距条目（发现新差距时在 active_context.md 中标注，由 roadmap-updater 下次运行时补充）
 - 不产出独立的方向评审文档
 
 ---

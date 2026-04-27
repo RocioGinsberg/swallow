@@ -32,7 +32,7 @@
 ### 更新格式示例
 ```markdown
 ## 当前产出物
-- docs/plans/phase19/context_brief.md (gemini, 2026-04-11)
+- docs/plans/phase19/context_brief.md (claude, 2026-04-11)
 - docs/plans/phase19/design_decision.md (claude, 2026-04-11)
 
 ## 当前下一步

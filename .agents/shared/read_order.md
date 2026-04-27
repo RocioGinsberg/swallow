@@ -10,8 +10,12 @@
 
 1. `.agents/shared/rules.md` — 共同规则
 2. `.agents/shared/state_sync_rules.md` — 状态同步规则
-3. `AGENTS.md` — 仓库入口控制面
-4. `docs/active_context.md` — 当前高频状态
+3. `.agents/shared/document_discipline.md` — 运营文档纪律
+4. `.agents/shared/reading_manifest_format.md` — 启动 manifest 格式
+5. `AGENTS.md` — 仓库入口控制面
+6. `docs/active_context.md` — 当前高频状态
+
+完成上述读取后，应先按 `reading_manifest_format.md` 输出 reading manifest，再执行状态校验。
 
 读完上述文件后，应能回答：
 

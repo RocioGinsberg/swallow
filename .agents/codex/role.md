@@ -24,7 +24,7 @@
 ## 禁止
 
 - 修改 `docs/design/*.md` 设计文档正文
-- 修改 `.agents/claude/` 或 `.agents/gemini/` 下的文件
+- 修改 `.agents/claude/` 下的文件
 - 修改 `AGENTS.md` 的长期规则部分（active 方向部分可更新）
 - 执行 `git commit`、`git push`、创建/合并 PR
 - 直接 merge 到 `main`（必须通过 PR + 人工审批）

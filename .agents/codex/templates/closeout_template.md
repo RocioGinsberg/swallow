@@ -161,9 +161,8 @@ phase closeout 时，检查以下文件是否需要同步更新。
 ### 条件更新
 - [ ] `AGENTS.md`
 - [ ] `.codex/session_bootstrap.md`
-- [ ] `.codex/rules.md`
+- [ ] `.agents/codex/rules.md`
 - [ ] `README.md`
-- [ ] `README.zh-CN.md`
 
 ---
 
@@ -187,7 +186,7 @@ phase closeout 时，检查以下文件是否需要同步更新。
 - 默认 phase 文档路径改变
 - 默认推荐 branch 改变
 
-### 更新 `.codex/rules.md`
+### 更新 `.agents/codex/rules.md`
 当以下内容变化时更新：
 
 - Git 节奏规则改变
@@ -195,7 +194,7 @@ phase closeout 时，检查以下文件是否需要同步更新。
 - phase closeout 规则改变
 - planning / implementation 默认规则改变
 
-### 更新 `README.md` / `README.zh-CN.md`
+### 更新 `README.md`
 当以下内容变化时更新：
 
 - 用户可见命令变化

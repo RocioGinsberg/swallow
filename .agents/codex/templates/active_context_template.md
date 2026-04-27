@@ -138,7 +138,7 @@
   - `docs/plans/<active-phase>/closeout.md`
   - `current_state.md`
   - 必要时 `AGENTS.md`
-  - 必要时 `README.md` / `README.zh-CN.md`
+  - 必要时 `README.md`
 
 推荐提交类型：
 

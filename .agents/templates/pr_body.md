@@ -8,7 +8,7 @@
 ```markdown
 ## Context
 <!-- 来源: docs/plans/<phase>/context_brief.md 的 TL;DR -->
-<!-- 由 Gemini 产出 -->
+<!-- 由 context-analyst subagent 产出 -->
 
 {context_brief TL;DR}
 

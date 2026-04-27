@@ -5,7 +5,7 @@ status: stable
 
 # Document Discipline
 
-> 这份文档是仓库所有运营文档(协作约定 / 状态文档 / roadmap / concerns 等)的元规则。设计文档(宪法层 / 设计层)以 `INVARIANTS.md` 为权威,不受本文件约束。
+> 这份文档是仓库所有运营文档(协作约定 / 状态文档 / roadmap / concerns 等)的元规则。设计文档(宪法层 / 设计层)以 `docs/design/INVARIANTS.md` 为权威,不受本文件约束。
 
 仓库文档持续保持清晰的关键不在"开始时写得好",而在"持续按纪律维护"。本文档把 5 条纪律显式化,任何 agent 启动会话或参与文档变更时都应遵守。
 
@@ -25,7 +25,7 @@ status: stable
 
 如果 PR 修改了某份文档,但 PR 内容不属于该文档的 trigger,review 应当拒绝并指向正确位置。
 
-设计文档(`INVARIANTS.md` / `ARCHITECTURE.md` / 等)不需要这个声明,它们由 `INVARIANTS.md §0` 与各文档自身的 "本文件不是" 节自我界定。
+设计文档(`docs/design/INVARIANTS.md` / `docs/design/ARCHITECTURE.md` / 等)不需要这个声明,它们由 `docs/design/INVARIANTS.md §0` 与各文档自身的 "本文件不是" 节自我界定。
 
 ---
 
@@ -35,13 +35,13 @@ status: stable
 
 | 信息 | 权威位置 | 其他文档应怎么做 |
 |------|---------|------------------|
-| 项目原则 / 不变量 | `INVARIANTS.md` | 只引用,不复制 |
-| 写权限矩阵 | `INVARIANTS.md §5` | 只引用,不复制 |
-| 三条 LLM 调用路径 | `INVARIANTS.md §4` | 只引用,不复制 |
-| `apply_proposal` 入口语义 | `INVARIANTS.md §0` + `SELF_EVOLUTION.md §3` | 只引用,不复制 |
+| 项目原则 / 不变量 | `docs/design/INVARIANTS.md` | 只引用,不复制 |
+| 写权限矩阵 | `docs/design/INVARIANTS.md §5` | 只引用,不复制 |
+| 三条 LLM 调用路径 | `docs/design/INVARIANTS.md §4` | 只引用,不复制 |
+| `apply_proposal` 入口语义 | `docs/design/INVARIANTS.md §0` + `docs/design/SELF_EVOLUTION.md §3` | 只引用,不复制 |
 | 五元组定义 | `AGENT_TAXONOMY.md §2` | 只引用,不复制 |
-| 物理 schema | `DATA_MODEL.md` | 只引用,不复制 |
-| 系统能力清单 | `README.md "Core Capabilities"` + `EXECUTOR_REGISTRY.md` | 不在其他文档维护副本 |
+| 物理 schema | `docs/design/DATA_MODEL.md` | 只引用,不复制 |
+| 系统能力清单 | `README.md "Core Capabilities"` + `docs/design/EXECUTOR_REGISTRY.md` | 不在其他文档维护副本 |
 | Phase 历史 | `git log` + `docs/plans/<phase>/closeout.md` | 不在 roadmap / AGENTS / README 中维护 |
 | 当前 phase / slice 进度 | `docs/active_context.md` | 不在其他文档同步副本 |
 | Tag / Release docs 同步状态 | `docs/concerns_backlog.md` | 不在 roadmap / AGENTS 中维护 |
@@ -101,7 +101,7 @@ Subagent 在其定义文件(`.claude/agents/<name>.md`)中显式列出 `output_p
 
 ```
 Reading manifest:
-  ✓ INVARIANTS.md (constitution v1.0)
+  ✓ docs/design/INVARIANTS.md (constitution v1.0)
   ✓ AGENTS.md (collaboration rules)
   ✓ docs/active_context.md (current: Phase 60 design)
   ✓ docs/plans/Phase60/kickoff.md
@@ -136,6 +136,6 @@ Ready to: review and produce design_decision.md
 - agent 协作时的纪律契约
 
 本文档不是:
-- 设计文档原则的副本(→ `INVARIANTS.md`)
+- 设计文档原则的副本(→ `docs/design/INVARIANTS.md`)
 - 具体文档的内容指引(各文档自身的 anti-scope 节负责)
 - Phase 流程的详细描述(→ `.agents/workflows/feature.md`)

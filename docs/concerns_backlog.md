@@ -1,5 +1,11 @@
 # Concerns Backlog
 
+> **Document discipline**
+> Owner: Human
+> Updater: Claude / Codex
+> Trigger: review 产出新的 CONCERN、triage 结果变化、已记录 concern 状态变化
+> Anti-scope: 不维护 phase 实现历史、不替代 review_comments.md、不记录与 review 无关的临时想法
+
 Review 过程中产出的 CONCERN 项集中追踪。每项记录来源 phase、内容、当前状态。
 
 定期回顾（每 3-5 个 phase），清理已解决或已过时的条目。

@@ -218,7 +218,6 @@
 - `current_state.md`
 - `AGENTS.md`
 - `README.md`
-- `README.zh-CN.md`
 
 ### 提交建议
 每个 slice 尽量拆成：

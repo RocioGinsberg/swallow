@@ -1,6 +1,6 @@
 ---
 name: roadmap-updater
-model: sonnet
+model: haiku
 description: Roadmap incremental updater. Two trigger points: (1) phase transition — run before Direction Gate to update gap status; (2) post-merge — run after Tag Gate to finalize the completed phase entry. Does NOT do full blueprint re-analysis.
 ---
 
