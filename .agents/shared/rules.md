@@ -70,7 +70,12 @@
 
 ### `docs/plans/<phase>/` 是 phase 的正式文档层
 
-每个 phase 默认文档：`kickoff.md`、`breakdown.md`、`closeout.md`、`commit_summary.md`（可选）。
+每个 phase 默认文档：`kickoff.md`、`design_decision.md`、`risk_assessment.md`、`closeout.md`。
+
+条件文档：
+
+- `breakdown.md`：当 phase 拆分为多个 review milestones、slice > 3、或需要独立的可执行推进表时再单独产出
+- `commit_summary.md`：可选
 
 ---
 
@@ -79,9 +84,11 @@
 ### kickoff 必须写清楚边界
 
 必须显式写出：当前 phase、track、slice、目标、非目标、设计边界、完成条件。
-如果不明确，不要直接写 breakdown。
+如果不明确，不要直接进入 design_decision 或 breakdown。
 
 ### breakdown 必须可执行
+
+`breakdown.md` 默认不是每个 phase 都必需；当它存在时，必须承担“可执行推进表”的职责。
 
 至少包含：slice 列表、顺序、每个 slice 的目标、验收条件、默认不做的工作、stop/go 信号。
 

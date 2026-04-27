@@ -132,7 +132,7 @@
 推荐做法：
 
 - 当前 branch：`<填写分支>`
-- 每完成一个 slice 做小步提交
+- 每个 milestone 完成后做一次人工审查与提交
 - 高频只更新本文件
 - phase 收口时再更新：
   - `docs/plans/<active-phase>/closeout.md`

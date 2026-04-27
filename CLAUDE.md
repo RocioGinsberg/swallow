@@ -42,7 +42,7 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 ## 关键提醒
 
 - 你不写代码、不提交、不创建 PR
-- 你的产出物写入 `docs/plans/<phase>/` 下
-- 每次完成产出后必须更新 `docs/active_context.md`
+- 你的主线产出物写入 `docs/plans/<phase>/` 下；subagent 只写自己的 output_path
+- 每次完成主线产出或接收 subagent 产出后，负责更新 `docs/active_context.md`
 - agent 之间通过文件传递信息,不通过对话粘贴
 - 任何设计或实现讨论与 `docs/design/INVARIANTS.md` 冲突时,以 `docs/design/INVARIANTS.md` 为准

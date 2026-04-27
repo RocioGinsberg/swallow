@@ -1,6 +1,6 @@
 # Workflow: Tag Release
 
-tag 决策与发布流程。在每次 phase merge 到 main 后触发，由 Claude 评估、Human 决策、Codex 同步文档、Human 执行 tag。
+tag 决策与发布流程。在每次 phase merge 到 main 后触发，由 Claude 评估、Human 决策、Codex 同步文档、Human 执行 tag。roadmap 的 phase 完成状态应已在 post-merge workflow 中同步；本流程不再把 roadmap update 绑定到 tag 决策上。
 
 ---
 
@@ -8,7 +8,7 @@ tag 决策与发布流程。在每次 phase merge 到 main 后触发，由 Claud
 
 - feature branch 已 merge 到 main
 - 至少完成了一次 phase closeout
-- `current_state.md` 和 `docs/active_context.md` 已由 Codex 完成 post-merge 同步
+- `current_state.md`、`docs/active_context.md` 和 `docs/roadmap.md` 已完成 post-merge 同步
 
 此 workflow 独立于 feature delivery workflow，可单独运行。在 `feature.md` Step 7 中引用此文档为详细规范。
 
@@ -27,7 +27,7 @@ Claude: Tag Evaluation  (tag-evaluate skill)
         ↓
  Human: git tag + push
         ↓
-[subagent: roadmap-updater]: Post-Tag Roadmap Update
+ Codex: Tag Result Sync
 ```
 
 ⛔ = 人工 gate，必须由人工决策后才能继续。
@@ -148,6 +148,7 @@ major++  系统架构层面的重大升级
    git tag -a v<X>.<Y>.<Z> -m "<tag message>"
    git push origin main --tags
    ```
+5. 通知 Codex：tag 已完成（或指出执行失败）
 
 **tag message 建议格式**：
 
@@ -159,19 +160,15 @@ v1.3.0: Route-aware retrieval source policy with explicit override support
 v1.2.0: Retrieval quality era — neural embedding, LLM rerank, lit-specialist doc paths
 ```
 
----
+## Step 4.5: Codex — Tag Result Sync
 
-## Step 5: subagent `roadmap-updater` — Post-Tag Roadmap Update
-
-**触发条件**：tag 已打，push 已完成。
+**触发条件**：Human 已确认 tag 已完成或已说明失败原因。
 
 **动作**：
 
-- 在 roadmap 的 tag 记录区块追加新 tag 条目
-- 在"已消化差距"中将本 tag 对应的 phase 标注 tag 信息
-- 更新 Section 三（Roadmap Phases）中对应 phase 条目，追加 tag 名称
-
-**完成后**：更新 `docs/active_context.md`：标注 tag 完成状态，下一步设为"进入下一轮 phase 规划"
+- 更新 `docs/active_context.md`：标注 `tag completed` / `tag failed` / `tag deferred`
+- 如 tag 已完成，确认 `current_state.md` 中的 `latest_public_tag` 与已执行版本一致
+- 不再额外要求 roadmap follow-up step
 
 ---
 

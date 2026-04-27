@@ -17,21 +17,23 @@ Claude: Roadmap Priority Review
         ↓
 [subagent: context-analyst]: Context Analysis
         ↓
-Claude: Design Decomposition
+Claude: Kickoff + Design Decomposition
         ↓
 [subagent: design-auditor]: Pre-Implementation Design Audit
         ↓
- Human: Design Gate ⛔  (审阅 design_decision + design_audit)
+ Human: Design Gate ⛔  (审阅 kickoff + design_decision + design_audit)
         ↓
  Codex: Implementation
         ↓
-Claude: PR Review  (可选: [subagent: consistency-checker] 先行)
+Claude: PR Review + Concern Sync  (可选: [subagent: consistency-checker] 先行)
         ↓
  Human: Merge Gate ⛔
         ↓
-Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
+Codex: Post-Merge State Sync
         ↓
-[subagent: roadmap-updater]: Post-Phase Roadmap Update
+ [subagent: roadmap-updater]: Post-Merge Roadmap Update
+        ↓
+Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 ```
 
 ⛔ = 人工 gate，必须由人工审批后才能继续。
@@ -85,23 +87,24 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 - `docs/plans/<phase>/context_brief.md`
 
 **完成后**：
-- 更新 `docs/active_context.md`：登记产出物，下一步设为”Claude 进行方案拆解”
+- 由 Claude 主线更新 `docs/active_context.md`：登记产出物，下一步设为”Claude 进行 kickoff + 方案拆解”
 
 ---
 
-## Step 2: Claude — Design Decomposition
+## Step 2: Claude — Kickoff + Design Decomposition
 
 **触发条件**：context_brief.md 已产出。
 
 **输入**：
 - `docs/plans/<phase>/context_brief.md`
 - `docs/design/INVARIANTS.md`
-- 相关 `docs/design/*.md`（按 kickoff / context_brief 指向按需读取）
-- `docs/plans/<phase>/kickoff.md`
+- 相关 `docs/design/*.md`（按 roadmap / context_brief 指向按需读取）
 
 **产出**：
+- `docs/plans/<phase>/kickoff.md`
 - `docs/plans/<phase>/design_decision.md`
 - `docs/plans/<phase>/risk_assessment.md`
+- `docs/plans/<phase>/breakdown.md`（仅当 phase 有多个 review milestones、slice > 3、或需要独立执行推进表时）
 
 **附加动作**：
 - 执行 `branch-advise`：建议分支名和 PR 策略
@@ -135,18 +138,20 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 - 回到 Step 2，Claude 修正 design_decision 后重新运行 design-auditor
 
 **完成后**：
-- 更新 `docs/active_context.md`：登记产出物，下一步设为"Human: Design Gate"
+- 由 Claude 主线更新 `docs/active_context.md`：登记产出物，下一步设为"Human: Design Gate"
 
 ---
 
 ## Step 3: Human — Design Gate ⛔
 
-**触发条件**：design_decision.md、risk_assessment.md、design_audit.md 均已产出。
+**触发条件**：kickoff.md、design_decision.md、risk_assessment.md、design_audit.md 均已产出。
 
 **人工动作**：
+- 阅读 kickoff.md（重点看 goals / non-goals / completion conditions）
 - 阅读 design_audit.md（重点看 Overall verdict 和 [BLOCKER] 项）
 - 阅读 design_decision.md（重点看 TL;DR + slice 拆解 + 风险评级）
 - 阅读 risk_assessment.md（重点看高风险项）
+- 如有 `breakdown.md`，阅读其中的 milestone / review checkpoint 拆分
 - 审阅 branch-advise 建议
 
 **决策**：
@@ -162,34 +167,43 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 ## Step 4: Codex — Implementation
 
-**触发条件**：design_decision.md 已通过人工审批。
+**触发条件**：kickoff.md 与 design_decision.md 已通过人工审批。
 
 **输入**：
+- `docs/plans/<phase>/kickoff.md`
 - `docs/plans/<phase>/design_decision.md`
+- `docs/plans/<phase>/breakdown.md`（如存在）
 - Claude 的 branch-advise（分支名、PR 策略）
 - 相关 `src/` 和 `tests/` 文件
 
 **动作**：
 - 按 Claude 建议提醒人工创建/切换分支
 - 按 design_decision 中的 slice 顺序逐个实现
-- 每个 slice：功能实现/测试 → Codex 给出 commit 建议 → Human 审查该 slice diff 并执行 commit → 状态同步
+- 每个 slice：功能实现/测试 → Codex 记录验证结果与建议提交范围 → 状态同步
+- 默认的人类审查节奏以 **milestone** 为单位，而不是强制每个低风险 slice 都先停下来等待 commit
 
-**每个 slice 的人工节奏点**：
+**milestone 默认规则**：
+- 如果 `design_decision.md` / `breakdown.md` 没有显式分组，则默认 `1 milestone = 1 slice`
+- 高风险 slice、schema 变更、公共 CLI/API surface 变化、跨模块重构必须单独成为一个 milestone
+- 低风险且边界清晰的相邻 slices 可以预先分组到同一个 milestone，在同一轮 human review 中一起审查
+
+**每个 milestone 的人工节奏点**：
 1. Human 确认当前已位于本轮 feature branch
-2. Codex 完成当前 slice 的最小闭环实现与测试
-3. Codex 在对话中给出该 slice 的单独 commit 建议命令
-4. Human 审查并执行该 slice commit
-5. commit 完成后，再进入下一个 slice 或更新状态
+2. Codex 完成当前 milestone 内各 slice 的最小闭环实现与测试
+3. Codex 提供 milestone review/commit 方案：说明每个 slice 的验证结果，以及建议“逐 slice commit”还是“单一 milestone commit”
+4. Human 审查并执行当前 milestone 的 commit
+5. 当前 milestone 提交完成后，再进入下一个 milestone 或交给 Claude review
 
 **强约束**：
-- 一个 slice 对应一个独立 commit 节奏点；不要把多个 slices 合并成一次“大包提交”
-- 进入下一个 slice 前，前一个 slice 应已经完成人工审查和独立 commit
-- PR 创建前保持 slice 级 commit 历史，不再额外整理成单一汇总提交
+- milestone 是默认 review gate；不要把整个 phase 压成一次“大包审查”
+- 进入下一个 milestone 前，前一个 milestone 应已经完成人工审查和 commit
+- 如 milestone 内 slices 共享文件或逻辑耦合很强，可合并为一个 milestone commit；如需要独立 rollback 边界，则仍应拆成逐 slice commit
+- PR 创建前保持 milestone 级清晰历史，不再额外整理成单一汇总提交
 
 **产出**：
 - 代码改动（在 feature branch 上）
 - 测试结果
-- 每个 slice 的建议 commit 命令
+- milestone 级建议 commit 命令（并附 slice → 验证结果映射）
 
 **完成后**：
 - 更新 `docs/active_context.md`：登记完成的 slice、当前分支、下一步设为"Claude 进行 PR review"
@@ -198,7 +212,7 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 ## Step 5: Claude — PR Review
 
-**触发条件**：Codex 实现完成，所有 slice 的代码和测试已由人工按 slice 完成提交。
+**触发条件**：Codex 实现完成，所有 milestones 的代码和测试已由人工完成提交。
 
 **输入**：
 - Git diff（feature branch vs main）
@@ -210,9 +224,11 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 **产出**：
 - `docs/plans/<phase>/review_comments.md`
+- `docs/concerns_backlog.md`（条件更新：仅当存在 `[CONCERN]` 项时）
 
 **附加动作**：
 - 执行 `branch-advise`：确认是否可以开 PR
+- 如存在 `[CONCERN]` 项，在同一轮中同步更新 `docs/concerns_backlog.md`（必要时可调用 `concern-logger` subagent，默认优先由 Claude 直接完成）
 - 如有 `[BLOCK]` 项，回到 Step 4 让 Codex 修改
 
 **完成后**：
@@ -221,7 +237,7 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 **人工 git 节奏点**：
 - `./pr.md` 准备完成后，由 Human push 当前 feature branch 并创建 PR
-- Claude review 完成后，如有实现修订或 review 结论变化，Codex 更新 `./pr.md`，Human 视需要更新 PR 描述
+- Claude review 完成后，如有实现修订、review 结论变化或 concern backlog 状态变化，Codex 更新 `./pr.md`，Human 视需要更新 PR 描述
 - PR 创建前不再补做“把所有 slice 压成一个大提交”的整理
 
 ---
@@ -248,9 +264,32 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 ---
 
+## Step 6.5: Codex — Post-Merge State Sync
+
+**触发条件**：PR 已 merge 到 `main`。
+
+**动作**：
+- 更新 `current_state.md`：同步最新 main checkpoint、默认恢复入口和公开 tag 之前的主线状态
+- 更新 `docs/active_context.md`：标注已 merge、下一步设为"roadmap post-merge update"
+
+**完成后**：
+- 进入 Step 6.6 进行 roadmap factual update
+
+---
+
+## Step 6.6: Claude (main) + subagent `roadmap-updater` — Post-Merge Roadmap Update
+
+**触发条件**：Codex 已完成 post-merge state sync。
+
+**动作**：
+- 运行 `roadmap-updater` subagent：将已 merge phase 的事实状态写回 `docs/roadmap.md`
+- Claude 主线在 subagent 完成后更新 `docs/active_context.md`，下一步设为"Claude: Tag Evaluation"
+
+---
+
 ## Step 7: Claude & Human — Tag Evaluation Gate
 
-**触发条件**：phase 已 merge 到 main，`current_state.md` 和 `docs/active_context.md` 已由 Codex 完成 post-merge 同步。
+**触发条件**：phase 已 merge 到 main，`current_state.md`、`docs/active_context.md` 和 `docs/roadmap.md` 都已完成 post-merge 同步。
 
 **详细流程见**：`.agents/workflows/tag_release.md`
 
@@ -258,7 +297,7 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 1. Claude 运行 `tag-evaluate` skill，在 `docs/active_context.md` 记录建议（打 / 不打 / 等待）
 2. Human 决策（Tag Gate ⛔）
-3. 如打 tag：Codex 同步 release docs → Human commit + 执行 tag → roadmap-updater 更新 tag 记录
+3. 如打 tag：Codex 同步 release docs → Human commit + 执行 tag → Codex 同步 tag 结果
 4. 如不打/延迟：在 `docs/active_context.md` 标注原因，流程结束
 
 ---

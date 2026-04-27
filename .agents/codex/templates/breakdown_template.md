@@ -220,7 +220,7 @@
 - `README.md`
 
 ### 提交建议
-每个 slice 尽量拆成：
+每个 milestone 尽量拆成：
 
 1. 功能
 2. 测试
@@ -229,7 +229,8 @@
 
 要求：
 
-- breakdown 应能直接指导 commit 节奏
+- breakdown 应能直接指导 milestone review / commit 节奏
+- 如未显式定义 milestone，则默认 `1 milestone = 1 slice`
 - 如果一个 slice 无法被一组小步提交清楚表达，应进一步拆小
 
 ---

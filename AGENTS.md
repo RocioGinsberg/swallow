@@ -52,7 +52,7 @@
 | 角色 | 职责 | 控制文件 |
 |------|------|----------|
 | **Claude** | 方案拆解、风险评估、PR 评审、分支建议、tag 评估、roadmap 优先级维护 | `CLAUDE.md` → `.agents/claude/` |
-| **Codex** | 代码实现、测试、状态同步、slice 级 commit 建议、PR 文案整理 | `.codex/session_bootstrap.md` → `.agents/codex/` |
+| **Codex** | 代码实现、测试、状态同步、slice 验证记录、milestone 级 commit 建议、PR 文案整理 | `.codex/session_bootstrap.md` → `.agents/codex/` |
 | **Human** | 设计审批、git 提交执行、PR 创建、合并决策 | — |
 
 Claude subagent(`.claude/agents/`)承接的辅助职责:
@@ -103,12 +103,13 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 
 ### 4. 阶段计划层(开发协作)
 - `docs/plans/<phase>/kickoff.md`
-- `docs/plans/<phase>/breakdown.md`
+- `docs/plans/<phase>/breakdown.md`(可选；多 milestone / 复杂 phase 时使用)
 - `docs/plans/<phase>/closeout.md`
 - `docs/plans/<phase>/commit_summary.md`(可选)
 - `docs/plans/<phase>/context_brief.md`(context-analyst subagent 产出)
 - `docs/plans/<phase>/design_decision.md`(Claude 产出)
 - `docs/plans/<phase>/risk_assessment.md`(Claude 产出)
+- `docs/plans/<phase>/design_audit.md`(design-auditor subagent 产出,可选)
 - `docs/plans/<phase>/review_comments.md`(Claude 产出)
 - `docs/plans/<phase>/consistency_report.md`(consistency-checker subagent 产出,可选)
 
@@ -230,21 +231,22 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 
 ### 提交节奏规则
 
-每个 phase 的人工提交分两次:
+每个 phase 的人工提交分两类:
 
-1. **计划实现提交**:Codex 完成代码实现后,人工审查并提交(包含功能代码 + 测试)
+1. **实现里程碑提交**:Codex 完成当前 milestone 的代码实现与测试后,人工审查并提交(包含功能代码 + 测试)
 2. **审查收口提交**:Claude 完成 PR review、closeout 文档后,人工提交收口材料(review_comments + closeout + 状态同步)
 
-两次提交之间是 Claude 的评审环节。不要把实现和收口材料混在同一次提交中。
+实现里程碑提交与审查收口提交之间是 Claude 的评审环节。不要把实现和收口材料混在同一次提交中。
 
 补充要求:
 
 - design gate 通过后,应先完成 feature branch 切换,再开始第一个实现 slice
 - git 提交由人工执行,Codex 只在对话中给出建议命令
-- commit 应按 slice 拆分;每完成一个 slice,Codex 都应给出一次提交建议
-- 每个 slice 的默认节奏为:Codex 实现并验证 → Human 审查当前 diff → Human 执行该 slice commit
-- 如某轮 phase 已明确拆为多个 slices,则必须逐 slice 提交;禁止将多个 slices 的实现、测试和状态同步压成一次大包 commit
-- 如某个 slice 尚未完成独立验证,则不得提前合并进下一个 slice 的提交范围
+- 默认 review gate 以 milestone 为单位;如未显式定义 milestone,则 `1 milestone = 1 slice`
+- Codex 对每个 slice 都要给出验证结果与建议提交范围;到达 milestone 边界时,再给出最终 commit 建议命令
+- 高风险 slice、schema 变更、公共 CLI/API surface 变化、跨模块重构应单独成为一个 milestone,不要与低风险改动混提
+- 低风险且边界清晰的相邻 slices 可在 design_decision / breakdown 中预先分组,在同一轮 human review 中一起提交
+- 禁止把整个 phase 的实现、测试和状态同步压成一次大包 commit
 - 需要发起 PR 时,Codex 负责将 PR 文案整理到仓库根目录 `./pr.md`,Human 先 push branch,再据此创建 PR
 - PR 创建后如 review 结论或实现内容变化,Codex 应继续更新 `./pr.md`,Human 再决定是否同步到 PR 描述
 
@@ -255,6 +257,7 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 - 合并前至少确认测试与基本 CLI 入口可用
 - 合并前应确认 `review_comments.md` 已处理完毕,且 `./pr.md` 已反映当前实现与 review 结论
 - 如 Claude review 后仍有实现修改,应先继续在同一 PR 上提交,再进入 merge 决策
+- merge 后先由 Codex 同步 `current_state.md` / `docs/active_context.md`,再由 `roadmap-updater` 完成 roadmap factual update,之后再进入 tag 决策
 - phase 完成后建议打 tag
 
 ### Tag 规则
@@ -269,9 +272,10 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 
 1. **Claude 评估**:每次 phase merge 到 main 后,Claude 判断当前 main 是否构成一个有意义的能力里程碑,并给出 tag 建议(打 / 不打 / 等下一个 phase 再打)
 2. **Human 决策**:Human 根据 Claude 建议决定是否打 tag
-3. **Codex 同步文档**:若 Human 决定打 tag,Codex 先更新 `README.md` 中与新 tag 对齐的内容
+3. **Codex 同步文档**:若 Human 决定打 tag,Codex 先更新 `README.md` 与 `current_state.md` 中与新 tag 对齐的内容
 4. **Human 审阅并提交 release docs**:将上述 tag-level 文档更新提交到 `main`
-5. **Human 执行 tag**:`git tag -a v0.x.0 -m "<tag message>"`
+5. **Human 执行 tag**:`git tag -a v<X>.<Y>.<Z> -m "<tag message>"`
+6. **Codex 同步结果**:Human 确认 tag 完成后,Codex 更新 `docs/active_context.md` 的 tag 状态
 
 Claude 评估 tag 时应考虑:
 - 自上一个 tag 以来是否有用户可感知的能力增量

@@ -17,9 +17,12 @@
 ## 可写范围
 
 - `docs/roadmap.md` — 推荐 phase 队列的优先级排序与风险批注（差距总表由 roadmap-updater subagent 维护）
+- `docs/plans/<phase>/kickoff.md` — phase 边界与完成条件
+- `docs/plans/<phase>/breakdown.md` — 可选的执行推进表（复杂 phase 才需要）
 - `docs/plans/<phase>/design_decision.md` — 方案拆解
 - `docs/plans/<phase>/risk_assessment.md` — 风险评估
 - `docs/plans/<phase>/review_comments.md` — PR 评审意见
+- `docs/concerns_backlog.md` — review concern 的集中跟踪
 - `docs/active_context.md` — 仅状态更新部分
 
 ## 禁止
@@ -44,7 +47,8 @@
 ## 状态同步职责
 
 - roadmap-updater subagent 完成增量更新后，Claude 评审并更新推荐队列的优先级排序与风险批注
-- 完成 design_decision 后，更新 `docs/active_context.md` 的产出物和下一步
-- 完成 review_comments 后，更新 `docs/active_context.md` 标注评审状态
+- 完成 kickoff / design_decision / risk_assessment 后，更新 `docs/active_context.md` 的产出物和下一步
+- 接收 subagent 产出（context_brief / design_audit / roadmap update）后，由 Claude 主线负责更新 `docs/active_context.md`
+- 完成 review_comments 后，更新 `docs/active_context.md` 标注评审状态；如存在 `[CONCERN]`，同轮同步 `docs/concerns_backlog.md`
 - 提供 branch-advise 后，在 `docs/active_context.md` 记录分支建议（最终由人工或 Codex 执行）
 - phase merge 到 main 后，评估是否建议打新 tag，并在 `docs/active_context.md` 记录 tag 建议

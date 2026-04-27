@@ -36,15 +36,16 @@
 - 文档提交也应有单独语义
 - git 提交命令由人工执行，Codex 只负责在对话中提供建议命令
 
-### 提交应与 slice 对齐
+### 提交应与 milestone 对齐，slice 仍需可审计
 
-每个 slice 完成后，Codex 必须立即给出一条建议的 `git commit` 命令。
+每个 slice 完成后，Codex 必须立即给出验证结果与建议提交范围；到达 milestone 边界时，再给出最终的 `git commit` 建议命令。
 默认要求：
 
-1. 不把多个 slice 混入同一个 commit
-2. 如一个 slice 改动较大，可拆为多个 commit，但仍只服务该 slice
-3. 人工执行 commit 后，再做状态同步或进入下一个 slice
-4. 如需额外的文档/状态同步 commit，应单独建议，不与功能实现强绑定
+1. 如未显式定义 milestone，则默认 `1 milestone = 1 slice`
+2. 高风险 slice、schema 变更、公共 CLI/API surface 变化、跨模块重构应单独成为一个 milestone
+3. 低风险且边界清晰的相邻 slices 可共享一个 milestone，但 Codex 仍需分别说明每个 slice 的验证结果
+4. 人工执行 milestone commit 后，再进入下一个 milestone
+5. 如需额外的文档/状态同步 commit，应单独建议，不与功能实现强绑定
 
 ---
 
@@ -91,7 +92,7 @@
 ### 创建 PR 前
 
 - 确认 Claude 的 `review_comments.md` 已产出（如 workflow 要求）
-- 确认分支上所有 commit 与 slice 对齐
+- 确认分支上所有 commit 与 milestone 边界对齐，且能追溯到各 slice 的验证记录
 - 确认测试通过
 - 提醒人工准备发起 PR
 
@@ -105,11 +106,11 @@ Codex 只负责维护 `./pr.md` 内容，不执行 PR 创建命令。
 
 - 不自行 merge，等待人工审批
 - merge 前提醒 Human 检查 `./pr.md` 与 `review_comments.md` 是否已同步到当前 PR 状态
-- merge 后更新 `docs/active_context.md` 和分支状态
+- merge 后更新 `docs/active_context.md`、`current_state.md` 和分支状态
 
 ### 对话提醒要求
 
-- 每完成一个可提交 slice，明确提醒人工执行 commit
+- 每到达一个可提交 milestone，明确提醒人工执行 commit；如 milestone 内有多个 slice，需同时说明各 slice 的验证结果与建议提交范围
 - 每次进入可开 PR 状态，明确提醒人工检查并使用 `./pr.md`
 - 不输出笼统的“可以一起提交了”，必须指明当前对应的 slice 或 PR 阶段
 

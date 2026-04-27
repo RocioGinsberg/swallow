@@ -17,6 +17,7 @@
 - `src/` — 功能实现
 - `tests/` — 测试代码
 - `docs/active_context.md` — 仅状态更新部分
+- `current_state.md` — merge 后恢复入口与 checkpoint 同步
 - `docs/plans/<phase>/commit_summary.md` — 可选
 - `pr.md` — PR body 草稿
 - 与当前实现直接相关的角色控制文档
@@ -34,7 +35,7 @@
 
 | Skill | 说明 |
 |-------|------|
-| `impl-from-decision` | 读取 design_decision.md，按 slice 逐个实现，每个 slice 一个 commit |
+| `impl-from-decision` | 读取 design_decision.md，按 slice 逐个实现，并按 milestone 组织 review / commit checkpoint |
 | `pr-compose` | 按 `.agents/templates/pr_body.md` 模板组装 PR body，自动引用各 agent 产出物 |
 | `test-report` | 跑测试并输出结构化报告，关联到 design_decision 中的每个 slice |
 | `plan-task` | （已有）任务拆解与规划 |
@@ -43,6 +44,6 @@
 
 ## 状态同步职责
 
-- 每完成一个 slice，提醒人工执行一次独立 commit，并在对话中给出建议命令
+- 每完成一个 slice，登记验证结果与建议提交范围；到达 milestone 边界时，给出最终 commit 建议命令
 - 需要提交 PR 时，整理 PR 内容并写入 `./pr.md`，提醒人工发起 PR
-- 人工完成 commit / PR 后，再更新 `docs/active_context.md` 的当前进度、PR 状态与下一步
+- 人工完成 commit / PR / merge 后，再更新 `docs/active_context.md` 的当前进度、PR 状态与下一步；merge 到 `main` 后同步 `current_state.md`

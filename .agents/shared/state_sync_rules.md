@@ -68,6 +68,12 @@ phase 收口前，必须确认：
 - [ ] Git 分支已准备合并（PR 已由人工创建或已合并）
 - [ ] 所有产出物的 frontmatter status 已设为 `final`
 
+如果 phase 已经 merge 到 `main`，则在进入 tag evaluation 前还必须完成：
+
+- [ ] `current_state.md` 已反映 merge 后的最新 main checkpoint
+- [ ] `docs/active_context.md` 已切换到 post-merge 入口状态
+- [ ] `docs/roadmap.md` 已完成 post-merge factual update
+
 ---
 
 ## 五、产出物登记规则
