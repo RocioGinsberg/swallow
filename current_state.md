@@ -30,15 +30,15 @@
 - latest_main_checkpoint_phase: `Phase 62`
 - latest_public_tag: `v1.3.1`
 - current_working_phase: `Release v1.3.1`
-- checkpoint_type: `release_docs_ready_for_v1.3.1`
+- checkpoint_type: `v1.3.1_tag_completed`
 - active_branch: `main`
 - last_checked: `2026-04-29`
 
 说明：
 
 - `main` 已包含 Phase 62 merge(`ce98f92 merge: Complete Refine codes after PRD change`):Multi-Perspective Synthesis(MPS) 的 Path A participant / arbiter 编排、MPS policy、仲裁 artifact 与 explicit staged handoff 已落地。
-- `v1.3.1` 是当前 release docs 目标 tag,覆盖 `v1.3.0` 之后的 Phase 60 / 61 / 62 稳定成果。tag 命令尚未执行;执行后 Codex 需要再同步 `docs/active_context.md` 的 tag completed 状态。
-- 当前默认动作是 Human 审阅 release docs diff,提交 `README.md` / `current_state.md` / `docs/active_context.md`,然后执行 `git tag -a v1.3.1 ...`。
+- `v1.3.1` tag 已完成,覆盖 `v1.3.0` 之后的 Phase 60 / 61 / 62 稳定成果。tag message:`v1.3.1: Governance boundary and multi-perspective synthesis`;tag 指向 release docs commit `d6e4b90`。
+- 当前默认动作是进入下一轮 direction / phase 决策,不要继续扩张 Phase 62。
 
 ---
 
@@ -49,14 +49,14 @@
 - active_branch: `main`
 - active_track: `Release`
 - active_phase: `v1.3.1`
-- active_slice: `Release Doc Sync`
-- workflow_status: `release_docs_ready_tag_pending`
+- active_slice: `Tag Completed`
+- workflow_status: `v1.3.1_tag_completed`
 
 说明：
 
-- 当前默认动作不是启动新 phase,也不是继续扩张 Phase 62,而是完成 `v1.3.1` tag release workflow。
-- release docs 已同步到 `v1.3.1` 目标;tag preflight `.venv/bin/python -m pytest` 已通过(559 passed / 8 deselected)。Human 审阅后提交 release docs commit,再执行 annotated tag。
-- tag 执行完成后,通知 Codex 做 `docs/active_context.md` tag result sync。
+- 当前默认动作不是继续扩张 Phase 62,而是进入下一轮 direction / phase 决策。
+- release docs 已同步并提交;tag preflight `.venv/bin/python -m pytest` 已通过(559 passed / 8 deselected)。
+- tag result 已同步到 `docs/active_context.md`;后续若进入新 phase,先更新 active_context 的 active track / phase / slice。
 
 ---
 
@@ -98,7 +98,7 @@ git log --oneline --decorate -8
 git tag --list 'v*' --sort=-creatordate | head -n 5
 ```
 
-当前 release docs commit 前最小验证命令：
+当前 tag 后恢复验证命令：
 
 ```bash
 .venv/bin/python -m pytest
@@ -109,7 +109,7 @@ git diff --check
 
 ## 当前已知边界
 
-- `v1.3.1` tag 尚未执行;不要在未提交 release docs 前打 tag。
+- `v1.3.1` tag 已完成;不要删除或重打该 tag。
 - Phase 62 不引入 Planner 自动路由到 MPS;MPS 当前仅通过 `swl synthesis` CLI 显式触发。
 - Phase 62 不给 Orchestrator 新增 stagedK 写权限;`swl synthesis stage` 是 Operator CLI 路径。
 - Phase 62 不实现自动 knowledge promotion;仲裁结果只进入 staged review。

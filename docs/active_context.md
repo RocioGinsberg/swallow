@@ -13,9 +13,9 @@
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
 - active_track: `Release`
 - active_phase: `v1.3.1`
-- active_slice: `Release Doc Sync`
+- active_slice: `Tag Result Sync`
 - active_branch: `main`
-- status: `release_docs_ready_tag_pending`
+- status: `v1.3.1_tag_completed`
 
 ---
 
@@ -25,7 +25,9 @@ Phase 61 已 merge 至 `main`(`c66fa87 merge: Refine codes after PRD change`,202
 
 Phase 62 已 merge 至 `main`(`ce98f92 merge: Complete Refine codes after PRD change`,2026-04-29)。Multi-Perspective Synthesis(MPS) 已完成:Path A route-resolved participant / arbiter 编排、MPS policy governance、仲裁 artifact、explicit `swl synthesis stage` staged handoff、13 条守卫测试与 review follow-up。Closeout 验证:`.venv/bin/python -m pytest` → 559 passed / 8 deselected;`git diff --check` passed。
 
-`v1.3.1` release doc sync 已完成:README / current_state / active_context 已对齐 release target。Tag preflight 验证:`.venv/bin/python -m pytest` → 559 passed / 8 deselected;`git diff --check` passed。Human 下一步审阅并提交 release docs,然后执行 annotated tag。
+`v1.3.1` release doc sync 已完成:README / current_state / active_context 已对齐 release target。Tag preflight 验证:`.venv/bin/python -m pytest` → 559 passed / 8 deselected;`git diff --check` passed。Human 已提交 release docs 并完成 annotated tag。
+
+`v1.3.1` tag 已完成(2026-04-29):tag message `v1.3.1: Governance boundary and multi-perspective synthesis`,tag 指向 release docs commit `d6e4b90 docs(release): sync README and state for v1.3.1`;`origin/main` 与本地 `main` 已同步。
 
 post-merge 已完成:
 
@@ -61,7 +63,7 @@ post-merge 决议(Human 已确认,2026-04-28):
 - 建议版本号:`v1.3.1`
 - Human 决策:已确认打 `v1.3.1`
 - 理由:`v1.3.0` 之后已累计 Route-aware Retrieval Policy、`apply_proposal()` governance boundary、Multi-Perspective Synthesis 三项稳定能力增量;当前 main 已 merge Phase 62 且测试通过。
-- 当前状态:release docs 已同步,等待 Human commit release docs 并执行 tag。
+- 当前状态:tag completed,等待后续 phase direction / roadmap factual update。
 
 ---
 
@@ -95,6 +97,8 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Codex]** Phase 62 review CONCERN-1..4 已消化,NOTE-B/C 已 tightening,`docs/plans/phase62/closeout.md` 与 `pr.md` 已准备完成。
 - **[Human]** Phase 62 已提交并 merge 到 `main`(`ce98f92`)。
 - **[Codex]** `v1.3.1` release docs 已同步:`README.md` release snapshot + `current_state.md` release checkpoint + 本文状态;tag preflight `.venv/bin/python -m pytest` 已通过(559 passed / 8 deselected)。
+- **[Human]** 已提交 release docs 并完成 annotated tag `v1.3.1`(`d6e4b90`,tag message:`v1.3.1: Governance boundary and multi-perspective synthesis`)。
+- **[Codex]** 已同步 tag result 状态。
 
 进行中:
 
@@ -102,9 +106,7 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human]** 审阅 release docs diff 并提交:`README.md` / `current_state.md` / `docs/active_context.md`
-- **[Human]** 执行 annotated tag `v1.3.1` 并 push main + tags
-- **[Codex]** Human 确认 tag 完成后,同步 `docs/active_context.md` tag completed 状态
+- **[Human / Claude]** 进入下一轮 direction / roadmap factual update 决策
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix(post-merge cleanup,可与后续 docs commit 合并)
 
 当前阻塞项:
@@ -115,9 +117,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 release docs
-2. **[Human]** 执行 `git tag -a v1.3.1 -m "v1.3.1: Governance boundary and multi-perspective synthesis"` 与 `git push origin main --tags`
-3. **[Codex]** tag 完成后同步 tag result
+1. **[Human / Claude]** 决定下一轮 active direction / phase
+2. **[Codex]** 等待下一轮 design gate 或实现任务
+3. **[Codex / 低优先]** 后续 docs commit 可顺手修复 Phase 61 closeout cosmetic typo
 
 ```markdown
 model_review:
@@ -148,5 +150,7 @@ model_review:
 - `docs/plans/phase62/closeout.md`(codex, 2026-04-29, Phase 62 closeout and review digestion record)
 - `pr.md`(codex, 2026-04-29, Phase 62 PR body draft)
 - `README.md`(codex, 2026-04-29, v1.3.1 release snapshot)
-- `current_state.md`(codex, 2026-04-29, v1.3.1 release checkpoint / tag pending)
+- `current_state.md`(codex, 2026-04-29, v1.3.1 release checkpoint)
 - `docs/active_context.md`(codex, 2026-04-29, post-merge + release docs sync state)
+- `v1.3.1`(human, 2026-04-29, annotated tag completed at `d6e4b90`)
+- `docs/active_context.md`(codex, 2026-04-29, tag result sync completed)
