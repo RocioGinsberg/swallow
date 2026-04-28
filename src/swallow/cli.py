@@ -21,10 +21,9 @@ from .consistency_audit import (
     run_consistency_audit,
     save_audit_trigger_policy,
 )
-from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
+from .canonical_reuse import build_canonical_reuse_report
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .canonical_registry import (
-    build_canonical_registry_index,
     build_canonical_registry_index_report,
     build_canonical_registry_report,
     build_staged_canonical_key,
@@ -46,11 +45,8 @@ from .ingestion.pipeline import (
     run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
-from .knowledge_store import (
-    OPERATOR_CANONICAL_WRITE_AUTHORITY,
-    migrate_file_knowledge_to_sqlite,
-    persist_wiki_entry_from_record,
-)
+from .knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
+from .governance import OperatorToken, ProposalTarget, apply_proposal, register_canonical_proposal
 from .knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
     build_knowledge_relation_report,
@@ -124,14 +120,11 @@ from .router import (
     select_route,
 )
 from .store import (
-    append_canonical_record,
     iter_task_states,
     load_events,
     load_knowledge_objects,
     load_state,
     migrate_file_tasks_to_sqlite,
-    save_canonical_registry_index,
-    save_canonical_reuse_policy,
 )
 
 
@@ -2333,17 +2326,14 @@ def main(argv: list[str] | None = None) -> int:
             decision_note,
         )
         canonical_record = build_stage_canonical_record(updated, refined_text=args.text)
-        persist_wiki_entry_from_record(
-            base_dir,
-            canonical_record,
+        register_canonical_proposal(
+            base_dir=base_dir,
+            proposal_id=updated.candidate_id,
+            canonical_record=canonical_record,
             write_authority=OPERATOR_CANONICAL_WRITE_AUTHORITY,
+            refresh_derived=True,
         )
-        append_canonical_record(base_dir, canonical_record)
-        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
-        canonical_index = build_canonical_registry_index(canonical_records)
-        canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
-        save_canonical_registry_index(base_dir, canonical_index)
-        save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
+        apply_proposal(updated.candidate_id, OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
         print(f"{updated.candidate_id} staged_promoted canonical_id=canonical-{updated.candidate_id}")
         return 0
 

@@ -61,8 +61,8 @@ from .knowledge_store import (
     LIBRARIAN_AGENT_WRITE_AUTHORITY,
     OPERATOR_CANONICAL_WRITE_AUTHORITY,
     persist_task_knowledge_view,
-    persist_wiki_entry_from_record,
 )
+from .governance import OperatorToken, ProposalTarget, apply_proposal, register_canonical_proposal
 from .knowledge_store import normalize_task_knowledge_view, split_task_knowledge_view
 from .librarian_executor import (
     LIBRARIAN_CHANGE_LOG_KIND,
@@ -145,7 +145,6 @@ from .subtask_orchestrator import (
 )
 from .store import (
     append_event,
-    append_canonical_record,
     append_canonical_reuse_evaluation,
     append_knowledge_decision,
     apply_atomic_text_updates,
@@ -495,13 +494,16 @@ def _apply_librarian_side_effects(
     for canonical_record in canonical_records:
         if not isinstance(canonical_record, dict):
             continue
-        append_canonical_record(base_dir, canonical_record)
-        persist_wiki_entry_from_record(
-            base_dir,
-            canonical_record,
+        proposal_id = str(canonical_record.get("canonical_id", "")).strip() or f"{state.task_id}:librarian"
+        register_canonical_proposal(
+            base_dir=base_dir,
+            proposal_id=proposal_id,
+            canonical_record=canonical_record,
             mirror_files=False,
             write_authority=LIBRARIAN_AGENT_WRITE_AUTHORITY,
+            persist_wiki_first=False,
         )
+        apply_proposal(proposal_id, OperatorToken(source="librarian_side_effect"), ProposalTarget.CANONICAL_KNOWLEDGE)
 
     state.knowledge_objects = [dict(item) for item in updated_knowledge_objects if isinstance(item, dict)]
     knowledge_partition, knowledge_index = _persist_librarian_atomic_updates(
@@ -2953,7 +2955,15 @@ def decide_task_knowledge(
             knowledge_object=next(item for item in state.knowledge_objects if str(item.get("object_id", "")) == object_id),
             decision_record=decision_record,
         )
-        append_canonical_record(base_dir, canonical_record)
+        proposal_id = str(canonical_record.get("canonical_id", "")).strip() or f"{task_id}:{object_id}"
+        register_canonical_proposal(
+            base_dir=base_dir,
+            proposal_id=proposal_id,
+            canonical_record=canonical_record,
+            write_authority=caller_authority,
+            persist_wiki=False,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
     if canonical_registry_path(base_dir).exists():
         for line in canonical_registry_path(base_dir).read_text(encoding="utf-8").splitlines():
             stripped = line.strip()

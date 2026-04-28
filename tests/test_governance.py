@@ -1,0 +1,69 @@
+import json
+
+import pytest
+
+from swallow.governance import ApplyResult, OperatorToken, ProposalTarget, apply_proposal, register_canonical_proposal
+from swallow.paths import canonical_registry_index_path, canonical_registry_path, canonical_reuse_policy_path, knowledge_wiki_entry_path
+
+
+def test_operator_token_rejects_invalid_source() -> None:
+    with pytest.raises(ValueError, match="Invalid operator token source"):
+        OperatorToken(source="agent_side_effect")  # type: ignore[arg-type]
+
+
+def test_apply_canonical_proposal_writes_registry_wiki_and_derivatives(tmp_path) -> None:
+    canonical_record = {
+        "canonical_id": "canonical-staged-1234",
+        "canonical_key": "task-object:task-governance:knowledge-0001",
+        "source_task_id": "task-governance",
+        "source_object_id": "knowledge-0001",
+        "promoted_at": "2026-04-28T00:00:00+00:00",
+        "promoted_by": "swl_cli",
+        "decision_note": "approved",
+        "decision_ref": ".swl/staged_knowledge/registry.jsonl#staged-1234",
+        "artifact_ref": "",
+        "source_ref": "chat://governance",
+        "text": "Governance promotion goes through apply_proposal.",
+        "evidence_status": "source_only",
+        "canonical_stage": "canonical",
+        "canonical_status": "active",
+        "superseded_by": "",
+        "superseded_at": "",
+    }
+    register_canonical_proposal(
+        base_dir=tmp_path,
+        proposal_id="staged-1234",
+        canonical_record=canonical_record,
+        write_authority="operator-gated",
+        refresh_derived=True,
+    )
+
+    result = apply_proposal("staged-1234", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
+
+    assert isinstance(result, ApplyResult)
+    assert result.success is True
+    assert result.applied_writes == (
+        "wiki_entry",
+        "canonical_registry",
+        "canonical_registry_index",
+        "canonical_reuse_policy",
+    )
+    registry_records = [
+        json.loads(line)
+        for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    wiki_entry = json.loads(knowledge_wiki_entry_path(tmp_path, "task-governance", "knowledge-0001").read_text(encoding="utf-8"))
+    registry_index = json.loads(canonical_registry_index_path(tmp_path).read_text(encoding="utf-8"))
+    reuse_policy = json.loads(canonical_reuse_policy_path(tmp_path).read_text(encoding="utf-8"))
+
+    assert registry_records == [canonical_record]
+    assert wiki_entry["stage"] == "canonical"
+    assert registry_index["count"] == 1
+    assert reuse_policy["reuse_visible_count"] == 1
+
+
+def test_apply_canonical_proposal_requires_registered_payload() -> None:
+    with pytest.raises(ValueError, match="Unknown proposal artifact"):
+        apply_proposal("missing", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
+
