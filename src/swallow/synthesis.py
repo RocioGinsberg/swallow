@@ -86,6 +86,7 @@ def synthesis_config_from_dict(payload: dict[str, object]) -> SynthesisConfig:
     except (TypeError, ValueError) as exc:
         raise ValueError("rounds must be an integer.") from exc
     arbiter = _coerce_participant(payload.get("arbiter", {}), field_name="arbiter")
+    _validate_participant_ids(participants, arbiter)
     arbiter_prompt_extra = str(payload.get("arbiter_prompt_extra", "") or "").strip() or None
     return SynthesisConfig(
         config_id=config_id,
@@ -204,6 +205,39 @@ def _role_prompt_hash(role_prompt: str) -> str:
     return sha256(role_prompt.encode("utf-8")).hexdigest()
 
 
+def _validate_participant_ids(
+    participants: tuple[SynthesisParticipant, ...],
+    arbiter: SynthesisParticipant,
+) -> None:
+    seen: set[str] = set()
+    duplicates: list[str] = []
+    for participant in participants:
+        participant_id = participant.participant_id.strip()
+        if participant_id in seen and participant_id not in duplicates:
+            duplicates.append(participant_id)
+        seen.add(participant_id)
+    if duplicates:
+        duplicate_ids = ", ".join(sorted(duplicates))
+        raise ValueError(f"participants[].participant_id must be unique: {duplicate_ids}")
+    arbiter_id = arbiter.participant_id.strip()
+    if arbiter_id in seen:
+        raise ValueError(f"arbiter.participant_id must differ from participant ids: {arbiter_id}")
+
+
+def _require_completed_executor_result(
+    executor_result: ExecutorResult,
+    *,
+    actor_label: str,
+) -> None:
+    if executor_result.status == "completed":
+        return
+    detail = (executor_result.message or executor_result.output or "").strip()
+    suffix = f": {detail}" if detail else "."
+    raise RuntimeError(
+        f"MPS executor failed for {actor_label} with status={executor_result.status!r}{suffix}"
+    )
+
+
 def persist_participant_artifact(
     base_dir: Path,
     task_id: str,
@@ -211,7 +245,6 @@ def persist_participant_artifact(
     participant: SynthesisParticipant,
     executor_result: ExecutorResult,
     route_name: str,
-    prompt: str,
 ) -> ParticipantArtifact:
     artifact_id = _artifact_id("synthesis")
     artifact_name = f"synthesis_round_{round_n}_participant_{participant.participant_id}.json"
@@ -226,7 +259,6 @@ def persist_participant_artifact(
         "route_name": route_name,
         "status": executor_result.status,
         "output": output,
-        "prompt": prompt,
         "completed_at": utc_now(),
     }
     path = write_artifact(base_dir, task_id, artifact_name, json.dumps(payload, indent=2, sort_keys=True))
@@ -255,6 +287,10 @@ def run_synthesis_round(
         transient_state = _participant_state_for_call(base_state, route)
         prompt = compose_participant_prompt(participant, base_state.task_semantics, prompt_artifacts)
         executor_result = run_http_executor(transient_state, [], prompt=prompt)
+        _require_completed_executor_result(
+            executor_result,
+            actor_label=f"participant {participant.participant_id} round {round_n}",
+        )
         artifacts.append(
             persist_participant_artifact(
                 base_dir,
@@ -263,7 +299,6 @@ def run_synthesis_round(
                 participant,
                 executor_result,
                 route.name,
-                prompt,
             )
         )
     return artifacts
@@ -302,6 +337,7 @@ def _participant_summaries(
 
 
 def _validate_config(base_dir: Path, config: SynthesisConfig) -> None:
+    _validate_participant_ids(config.participants, config.arbiter)
     if config.rounds < 1:
         raise ValueError("synthesis rounds must be >= 1.")
     round_limit = _resolve_round_limit(base_dir)
@@ -337,10 +373,10 @@ def _arbitration_prompt(
 
 
 def run_synthesis(base_dir: Path, base_state: TaskState, config: SynthesisConfig) -> ArbitrationResult:
-    _validate_config(base_dir, config)
     arbitration_path = artifacts_dir(base_dir, base_state.task_id) / ARBITRATION_ARTIFACT_NAME
     if arbitration_path.exists():
         raise RuntimeError("synthesis already completed for task; re-run requires new task")
+    _validate_config(base_dir, config)
 
     all_artifacts: list[ParticipantArtifact] = []
     prior_artifacts: list[ParticipantArtifact] = []
@@ -353,6 +389,10 @@ def run_synthesis(base_dir: Path, base_state: TaskState, config: SynthesisConfig
     arbiter_state = _participant_state_for_call(base_state, arbiter_route)
     prompt = _arbitration_prompt(config, base_state.task_semantics, all_artifacts)
     arbiter_result = run_http_executor(arbiter_state, [], prompt=prompt)
+    _require_completed_executor_result(
+        arbiter_result,
+        actor_label=f"arbiter {config.arbiter.participant_id}",
+    )
     synthesis_summary = (arbiter_result.output or arbiter_result.message).strip()
     if not synthesis_summary:
         raise ValueError("arbiter synthesis_summary must be non-empty.")

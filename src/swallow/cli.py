@@ -2570,9 +2570,11 @@ def main(argv: list[str] | None = None) -> int:
             None,
         )
         if duplicate is not None:
-            raise ValueError(
-                f"Synthesis arbitration is already staged: {duplicate.candidate_id} submitted_at={duplicate.submitted_at}"
+            print(
+                f"Synthesis arbitration is already staged: {duplicate.candidate_id} submitted_at={duplicate.submitted_at}",
+                file=sys.stderr,
             )
+            return 1
         candidate = StagedCandidate(
             candidate_id="",
             text=synthesis_summary,

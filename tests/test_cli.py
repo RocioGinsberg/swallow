@@ -200,8 +200,13 @@ class CliLifecycleTest(unittest.TestCase):
             self.assertEqual(candidates[0].source_kind, "synthesis")
             self.assertEqual(candidates[0].source_object_id, "config-mps")
 
-            with self.assertRaisesRegex(ValueError, "already staged"):
-                main(["--base-dir", str(base_dir), "synthesis", "stage", "--task", state.task_id])
+            stderr = StringIO()
+            with redirect_stderr(stderr):
+                exit_code = main(["--base-dir", str(base_dir), "synthesis", "stage", "--task", state.task_id])
+
+            self.assertEqual(exit_code, 1)
+            self.assertIn("already staged", stderr.getvalue())
+            self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_create_task_persists_default_capability_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
