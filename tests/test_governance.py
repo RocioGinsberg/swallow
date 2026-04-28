@@ -8,9 +8,12 @@ from swallow.governance import (
     ProposalTarget,
     apply_proposal,
     register_canonical_proposal,
+    register_policy_proposal,
     register_route_metadata_proposal,
 )
+from swallow.models import AuditTriggerPolicy
 from swallow.paths import (
+    audit_policy_path,
     canonical_registry_index_path,
     canonical_registry_path,
     canonical_reuse_policy_path,
@@ -117,3 +120,29 @@ def test_apply_route_metadata_proposal_saves_and_refreshes_registry(tmp_path) ->
         route.quality_weight = original_weight
         route.task_family_scores = original_scores
         route.unsupported_task_types = original_unsupported
+
+
+def test_apply_policy_proposal_saves_audit_trigger_policy(tmp_path) -> None:
+    policy = AuditTriggerPolicy(
+        enabled=True,
+        trigger_on_degraded=False,
+        trigger_on_cost_above=0.75,
+        auditor_route="http-qwen",
+    )
+    register_policy_proposal(
+        base_dir=tmp_path,
+        proposal_id="audit-policy",
+        audit_trigger_policy=policy,
+    )
+
+    result = apply_proposal("audit-policy", OperatorToken(source="cli"), ProposalTarget.POLICY)
+
+    assert result.success is True
+    assert result.applied_writes == ("audit_trigger_policy",)
+    persisted = json.loads(audit_policy_path(tmp_path).read_text(encoding="utf-8"))
+    assert persisted == {
+        "enabled": True,
+        "trigger_on_degraded": False,
+        "trigger_on_cost_above": 0.75,
+        "auditor_route": "http-qwen",
+    }

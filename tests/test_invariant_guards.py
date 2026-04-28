@@ -17,12 +17,12 @@ def _relative(path: Path) -> str:
 
 
 def _find_protected_writer_uses(*, protected_names: set[str], allowed_files: set[str]) -> list[str]:
-    """Scan production code for direct canonical writer imports/calls.
+    """Scan production code for direct protected writer imports/calls.
 
-    Phase 61 intentionally guards canonical main writes only. Tests are not
-    scanned because fixture setup may call low-level store helpers directly.
-    The bottom-layer definition files are whitelisted; all other production
-    callers must go through `swallow.governance.apply_proposal`.
+    Phase 61 guards canonical knowledge / route metadata / policy main writes.
+    Tests are not scanned because fixture setup may call low-level store helpers
+    directly. The bottom-layer definition files are whitelisted; all other
+    production callers must go through `swallow.governance.apply_proposal`.
     """
 
     violations: list[str] = []
@@ -67,6 +67,34 @@ def test_route_metadata_writes_only_via_apply_proposal() -> None:
         allowed_files={
             "src/swallow/governance.py",
             "src/swallow/router.py",
+        },
+    )
+
+    assert violations == []
+
+
+def test_only_apply_proposal_calls_private_writers() -> None:
+    """Aggregate Phase 61 guard for canonical / route / policy main writer calls.
+
+    DATA_MODEL §4.1 describes future Repository-private methods. Until that
+    abstraction exists, this test guards the current physical writer functions
+    selected by Phase 61 design_decision §E / §F.
+    """
+
+    violations = _find_protected_writer_uses(
+        protected_names={
+            "append_canonical_record",
+            "persist_wiki_entry_from_record",
+            "save_route_weights",
+            "save_route_capability_profiles",
+            "save_audit_trigger_policy",
+        },
+        allowed_files={
+            "src/swallow/governance.py",
+            "src/swallow/store.py",
+            "src/swallow/knowledge_store.py",
+            "src/swallow/router.py",
+            "src/swallow/consistency_audit.py",
         },
     )
 
