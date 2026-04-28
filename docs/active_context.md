@@ -15,7 +15,7 @@
 - active_phase: `Phase 61`
 - active_slice: `M3: Policy 收敛 + 聚合守卫测试`
 - active_branch: `feat/phase61-apply-proposal`
-- status: `pre_m3_meta_cleanup_review_ready`
+- status: `m3_review_ready`
 
 ---
 
@@ -80,6 +80,31 @@ M2 验证结果:
 3. 新增 Claude Code 项目 skill `.claude/skills/model-review/SKILL.md`,作为 `/model-review` 的执行入口。
 4. 更新 feature workflow、Claude 规则、Codex 规则与 Codex bootstrap,明确 Claude 负责 model review 判断与消化,Codex 只在 gate resolved 后实现。
 
+Docs/meta cleanup 已由 Human 提交:`1928f2c docs(meta): add model review workflow gate`。当前进入 M3 实施。
+
+当前 M3 已完成:S4 Policy 写路径收敛 + 守卫测试 3 + Phase 49 concern 消化。
+
+M3 实现说明:
+
+1. `src/swallow/governance.py` 新增 `register_policy_proposal()` 与 `_apply_policy()`,系统级 audit trigger policy 写入现在经 `apply_proposal(target=POLICY)`。
+2. `swl audit policy set` 不再直接调用 `save_audit_trigger_policy`,而是注册 policy proposal 后走 governance boundary。
+3. `task knowledge-promote --target canonical` 的 CLI decision-level `caller_authority` 改为 `operator-gated`;decision 层同时接受 Librarian `canonical-promotion` 与 Operator `operator-gated`。
+4. `tests/test_invariant_guards.py` 新增 `test_only_apply_proposal_calls_private_writers`,聚合守卫 canonical / route / policy 主写入函数。
+5. `docs/concerns_backlog.md` 将 Phase 49 authority concern 从 Open 移入 Resolved。
+6. `tests/test_run_task_subtasks.py` 放宽一个非 Phase 61 路径的 timing 断言,避免 `1.35s` 阈值在本地/CI 调度抖动下阻断全量验证,同时仍捕捉 `3s+` 级挂起回归。
+
+M3 验证结果:
+
+- `.venv/bin/python -m pytest tests/test_governance.py tests/test_invariant_guards.py` — 8 passed
+- `.venv/bin/python -m pytest tests/test_consistency_audit.py -k "audit_policy"` — 2 passed
+- `.venv/bin/python -m pytest tests/test_cli.py -k "knowledge_promote or canonical_reuse"` — 8 passed, 229 deselected
+- `.venv/bin/python -m pytest tests/test_cli.py tests/test_consistency_audit.py tests/test_governance.py tests/test_invariant_guards.py` — 256 passed
+- `.venv/bin/python -m pytest tests/test_run_task_subtasks.py::RunTaskSubtaskIntegrationTest::test_run_task_times_out_one_parallel_subtask_without_canceling_other_work` — 1 passed
+- `.venv/bin/python -m pytest tests/eval/test_eval_meta_optimizer_proposals.py -m eval` — 1 passed
+- `.venv/bin/python -m pytest` — 543 passed, 8 deselected
+- `git diff --check` — pass
+- `rg -n "save_audit_trigger_policy|save_route_weights|save_route_capability_profiles|append_canonical_record|persist_wiki_entry_from_record" src/swallow -g '*.py'` — protected writer uses only in `governance.py` and bottom-layer definition files
+
 ---
 
 ## 当前关键文档
@@ -112,6 +137,10 @@ M2 验证结果:
 - **[Human]** 已提交 M2:`e54f7a3 feat(governance): route metadata apply_proposal boundary`
 - **[Codex]** 已按 Human 确认删除 stale `change.md`
 - **[Codex]** 已新增 Claude 侧 model review workflow / skill,并同步 Claude/Codex gate 规则
+- **[Human]** 已提交 docs/meta cleanup:`1928f2c docs(meta): add model review workflow gate`
+- **[Codex]** 已完成 M3 实现与验证
+- **[Codex]** 已将 Phase 49 authority concern 标记为 Resolved
+- **[Codex]** 已修正非 Phase 61 路径的 subtask timeout timing 测试阈值,保证全量验证稳定通过
 
 进行中:
 
@@ -119,8 +148,9 @@ M2 验证结果:
 
 待执行:
 
-- **[Human]** 审阅本次 docs/meta cleanup diff 并决定是否提交
-- **[Codex]** docs/meta cleanup 提交后进入 M3:`Policy 收敛 + 聚合守卫测试`
+- **[Human]** 审阅 M3 diff 并决定是否提交
+- **[Human]** 如认可 M3,执行 milestone commit
+- **[Claude]** M3 提交后进入 Phase 61 PR review / consistency check
 
 当前阻塞项:
 
@@ -130,9 +160,9 @@ M2 验证结果:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 docs/meta cleanup diff
-2. **[Human]** 如认可,提交:`docs(meta): add model review workflow gate`
-3. **[Codex]** Human 完成 docs/meta commit 后继续 M3
+1. **[Human]** 审阅 M3 diff
+2. **[Human]** 如认可,提交 M3:`feat(governance): policy apply_proposal boundary`
+3. **[Claude]** Human 完成 M3 commit 后进行 Phase 61 PR review / consistency check
 
 ---
 
@@ -162,3 +192,12 @@ M2 验证结果:
 - `.agents/codex/rules.md`(codex, 2026-04-28, Codex pre-implementation gate check)
 - `.agents/codex/role.md`(codex, 2026-04-28, Codex local playbooks clarified)
 - `.codex/session_bootstrap.md`(codex, 2026-04-28, Codex model review boundary reminder)
+- `src/swallow/governance.py`(codex, 2026-04-28, policy apply_proposal boundary)
+- `src/swallow/cli.py`(codex, 2026-04-28, audit policy set / canonical promotion authority收敛)
+- `src/swallow/knowledge_review.py`(codex, 2026-04-28, canonical promotion decision authorities)
+- `tests/test_governance.py`(codex, 2026-04-28, policy governance test)
+- `tests/test_invariant_guards.py`(codex, 2026-04-28, aggregate private writer guard)
+- `tests/test_cli.py`(codex, 2026-04-28, operator-gated canonical promotion assertion)
+- `tests/test_run_task_subtasks.py`(codex, 2026-04-28, timeout isolation timing assertion robustness)
+- `docs/concerns_backlog.md`(codex, 2026-04-28, Phase 49 authority concern resolved)
+- `docs/active_context.md`(codex, 2026-04-28, M3 review-ready state sync)
