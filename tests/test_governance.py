@@ -8,6 +8,7 @@ from swallow.governance import (
     ProposalTarget,
     apply_proposal,
     register_canonical_proposal,
+    register_mps_policy_proposal,
     register_policy_proposal,
     register_route_metadata_proposal,
 )
@@ -18,6 +19,7 @@ from swallow.paths import (
     canonical_registry_path,
     canonical_reuse_policy_path,
     knowledge_wiki_entry_path,
+    mps_policy_path,
     route_capabilities_path,
     route_weights_path,
 )
@@ -146,3 +148,29 @@ def test_apply_policy_proposal_saves_audit_trigger_policy(tmp_path) -> None:
         "trigger_on_cost_above": 0.75,
         "auditor_route": "http-qwen",
     }
+
+
+def test_mps_rounds_within_hard_cap(tmp_path) -> None:
+    with pytest.raises(ValueError, match="mps_round_limit value must be <= 3"):
+        register_mps_policy_proposal(
+            base_dir=tmp_path,
+            proposal_id="mps-rounds",
+            kind="mps_round_limit",
+            value=4,
+        )
+
+
+def test_apply_proposal_accepts_mps_policy_kind(tmp_path) -> None:
+    register_mps_policy_proposal(
+        base_dir=tmp_path,
+        proposal_id="mps-participants",
+        kind="mps_participant_limit",
+        value=6,
+    )
+
+    result = apply_proposal("mps-participants", OperatorToken(source="cli"), ProposalTarget.POLICY)
+
+    assert result.success is True
+    assert result.applied_writes == ("mps_policy",)
+    persisted = json.loads(mps_policy_path(tmp_path).read_text(encoding="utf-8"))
+    assert persisted == {"mps_participant_limit": 6}
