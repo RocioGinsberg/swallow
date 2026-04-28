@@ -85,6 +85,13 @@ class _PolicyProposal:
     audit_trigger_policy: AuditTriggerPolicy
 
 
+@dataclass(frozen=True)
+class _MpsPolicyProposal:
+    base_dir: Path
+    kind: str
+    value: int
+
+
 _PENDING_PROPOSALS: dict[tuple[ProposalTarget, str], object] = {}
 
 
@@ -171,6 +178,34 @@ def register_policy_proposal(
     return normalized_id
 
 
+def register_mps_policy_proposal(
+    *,
+    base_dir: Path,
+    proposal_id: str,
+    kind: str,
+    value: int,
+) -> str:
+    from .mps_policy_store import normalize_mps_policy_kind, validate_mps_policy_value
+
+    normalized_id = proposal_id.strip()
+    if not normalized_id:
+        raise ValueError("proposal_id must be a non-empty string.")
+    normalized_kind = normalize_mps_policy_kind(kind)
+    normalized_value = validate_mps_policy_value(normalized_kind, value)
+    _PENDING_PROPOSALS[(ProposalTarget.POLICY, normalized_id)] = _MpsPolicyProposal(
+        base_dir=base_dir,
+        kind=normalized_kind,
+        value=normalized_value,
+    )
+    return normalized_id
+
+
+def load_mps_policy(base_dir: Path, kind: str) -> int | None:
+    from .mps_policy_store import read_mps_policy
+
+    return read_mps_policy(base_dir, kind)
+
+
 def apply_proposal(
     proposal_id: str,
     operator_token: OperatorToken,
@@ -214,7 +249,7 @@ def _validate_target(proposal: object, target: ProposalTarget) -> None:
         raise TypeError("canonical proposal payload is invalid.")
     if target == ProposalTarget.ROUTE_METADATA and not isinstance(proposal, _RouteMetadataProposal):
         raise TypeError("route metadata proposal payload is invalid.")
-    if target == ProposalTarget.POLICY and not isinstance(proposal, _PolicyProposal):
+    if target == ProposalTarget.POLICY and not isinstance(proposal, (_PolicyProposal, _MpsPolicyProposal)):
         raise TypeError("policy proposal payload is invalid.")
 
 
@@ -551,6 +586,19 @@ def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_i
 
 
 def _apply_policy(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
+    if isinstance(proposal, _MpsPolicyProposal):
+        from .mps_policy_store import save_mps_policy
+
+        policy_path = save_mps_policy(proposal.base_dir, proposal.kind, proposal.value)
+        return ApplyResult(
+            proposal_id=proposal_id,
+            target=ProposalTarget.POLICY,
+            success=True,
+            detail=f"mps_policy_applied kind={proposal.kind} path={policy_path}",
+            applied_writes=("mps_policy",),
+            payload=policy_path,
+        )
+
     if not isinstance(proposal, _PolicyProposal):
         raise TypeError("policy proposal payload is invalid.")
 

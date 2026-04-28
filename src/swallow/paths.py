@@ -202,6 +202,10 @@ def audit_policy_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "audit_policy.json"
 
 
+def mps_policy_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "policy" / "mps_policy.json"
+
+
 def route_weights_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "route_weights.json"
 
