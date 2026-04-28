@@ -51,6 +51,18 @@
 
 ## 三、实现规则
 
+### 进入实现前的 gate 校验
+
+Codex 开始代码改动前必须确认:
+
+- Human Design Gate 已通过
+- `design_decision.md` 与 `risk_assessment.md` 存在
+- `design_audit.md` 不存在未解决 `[BLOCKER]`
+- 如 `docs/active_context.md` 记录了 `model_review.status: required` 或 `blocked`,必须等待 Claude/Human 将其更新为 `completed` 或明确 `skipped`
+- 当前分支与 `docs/active_context.md` 的 `active_branch` 一致
+
+Codex 可以报告实现层 blocker,但不重新裁剪 roadmap、不重写 kickoff、不替代 Claude 做复杂设计推理。
+
 ### 先做最小闭环，再做边界 tightening
 
 优先顺序：
