@@ -8,7 +8,7 @@ from swallow.governance import OperatorToken, ProposalTarget, apply_proposal, re
 from swallow.models import ExecutorResult, SynthesisConfig, SynthesisParticipant, TaskState
 from swallow.paths import artifacts_dir
 from swallow.store import load_events, load_state, save_state
-from swallow.synthesis import run_synthesis
+from swallow.synthesis import run_synthesis, synthesis_config_from_dict
 
 
 def _state() -> TaskState:
@@ -83,6 +83,10 @@ def test_mps_arbiter_artifact_required(tmp_path, monkeypatch) -> None:
     assert len(payload["participants"]) == 2
     for participant in payload["participants"]:
         assert len(participant["round_artifacts"]) == 2
+        for artifact in participant["round_artifacts"]:
+            participant_payload = json.loads((tmp_path / artifact["path"]).read_text(encoding="utf-8"))
+            assert participant_payload["role_prompt_hash"]
+            assert "prompt" not in participant_payload
 
     events = load_events(tmp_path, state.task_id)
     mps_events = [event for event in events if event["event_type"] == "task.mps_completed"]
@@ -105,25 +109,56 @@ def test_synthesis_run_rejects_if_arbitration_exists(tmp_path, monkeypatch) -> N
 
 def test_synthesis_does_not_mutate_main_task_state(tmp_path, monkeypatch) -> None:
     state = _state()
-    before = {
-        "route_name": state.route_name,
-        "route_model_hint": state.route_model_hint,
-        "route_transport_kind": state.route_transport_kind,
-        "route_taxonomy_role": state.route_taxonomy_role,
-        "route_taxonomy_memory_authority": state.route_taxonomy_memory_authority,
-    }
+    before = state.to_dict()
     save_state(tmp_path, state)
     monkeypatch.setattr("swallow.synthesis.run_http_executor", _mock_http_executor)
 
     run_synthesis(tmp_path, state, _config())
 
-    after = {
-        "route_name": state.route_name,
-        "route_model_hint": state.route_model_hint,
-        "route_transport_kind": state.route_transport_kind,
-        "route_taxonomy_role": state.route_taxonomy_role,
-        "route_taxonomy_memory_authority": state.route_taxonomy_memory_authority,
-    }
-    assert after == before
+    assert state.to_dict() == before
     persisted = load_state(tmp_path, state.task_id)
-    assert persisted.route_name == before["route_name"]
+    assert persisted.to_dict() == before
+
+
+def test_mps_aborts_on_participant_failure(tmp_path, monkeypatch) -> None:
+    state = _state()
+    save_state(tmp_path, state)
+
+    def failing_http_executor(state, retrieval_items, prompt=None, **kwargs):
+        del state, retrieval_items, prompt, kwargs
+        return ExecutorResult(
+            executor_name="http",
+            status="failed",
+            message="upstream unavailable",
+        )
+
+    monkeypatch.setattr("swallow.synthesis.run_http_executor", failing_http_executor)
+
+    with pytest.raises(RuntimeError, match="participant participant-1 round 1"):
+        run_synthesis(tmp_path, state, _config())
+
+    artifact_dir = artifacts_dir(tmp_path, state.task_id)
+    assert not (artifact_dir / "synthesis_arbitration.json").exists()
+    if artifact_dir.exists():
+        assert not list(artifact_dir.glob("synthesis_round_*_participant_*.json"))
+
+
+def test_config_rejects_duplicate_participant_id() -> None:
+    payload = {
+        "config_id": "config-mps",
+        "rounds": 1,
+        "participants": [
+            {"participant_id": "same", "role_prompt": "First perspective."},
+            {"participant_id": "same", "role_prompt": "Second perspective."},
+        ],
+        "arbiter": {"participant_id": "arbiter", "role_prompt": "Arbitrate."},
+    }
+
+    with pytest.raises(ValueError, match=r"participants\[\]\.participant_id must be unique"):
+        synthesis_config_from_dict(payload)
+
+    payload["participants"][1]["participant_id"] = "other"
+    payload["arbiter"]["participant_id"] = "same"
+
+    with pytest.raises(ValueError, match=r"arbiter\.participant_id must differ"):
+        synthesis_config_from_dict(payload)
