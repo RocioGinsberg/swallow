@@ -8,20 +8,24 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Architecture / Governance`
-- latest_completed_phase: `Phase 61`
-- latest_completed_slice: `apply_proposal Boundary M1+M2+M3 + Closeout + Merge`
-- active_track: `Orchestration`
-- active_phase: `Phase 62`
-- active_slice: `M1+M2+M3 + Review 消化 + Closeout 完成(等待 Human Merge Gate)`
-- active_branch: `feat/phase62-multi-perspective-synthesis`
-- status: `phase62_ready_for_human_merge_gate`
+- latest_completed_track: `Orchestration`
+- latest_completed_phase: `Phase 62`
+- latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
+- active_track: `Release`
+- active_phase: `v1.3.1`
+- active_slice: `Release Doc Sync`
+- active_branch: `main`
+- status: `release_docs_ready_tag_pending`
 
 ---
 
 ## 当前状态说明
 
 Phase 61 已 merge 至 `main`(`c66fa87 merge: Refine codes after PRD change`,2026-04-28)。M1 canonical / M2 route metadata / M3 policy 三类主写入收敛 + 3 条 INVARIANTS §9 apply_proposal 守卫测试落地,543 passed / 8 deselected。详见 `docs/plans/phase61/closeout.md`。
+
+Phase 62 已 merge 至 `main`(`ce98f92 merge: Complete Refine codes after PRD change`,2026-04-29)。Multi-Perspective Synthesis(MPS) 已完成:Path A route-resolved participant / arbiter 编排、MPS policy governance、仲裁 artifact、explicit `swl synthesis stage` staged handoff、13 条守卫测试与 review follow-up。Closeout 验证:`.venv/bin/python -m pytest` → 559 passed / 8 deselected;`git diff --check` passed。
+
+`v1.3.1` release doc sync 已完成:README / current_state / active_context 已对齐 release target。Tag preflight 验证:`.venv/bin/python -m pytest` → 559 passed / 8 deselected;`git diff --check` passed。Human 下一步审阅并提交 release docs,然后执行 annotated tag。
 
 post-merge 已完成:
 
@@ -51,15 +55,23 @@ post-merge 决议(Human 已确认,2026-04-28):
 1. **Tag 决策**:打 `v1.3.1`(patch bump)。后续动作:Codex 同步 release docs → Human commit + execute `git tag v1.3.1` → Codex 同步 tag 结果。详见 `.agents/workflows/tag_release.md`。
 2. **Phase 62 Direction**:候选 E — 完整 Multi-Perspective Synthesis(ORCHESTRATION §5)。设计依据:`docs/design/ORCHESTRATION.md` 受控多视角综合方案 + A-lite 已落地的低摩擦捕获反馈基础 + roadmap §五推荐 E 优先。
 
+## Tag 建议（Phase 62 merge 后）
+
+- 建议:打 tag
+- 建议版本号:`v1.3.1`
+- Human 决策:已确认打 `v1.3.1`
+- 理由:`v1.3.0` 之后已累计 Route-aware Retrieval Policy、`apply_proposal()` governance boundary、Multi-Perspective Synthesis 三项稳定能力增量;当前 main 已 merge Phase 62 且测试通过。
+- 当前状态:release docs 已同步,等待 Human commit release docs 并执行 tag。
+
 ---
 
 ## 当前关键文档
 
-1. `docs/roadmap.md`(post-merge 增量已更新)
+1. `README.md`(v1.3.1 release snapshot 已同步)
 2. `docs/active_context.md`(本文)
-3. `docs/plans/phase62/review_comments.md`
-4. `docs/plans/phase62/closeout.md`
-5. `pr.md`
+3. `current_state.md`(v1.3.1 release checkpoint 已同步)
+4. `.agents/workflows/tag_release.md`
+5. `docs/plans/phase62/closeout.md`
 6. `docs/concerns_backlog.md`
 7. `docs/design/INVARIANTS.md`
 
@@ -81,6 +93,8 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Codex]** Phase 62 `model_review.md` 二次审计已完成并记录 `verdict: BLOCK`
 - **[Codex]** Phase 62 MPS M1/M2/M3 实装与验证完成:policy governance、Path A route resolution + transient state isolation、artifact/event 写入、CLI run/stage/staged duplicate guard、13 条 MPS 守卫均已落地;full pytest passed。
 - **[Codex]** Phase 62 review CONCERN-1..4 已消化,NOTE-B/C 已 tightening,`docs/plans/phase62/closeout.md` 与 `pr.md` 已准备完成。
+- **[Human]** Phase 62 已提交并 merge 到 `main`(`ce98f92`)。
+- **[Codex]** `v1.3.1` release docs 已同步:`README.md` release snapshot + `current_state.md` release checkpoint + 本文状态;tag preflight `.venv/bin/python -m pytest` 已通过(559 passed / 8 deselected)。
 
 进行中:
 
@@ -88,10 +102,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human]** Merge Gate:阅读 `pr.md` / `docs/plans/phase62/review_comments.md` / `docs/plans/phase62/closeout.md`,合并决策
-- **[Human]** 如接受,提交 review 消化 + closeout/PR body 状态材料,并创建/更新 PR
-- **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md`
-- **[Codex]** tag release docs 同步 + tag 执行配合(见 `.agents/workflows/tag_release.md`)
+- **[Human]** 审阅 release docs diff 并提交:`README.md` / `current_state.md` / `docs/active_context.md`
+- **[Human]** 执行 annotated tag `v1.3.1` 并 push main + tags
+- **[Codex]** Human 确认 tag 完成后,同步 `docs/active_context.md` tag completed 状态
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix(post-merge cleanup,可与后续 docs commit 合并)
 
 当前阻塞项:
@@ -102,9 +115,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Human]** Merge Gate(确认 review 中 CONCERN-1..4 已处理,审阅 `pr.md` 与 closeout)
-2. **[Human]** 创建/更新 PR 并决定是否合并
-3. **[Codex]** merge 后执行 state sync 与 release/tag docs 配合
+1. **[Human]** 审阅并提交 release docs
+2. **[Human]** 执行 `git tag -a v1.3.1 -m "v1.3.1: Governance boundary and multi-perspective synthesis"` 与 `git push origin main --tags`
+3. **[Codex]** tag 完成后同步 tag result
 
 ```markdown
 model_review:
@@ -134,3 +147,6 @@ model_review:
 - `docs/plans/phase62/review_comments.md`(claude, 2026-04-28, Phase 62 PR review:0 BLOCK / 4 CONCERN / 4 NOTE)
 - `docs/plans/phase62/closeout.md`(codex, 2026-04-29, Phase 62 closeout and review digestion record)
 - `pr.md`(codex, 2026-04-29, Phase 62 PR body draft)
+- `README.md`(codex, 2026-04-29, v1.3.1 release snapshot)
+- `current_state.md`(codex, 2026-04-29, v1.3.1 release checkpoint / tag pending)
+- `docs/active_context.md`(codex, 2026-04-29, post-merge + release docs sync state)

@@ -8,11 +8,24 @@ swallow sustains multi-step, multi-session tasks by combining task orchestration
 
 ---
 
+## Release Snapshot
+
+Current release: **v1.3.1**.
+
+This snapshot includes the post-`v1.3.0` stabilization line:
+
+- Route-aware retrieval policy: autonomous CLI coding routes default to knowledge sources, HTTP routes default to knowledge + notes, and repository retrieval remains explicit.
+- `apply_proposal()` governance boundary: canonical knowledge, route metadata, and policy writes converge on one operator-gated entrypoint.
+- Multi-Perspective Synthesis (MPS): controlled Path A participant + arbiter synthesis, MPS cost policy, arbitration artifacts, and explicit staged-knowledge handoff via `swl synthesis`.
+
+---
+
 ## Core Capabilities
 
 - **Stateful task runtime** — tasks persist across steps and sessions with explicit state, events, artifacts, checkpoints, resume, retry, rerun, and operator-initiated suspend.
 - **Knowledge governance** — SQLite-backed knowledge truth with staged → review → promote workflow, gated by a single `apply_proposal` entrypoint. Not implicit global memory.
 - **Policy & execution loop** — proposal-driven self-evolution, operator review/apply, complexity-aware routing, and guarded fan-out orchestration.
+- **Multi-perspective synthesis** — Path A participant fan-out plus arbiter synthesis writes structured task artifacts, with staged knowledge entry only through explicit Operator CLI action.
 - **Replaceable executors** — role-first architecture; executors are bound by system role (five-tuple), not brand identity.
 - **Multi-model routing** — HTTP routes with dialect adapters, layered fallback, capability boundary guard, and real token-cost telemetry.
 - **Three explicit LLM call paths** — Path A (controlled HTTP), Path B (agent black-box), Path C (specialist internal). Provider Router governance penetrates A and C; B is governed via task boundaries, skills, and validators.
@@ -172,11 +185,24 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 ---
 
+## Release Snapshot
+
+当前 release:**v1.3.1**。
+
+这个快照包含 `v1.3.0` 之后的稳定化能力:
+
+- 路径感知 retrieval policy:autonomous CLI coding route 默认取 knowledge,HTTP route 默认取 knowledge + notes,repo retrieval 保持显式触发。
+- `apply_proposal()` governance boundary:canonical knowledge / route metadata / policy 三类写入收敛到单一 operator-gated 入口。
+- Multi-Perspective Synthesis(MPS):受控 Path A participant + arbiter 综合、MPS 成本 policy、仲裁 artifact,以及通过 `swl synthesis` 显式进入 staged knowledge。
+
+---
+
 ## 核心能力
 
 - **有状态任务运行时**——任务跨步骤和会话持久化,支持显式 state / events / artifacts / checkpoint / resume / retry / rerun / operator 主动 suspend。
 - **知识治理**——SQLite-backed 知识真值层,staged → review → promote 工作流,通过单一 `apply_proposal` 入口收口。不是隐式全局记忆。
 - **策略与执行闭环**——proposal-driven 的自我演化、operator review/apply、complexity-aware 路由与带守卫的 fan-out 编排。
+- **多视角综合**——Path A participant fan-out + arbiter synthesis 产出结构化 task artifact,且只通过显式 Operator CLI 动作进入 staged knowledge。
 - **可替换执行器**——role-first 架构,执行器按系统角色五元组绑定,而非品牌绑定。
 - **多模型路由**——HTTP 路由 + 方言适配器 + 分层降级 + 能力边界守卫 + 真实 token 成本遥测。
 - **显式三条 LLM 调用路径**——Path A(controlled HTTP)、Path B(agent black-box)、Path C(specialist internal)。Provider Router 治理穿透 A 和 C;B 通过任务边界、skills、validators 治理。

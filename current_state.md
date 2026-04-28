@@ -27,18 +27,18 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `Phase 61`
-- latest_public_tag: `v1.3.0`
-- current_working_phase: `Phase 62`
-- checkpoint_type: `phase62_ready_for_human_merge_gate`
-- active_branch: `feat/phase62-multi-perspective-synthesis`
+- latest_main_checkpoint_phase: `Phase 62`
+- latest_public_tag: `v1.3.1`
+- current_working_phase: `Release v1.3.1`
+- checkpoint_type: `release_docs_ready_for_v1.3.1`
+- active_branch: `main`
 - last_checked: `2026-04-29`
 
 说明：
 
-- `main` 已包含 Phase 61 merge(`c66fa87 merge: Refine codes after PRD change`):canonical knowledge / route metadata / policy 三类主写入收敛到 `apply_proposal()` governance boundary。
-- `v1.3.0` 仍是当前公开 tag。Human 已确认后续 tag 决策为 `v1.3.1`,但 release docs / tag 命令尚未完成。
-- 当前工作分支 `feat/phase62-multi-perspective-synthesis` 已完成 MPS 实装、Claude review 消化、closeout 与 `pr.md` 准备,等待 Human Merge Gate。
+- `main` 已包含 Phase 62 merge(`ce98f92 merge: Complete Refine codes after PRD change`):Multi-Perspective Synthesis(MPS) 的 Path A participant / arbiter 编排、MPS policy、仲裁 artifact 与 explicit staged handoff 已落地。
+- `v1.3.1` 是当前 release docs 目标 tag,覆盖 `v1.3.0` 之后的 Phase 60 / 61 / 62 稳定成果。tag 命令尚未执行;执行后 Codex 需要再同步 `docs/active_context.md` 的 tag completed 状态。
+- 当前默认动作是 Human 审阅 release docs diff,提交 `README.md` / `current_state.md` / `docs/active_context.md`,然后执行 `git tag -a v1.3.1 ...`。
 
 ---
 
@@ -46,17 +46,17 @@
 
 当前推荐从以下状态继续：
 
-- active_branch: `feat/phase62-multi-perspective-synthesis`
-- active_track: `Orchestration`
-- active_phase: `Phase 62`
-- active_slice: `M1+M2+M3 + Review 消化 + Closeout 完成`
-- workflow_status: `human_merge_gate_pending`
+- active_branch: `main`
+- active_track: `Release`
+- active_phase: `v1.3.1`
+- active_slice: `Release Doc Sync`
+- workflow_status: `release_docs_ready_tag_pending`
 
 说明：
 
-- 当前默认动作不是继续扩张 Phase 62,而是 Human 审阅 `pr.md` / `docs/plans/phase62/review_comments.md` / `docs/plans/phase62/closeout.md` 后决定是否合并。
-- 若 Human 接受,应提交 review follow-up + closeout / PR body / state sync,创建或更新 PR,再进入 merge 决策。
-- merge 后由 Codex 同步 `current_state.md` / `docs/active_context.md`,再由 Claude / roadmap-updater 更新 roadmap factual state。
+- 当前默认动作不是启动新 phase,也不是继续扩张 Phase 62,而是完成 `v1.3.1` tag release workflow。
+- release docs 已同步到 `v1.3.1` 目标;tag preflight `.venv/bin/python -m pytest` 已通过(559 passed / 8 deselected)。Human 审阅后提交 release docs commit,再执行 annotated tag。
+- tag 执行完成后,通知 Codex 做 `docs/active_context.md` tag result sync。
 
 ---
 
@@ -68,18 +68,19 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `.agents/shared/read_order.md`
-5. `.agents/workflows/feature.md`
-6. `.agents/workflows/tag_release.md`
+5. `.agents/workflows/tag_release.md`
+6. `.agents/workflows/feature.md`
 7. `docs/design/INVARIANTS.md`
-8. `docs/plans/phase62/review_comments.md`
-9. `docs/plans/phase62/closeout.md`
-10. `pr.md`
+8. `docs/plans/phase62/closeout.md`
+9. `README.md`
+10. `docs/roadmap.md`
 
 仅在需要时再读取：
 
 - `CLAUDE.md`
 - `.codex/session_bootstrap.md`
 - `docs/concerns_backlog.md`
+- `docs/plans/phase62/review_comments.md`
 - `docs/plans/phase61/closeout.md`
 - 历史 phase closeout / review_comments / archive 文档
 
@@ -97,7 +98,7 @@ git log --oneline --decorate -8
 git tag --list 'v*' --sort=-creatordate | head -n 5
 ```
 
-当前 Phase 62 merge 前最小验证命令：
+当前 release docs commit 前最小验证命令：
 
 ```bash
 .venv/bin/python -m pytest
@@ -108,6 +109,7 @@ git diff --check
 
 ## 当前已知边界
 
+- `v1.3.1` tag 尚未执行;不要在未提交 release docs 前打 tag。
 - Phase 62 不引入 Planner 自动路由到 MPS;MPS 当前仅通过 `swl synthesis` CLI 显式触发。
 - Phase 62 不给 Orchestrator 新增 stagedK 写权限;`swl synthesis stage` 是 Operator CLI 路径。
 - Phase 62 不实现自动 knowledge promotion;仲裁结果只进入 staged review。
