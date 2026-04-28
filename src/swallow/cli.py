@@ -19,7 +19,6 @@ from .consistency_audit import (
     build_audit_trigger_policy_report,
     load_audit_trigger_policy,
     run_consistency_audit,
-    save_audit_trigger_policy,
 )
 from .canonical_reuse import build_canonical_reuse_report
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
@@ -51,6 +50,7 @@ from .governance import (
     ProposalTarget,
     apply_proposal,
     register_canonical_proposal,
+    register_policy_proposal,
     register_route_metadata_proposal,
 )
 from .knowledge_relations import (
@@ -72,7 +72,7 @@ from .meta_optimizer import (
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .knowledge_suggestions import apply_relation_suggestions, build_relation_suggestion_application_report
-from .models import LIBRARIAN_MEMORY_AUTHORITY, RouteSelection
+from .models import RouteSelection
 from .orchestrator import (
     acknowledge_task,
     append_task_knowledge_capture,
@@ -2463,7 +2463,12 @@ def main(argv: list[str] | None = None) -> int:
             if route_by_name(auditor_route) is None:
                 raise ValueError(f"Unknown auditor route: {auditor_route}")
             policy.auditor_route = auditor_route
-        save_audit_trigger_policy(base_dir, policy)
+        proposal_id = register_policy_proposal(
+            base_dir=base_dir,
+            proposal_id="audit-trigger-policy",
+            audit_trigger_policy=policy,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
         print(build_audit_trigger_policy_report(policy), end="")
         return 0
 
@@ -2707,13 +2712,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-promote":
+        caller_authority = OPERATOR_CANONICAL_WRITE_AUTHORITY if args.target == "canonical" else "task-state"
         state = decide_task_knowledge(
             base_dir,
             args.task_id,
             object_id=args.object_id,
             decision_type="promote",
             decision_target=args.target,
-            caller_authority=LIBRARIAN_MEMORY_AUTHORITY,
+            caller_authority=caller_authority,
             note=args.note,
         )
         print(f"{state.task_id} knowledge_promoted object={args.object_id} target={args.target}")

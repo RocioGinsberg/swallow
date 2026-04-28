@@ -9,6 +9,7 @@ from typing import Literal
 from .canonical_registry import build_canonical_registry_index
 from .canonical_reuse import build_canonical_reuse_summary
 from .knowledge_store import LIBRARIAN_AGENT_WRITE_AUTHORITY, persist_wiki_entry_from_record
+from .models import AuditTriggerPolicy
 from .paths import canonical_registry_path
 from .router import (
     apply_route_capability_profiles,
@@ -76,6 +77,12 @@ class _RouteMetadataProposal:
     route_weights: dict[str, float] | None = None
     route_capability_profiles: dict[str, dict[str, object]] | None = None
     review_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class _PolicyProposal:
+    base_dir: Path
+    audit_trigger_policy: AuditTriggerPolicy
 
 
 _PENDING_PROPOSALS: dict[tuple[ProposalTarget, str], object] = {}
@@ -146,6 +153,24 @@ def register_route_metadata_proposal(
     return normalized_id
 
 
+def register_policy_proposal(
+    *,
+    base_dir: Path,
+    proposal_id: str,
+    audit_trigger_policy: AuditTriggerPolicy,
+) -> str:
+    normalized_id = proposal_id.strip()
+    if not normalized_id:
+        raise ValueError("proposal_id must be a non-empty string.")
+    if not isinstance(audit_trigger_policy, AuditTriggerPolicy):
+        raise TypeError("audit_trigger_policy must be an AuditTriggerPolicy.")
+    _PENDING_PROPOSALS[(ProposalTarget.POLICY, normalized_id)] = _PolicyProposal(
+        base_dir=base_dir,
+        audit_trigger_policy=AuditTriggerPolicy.from_dict(audit_trigger_policy.to_dict()),
+    )
+    return normalized_id
+
+
 def apply_proposal(
     proposal_id: str,
     operator_token: OperatorToken,
@@ -166,7 +191,7 @@ def apply_proposal(
     elif target == ProposalTarget.ROUTE_METADATA:
         result = _apply_route_metadata(proposal, operator_token, proposal_id=proposal_id)
     elif target == ProposalTarget.POLICY:
-        raise NotImplementedError("Policy proposal application is implemented in Phase 61 S4.")
+        result = _apply_policy(proposal, operator_token, proposal_id=proposal_id)
     else:  # pragma: no cover - enum exhaustiveness guard
         raise ValueError(f"Unsupported proposal target: {target}")
 
@@ -189,6 +214,8 @@ def _validate_target(proposal: object, target: ProposalTarget) -> None:
         raise TypeError("canonical proposal payload is invalid.")
     if target == ProposalTarget.ROUTE_METADATA and not isinstance(proposal, _RouteMetadataProposal):
         raise TypeError("route metadata proposal payload is invalid.")
+    if target == ProposalTarget.POLICY and not isinstance(proposal, _PolicyProposal):
+        raise TypeError("policy proposal payload is invalid.")
 
 
 def _apply_canonical(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
@@ -520,6 +547,23 @@ def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_i
         detail=f"route_review_applied review_id={review_record.review_id}",
         applied_writes=("route_weights", "route_capability_profiles", "optimization_proposal_application"),
         payload=(application_record, application_path),
+    )
+
+
+def _apply_policy(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
+    if not isinstance(proposal, _PolicyProposal):
+        raise TypeError("policy proposal payload is invalid.")
+
+    from .consistency_audit import save_audit_trigger_policy
+
+    policy_path = save_audit_trigger_policy(proposal.base_dir, proposal.audit_trigger_policy)
+    return ApplyResult(
+        proposal_id=proposal_id,
+        target=ProposalTarget.POLICY,
+        success=True,
+        detail=f"policy_applied path={policy_path}",
+        applied_writes=("audit_trigger_policy",),
+        payload=policy_path,
     )
 
 
