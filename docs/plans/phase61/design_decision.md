@@ -156,7 +156,7 @@ def apply_proposal(proposal_id, operator_token, target):
 | `apply_route_capability_profiles` | route 内存刷新 | **NO** | 全局豁免 |
 | `save_audit_trigger_policy` | policy 主写入 | **YES** | `governance.py` / `consistency_audit.py` / `tests/` |
 
-**任务启动时机的派生写入仍由 orchestrator.py:2664-2667 直接调用**:不收敛、不触发守卫——这是 audit BLOCKER 1 的明确解决方案。
+**任务启动时机的派生写入仍由 orchestrator.py:2666-2669 直接调用**:不收敛、不触发守卫——这是 audit BLOCKER 1 的明确解决方案。原设计审计时行号为 2664-2667,M1/M2/M3 实施后代码行号偏移为当前值。
 
 **11 处直接写路径的精确清单(audit "11 vs 16" 计数澄清)**:
 
@@ -171,8 +171,8 @@ def apply_proposal(proposal_id, operator_token, target):
 | 7 | `cli.py:2465` | save_audit_trigger_policy | YES | "cli" |
 | 8 | `orchestrator.py:498` | append_canonical_record | YES | "librarian_side_effect" |
 | 9 | `orchestrator.py:499` | persist_wiki_entry_from_record | YES | "librarian_side_effect" |
-| 10 | `orchestrator.py:2664` | save_canonical_registry_index | **NO**(任务启动派生,豁免) | — |
-| 11 | `orchestrator.py:2667` | save_canonical_reuse_policy | **NO**(同上) | — |
+| 10 | `orchestrator.py:2666` | save_canonical_registry_index | **NO**(任务启动派生,豁免) | — |
+| 11 | `orchestrator.py:2669` | save_canonical_reuse_policy | **NO**(同上) | — |
 | 12 | `orchestrator.py:2956` | append_canonical_record | YES | "cli" |
 | 13 | `orchestrator.py:2963` | save_canonical_registry_index | **NO**(随 #12 主写入发生,但守卫整体豁免派生函数) | — |
 | 14 | `orchestrator.py:2965` | save_canonical_reuse_policy | **NO**(同上) | — |
@@ -437,7 +437,7 @@ S2 / S3 / S4 必须串行(S4 的聚合守卫依赖 S2/S3 的收敛完成)。
 3. `OperatorToken` 字段为 `source: Literal["cli", "system_auto", "librarian_side_effect"]` + `reason: str | None = None`(无 `actor` 字段)
 4. `OperatorToken.__post_init__` 在 source 非法时抛 `ValueError`
 5. §E 表中标 YES 的 9 处主写入 caller 全部收敛
-6. `orchestrator.py:2664-2667` 派生写入保持原状(§E)
+6. `orchestrator.py:2666-2669` 派生写入保持原状(§E;原设计审计行号 2664-2667 已随实现偏移)
 7. `apply_route_weights` / `apply_route_capability_profiles` 配对完整(§G)
 8. 3 条守卫测试 PASS
 9. `tests/eval/test_eval_meta_optimizer_proposals.py` 输出与 S3 前 baseline 完全一致
@@ -454,4 +454,3 @@ S2 / S3 / S4 必须串行(S4 的聚合守卫依赖 S2/S3 的收敛完成)。
 2. **是否触及 kickoff non-goals?** 否。明确不做完整 Repository 层、不做 14 条剩余守卫测试、不改设计文档(只在 closeout 提示)、不改 CLI 命令名;新增的 §E §F §G 都在"如何收敛 11 处写路径"的范围内
 3. **slice 数量是否合理?** 4 个 slice,符合"≤5 个 slice"建议
 4. **`[SCOPE WARNING]`?** 无
-

@@ -13,9 +13,9 @@
 - latest_completed_slice: `Roadmap Audit & Closeout`
 - active_track: `Architecture / Governance`
 - active_phase: `Phase 61`
-- active_slice: `M3: Policy 收敛 + 聚合守卫测试`
+- active_slice: `Closeout`
 - active_branch: `feat/phase61-apply-proposal`
-- status: `m3_review_ready`
+- status: `phase61_closeout_doc_revert_pending_codex_sync`
 
 ---
 
@@ -105,6 +105,27 @@ M3 验证结果:
 - `git diff --check` — pass
 - `rg -n "save_audit_trigger_policy|save_route_weights|save_route_capability_profiles|append_canonical_record|persist_wiki_entry_from_record" src/swallow -g '*.py'` — protected writer uses only in `governance.py` and bottom-layer definition files
 
+Human 已提交 M3:`e48bf9b feat(governance): policy apply_proposal boundary` 与 docs 同步 `3dc9d93 docs(governance): policy and concern`。
+
+Claude 已完成 Phase 61 PR review:
+
+- consistency-checker subagent 报告 13 项一致 / 1 项 line-number 偏移 (CONCERN) / 2 项 not-covered (设计未明示) / 0 项 BLOCK,详见 `docs/plans/phase61/consistency_report.md`
+- 主线 review_comments 输出 6 条 [CONCERN] / 0 条 [BLOCK],详见 `docs/plans/phase61/review_comments.md`
+- 关键风险 R8(save+apply 配对)实测保留;R2 Meta-Optimizer eval baseline 等价
+- review 中已新增 3 条 backlog Open 项(14 条剩余 §9 守卫测试 / Repository 完整层 / apply 事务性回滚)
+- Branch advice: 进入 closeout, 完成 closeout TODO 后再开 PR(详见 `review_comments.md` §三 Branch Advice)
+
+Phase 61 closeout concern 消化(经 Human / Claude review-second-pass 修订):
+
+1. `docs/concerns_backlog.md`: "Meta Docs Sync / Roadmap audit (closeout)" Open 条目已移入 Resolved 表(Phase 61 消化)
+2. `docs/design/SELF_EVOLUTION.md`: §3.1.1 已增补 `"librarian_side_effect"` source 条目(design-level,合规保留)
+3. `docs/design/SELF_EVOLUTION.md`: §3.1 已增补"proposal_id 可指向 review record(批量 proposal 容器)"注解(design-level,合规保留)
+4. `docs/design/DATA_MODEL.md`: §4.1 仅保留 `apply_proposal` signature 三参数化更新(2 → 3 param);Codex closeout 时新增的 "**Phase 61 实施说明(2026-04-28)**:" 块已**整段回退**——理由:phase 号 / 日期 / "尚未实装" / "Phase 61 守卫扫描当前物理 writer 函数名"等实现叙事不应进入设计文档,违反"设计文档只描述设计真值"的宪法级原则
+5. `docs/plans/phase61/design_decision.md`: §E 行号已刷新(2664/2667 → 2666/2669)(phase plan 范围,合规)
+6. `docs/plans/phase61/closeout.md`: Codex 已产出 closeout 草稿,但 "Concern 15 处理结果" 段中 "DATA_MODEL §4.1 Phase 61 签名与守卫扫描目标说明" 描述需同步更新,只保留 signature 三参数化部分,删除 "守卫扫描目标说明" 那一项(因为该项已被回退)
+7. commit message 粒度 concern 不改历史,作为后续纪律提醒保留
+8. `docs/plans/phase61/review_comments.md`: 已 self-correct CONCERN #15,撤回 "DATA_MODEL §4.1 偏离声明" 推荐;新增 review-second-pass 教训"Claude 在 review 提 closeout 文档 TODO 时必须核对 design / phase plan 边界"
+
 ---
 
 ## 当前关键文档
@@ -141,6 +162,15 @@ M3 验证结果:
 - **[Codex]** 已完成 M3 实现与验证
 - **[Codex]** 已将 Phase 49 authority concern 标记为 Resolved
 - **[Codex]** 已修正非 Phase 61 路径的 subtask timeout timing 测试阈值,保证全量验证稳定通过
+- **[Human]** 已提交 M3:`e48bf9b feat(governance): policy apply_proposal boundary` + `3dc9d93 docs(governance): policy and concern`
+- **[Claude]** 已完成 Phase 61 PR review:produced `docs/plans/phase61/consistency_report.md` + `docs/plans/phase61/review_comments.md`,6 [CONCERN] / 0 [BLOCK]
+- **[Claude]** 已新增 3 条 backlog Open(剩余 §9 守卫 / Repository 完整层 / apply 事务回滚)
+- **[Codex]** 已消化 closeout 可处理 concern,同步 SELF_EVOLUTION / DATA_MODEL / design_decision / concerns_backlog
+- **[Codex]** 已产出 `docs/plans/phase61/closeout.md`
+- **[Codex]** 已更新 `pr.md`
+- **[Human]** 提示 design 文档不应携带实现内容
+- **[Claude]** 已回退 `docs/design/DATA_MODEL.md` §4.1 中 Codex 加入的 "Phase 61 实施说明(2026-04-28)" 段(只保留 signature 三参数化更新)
+- **[Claude]** 已 self-correct `docs/plans/phase61/review_comments.md` 中 CONCERN #15(撤回 DATA_MODEL 偏离声明 TODO,新增 review-second-pass 教训)
 
 进行中:
 
@@ -148,9 +178,10 @@ M3 验证结果:
 
 待执行:
 
-- **[Human]** 审阅 M3 diff 并决定是否提交
-- **[Human]** 如认可 M3,执行 milestone commit
-- **[Claude]** M3 提交后进入 Phase 61 PR review / consistency check
+- **[Codex]** 同步更新 `docs/plans/phase61/closeout.md` 中 Concern 15 处理结果描述,把"DATA_MODEL §4.1 Phase 61 签名与守卫扫描目标说明"修正为"DATA_MODEL §4.1 仅做 signature 三参数化(Phase 61 实施说明段已回退)",删除"守卫扫描目标说明"那一项;`pr.md` 中 design 文档变更说明同步修订
+- **[Human]** 评审修订后的 closeout 产出与 PR
+- **[Human]** 如认可,merge `feat/phase61-apply-proposal` 至 `main`
+- **[Claude]** merge 后通过 roadmap-updater subagent 增量更新 roadmap;评估 `tag-evaluate` 是否打新 tag
 
 当前阻塞项:
 
@@ -160,9 +191,10 @@ M3 验证结果:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 M3 diff
-2. **[Human]** 如认可,提交 M3:`feat(governance): policy apply_proposal boundary`
-3. **[Claude]** Human 完成 M3 commit 后进行 Phase 61 PR review / consistency check
+1. **[Codex]** 按上方 "待执行 #1" 同步 closeout.md / pr.md 描述,提交本轮 doc commit
+2. **[Human]** 审阅 doc commit 与 `pr.md`,决定是否 push / 开 PR
+3. **[Human]** 评审并 merge
+4. **[Claude]** post-merge 触发 roadmap-updater 增量更新 + 决定是否打 tag
 
 ---
 
@@ -201,3 +233,14 @@ M3 验证结果:
 - `tests/test_run_task_subtasks.py`(codex, 2026-04-28, timeout isolation timing assertion robustness)
 - `docs/concerns_backlog.md`(codex, 2026-04-28, Phase 49 authority concern resolved)
 - `docs/active_context.md`(codex, 2026-04-28, M3 review-ready state sync)
+- `docs/plans/phase61/consistency_report.md`(claude/consistency-checker, 2026-04-28, Phase 61 implementation vs design consistency)
+- `docs/plans/phase61/review_comments.md`(claude, 2026-04-28, Phase 61 PR review checklist)
+- `docs/concerns_backlog.md`(claude, 2026-04-28, 3 new Open concerns from Phase 61 review + Meta Docs Sync open entry annotated)
+- `docs/active_context.md`(claude, 2026-04-28, post-review state + closeout TODO list)
+- `docs/design/SELF_EVOLUTION.md`(codex, 2026-04-28, Phase 61 closeout source / proposal_id semantics)
+- `docs/design/DATA_MODEL.md`(codex, 2026-04-28, Phase 61 closeout apply_proposal signature / guard note)
+- `docs/plans/phase61/design_decision.md`(codex, 2026-04-28, closeout line-number drift resolved)
+- `docs/plans/phase61/closeout.md`(codex, 2026-04-28, Phase 61 closeout)
+- `docs/concerns_backlog.md`(codex, 2026-04-28, Meta Docs Sync apply_proposal concern resolved)
+- `docs/active_context.md`(codex, 2026-04-28, closeout review-ready state sync)
+- `pr.md`(codex, 2026-04-28, Phase 61 PR body draft)
