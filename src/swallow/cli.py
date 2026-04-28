@@ -50,6 +50,7 @@ from .governance import (
     ProposalTarget,
     apply_proposal,
     register_canonical_proposal,
+    register_mps_policy_proposal,
     register_policy_proposal,
     register_route_metadata_proposal,
 )
@@ -72,7 +73,7 @@ from .meta_optimizer import (
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .knowledge_suggestions import apply_relation_suggestions, build_relation_suggestion_application_report
-from .models import RouteSelection
+from .models import Event, RouteSelection
 from .orchestrator import (
     acknowledge_task,
     append_task_knowledge_capture,
@@ -112,7 +113,8 @@ from .paths import (
     route_path,
     topology_path,
 )
-from .staged_knowledge import StagedCandidate, load_staged_candidates, update_staged_candidate
+from .staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate, update_staged_candidate
+from .synthesis import load_synthesis_config, run_synthesis
 from .router import (
     apply_route_capability_profiles,
     apply_route_weights,
@@ -124,6 +126,7 @@ from .router import (
     select_route,
 )
 from .store import (
+    append_event,
     iter_task_states,
     load_events,
     load_knowledge_objects,
@@ -1283,6 +1286,44 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Route name used for automatic consistency audits.",
     )
+
+    synthesis_parser = subparsers.add_parser("synthesis", help="Multi-perspective synthesis commands.")
+    synthesis_subparsers = synthesis_parser.add_subparsers(dest="synthesis_command", required=True)
+    synthesis_policy_parser = synthesis_subparsers.add_parser(
+        "policy",
+        help="Inspect or update multi-perspective synthesis policy.",
+    )
+    synthesis_policy_subparsers = synthesis_policy_parser.add_subparsers(
+        dest="synthesis_policy_command",
+        required=True,
+    )
+    synthesis_policy_set_parser = synthesis_policy_subparsers.add_parser(
+        "set",
+        help="Update an MPS policy value via apply_proposal.",
+    )
+    synthesis_policy_set_parser.add_argument(
+        "--kind",
+        required=True,
+        choices=("mps_round_limit", "mps_participant_limit"),
+        help="MPS policy kind to update.",
+    )
+    synthesis_policy_set_parser.add_argument(
+        "--value",
+        required=True,
+        type=int,
+        help="Integer policy value.",
+    )
+    synthesis_run_parser = synthesis_subparsers.add_parser(
+        "run",
+        help="Run multi-perspective synthesis for a task.",
+    )
+    synthesis_run_parser.add_argument("--task", required=True, dest="task_id", help="Task identifier.")
+    synthesis_run_parser.add_argument("--config", required=True, dest="config_path", help="Synthesis config JSON path.")
+    synthesis_stage_parser = synthesis_subparsers.add_parser(
+        "stage",
+        help="Stage a synthesis arbitration artifact as a knowledge candidate.",
+    )
+    synthesis_stage_parser.add_argument("--task", required=True, dest="task_id", help="Task identifier.")
 
     route_parser = subparsers.add_parser("route", help="Route registry and operator weight commands.")
     route_subparsers = route_parser.add_subparsers(dest="route_command", required=True)
@@ -2470,6 +2511,97 @@ def main(argv: list[str] | None = None) -> int:
         )
         apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
         print(build_audit_trigger_policy_report(policy), end="")
+        return 0
+
+    if (
+        args.command == "synthesis"
+        and args.synthesis_command == "policy"
+        and args.synthesis_policy_command == "set"
+    ):
+        proposal_id = register_mps_policy_proposal(
+            base_dir=base_dir,
+            proposal_id=f"mps-policy:{args.kind}",
+            kind=args.kind,
+            value=int(args.value),
+        )
+        result = apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
+        print(f"{args.kind}: {args.value}")
+        print(f"applied: {'yes' if result.success else 'no'}")
+        return 0
+
+    if args.command == "synthesis" and args.synthesis_command == "run":
+        state = load_state(base_dir, args.task_id)
+        config = load_synthesis_config(Path(args.config_path).resolve())
+        result = run_synthesis(base_dir, state, config)
+        summary = str(result.payload.get("arbiter_decision", {}).get("synthesis_summary", "")).strip()
+        print(f"{state.task_id} synthesis_completed config_id={config.config_id} artifact={result.path}")
+        if summary:
+            print(summary)
+        return 0
+
+    if args.command == "synthesis" and args.synthesis_command == "stage":
+        task_id = args.task_id.strip()
+        if not task_id:
+            raise ValueError("--task must be a non-empty task id.")
+        load_state(base_dir, task_id)
+        arbitration_path = artifacts_dir(base_dir, task_id) / "synthesis_arbitration.json"
+        if not arbitration_path.exists():
+            raise ValueError(f"Missing synthesis arbitration artifact: {arbitration_path}")
+        arbitration_data = json.loads(arbitration_path.read_text(encoding="utf-8"))
+        if not isinstance(arbitration_data, dict):
+            raise ValueError("synthesis_arbitration.json must contain a JSON object.")
+        config_id = str(arbitration_data.get("config_id", "")).strip()
+        if not config_id:
+            raise ValueError("synthesis arbitration artifact is missing config_id.")
+        arbiter_decision = arbitration_data.get("arbiter_decision", {})
+        if not isinstance(arbiter_decision, dict):
+            raise ValueError("synthesis arbitration artifact is missing arbiter_decision.")
+        synthesis_summary = str(arbiter_decision.get("synthesis_summary", "")).strip()
+        if not synthesis_summary:
+            raise ValueError("synthesis arbitration summary must be non-empty.")
+        duplicate = next(
+            (
+                candidate
+                for candidate in load_staged_candidates(base_dir)
+                if candidate.source_task_id == task_id
+                and candidate.source_object_id == config_id
+                and candidate.status == "pending"
+            ),
+            None,
+        )
+        if duplicate is not None:
+            print(
+                f"Synthesis arbitration is already staged: {duplicate.candidate_id} submitted_at={duplicate.submitted_at}",
+                file=sys.stderr,
+            )
+            return 1
+        candidate = StagedCandidate(
+            candidate_id="",
+            text=synthesis_summary,
+            source_task_id=task_id,
+            topic=str(arbitration_data.get("topic", "")).strip(),
+            source_kind="synthesis",
+            source_ref=str(arbitration_path.relative_to(base_dir)),
+            source_object_id=config_id,
+            submitted_by="cli",
+            taxonomy_role="",
+            taxonomy_memory_authority="",
+        )
+        persisted = submit_staged_candidate(base_dir, candidate)
+        append_event(
+            base_dir,
+            Event(
+                task_id=task_id,
+                event_type="task.synthesis_staged",
+                message="Synthesis arbitration artifact was staged for knowledge review.",
+                payload={
+                    "candidate_id": persisted.candidate_id,
+                    "config_id": config_id,
+                    "source_ref": persisted.source_ref,
+                },
+            ),
+        )
+        print(f"{persisted.candidate_id} synthesis_staged config_id={config_id}")
         return 0
 
     if args.command == "route" and args.route_command == "weights" and args.route_weights_command == "show":

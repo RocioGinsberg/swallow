@@ -73,6 +73,7 @@ from swallow.paths import (
     canonical_reuse_regression_path,
     knowledge_wiki_entry_path,
     latest_optimization_proposal_bundle_path,
+    mps_policy_path,
     remote_handoff_contract_path,
     route_capabilities_path,
     route_weights_path,
@@ -132,6 +133,80 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertIn("Unknown profile capability: missing_profile", errors)
         self.assertIn("Unknown validator capability: missing_validator", errors)
+
+    def test_synthesis_policy_set_writes_mps_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(
+                        [
+                            "--base-dir",
+                            str(base_dir),
+                            "synthesis",
+                            "policy",
+                            "set",
+                            "--kind",
+                            "mps_round_limit",
+                            "--value",
+                            "3",
+                        ]
+                    ),
+                    0,
+                )
+
+            self.assertIn("mps_round_limit: 3", stdout.getvalue())
+            persisted = json.loads(mps_policy_path(base_dir).read_text(encoding="utf-8"))
+            self.assertEqual(persisted, {"mps_round_limit": 3})
+
+    def test_synthesis_stage_rejects_duplicate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base_dir = Path(tmp)
+            state = TaskState(
+                task_id="task-mps",
+                title="MPS",
+                goal="Stage synthesis.",
+                workspace_root=".",
+            )
+            save_state(base_dir, state)
+            arbitration_path = artifacts_dir(base_dir, state.task_id) / "synthesis_arbitration.json"
+            arbitration_path.write_text(
+                json.dumps(
+                    {
+                        "schema": "synthesis_arbitration_v1",
+                        "config_id": "config-mps",
+                        "task_id": state.task_id,
+                        "arbiter_decision": {
+                            "synthesis_summary": "Keep the operator-visible candidate.",
+                            "rationale": "The arbiter selected the stable path.",
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            stdout = StringIO()
+
+            with redirect_stdout(stdout):
+                self.assertEqual(
+                    main(["--base-dir", str(base_dir), "synthesis", "stage", "--task", state.task_id]),
+                    0,
+                )
+            self.assertIn("synthesis_staged", stdout.getvalue())
+            candidates = load_staged_candidates(base_dir)
+            self.assertEqual(len(candidates), 1)
+            self.assertEqual(candidates[0].source_kind, "synthesis")
+            self.assertEqual(candidates[0].source_object_id, "config-mps")
+
+            stderr = StringIO()
+            with redirect_stderr(stderr):
+                exit_code = main(["--base-dir", str(base_dir), "synthesis", "stage", "--task", state.task_id])
+
+            self.assertEqual(exit_code, 1)
+            self.assertIn("already staged", stderr.getvalue())
+            self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_create_task_persists_default_capability_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

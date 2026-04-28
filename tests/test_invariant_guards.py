@@ -3,6 +3,9 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from swallow.router import route_by_name
+from swallow.synthesis import _MPS_DEFAULT_HTTP_ROUTE, _route_is_path_a
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src" / "swallow"
@@ -88,6 +91,7 @@ def test_only_apply_proposal_calls_private_writers() -> None:
             "save_route_weights",
             "save_route_capability_profiles",
             "save_audit_trigger_policy",
+            "save_mps_policy",
         },
         allowed_files={
             "src/swallow/governance.py",
@@ -95,7 +99,88 @@ def test_only_apply_proposal_calls_private_writers() -> None:
             "src/swallow/knowledge_store.py",
             "src/swallow/router.py",
             "src/swallow/consistency_audit.py",
+            "src/swallow/mps_policy_store.py",
         },
     )
+
+    assert violations == []
+
+
+def test_mps_policy_writes_via_apply_proposal() -> None:
+    violations = _find_protected_writer_uses(
+        protected_names={"save_mps_policy"},
+        allowed_files={
+            "src/swallow/governance.py",
+            "src/swallow/mps_policy_store.py",
+        },
+    )
+
+    assert violations == []
+    source = (SRC_ROOT / "mps_policy_store.py").read_text(encoding="utf-8")
+    assert "mps_policy_path" in source
+    assert '".swl"' not in source
+
+
+def test_mps_no_chat_message_passing() -> None:
+    tree = ast.parse((SRC_ROOT / "synthesis.py").read_text(encoding="utf-8"))
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.keyword) and node.arg == "messages":
+            violations.append(f"keyword messages at line {node.lineno}")
+        if isinstance(node, ast.Name) and node.id == "messages":
+            violations.append(f"name messages at line {node.lineno}")
+
+    assert violations == []
+
+
+def test_synthesis_uses_provider_router() -> None:
+    tree = ast.parse((SRC_ROOT / "synthesis.py").read_text(encoding="utf-8"))
+    imported_names: set[str] = set()
+    direct_route_spec_calls: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "router":
+            imported_names.update(alias.name for alias in node.names)
+        if isinstance(node, ast.Call):
+            func = node.func
+            if isinstance(func, ast.Name) and func.id == "RouteSpec":
+                direct_route_spec_calls.append(f"RouteSpec at line {node.lineno}")
+
+    assert {"route_by_name", "select_route"}.issubset(imported_names)
+    assert direct_route_spec_calls == []
+
+
+def test_mps_default_route_is_path_a() -> None:
+    route = route_by_name(_MPS_DEFAULT_HTTP_ROUTE)
+
+    assert route is not None
+    assert _route_is_path_a(route)
+
+
+def test_synthesis_clones_state_per_call() -> None:
+    source = (SRC_ROOT / "synthesis.py").read_text(encoding="utf-8")
+
+    assert "_participant_state_for_call" in source
+    assert "replace(" in source
+    assert "run_http_executor(transient_state" in source
+    assert "run_http_executor(arbiter_state" in source
+
+
+def test_synthesis_module_does_not_call_submit_staged_candidate() -> None:
+    tree = ast.parse((SRC_ROOT / "synthesis.py").read_text(encoding="utf-8"))
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name == "submit_staged_candidate":
+                    violations.append(f"imports submit_staged_candidate at line {node.lineno}")
+        if isinstance(node, ast.Call):
+            func = node.func
+            called_name = ""
+            if isinstance(func, ast.Name):
+                called_name = func.id
+            elif isinstance(func, ast.Attribute):
+                called_name = func.attr
+            if called_name == "submit_staged_candidate":
+                violations.append(f"calls submit_staged_candidate at line {node.lineno}")
 
     assert violations == []

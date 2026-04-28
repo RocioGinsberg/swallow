@@ -428,6 +428,22 @@ class TaskState:
         return cls(**data)
 
 
+@dataclass(frozen=True, slots=True)
+class SynthesisParticipant:
+    participant_id: str
+    role_prompt: str
+    route_hint: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SynthesisConfig:
+    config_id: str
+    participants: tuple[SynthesisParticipant, ...]
+    rounds: int
+    arbiter: SynthesisParticipant
+    arbiter_prompt_extra: str | None = None
+
+
 @dataclass(slots=True)
 class Event:
     task_id: str
