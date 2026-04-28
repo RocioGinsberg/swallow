@@ -8,14 +8,14 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Knowledge / RAG`
-- latest_completed_phase: `Phase 60`
-- latest_completed_slice: `Phase Closeout`
-- active_track: `Collaboration / Workflow`
-- active_phase: `Meta Docs Sync`
-- active_slice: `Roadmap Audit & Closeout`
+- latest_completed_track: `Collaboration / Workflow`
+- latest_completed_phase: `Meta Docs Sync`
+- latest_completed_slice: `Roadmap Audit & Closeout`
+- active_track: `Architecture / Governance`
+- active_phase: `Phase 61`
+- active_slice: `Design Decomposition`
 - active_branch: `main`
-- status: `meta_docs_sync_closeout_ready_for_human_review`
+- status: `phase61_kickoff_in_progress`
 
 ---
 
