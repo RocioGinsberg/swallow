@@ -447,7 +447,9 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             )
             subtask_summary = (artifacts_dir / "subtask_summary.md").read_text(encoding="utf-8")
 
-            self.assertLess(elapsed, 1.35)
+            # Keep this below the previous flaky full-suite outlier (~3.8s) while
+            # allowing normal CI/local scheduling overhead around the 1s timeout.
+            self.assertLess(elapsed, 1.75)
             self.assertEqual(final_state.status, "failed")
             self.assertEqual(final_state.executor_name, "subtask-orchestrator")
             self.assertEqual(final_state.executor_status, "failed")

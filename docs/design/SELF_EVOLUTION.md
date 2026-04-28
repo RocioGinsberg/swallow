@@ -78,6 +78,8 @@ def apply_proposal(
     """
 ```
 
+`proposal_id` 通常指向单条 proposal artifact。对于 Meta-Optimizer 这类批量提案流,`proposal_id` 也可以指向 operator 已审阅的 review record,即"批量 proposal 容器"。此时一次 `apply_proposal(target=route_metadata)` 负责应用该 review record 中全部 approved entries,避免拆成 N 次 apply 后产生部分应用状态。
+
 ### 3.1.1 OperatorToken 定义
 
 ```python
@@ -88,7 +90,7 @@ class OperatorToken:
     当前 phase 不携带 authn 信息(single-user),仅用 source / reason 区分调用来源。
     远期 multi-actor 扩展时,此类将装载 actor identity 与 authn 凭证。
     """
-    source: Literal["cli", "system_auto"]
+    source: Literal["cli", "system_auto", "librarian_side_effect"]
     reason: str | None = None
 ```
 
@@ -96,6 +98,7 @@ class OperatorToken:
 |---|---|---|
 | `"cli"` | Operator 通过 `swl proposal apply` 等 CLI 命令显式触发 | 默认场景,reason 可为空 |
 | `"system_auto"` | `staged_review_mode = auto_low_risk` 满足条件后自动触发 | reason 必填,记录自动触发的判定依据 |
+| `"librarian_side_effect"` | Librarian specialist 在 task 执行过程中产出 canonical side effect,由 Orchestrator 代为进入 governance boundary | 仅用于受控 Librarian side effect,不代表 Librarian 可绕过 review/governance 直接写 canonical |
 
 **所有 `source = "system_auto"` 的调用必须在 `event_log` 留痕**,operator 可在 Control Center 看到全部自动决策记录,事后 reject 错误的(reject 也走 `apply_proposal`)。
 

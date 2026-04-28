@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from .knowledge_index import invalidation_reason_for
 from .knowledge_objects import canonicalization_status_for, is_retrieval_reuse_ready
+from .knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
 from .models import LIBRARIAN_MEMORY_AUTHORITY, utc_now
+
+
+CANONICAL_PROMOTION_DECISION_AUTHORITIES = {
+    LIBRARIAN_MEMORY_AUTHORITY,
+    OPERATOR_CANONICAL_WRITE_AUTHORITY,
+}
 
 
 def summarize_object_state(item: dict[str, object]) -> dict[str, object]:
@@ -172,9 +179,9 @@ def apply_knowledge_decision(
             updated_item["retrieval_eligible"] = True
             updated_item["knowledge_reuse_scope"] = "retrieval_candidate"
         elif decision_target == "canonical":
-            if normalized_caller_authority != LIBRARIAN_MEMORY_AUTHORITY:
+            if normalized_caller_authority not in CANONICAL_PROMOTION_DECISION_AUTHORITIES:
                 raise PermissionError(
-                    "Canonical promotion requires caller_authority=canonical-promotion."
+                    "Canonical promotion requires caller_authority=canonical-promotion or operator-gated."
                 )
             updated_item["stage"] = "canonical"
             if str(updated_item.get("canonicalization_intent", "none")) == "none":

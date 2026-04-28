@@ -21,6 +21,8 @@ Claude: Kickoff + Design Decomposition
         ↓
 [subagent: design-auditor]: Pre-Implementation Design Audit
         ↓
+Claude: Model Review Gate (条件触发,见 `.agents/workflows/model_review.md`)
+        ↓
  Human: Design Gate ⛔  (审阅 kickoff + design_decision + design_audit)
         ↓
  Codex: Implementation
@@ -138,13 +140,38 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 - 回到 Step 2，Claude 修正 design_decision 后重新运行 design-auditor
 
 **完成后**：
-- 由 Claude 主线更新 `docs/active_context.md`：登记产出物，下一步设为"Human: Design Gate"
+- 由 Claude 主线更新 `docs/active_context.md`：登记产出物，下一步设为"Claude: Model Review Gate"
+
+---
+
+## Step 2.6: Claude — Model Review Gate (Conditional)
+
+**触发条件**：design_audit.md 已产出,Human Design Gate 尚未开始。
+
+**规则来源**：`.agents/workflows/model_review.md`
+
+**动作**：
+- Claude 判断本 phase 是否需要第二模型审查
+- 默认跳过;只有触发高风险条件或 Human 明确要求时设为 required
+- 如 required,通过 Claude Code 项目 skill `.claude/skills/model-review/SKILL.md` 或等价外部通道产出 `docs/plans/<phase>/model_review.md`
+- 如 skipped,在 `docs/active_context.md` 记录 skipped reason
+
+**Required 触发条件摘要**：
+- roadmap / phase 边界 / kickoff 方向存在不确定性
+- 触及 INVARIANTS / DATA_MODEL / SELF_EVOLUTION / schema / CLI/API / state transition / truth write path / provider routing policy
+- design_audit.md 有 `[BLOCKER]` 或多个 `[CONCERN]`
+- Human 明确要求第二模型审查
+
+**完成后**：
+- 若 completed:在 `docs/active_context.md` 登记 `docs/plans/<phase>/model_review.md`,下一步设为"Human: Design Gate"
+- 若 skipped:在 `docs/active_context.md` 记录 `model_review.status: skipped`,下一步设为"Human: Design Gate"
+- 若 blocked:在 `docs/active_context.md` 标注 blocker,不得进入 Human Design Gate
 
 ---
 
 ## Step 3: Human — Design Gate ⛔
 
-**触发条件**：kickoff.md、design_decision.md、risk_assessment.md、design_audit.md 均已产出。
+**触发条件**：kickoff.md、design_decision.md、risk_assessment.md、design_audit.md 均已产出,且 model review 已 completed 或明确 skipped。
 
 **人工动作**：
 - 阅读 kickoff.md（重点看 goals / non-goals / completion conditions）
@@ -152,6 +179,7 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 - 阅读 design_decision.md（重点看 TL;DR + slice 拆解 + 风险评级）
 - 阅读 risk_assessment.md（重点看高风险项）
 - 如有 `breakdown.md`，阅读其中的 milestone / review checkpoint 拆分
+- 如有 `model_review.md`，阅读 verdict、`[BLOCK]` / `[CONCERN]` 和 Claude follow-up
 - 审阅 branch-advise 建议
 
 **决策**：
@@ -167,7 +195,7 @@ Claude: Tag Evaluation  →  Human: Tag Gate  →  Codex: Tag Sync (如打 tag)
 
 ## Step 4: Codex — Implementation
 
-**触发条件**：kickoff.md 与 design_decision.md 已通过人工审批。
+**触发条件**：kickoff.md 与 design_decision.md 已通过人工审批,design_audit 无未解决 `[BLOCKER]`,model review 已 completed 或明确 skipped。
 
 **输入**：
 - `docs/plans/<phase>/kickoff.md`

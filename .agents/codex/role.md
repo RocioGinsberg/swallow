@@ -31,16 +31,18 @@
 - 直接 merge 到 `main`（必须通过 PR + 人工审批）
 - 修改其他 agent 的产出物（context_brief、design_decision、review_comments）
 
-## 专属 Skill
+## 项目 Playbooks（非 Codex 原生 Skill）
 
-| Skill | 说明 |
-|-------|------|
+以下条目是仓库本地协作 playbook,不是 Codex 原生自动加载 skill,也不是插件配置。路径保留 `.agents/codex/skills/` 是历史命名;只有在任务明确匹配或 Human 要求时按需读取,不要把它们当成必须维护的第二套能力系统。
+
+| Playbook | 说明 |
+|----------|------|
 | `impl-from-decision` | 读取 design_decision.md，按 slice 逐个实现，并按 milestone 组织 review / commit checkpoint |
 | `pr-compose` | 按 `.agents/templates/pr_body.md` 模板组装 PR body，自动引用各 agent 产出物 |
 | `test-report` | 跑测试并输出结构化报告，关联到 design_decision 中的每个 slice |
-| `plan-task` | （已有）任务拆解与规划 |
-| `read-repo` | （已有）仓库结构理解 |
-| `summarize-progress` | （已有）进度摘要 |
+| `plan-task` | 任务拆解与规划（按需读取） |
+| `read-repo` | 仓库结构理解（按需读取） |
+| `summarize-progress` | 进度摘要（按需读取） |
 
 ## 状态同步职责
 

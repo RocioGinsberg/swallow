@@ -1331,7 +1331,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(canonical_records[0]["source_task_id"], task_id)
         self.assertEqual(canonical_records[0]["source_object_id"], "knowledge-0001")
         self.assertEqual(canonical_records[0]["artifact_ref"], ".swl/tasks/demo/artifacts/evidence.md")
-        self.assertEqual(decision_records[0]["caller_authority"], "canonical-promotion")
+        self.assertEqual(decision_records[0]["caller_authority"], "operator-gated")
         self.assertIn("Canonical Registry", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_count: 1", inspect_stdout.getvalue())
         self.assertIn("canonical_registry_active_count: 1", inspect_stdout.getvalue())

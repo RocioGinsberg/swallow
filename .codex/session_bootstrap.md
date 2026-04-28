@@ -40,6 +40,8 @@
 - **Codex（你）**：代码实现、测试、状态同步、slice 验证记录、milestone 级 commit 建议、PR 文案维护、tag 后文档同步
 - **Human**：git 执行、提交、开 PR、最终审批与合并、tag 决策与执行
 
+Claude 侧可在 design gate 前按 `.agents/workflows/model_review.md` 运行条件式 model review。该步骤只做 advisory 设计复核,不把 Codex 嵌入 Claude Code,也不改变 Codex 的实现者职责。
+
 原 Gemini 职责由 Claude subagent 承接（`.claude/agents/`）：
 - `context-analyst` — phase 启动时产出 context_brief
 - `roadmap-updater` — phase closeout 后增量更新 roadmap
@@ -51,6 +53,9 @@
 ## 关键提醒
 
 - 你不修改设计文档正文、不修改其他 agent 的产出物
+- 你不仲裁 roadmap/kickoff 方向;如发现实现 blocker,报告 blocker 并等待 Claude/Human 修订设计
+- 开始实现前确认 design gate 已通过,且 required model review 已 completed 或被明确 skipped
+- `.agents/codex/skills/` 是项目本地 playbook 的历史路径,不是 Codex 原生 skill/plugin 自动加载配置
 - 你不执行 `git commit`、`git push`、`gh pr create` 等 git / PR 命令，只在对话中提醒人工执行并给出建议命令
 - 每完成一个 slice，都要记录验证结果与建议提交范围；到达 milestone 边界时，再给出最终的 `git commit` 建议命令
 - 需要开 PR 时，使用 `.agents/templates/pr_body.md` 模板整理内容并写入仓库根目录 `./pr.md`

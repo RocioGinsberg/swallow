@@ -19,12 +19,10 @@ from .consistency_audit import (
     build_audit_trigger_policy_report,
     load_audit_trigger_policy,
     run_consistency_audit,
-    save_audit_trigger_policy,
 )
-from .canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
+from .canonical_reuse import build_canonical_reuse_report
 from .checkpoint_snapshot import evaluate_checkpoint_snapshot
 from .canonical_registry import (
-    build_canonical_registry_index,
     build_canonical_registry_index_report,
     build_canonical_registry_report,
     build_staged_canonical_key,
@@ -46,10 +44,14 @@ from .ingestion.pipeline import (
     run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
-from .knowledge_store import (
-    OPERATOR_CANONICAL_WRITE_AUTHORITY,
-    migrate_file_knowledge_to_sqlite,
-    persist_wiki_entry_from_record,
+from .knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
+from .governance import (
+    OperatorToken,
+    ProposalTarget,
+    apply_proposal,
+    register_canonical_proposal,
+    register_policy_proposal,
+    register_route_metadata_proposal,
 )
 from .knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
@@ -60,17 +62,17 @@ from .knowledge_relations import (
     list_knowledge_relations,
 )
 from .meta_optimizer import (
-    apply_reviewed_optimization_proposals,
     build_optimization_proposal_application_report,
     build_optimization_proposal_review_report,
     extract_route_weight_proposals_from_report,
+    load_optimization_proposal_review,
     review_optimization_proposals,
     run_meta_optimizer,
 )
 from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .knowledge_suggestions import apply_relation_suggestions, build_relation_suggestion_application_report
-from .models import LIBRARIAN_MEMORY_AUTHORITY, RouteSelection
+from .models import RouteSelection
 from .orchestrator import (
     acknowledge_task,
     append_task_knowledge_capture,
@@ -119,19 +121,14 @@ from .router import (
     current_route_weights,
     load_route_capability_profiles,
     route_by_name,
-    save_route_capability_profiles,
-    save_route_weights,
     select_route,
 )
 from .store import (
-    append_canonical_record,
     iter_task_states,
     load_events,
     load_knowledge_objects,
     load_state,
     migrate_file_tasks_to_sqlite,
-    save_canonical_registry_index,
-    save_canonical_reuse_policy,
 )
 
 
@@ -2333,17 +2330,14 @@ def main(argv: list[str] | None = None) -> int:
             decision_note,
         )
         canonical_record = build_stage_canonical_record(updated, refined_text=args.text)
-        persist_wiki_entry_from_record(
-            base_dir,
-            canonical_record,
+        register_canonical_proposal(
+            base_dir=base_dir,
+            proposal_id=updated.candidate_id,
+            canonical_record=canonical_record,
             write_authority=OPERATOR_CANONICAL_WRITE_AUTHORITY,
+            refresh_derived=True,
         )
-        append_canonical_record(base_dir, canonical_record)
-        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
-        canonical_index = build_canonical_registry_index(canonical_records)
-        canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
-        save_canonical_registry_index(base_dir, canonical_index)
-        save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
+        apply_proposal(updated.candidate_id, OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
         print(f"{updated.candidate_id} staged_promoted canonical_id=canonical-{updated.candidate_id}")
         return 0
 
@@ -2431,10 +2425,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "proposal" and args.proposal_command == "apply":
-        application_record, record_path = apply_reviewed_optimization_proposals(
-            base_dir,
-            Path(args.review_file).resolve(),
+        review_path = Path(args.review_file).resolve()
+        review_record = load_optimization_proposal_review(review_path)
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=review_record.review_id or review_path.stem,
+            review_path=review_path,
         )
+        result = apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
+        if not isinstance(result.payload, tuple) or len(result.payload) != 2:
+            raise RuntimeError("Route metadata apply result did not include an application record payload.")
+        application_record, record_path = result.payload
         print(build_optimization_proposal_application_report(application_record), end="")
         print(f"record: {record_path}")
         return 0
@@ -2462,7 +2463,12 @@ def main(argv: list[str] | None = None) -> int:
             if route_by_name(auditor_route) is None:
                 raise ValueError(f"Unknown auditor route: {auditor_route}")
             policy.auditor_route = auditor_route
-        save_audit_trigger_policy(base_dir, policy)
+        proposal_id = register_policy_proposal(
+            base_dir=base_dir,
+            proposal_id="audit-trigger-policy",
+            audit_trigger_policy=policy,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
         print(build_audit_trigger_policy_report(policy), end="")
         return 0
 
@@ -2490,8 +2496,12 @@ def main(argv: list[str] | None = None) -> int:
             for route_name, weight in updated_weights.items()
             if abs(weight - 1.0) > 1e-9
         }
-        save_route_weights(base_dir, persisted_weights)
-        apply_route_weights(base_dir)
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=f"route-weights:{proposal_path.name}",
+            route_weights=persisted_weights,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
         print(build_route_weights_report(base_dir), end="")
         return 0
 
@@ -2557,8 +2567,12 @@ def main(argv: list[str] | None = None) -> int:
             "task_family_scores": task_family_scores,
             "unsupported_task_types": sorted(unsupported_task_types),
         }
-        save_route_capability_profiles(base_dir, profiles)
-        apply_route_capability_profiles(base_dir)
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=f"route-capabilities:{route_name}",
+            route_capability_profiles=profiles,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
         print(build_route_capability_profiles_report(base_dir), end="")
         return 0
 
@@ -2698,13 +2712,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-promote":
+        caller_authority = OPERATOR_CANONICAL_WRITE_AUTHORITY if args.target == "canonical" else "task-state"
         state = decide_task_knowledge(
             base_dir,
             args.task_id,
             object_id=args.object_id,
             decision_type="promote",
             decision_target=args.target,
-            caller_authority=LIBRARIAN_MEMORY_AUTHORITY,
+            caller_authority=caller_authority,
             note=args.note,
         )
         print(f"{state.task_id} knowledge_promoted object={args.object_id} target={args.target}")

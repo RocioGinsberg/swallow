@@ -271,7 +271,7 @@ CREATE TABLE policy_records (
 
 ```python
 # swallow.governance
-def apply_proposal(proposal_id: str, operator_token: OperatorToken) -> None:
+def apply_proposal(proposal_id: str, operator_token: OperatorToken, target: ProposalTarget) -> ApplyResult:
     """
     canonical knowledge / route metadata / policy 的唯一写入函数。
     其他模块禁止调用 RouteRepo._apply_metadata_change / PolicyRepo._apply_policy_change /
