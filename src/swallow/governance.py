@@ -10,6 +10,16 @@ from .canonical_registry import build_canonical_registry_index
 from .canonical_reuse import build_canonical_reuse_summary
 from .knowledge_store import LIBRARIAN_AGENT_WRITE_AUTHORITY, persist_wiki_entry_from_record
 from .paths import canonical_registry_path
+from .router import (
+    apply_route_capability_profiles,
+    apply_route_weights,
+    load_route_capability_profiles,
+    load_route_weights,
+    normalize_route_name,
+    route_by_name,
+    save_route_capability_profiles,
+    save_route_weights,
+)
 from .store import append_canonical_record, save_canonical_registry_index, save_canonical_reuse_policy
 
 OperatorSource = Literal["cli", "system_auto", "librarian_side_effect"]
@@ -46,6 +56,7 @@ class ApplyResult:
     success: bool
     detail: str
     applied_writes: tuple[str, ...] = ()
+    payload: object | None = None
 
 
 @dataclass(frozen=True)
@@ -57,6 +68,14 @@ class _CanonicalProposal:
     persist_wiki: bool
     persist_wiki_first: bool
     refresh_derived: bool
+
+
+@dataclass(frozen=True)
+class _RouteMetadataProposal:
+    base_dir: Path
+    route_weights: dict[str, float] | None = None
+    route_capability_profiles: dict[str, dict[str, object]] | None = None
+    review_path: Path | None = None
 
 
 _PENDING_PROPOSALS: dict[tuple[ProposalTarget, str], object] = {}
@@ -96,6 +115,37 @@ def register_canonical_proposal(
     return normalized_id
 
 
+def register_route_metadata_proposal(
+    *,
+    base_dir: Path,
+    proposal_id: str,
+    route_weights: dict[str, float] | None = None,
+    route_capability_profiles: dict[str, dict[str, object]] | None = None,
+    review_path: Path | None = None,
+) -> str:
+    normalized_id = proposal_id.strip()
+    if not normalized_id:
+        raise ValueError("proposal_id must be a non-empty string.")
+    if review_path is not None and (route_weights is not None or route_capability_profiles is not None):
+        raise ValueError("review_path proposals cannot also carry direct route metadata payloads.")
+    if review_path is None and route_weights is None and route_capability_profiles is None:
+        raise ValueError("route metadata proposal requires route_weights, route_capability_profiles, or review_path.")
+
+    copied_profiles = None
+    if route_capability_profiles is not None:
+        copied_profiles = {
+            route_name: dict(profile)
+            for route_name, profile in route_capability_profiles.items()
+        }
+    _PENDING_PROPOSALS[(ProposalTarget.ROUTE_METADATA, normalized_id)] = _RouteMetadataProposal(
+        base_dir=base_dir,
+        route_weights=dict(route_weights) if route_weights is not None else None,
+        route_capability_profiles=copied_profiles,
+        review_path=review_path,
+    )
+    return normalized_id
+
+
 def apply_proposal(
     proposal_id: str,
     operator_token: OperatorToken,
@@ -114,7 +164,7 @@ def apply_proposal(
     if target == ProposalTarget.CANONICAL_KNOWLEDGE:
         result = _apply_canonical(proposal, operator_token, proposal_id=proposal_id)
     elif target == ProposalTarget.ROUTE_METADATA:
-        raise NotImplementedError("Route metadata proposal application is implemented in Phase 61 S3.")
+        result = _apply_route_metadata(proposal, operator_token, proposal_id=proposal_id)
     elif target == ProposalTarget.POLICY:
         raise NotImplementedError("Policy proposal application is implemented in Phase 61 S4.")
     else:  # pragma: no cover - enum exhaustiveness guard
@@ -137,6 +187,8 @@ def _load_proposal_artifact(proposal_id: str, target: ProposalTarget) -> object:
 def _validate_target(proposal: object, target: ProposalTarget) -> None:
     if target == ProposalTarget.CANONICAL_KNOWLEDGE and not isinstance(proposal, _CanonicalProposal):
         raise TypeError("canonical proposal payload is invalid.")
+    if target == ProposalTarget.ROUTE_METADATA and not isinstance(proposal, _RouteMetadataProposal):
+        raise TypeError("route metadata proposal payload is invalid.")
 
 
 def _apply_canonical(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
@@ -185,6 +237,292 @@ def _refresh_canonical_derivatives(base_dir: Path) -> None:
     save_canonical_reuse_policy(base_dir, build_canonical_reuse_summary(canonical_records))
 
 
+def _apply_route_metadata(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
+    if not isinstance(proposal, _RouteMetadataProposal):
+        raise TypeError("route metadata proposal payload is invalid.")
+    if proposal.review_path is not None:
+        return _apply_route_review_metadata(proposal, proposal_id=proposal_id)
+
+    applied_writes: list[str] = []
+    if proposal.route_weights is not None:
+        save_route_weights(proposal.base_dir, proposal.route_weights)
+        apply_route_weights(proposal.base_dir)
+        applied_writes.append("route_weights")
+
+    if proposal.route_capability_profiles is not None:
+        save_route_capability_profiles(proposal.base_dir, proposal.route_capability_profiles)
+        apply_route_capability_profiles(proposal.base_dir)
+        applied_writes.append("route_capability_profiles")
+
+    return ApplyResult(
+        proposal_id=proposal_id,
+        target=ProposalTarget.ROUTE_METADATA,
+        success=True,
+        detail="route_metadata_applied",
+        applied_writes=tuple(applied_writes),
+    )
+
+
+def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_id: str) -> ApplyResult:
+    from .meta_optimizer import (
+        OptimizationProposalApplicationRecord,
+        ProposalApplicationEntry,
+        _normalize_task_family_name,
+        _timestamp_token,
+        _write_json,
+        load_optimization_proposal_review,
+    )
+    from .models import utc_now
+    from .paths import optimization_proposal_application_path, route_capabilities_path, route_weights_path
+
+    assert proposal.review_path is not None
+    review_path = proposal.review_path
+    review_record = load_optimization_proposal_review(review_path)
+    approved_entries = [entry for entry in review_record.entries if entry.decision == "approved"]
+    if not approved_entries:
+        raise ValueError(f"No approved proposals found in {review_path}")
+
+    updated_weights = load_route_weights(proposal.base_dir)
+    existing_profiles = load_route_capability_profiles(proposal.base_dir)
+    updated_profiles = {
+        route_name: {
+            "task_family_scores": dict(profile.get("task_family_scores", {}))
+            if isinstance(profile.get("task_family_scores", {}), dict)
+            else {},
+            "unsupported_task_types": list(profile.get("unsupported_task_types", []))
+            if isinstance(profile.get("unsupported_task_types", []), list)
+            else [],
+        }
+        for route_name, profile in existing_profiles.items()
+    }
+
+    for entry in approved_entries:
+        route_name = normalize_route_name(entry.route_name)
+        if entry.proposal_type == "route_weight":
+            if not route_name:
+                raise ValueError(f"Approved route_weight proposal is missing route_name: {entry.proposal_id}")
+            if route_by_name(route_name) is None:
+                raise ValueError(f"Unknown route in approved proposal: {route_name}")
+            if entry.suggested_weight is None:
+                raise ValueError(f"Approved route_weight proposal is missing suggested_weight: {entry.proposal_id}")
+            continue
+        if entry.proposal_type == "route_capability":
+            if not route_name:
+                raise ValueError(f"Approved route_capability proposal is missing route_name: {entry.proposal_id}")
+            if route_by_name(route_name) is None:
+                raise ValueError(f"Unknown route in approved proposal: {route_name}")
+            task_family = _normalize_task_family_name(entry.task_family)
+            if not task_family:
+                raise ValueError(f"Approved route_capability proposal is missing task_family: {entry.proposal_id}")
+            if not entry.mark_task_family_unsupported and entry.suggested_task_family_score is None:
+                raise ValueError(
+                    f"Approved route_capability proposal is missing suggested_task_family_score: {entry.proposal_id}"
+                )
+
+    entries: list[ProposalApplicationEntry] = []
+    rollback_weights: dict[str, float] = {}
+    rollback_capability_profiles: dict[str, dict[str, object]] = {}
+    applied_count = 0
+    noop_count = 0
+    skipped_count = 0
+    for entry in approved_entries:
+        if entry.proposal_type == "route_capability":
+            route_name = normalize_route_name(entry.route_name)
+            task_family = _normalize_task_family_name(entry.task_family)
+            profile = updated_profiles.setdefault(
+                route_name,
+                {"task_family_scores": {}, "unsupported_task_types": []},
+            )
+            task_family_scores = dict(profile.get("task_family_scores", {}))
+            unsupported_task_types = {
+                _normalize_task_family_name(item)
+                for item in profile.get("unsupported_task_types", [])
+                if _normalize_task_family_name(item)
+            }
+            before_score_raw = task_family_scores.get(task_family)
+            before_score = round(float(before_score_raw), 6) if isinstance(before_score_raw, int | float) else None
+            before_unsupported = task_family in unsupported_task_types
+            rollback_capability_profiles.setdefault(
+                route_name,
+                {
+                    "task_family_scores": dict(task_family_scores),
+                    "unsupported_task_types": sorted(unsupported_task_types),
+                },
+            )
+
+            if entry.mark_task_family_unsupported:
+                if before_unsupported:
+                    noop_count += 1
+                    entries.append(
+                        ProposalApplicationEntry(
+                            proposal_id=entry.proposal_id,
+                            proposal_type=entry.proposal_type,
+                            route_name=route_name,
+                            task_family=task_family,
+                            status="noop",
+                            detail="Task family is already marked unsupported for this route.",
+                            before_task_family_score=before_score,
+                            after_task_family_score=before_score,
+                            before_task_family_unsupported=before_unsupported,
+                            after_task_family_unsupported=before_unsupported,
+                        )
+                    )
+                    continue
+                unsupported_task_types.add(task_family)
+                task_family_scores.pop(task_family, None)
+                applied_count += 1
+                updated_profiles[route_name] = {
+                    "task_family_scores": task_family_scores,
+                    "unsupported_task_types": sorted(unsupported_task_types),
+                }
+                entries.append(
+                    ProposalApplicationEntry(
+                        proposal_id=entry.proposal_id,
+                        proposal_type=entry.proposal_type,
+                        route_name=route_name,
+                        task_family=task_family,
+                        status="applied",
+                        detail="Marked the task family unsupported in the persisted route capability profile.",
+                        before_task_family_score=before_score,
+                        after_task_family_score=None,
+                        before_task_family_unsupported=before_unsupported,
+                        after_task_family_unsupported=True,
+                    )
+                )
+                continue
+
+            after_score = round(float(entry.suggested_task_family_score or 0.0), 6)
+            if before_score is not None and abs(before_score - after_score) <= 1e-9 and not before_unsupported:
+                noop_count += 1
+                entries.append(
+                    ProposalApplicationEntry(
+                        proposal_id=entry.proposal_id,
+                        proposal_type=entry.proposal_type,
+                        route_name=route_name,
+                        task_family=task_family,
+                        status="noop",
+                        detail="Suggested capability score already matches the current persisted value.",
+                        before_task_family_score=before_score,
+                        after_task_family_score=after_score,
+                        before_task_family_unsupported=before_unsupported,
+                        after_task_family_unsupported=before_unsupported,
+                    )
+                )
+                continue
+
+            task_family_scores[task_family] = after_score
+            unsupported_task_types.discard(task_family)
+            updated_profiles[route_name] = {
+                "task_family_scores": task_family_scores,
+                "unsupported_task_types": sorted(unsupported_task_types),
+            }
+            applied_count += 1
+            entries.append(
+                ProposalApplicationEntry(
+                    proposal_id=entry.proposal_id,
+                    proposal_type=entry.proposal_type,
+                    route_name=route_name,
+                    task_family=task_family,
+                    status="applied",
+                    detail="Persisted the approved route capability score.",
+                    before_task_family_score=before_score,
+                    after_task_family_score=after_score,
+                    before_task_family_unsupported=before_unsupported,
+                    after_task_family_unsupported=False,
+                )
+            )
+            continue
+
+        if entry.proposal_type != "route_weight":
+            skipped_count += 1
+            entries.append(
+                ProposalApplicationEntry(
+                    proposal_id=entry.proposal_id,
+                    proposal_type=entry.proposal_type,
+                    route_name=normalize_route_name(entry.route_name),
+                    task_family=entry.task_family,
+                    status="skipped",
+                    detail="No automatic apply handler is registered for this proposal type.",
+                )
+            )
+            continue
+
+        route_name = normalize_route_name(entry.route_name)
+        before_weight = float(updated_weights.get(route_name, 1.0))
+        after_weight = round(float(entry.suggested_weight or 1.0), 6)
+        rollback_weights[route_name] = before_weight
+        if abs(before_weight - after_weight) <= 1e-9:
+            noop_count += 1
+            entries.append(
+                ProposalApplicationEntry(
+                    proposal_id=entry.proposal_id,
+                    proposal_type=entry.proposal_type,
+                    route_name=route_name,
+                    task_family=entry.task_family,
+                    status="noop",
+                    detail="Suggested quality weight already matches the current persisted value.",
+                    before_weight=before_weight,
+                    after_weight=after_weight,
+                )
+            )
+            continue
+
+        updated_weights[route_name] = after_weight
+        applied_count += 1
+        entries.append(
+            ProposalApplicationEntry(
+                proposal_id=entry.proposal_id,
+                proposal_type=entry.proposal_type,
+                route_name=route_name,
+                task_family=entry.task_family,
+                status="applied",
+                detail="Persisted the approved route quality weight.",
+                before_weight=before_weight,
+                after_weight=after_weight,
+            )
+        )
+
+    persisted_weights = {
+        route_name: weight
+        for route_name, weight in updated_weights.items()
+        if abs(weight - 1.0) > 1e-9
+    }
+    save_route_weights(proposal.base_dir, persisted_weights)
+    apply_route_weights(proposal.base_dir)
+    persisted_profiles = {
+        route_name: profile
+        for route_name, profile in updated_profiles.items()
+        if profile.get("task_family_scores") or profile.get("unsupported_task_types")
+    }
+    save_route_capability_profiles(proposal.base_dir, persisted_profiles)
+    apply_route_capability_profiles(proposal.base_dir)
+
+    applied_at = utc_now()
+    application_record = OptimizationProposalApplicationRecord(
+        application_id=f"application-{_timestamp_token(applied_at)}",
+        applied_at=applied_at,
+        source_review_path=str(review_path),
+        applied_count=applied_count,
+        noop_count=noop_count,
+        skipped_count=skipped_count,
+        route_weights_path=str(route_weights_path(proposal.base_dir)),
+        route_capabilities_path=str(route_capabilities_path(proposal.base_dir)),
+        rollback_weights=rollback_weights,
+        rollback_capability_profiles=rollback_capability_profiles,
+        entries=entries,
+    )
+    application_path = optimization_proposal_application_path(proposal.base_dir, application_record.application_id)
+    _write_json(application_path, application_record.to_dict())
+    return ApplyResult(
+        proposal_id=proposal_id,
+        target=ProposalTarget.ROUTE_METADATA,
+        success=True,
+        detail=f"route_review_applied review_id={review_record.review_id}",
+        applied_writes=("route_weights", "route_capability_profiles", "optimization_proposal_application"),
+        payload=(application_record, application_path),
+    )
+
+
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
     if not path.exists():
         return []
@@ -198,4 +536,3 @@ def _load_json_lines(path: Path) -> list[dict[str, object]]:
 
 def _emit_event(_operator_token: OperatorToken, _target: ProposalTarget, _result: ApplyResult) -> None:
     """Reserved for durable governance audit events once the event repository exists."""
-

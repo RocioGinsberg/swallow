@@ -46,7 +46,13 @@ from .ingestion.pipeline import (
     run_ingestion_pipeline,
 )
 from .knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
-from .governance import OperatorToken, ProposalTarget, apply_proposal, register_canonical_proposal
+from .governance import (
+    OperatorToken,
+    ProposalTarget,
+    apply_proposal,
+    register_canonical_proposal,
+    register_route_metadata_proposal,
+)
 from .knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
     build_knowledge_relation_report,
@@ -56,10 +62,10 @@ from .knowledge_relations import (
     list_knowledge_relations,
 )
 from .meta_optimizer import (
-    apply_reviewed_optimization_proposals,
     build_optimization_proposal_application_report,
     build_optimization_proposal_review_report,
     extract_route_weight_proposals_from_report,
+    load_optimization_proposal_review,
     review_optimization_proposals,
     run_meta_optimizer,
 )
@@ -115,8 +121,6 @@ from .router import (
     current_route_weights,
     load_route_capability_profiles,
     route_by_name,
-    save_route_capability_profiles,
-    save_route_weights,
     select_route,
 )
 from .store import (
@@ -2421,10 +2425,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "proposal" and args.proposal_command == "apply":
-        application_record, record_path = apply_reviewed_optimization_proposals(
-            base_dir,
-            Path(args.review_file).resolve(),
+        review_path = Path(args.review_file).resolve()
+        review_record = load_optimization_proposal_review(review_path)
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=review_record.review_id or review_path.stem,
+            review_path=review_path,
         )
+        result = apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
+        if not isinstance(result.payload, tuple) or len(result.payload) != 2:
+            raise RuntimeError("Route metadata apply result did not include an application record payload.")
+        application_record, record_path = result.payload
         print(build_optimization_proposal_application_report(application_record), end="")
         print(f"record: {record_path}")
         return 0
@@ -2480,8 +2491,12 @@ def main(argv: list[str] | None = None) -> int:
             for route_name, weight in updated_weights.items()
             if abs(weight - 1.0) > 1e-9
         }
-        save_route_weights(base_dir, persisted_weights)
-        apply_route_weights(base_dir)
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=f"route-weights:{proposal_path.name}",
+            route_weights=persisted_weights,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
         print(build_route_weights_report(base_dir), end="")
         return 0
 
@@ -2547,8 +2562,12 @@ def main(argv: list[str] | None = None) -> int:
             "task_family_scores": task_family_scores,
             "unsupported_task_types": sorted(unsupported_task_types),
         }
-        save_route_capability_profiles(base_dir, profiles)
-        apply_route_capability_profiles(base_dir)
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=f"route-capabilities:{route_name}",
+            route_capability_profiles=profiles,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
         print(build_route_capability_profiles_report(base_dir), end="")
         return 0
 

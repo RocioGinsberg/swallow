@@ -2,8 +2,23 @@ import json
 
 import pytest
 
-from swallow.governance import ApplyResult, OperatorToken, ProposalTarget, apply_proposal, register_canonical_proposal
-from swallow.paths import canonical_registry_index_path, canonical_registry_path, canonical_reuse_policy_path, knowledge_wiki_entry_path
+from swallow.governance import (
+    ApplyResult,
+    OperatorToken,
+    ProposalTarget,
+    apply_proposal,
+    register_canonical_proposal,
+    register_route_metadata_proposal,
+)
+from swallow.paths import (
+    canonical_registry_index_path,
+    canonical_registry_path,
+    canonical_reuse_policy_path,
+    knowledge_wiki_entry_path,
+    route_capabilities_path,
+    route_weights_path,
+)
+from swallow.router import route_by_name
 
 
 def test_operator_token_rejects_invalid_source() -> None:
@@ -67,3 +82,38 @@ def test_apply_canonical_proposal_requires_registered_payload() -> None:
     with pytest.raises(ValueError, match="Unknown proposal artifact"):
         apply_proposal("missing", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
 
+
+def test_apply_route_metadata_proposal_saves_and_refreshes_registry(tmp_path) -> None:
+    route = route_by_name("local-codex")
+    assert route is not None
+    original_weight = route.quality_weight
+    original_scores = dict(route.task_family_scores)
+    original_unsupported = list(route.unsupported_task_types)
+    try:
+        register_route_metadata_proposal(
+            base_dir=tmp_path,
+            proposal_id="route-direct",
+            route_weights={"local-codex": 0.42},
+            route_capability_profiles={
+                "local-codex": {
+                    "task_family_scores": {"execution": 0.81},
+                    "unsupported_task_types": ["review"],
+                }
+            },
+        )
+
+        result = apply_proposal("route-direct", OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
+
+        assert result.success is True
+        assert result.applied_writes == ("route_weights", "route_capability_profiles")
+        persisted_weights = json.loads(route_weights_path(tmp_path).read_text(encoding="utf-8"))
+        persisted_profiles = json.loads(route_capabilities_path(tmp_path).read_text(encoding="utf-8"))
+        assert persisted_weights["local-codex"] == 0.42
+        assert persisted_profiles["local-codex"]["task_family_scores"]["execution"] == 0.81
+        assert route.quality_weight == 0.42
+        assert route.task_family_scores["execution"] == 0.81
+        assert route.unsupported_task_types == ["review"]
+    finally:
+        route.quality_weight = original_weight
+        route.task_family_scores = original_scores
+        route.unsupported_task_types = original_unsupported

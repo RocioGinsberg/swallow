@@ -60,3 +60,14 @@ def test_canonical_write_only_via_apply_proposal() -> None:
 
     assert violations == []
 
+
+def test_route_metadata_writes_only_via_apply_proposal() -> None:
+    violations = _find_protected_writer_uses(
+        protected_names={"save_route_weights", "save_route_capability_profiles"},
+        allowed_files={
+            "src/swallow/governance.py",
+            "src/swallow/router.py",
+        },
+    )
+
+    assert violations == []
