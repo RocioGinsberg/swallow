@@ -13,15 +13,15 @@
 - latest_completed_slice: `apply_proposal Boundary M1+M2+M3 + Closeout + Merge`
 - active_track: `Orchestration`
 - active_phase: `Phase 62`
-- active_slice: `Design Gate(等待 Human 审批)`
-- active_branch: `main`(尚未切换至 feature branch,Design Gate 通过后再切)
-- status: `phase62_design_revised_after_model_review_awaiting_human_gate`
+- active_slice: `M1+M2+M3 + Review 消化 + Closeout 完成(等待 Human Merge Gate)`
+- active_branch: `feat/phase62-multi-perspective-synthesis`
+- status: `phase62_ready_for_human_merge_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 61 已 merge 至 `main`(`c66fa87 merge: Refine codes after PRD change`,2026-04-28),工作区干净。M1 canonical / M2 route metadata / M3 policy 三类主写入收敛 + 3 条 INVARIANTS §9 apply_proposal 守卫测试落地,543 passed / 8 deselected。详见 `docs/plans/phase61/closeout.md`。
+Phase 61 已 merge 至 `main`(`c66fa87 merge: Refine codes after PRD change`,2026-04-28)。M1 canonical / M2 route metadata / M3 policy 三类主写入收敛 + 3 条 INVARIANTS §9 apply_proposal 守卫测试落地,543 passed / 8 deselected。详见 `docs/plans/phase61/closeout.md`。
 
 post-merge 已完成:
 
@@ -41,6 +41,10 @@ Phase 62 design 产物(2026-04-28):
 - **[Claude]** 已按 model_review BLOCK + 7 CONCERN 修订 `design_decision.md` → `revised-after-model-review`:新增 §B.1 Path A route resolution seam(`route_by_name`/`select_route` + `_MPS_DEFAULT_HTTP_ROUTE`),§B.2 task state isolation(`dataclasses.replace` per call),§A.2 同步扩 `_validate_target` 接受 `_MpsPolicyProposal`,§A.6 集中 `paths.mps_policy_path` helper,§E.4 `swl synthesis stage` idempotency(同 task / 同 config_id pending 拒绝重复)。守卫总数从 6 调到 13(M1: 4 / M2-S2: 4 / M2-S3: 3 + 1 加强既有 / M3-S4: 1 / M3-S5: 1)。
 - **[Claude]** 同步修订 `risk_assessment.md` → `revised-after-model-review`:新增 R12(Path A 绕过 Provider Router,中)+ R13(`_validate_target` 漏改,低),修订 R1 标题、R3 路径表述、R9 引用。
 - **[Claude]** 同步 `kickoff.md` G3/G4:guard 列表与 design_decision §五 对齐,artifact 路径改 `paths.artifacts_dir(...)` 表达,`hard_cap` 项改 `policy_cap` 项。
+- **[Human]** Design Gate **已通过**(2026-04-28):approved Phase 62 design 修订稿,Codex 可启动 M1 实装。
+- **[Codex]** Phase 62 MPS implementation 已覆盖 M1/M2/M3:新增 `SynthesisConfig` / `SynthesisParticipant`、MPS policy store + `apply_proposal` 写入路径、Path A synthesis 编排、`swl synthesis policy set/run/stage`、staged idempotency 与 13 条守卫测试。验证:`.venv/bin/python -m pytest` → 557 passed / 8 deselected; `git diff --check` passed。
+- **[Claude]** Phase 62 PR review 已完成 → `docs/plans/phase62/review_comments.md`(0 [BLOCK] / 4 [CONCERN] / 4 [NOTE])。复跑 `pytest` 仍 557 passed / 8 deselected。CONCERN-1..4 建议本 PR 内消化(participant executor 失败处理 / participant artifact 存全 prompt / participant_id 唯一性 / stage duplicate CLI UX);4 条 NOTE 推荐进 closeout 留痕,不写入 concerns_backlog。其中 NOTE-D(`_MPS_DEFAULT_HTTP_ROUTE` design §B.1 文字偏差)经复核确认 implementer 主动纠正了 design 文字错误(把 Path B 的 `local-claude-code` 误标为 Path A),代码侧无需变更,closeout 中应同步修订 design 表述。
+- **[Codex]** 已消化 Phase 62 review:CONCERN-1..4 全部修复;NOTE-B/C 低风险 tightening 已落地;NOTE-A/D 记录到 `docs/plans/phase62/closeout.md`。验证:`.venv/bin/python -m pytest` → 559 passed / 8 deselected;`git diff --check` passed。`pr.md` 已更新为 Phase 62 PR body。
 
 post-merge 决议(Human 已确认,2026-04-28):
 
@@ -53,11 +57,11 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 1. `docs/roadmap.md`(post-merge 增量已更新)
 2. `docs/active_context.md`(本文)
-3. `docs/concerns_backlog.md`
-4. `docs/plans/phase61/closeout.md`(merged 历史归档)
-5. `docs/design/INVARIANTS.md`
-6. `docs/design/SELF_EVOLUTION.md`
-7. `docs/design/DATA_MODEL.md`
+3. `docs/plans/phase62/review_comments.md`
+4. `docs/plans/phase62/closeout.md`
+5. `pr.md`
+6. `docs/concerns_backlog.md`
+7. `docs/design/INVARIANTS.md`
 
 ---
 
@@ -75,29 +79,32 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Claude/design-auditor]** Phase 62 design_audit 已产出(3 BLOCKER 全已在修订稿中处理)
 - **[Claude]** concerns_backlog 新增 2 条 Phase 62 audit Open
 - **[Codex]** Phase 62 `model_review.md` 二次审计已完成并记录 `verdict: BLOCK`
+- **[Codex]** Phase 62 MPS M1/M2/M3 实装与验证完成:policy governance、Path A route resolution + transient state isolation、artifact/event 写入、CLI run/stage/staged duplicate guard、13 条 MPS 守卫均已落地;full pytest passed。
+- **[Codex]** Phase 62 review CONCERN-1..4 已消化,NOTE-B/C 已 tightening,`docs/plans/phase62/closeout.md` 与 `pr.md` 已准备完成。
 
 进行中:
 
-- **[Human]** Design Gate 待审批:design_decision/risk_assessment 已 `revised-after-model-review`,model_review.md verdict BLOCK 已通过修订消解。
+- 无。
 
 待执行:
 
-- **[Codex]** Tag release docs 同步 + tag 执行配合(见 `.agents/workflows/tag_release.md`),与 Design Gate 解锁前可并行
-- **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 + `pr.md` 第 80 行 cosmetic doc fix(post-merge cleanup)
-- **[Human]** Design Gate 决议(approved / 打回 / 部分通过)
-- **[Codex]** Design Gate 通过后切 feature branch `feat/phase62-multi-perspective-synthesis`,启动 M1 实装
+- **[Human]** Merge Gate:阅读 `pr.md` / `docs/plans/phase62/review_comments.md` / `docs/plans/phase62/closeout.md`,合并决策
+- **[Human]** 如接受,提交 review 消化 + closeout/PR body 状态材料,并创建/更新 PR
+- **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md`
+- **[Codex]** tag release docs 同步 + tag 执行配合(见 `.agents/workflows/tag_release.md`)
+- **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix(post-merge cleanup,可与后续 docs commit 合并)
 
 当前阻塞项:
 
-- 无技术阻塞;等待 Human Design Gate 决议。
+- 无。
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** Design Gate 审批 Phase 62 design 修订稿
-2. **[Codex]** 平行:tag release docs 同步 + closeout/pr.md 残留 cosmetic 修订
-3. **[Codex]** Design Gate 通过后切 feature branch `feat/phase62-multi-perspective-synthesis`,启动 M1 实装
+1. **[Human]** Merge Gate(确认 review 中 CONCERN-1..4 已处理,审阅 `pr.md` 与 closeout)
+2. **[Human]** 创建/更新 PR 并决定是否合并
+3. **[Codex]** merge 后执行 state sync 与 release/tag docs 配合
 
 ```markdown
 model_review:
@@ -120,3 +127,10 @@ model_review:
 - `docs/plans/phase62/design_audit.md`(claude/design-auditor, 2026-04-28, 3 BLOCKER + 9 CONCERN)
 - `docs/plans/phase62/model_review.md`(codex, 2026-04-28, Model Review Gate `blocked` — Path A / Provider Router boundary BLOCK)
 - `docs/concerns_backlog.md`(claude, 2026-04-28, 新增 Phase 62 audit 暴露 2 条 Open)
+- `src/swallow/synthesis.py` / `src/swallow/mps_policy_store.py` + related `models.py` / `paths.py` / `governance.py` / `cli.py` updates(codex, 2026-04-28, Phase 62 MPS implementation)
+- `tests/test_synthesis.py` + related `test_cli.py` / `test_governance.py` / `test_invariant_guards.py` updates(codex, 2026-04-28, Phase 62 MPS guards and e2e coverage)
+- `src/swallow/synthesis.py` / `src/swallow/cli.py` review follow-up updates(codex, 2026-04-29, Phase 62 CONCERN-1..4 + NOTE-C fixes)
+- `tests/test_synthesis.py` / `tests/test_cli.py` review follow-up tests(codex, 2026-04-29, failure abort / prompt elision / unique IDs / duplicate stage UX / state snapshot)
+- `docs/plans/phase62/review_comments.md`(claude, 2026-04-28, Phase 62 PR review:0 BLOCK / 4 CONCERN / 4 NOTE)
+- `docs/plans/phase62/closeout.md`(codex, 2026-04-29, Phase 62 closeout and review digestion record)
+- `pr.md`(codex, 2026-04-29, Phase 62 PR body draft)
