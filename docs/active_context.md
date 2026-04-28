@@ -8,138 +8,56 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Collaboration / Workflow`
-- latest_completed_phase: `Meta Docs Sync`
-- latest_completed_slice: `Roadmap Audit & Closeout`
-- active_track: `Architecture / Governance`
-- active_phase: `Phase 61`
-- active_slice: `Closeout`
-- active_branch: `feat/phase61-apply-proposal`
-- status: `phase61_closeout_doc_revert_pending_codex_sync`
+- latest_completed_track: `Architecture / Governance`
+- latest_completed_phase: `Phase 61`
+- latest_completed_slice: `apply_proposal Boundary M1+M2+M3 + Closeout + Merge`
+- active_track: `Orchestration`
+- active_phase: `Phase 62`
+- active_slice: `Design Gate(等待 Human 审批)`
+- active_branch: `main`(尚未切换至 feature branch,Design Gate 通过后再切)
+- status: `phase62_design_revised_after_model_review_awaiting_human_gate`
 
 ---
 
 ## 当前状态说明
 
-Phase 61 目标是把 INVARIANTS §0 第 4 条要求的 `apply_proposal()` 唯一入口在代码中落地,收敛 canonical knowledge / route metadata / policy 三类 truth 的主写入路径,并补齐 3 条 apply_proposal 相关守卫测试。
+Phase 61 已 merge 至 `main`(`c66fa87 merge: Refine codes after PRD change`,2026-04-28),工作区干净。M1 canonical / M2 route metadata / M3 policy 三类主写入收敛 + 3 条 INVARIANTS §9 apply_proposal 守卫测试落地,543 passed / 8 deselected。详见 `docs/plans/phase61/closeout.md`。
 
-Phase 61 设计产物已提交到当前 feature branch(`be401dd docs(phase61): design file generate`)。Codex 启动实施前审阅了 kickoff / context_brief / design_decision / risk_assessment / design_audit,确认 design audit 的 2 个 BLOCKER 已在 `design_decision.md` 修订稿中处理:
+post-merge 已完成:
 
-1. `orchestrator.py:2664-2667` 的任务启动派生刷新不纳入 `apply_proposal()` 收敛,也不进入主写入守卫扫描。
-2. Meta-Optimizer 批量 apply 以 review record 作为 governance 层 `proposal_id` 适配对象,不拆成 N 次 per-entry apply。
+- **[Claude]** 已通过 `roadmap-updater` subagent 增量更新 `docs/roadmap.md`:候选 F 标注为已完成、§三差距表 apply_proposal 行标 [已消化]、Claude 推荐顺序改为 E → D、新增 §六"写入治理"维度行
+- **[Claude]** 修正 `roadmap-updater` 输出中 §四 一处重复的"候选 E"段(原 body 是 D 内容)
+- **[Claude]** state-sync-checker 复核完毕,识别 2 处 pre-merge 未消化的 doc drift(下方 Open Codex doc TODO)
 
-当前 M1 已完成并由 Human 提交:`c2d4abb feat(governance): add apply_proposal canonical boundary`。
+Phase 62 design 产物(2026-04-28):
 
-M1 实现说明:
+- **[Claude/context-analyst]** `docs/plans/phase62/context_brief.md` 已产出。两个意外发现:(a) MPS 完全 greenfield,核心代码无任何 scaffold;(b) staged-knowledge 写权限缺口——INVARIANTS §5 矩阵 Orchestrator 无 stagedK 写权限,需在 design_decision 中给出合宪解。
+- **[Claude]** `docs/plans/phase62/kickoff.md` / `design_decision.md` / `risk_assessment.md` 起草完成;采用 3 milestone × 5 slice 拆解(M1 配置与策略 / M2 编排核心 / M3 staged 集成 + 守卫完整化)。
+- **[Claude/design-auditor]** `docs/plans/phase62/design_audit.md` 已产出:3 [BLOCKER] + 9 [CONCERN]。三个 BLOCKER 分别为 (a) `_PolicyProposal` 单字段无法承载 MPS kind、(b) `swl audit policy set` 不是 kind-generic、(c) `StagedCandidate` 字段映射错误 + orchestrator.py:3145 既有 stagedK 直写违反 §5 矩阵。
+- **[Claude]** 修订 `design_decision.md` → `revised-after-audit`:三个 BLOCKER 解决方案 (a) 新增 `_MpsPolicyProposal` 独立 dataclass + isinstance dispatch(零修改 Phase 61 路径)、(b) 新增独立 `swl synthesis policy set` 子命令组(不重构 audit policy CLI)、(c) StagedCandidate 字段严格对齐既有 schema,且 Phase 62 守卫缩小到 `test_synthesis_module_does_not_call_submit_staged_candidate`,既有 orchestrator.py:3145 路径登记 backlog Open(类比 Phase 61 librarian-side-effect 模式)。
+- **[Claude]** 修订 `risk_assessment.md` → `revised-after-audit`:R5 降级、R8/R9 几乎归零、新增 R10/R11(低风险)。
+- **[Claude]** `docs/concerns_backlog.md` 新增 2 条 Phase 62 audit 暴露 Open:(a) orchestrator.py:3145 stagedK 直写;(b) INVARIANTS §7 集中化函数 (identity.py / workspace.py) 实际缺失。
+- **[Codex]** Human 指定 Codex 按 `.claude/skills/model-review/SKILL.md` 完成 Phase 62 二次审计,替换外部通道 404 占位稿。审计结论:`verdict: BLOCK`。第一轮 audit 的 3 个结构性 BLOCKER 已在修订稿中解决,但新增发现 MPS Path A / Provider Router / `SynthesisParticipant.route_hint` 语义仍未定义清楚,触及 INVARIANTS §4 与 ORCHESTRATION §5,详见 `docs/plans/phase62/model_review.md`。
+- **[Claude]** 已按 model_review BLOCK + 7 CONCERN 修订 `design_decision.md` → `revised-after-model-review`:新增 §B.1 Path A route resolution seam(`route_by_name`/`select_route` + `_MPS_DEFAULT_HTTP_ROUTE`),§B.2 task state isolation(`dataclasses.replace` per call),§A.2 同步扩 `_validate_target` 接受 `_MpsPolicyProposal`,§A.6 集中 `paths.mps_policy_path` helper,§E.4 `swl synthesis stage` idempotency(同 task / 同 config_id pending 拒绝重复)。守卫总数从 6 调到 13(M1: 4 / M2-S2: 4 / M2-S3: 3 + 1 加强既有 / M3-S4: 1 / M3-S5: 1)。
+- **[Claude]** 同步修订 `risk_assessment.md` → `revised-after-model-review`:新增 R12(Path A 绕过 Provider Router,中)+ R13(`_validate_target` 漏改,低),修订 R1 标题、R3 路径表述、R9 引用。
+- **[Claude]** 同步 `kickoff.md` G3/G4:guard 列表与 design_decision §五 对齐,artifact 路径改 `paths.artifacts_dir(...)` 表达,`hard_cap` 项改 `policy_cap` 项。
 
-1. 新增 `src/swallow/governance.py`,提供 `OperatorToken` / `ProposalTarget` / `ApplyResult` / `apply_proposal()`。
-2. `knowledge stage-promote`、Librarian side effect、`task knowledge-promote --target canonical` 的 canonical 主写入均改为通过 `apply_proposal(target=CANONICAL_KNOWLEDGE)`。
-3. `orchestrator.py:2664-2667` 的任务启动派生刷新按 design_decision §E 保留原状,不纳入主写入守卫。
-4. 新增 `test_canonical_write_only_via_apply_proposal` AST 守卫测试,禁止 production caller 绕过 governance 直接调用 canonical 主写入函数。
+post-merge 决议(Human 已确认,2026-04-28):
 
-M1 验证结果:
-
-- `.venv/bin/python -m pytest tests/test_governance.py tests/test_invariant_guards.py` — 4 passed
-- `.venv/bin/python -m pytest tests/test_cli.py -k "stage_promote or knowledge_promote_canonical or retrieve_context_includes_canonical_reuse_visible_records or create_task_preserves_existing_canonical_reuse_policy"` — 14 passed
-- `.venv/bin/python -m pytest tests/test_librarian_executor.py` — 5 passed
-- `.venv/bin/python -m pytest tests/test_cli.py tests/test_librarian_executor.py tests/test_governance.py tests/test_invariant_guards.py` — 246 passed
-- `.venv/bin/python -m pytest` — 539 passed, 8 deselected
-- `git diff --check` — pass
-
-当前 M2 已完成:S3 Route metadata 写路径收敛 + Meta-Optimizer eval baseline。M2 的关键风险是保持 `apply_reviewed_optimization_proposals()` 的批量 apply 语义和 route registry 内存刷新配对不变。
-
-M2 已由 Human 提交:`e54f7a3 feat(governance): route metadata apply_proposal boundary`。
-
-M2 baseline:
-
-- `.venv/bin/python -m pytest tests/eval/test_eval_meta_optimizer_proposals.py -m eval` — 1 passed
-
-M2 实现说明:
-
-1. `swl proposal apply` 现在注册 review record proposal 后直接调用 `apply_proposal(target=ROUTE_METADATA)`。
-2. `apply_reviewed_optimization_proposals()` 保持公开签名不变,内部改为 governance wrapper,兼容现有调用方。
-3. `swl route weights apply` 与 `swl route capabilities update` 不再直接调用 `save_route_weights` / `save_route_capability_profiles`,改为注册 route metadata payload 后调用 governance。
-4. `_apply_route_metadata()` 在 governance 层保持 `save_route_weights -> apply_route_weights -> save_route_capability_profiles -> apply_route_capability_profiles` 配对顺序。
-5. 新增 `test_route_metadata_writes_only_via_apply_proposal` AST 守卫测试。
-
-M2 验证结果:
-
-- `.venv/bin/python -m pytest tests/eval/test_eval_meta_optimizer_proposals.py -m eval` — 1 passed(实施前 baseline 与实施后均通过)
-- `.venv/bin/python -m pytest tests/test_governance.py tests/test_invariant_guards.py` — 6 passed
-- `.venv/bin/python -m pytest tests/test_meta_optimizer.py` — 19 passed
-- `.venv/bin/python -m pytest tests/test_cli.py -k "proposal_apply or route_capabilities_update"` — 2 passed
-- `.venv/bin/python -m pytest tests/test_cli.py tests/test_meta_optimizer.py tests/test_governance.py tests/test_invariant_guards.py` — 262 passed
-- `.venv/bin/python -m pytest` — 541 passed, 8 deselected
-- `git diff --check` — pass
-- `grep -R --include='*.py' "save_route_weights\|save_route_capability_profiles" -n src/swallow --exclude=governance.py --exclude=router.py` — no matches
-
-当前在进入 M3 前按 Human 确认执行协作流程 cleanup:
-
-1. 删除 stale `change.md`,避免继续维护误导性的工具/agent 配置草稿。
-2. 新增 `.agents/workflows/model_review.md`,固定 design_audit 后、Human Design Gate 前的条件式第二模型审查 gate。
-3. 新增 Claude Code 项目 skill `.claude/skills/model-review/SKILL.md`,作为 `/model-review` 的执行入口。
-4. 更新 feature workflow、Claude 规则、Codex 规则与 Codex bootstrap,明确 Claude 负责 model review 判断与消化,Codex 只在 gate resolved 后实现。
-
-Docs/meta cleanup 已由 Human 提交:`1928f2c docs(meta): add model review workflow gate`。当前进入 M3 实施。
-
-当前 M3 已完成:S4 Policy 写路径收敛 + 守卫测试 3 + Phase 49 concern 消化。
-
-M3 实现说明:
-
-1. `src/swallow/governance.py` 新增 `register_policy_proposal()` 与 `_apply_policy()`,系统级 audit trigger policy 写入现在经 `apply_proposal(target=POLICY)`。
-2. `swl audit policy set` 不再直接调用 `save_audit_trigger_policy`,而是注册 policy proposal 后走 governance boundary。
-3. `task knowledge-promote --target canonical` 的 CLI decision-level `caller_authority` 改为 `operator-gated`;decision 层同时接受 Librarian `canonical-promotion` 与 Operator `operator-gated`。
-4. `tests/test_invariant_guards.py` 新增 `test_only_apply_proposal_calls_private_writers`,聚合守卫 canonical / route / policy 主写入函数。
-5. `docs/concerns_backlog.md` 将 Phase 49 authority concern 从 Open 移入 Resolved。
-6. `tests/test_run_task_subtasks.py` 放宽一个非 Phase 61 路径的 timing 断言,避免 `1.35s` 阈值在本地/CI 调度抖动下阻断全量验证,同时仍捕捉 `3s+` 级挂起回归。
-
-M3 验证结果:
-
-- `.venv/bin/python -m pytest tests/test_governance.py tests/test_invariant_guards.py` — 8 passed
-- `.venv/bin/python -m pytest tests/test_consistency_audit.py -k "audit_policy"` — 2 passed
-- `.venv/bin/python -m pytest tests/test_cli.py -k "knowledge_promote or canonical_reuse"` — 8 passed, 229 deselected
-- `.venv/bin/python -m pytest tests/test_cli.py tests/test_consistency_audit.py tests/test_governance.py tests/test_invariant_guards.py` — 256 passed
-- `.venv/bin/python -m pytest tests/test_run_task_subtasks.py::RunTaskSubtaskIntegrationTest::test_run_task_times_out_one_parallel_subtask_without_canceling_other_work` — 1 passed
-- `.venv/bin/python -m pytest tests/eval/test_eval_meta_optimizer_proposals.py -m eval` — 1 passed
-- `.venv/bin/python -m pytest` — 543 passed, 8 deselected
-- `git diff --check` — pass
-- `rg -n "save_audit_trigger_policy|save_route_weights|save_route_capability_profiles|append_canonical_record|persist_wiki_entry_from_record" src/swallow -g '*.py'` — protected writer uses only in `governance.py` and bottom-layer definition files
-
-Human 已提交 M3:`e48bf9b feat(governance): policy apply_proposal boundary` 与 docs 同步 `3dc9d93 docs(governance): policy and concern`。
-
-Claude 已完成 Phase 61 PR review:
-
-- consistency-checker subagent 报告 13 项一致 / 1 项 line-number 偏移 (CONCERN) / 2 项 not-covered (设计未明示) / 0 项 BLOCK,详见 `docs/plans/phase61/consistency_report.md`
-- 主线 review_comments 输出 6 条 [CONCERN] / 0 条 [BLOCK],详见 `docs/plans/phase61/review_comments.md`
-- 关键风险 R8(save+apply 配对)实测保留;R2 Meta-Optimizer eval baseline 等价
-- review 中已新增 3 条 backlog Open 项(14 条剩余 §9 守卫测试 / Repository 完整层 / apply 事务性回滚)
-- Branch advice: 进入 closeout, 完成 closeout TODO 后再开 PR(详见 `review_comments.md` §三 Branch Advice)
-
-Phase 61 closeout concern 消化(经 Human / Claude review-second-pass 修订):
-
-1. `docs/concerns_backlog.md`: "Meta Docs Sync / Roadmap audit (closeout)" Open 条目已移入 Resolved 表(Phase 61 消化)
-2. `docs/design/SELF_EVOLUTION.md`: §3.1.1 已增补 `"librarian_side_effect"` source 条目(design-level,合规保留)
-3. `docs/design/SELF_EVOLUTION.md`: §3.1 已增补"proposal_id 可指向 review record(批量 proposal 容器)"注解(design-level,合规保留)
-4. `docs/design/DATA_MODEL.md`: §4.1 仅保留 `apply_proposal` signature 三参数化更新(2 → 3 param);Codex closeout 时新增的 "**Phase 61 实施说明(2026-04-28)**:" 块已**整段回退**——理由:phase 号 / 日期 / "尚未实装" / "Phase 61 守卫扫描当前物理 writer 函数名"等实现叙事不应进入设计文档,违反"设计文档只描述设计真值"的宪法级原则
-5. `docs/plans/phase61/design_decision.md`: §E 行号已刷新(2664/2667 → 2666/2669)(phase plan 范围,合规)
-6. `docs/plans/phase61/closeout.md`: Codex 已产出 closeout 草稿,但 "Concern 15 处理结果" 段中 "DATA_MODEL §4.1 Phase 61 签名与守卫扫描目标说明" 描述需同步更新,只保留 signature 三参数化部分,删除 "守卫扫描目标说明" 那一项(因为该项已被回退)
-7. commit message 粒度 concern 不改历史,作为后续纪律提醒保留
-8. `docs/plans/phase61/review_comments.md`: 已 self-correct CONCERN #15,撤回 "DATA_MODEL §4.1 偏离声明" 推荐;新增 review-second-pass 教训"Claude 在 review 提 closeout 文档 TODO 时必须核对 design / phase plan 边界"
+1. **Tag 决策**:打 `v1.3.1`(patch bump)。后续动作:Codex 同步 release docs → Human commit + execute `git tag v1.3.1` → Codex 同步 tag 结果。详见 `.agents/workflows/tag_release.md`。
+2. **Phase 62 Direction**:候选 E — 完整 Multi-Perspective Synthesis(ORCHESTRATION §5)。设计依据:`docs/design/ORCHESTRATION.md` 受控多视角综合方案 + A-lite 已落地的低摩擦捕获反馈基础 + roadmap §五推荐 E 优先。
 
 ---
 
 ## 当前关键文档
 
-1. `docs/plans/phase61/kickoff.md`
-2. `docs/plans/phase61/context_brief.md`
-3. `docs/plans/phase61/design_decision.md`
-4. `docs/plans/phase61/risk_assessment.md`
-5. `docs/plans/phase61/design_audit.md`
-6. `docs/design/INVARIANTS.md`
-7. `docs/design/SELF_EVOLUTION.md`
-8. `docs/design/DATA_MODEL.md`
-9. `docs/design/INTERACTION.md`
-10. `docs/concerns_backlog.md`
+1. `docs/roadmap.md`(post-merge 增量已更新)
+2. `docs/active_context.md`(本文)
+3. `docs/concerns_backlog.md`
+4. `docs/plans/phase61/closeout.md`(merged 历史归档)
+5. `docs/design/INVARIANTS.md`
+6. `docs/design/SELF_EVOLUTION.md`
+7. `docs/design/DATA_MODEL.md`
 
 ---
 
@@ -147,100 +65,58 @@ Phase 61 closeout concern 消化(经 Human / Claude review-second-pass 修订):
 
 已完成:
 
-- **[Human/Claude]** Phase 61 design docs 已产出并提交到 `feat/phase61-apply-proposal`
-- **[Codex]** 已完成启动读取与状态校验
-- **[Codex]** 已审阅 Phase 61 设计产物,未发现阻塞实施缺口
-- **[Codex]** 已同步 active branch / active slice 状态
-- **[Codex]** 已完成 M1 实现与验证
-- **[Human]** 已提交 M1:`c2d4abb feat(governance): add apply_proposal canonical boundary`
-- **[Codex]** 已完成 M2 eval baseline
-- **[Codex]** 已完成 M2 实现与验证
-- **[Human]** 已提交 M2:`e54f7a3 feat(governance): route metadata apply_proposal boundary`
-- **[Codex]** 已按 Human 确认删除 stale `change.md`
-- **[Codex]** 已新增 Claude 侧 model review workflow / skill,并同步 Claude/Codex gate 规则
-- **[Human]** 已提交 docs/meta cleanup:`1928f2c docs(meta): add model review workflow gate`
-- **[Codex]** 已完成 M3 实现与验证
-- **[Codex]** 已将 Phase 49 authority concern 标记为 Resolved
-- **[Codex]** 已修正非 Phase 61 路径的 subtask timeout timing 测试阈值,保证全量验证稳定通过
-- **[Human]** 已提交 M3:`e48bf9b feat(governance): policy apply_proposal boundary` + `3dc9d93 docs(governance): policy and concern`
-- **[Claude]** 已完成 Phase 61 PR review:produced `docs/plans/phase61/consistency_report.md` + `docs/plans/phase61/review_comments.md`,6 [CONCERN] / 0 [BLOCK]
-- **[Claude]** 已新增 3 条 backlog Open(剩余 §9 守卫 / Repository 完整层 / apply 事务回滚)
-- **[Codex]** 已消化 closeout 可处理 concern,同步 SELF_EVOLUTION / DATA_MODEL / design_decision / concerns_backlog
-- **[Codex]** 已产出 `docs/plans/phase61/closeout.md`
-- **[Codex]** 已更新 `pr.md`
-- **[Human]** 提示 design 文档不应携带实现内容
-- **[Claude]** 已回退 `docs/design/DATA_MODEL.md` §4.1 中 Codex 加入的 "Phase 61 实施说明(2026-04-28)" 段(只保留 signature 三参数化更新)
-- **[Claude]** 已 self-correct `docs/plans/phase61/review_comments.md` 中 CONCERN #15(撤回 DATA_MODEL 偏离声明 TODO,新增 review-second-pass 教训)
+- **[Human]** 已 merge `feat/phase61-apply-proposal` 至 `main`(`c66fa87`)
+- **[Claude]** 已触发 `roadmap-updater` 完成 post-merge 增量更新
+- **[Claude]** 已修正 roadmap §四 重复段
+- **[Claude]** 已切换 active_context 至 post-merge 状态
+- **[Human]** 已确认 tag = `v1.3.1`、Phase 62 方向 = 候选 E(Multi-Perspective Synthesis)
+- **[Claude/context-analyst]** Phase 62 context_brief 已产出
+- **[Claude]** Phase 62 kickoff / design_decision / risk_assessment 已起草并经 audit 修订
+- **[Claude/design-auditor]** Phase 62 design_audit 已产出(3 BLOCKER 全已在修订稿中处理)
+- **[Claude]** concerns_backlog 新增 2 条 Phase 62 audit Open
+- **[Codex]** Phase 62 `model_review.md` 二次审计已完成并记录 `verdict: BLOCK`
 
 进行中:
 
-- 无。
+- **[Human]** Design Gate 待审批:design_decision/risk_assessment 已 `revised-after-model-review`,model_review.md verdict BLOCK 已通过修订消解。
 
 待执行:
 
-- **[Codex]** 同步更新 `docs/plans/phase61/closeout.md` 中 Concern 15 处理结果描述,把"DATA_MODEL §4.1 Phase 61 签名与守卫扫描目标说明"修正为"DATA_MODEL §4.1 仅做 signature 三参数化(Phase 61 实施说明段已回退)",删除"守卫扫描目标说明"那一项;`pr.md` 中 design 文档变更说明同步修订
-- **[Human]** 评审修订后的 closeout 产出与 PR
-- **[Human]** 如认可,merge `feat/phase61-apply-proposal` 至 `main`
-- **[Claude]** merge 后通过 roadmap-updater subagent 增量更新 roadmap;评估 `tag-evaluate` 是否打新 tag
+- **[Codex]** Tag release docs 同步 + tag 执行配合(见 `.agents/workflows/tag_release.md`),与 Design Gate 解锁前可并行
+- **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 + `pr.md` 第 80 行 cosmetic doc fix(post-merge cleanup)
+- **[Human]** Design Gate 决议(approved / 打回 / 部分通过)
+- **[Codex]** Design Gate 通过后切 feature branch `feat/phase62-multi-perspective-synthesis`,启动 M1 实装
 
 当前阻塞项:
 
-- 无。
+- 无技术阻塞;等待 Human Design Gate 决议。
 
 ---
 
 ## 当前下一步
 
-1. **[Codex]** 按上方 "待执行 #1" 同步 closeout.md / pr.md 描述,提交本轮 doc commit
-2. **[Human]** 审阅 doc commit 与 `pr.md`,决定是否 push / 开 PR
-3. **[Human]** 评审并 merge
-4. **[Claude]** post-merge 触发 roadmap-updater 增量更新 + 决定是否打 tag
+1. **[Human]** Design Gate 审批 Phase 62 design 修订稿
+2. **[Codex]** 平行:tag release docs 同步 + closeout/pr.md 残留 cosmetic 修订
+3. **[Codex]** Design Gate 通过后切 feature branch `feat/phase62-multi-perspective-synthesis`,启动 M1 实装
+
+```markdown
+model_review:
+- status: completed
+- artifact: docs/plans/phase62/model_review.md
+- reason: BLOCK + 7 CONCERN 已通过 design_decision/risk_assessment/kickoff revised-after-model-review 修订消解;新增 6 条 model-review-driven 守卫
+```
 
 ---
 
 ## 当前产出物
 
-- `docs/plans/phase61/context_brief.md`(claude, 2026-04-28, Phase 61 code/design context)
-- `docs/plans/phase61/kickoff.md`(claude, 2026-04-28, apply_proposal phase kickoff)
-- `docs/plans/phase61/design_audit.md`(claude, 2026-04-28, design audit with original blockers)
-- `docs/plans/phase61/design_decision.md`(claude, 2026-04-28, revised-after-audit implementation decision)
-- `docs/plans/phase61/risk_assessment.md`(claude, 2026-04-28, revised-after-audit risk assessment)
-- `src/swallow/governance.py`(codex, 2026-04-28, apply_proposal governance boundary)
-- `tests/test_governance.py`(codex, 2026-04-28, governance unit tests)
-- `tests/test_invariant_guards.py`(codex, 2026-04-28, canonical apply_proposal guard test)
-- `src/swallow/cli.py`(codex, 2026-04-28, stage-promote canonical caller收敛)
-- `src/swallow/orchestrator.py`(codex, 2026-04-28, Librarian/task canonical caller收敛)
-- `src/swallow/governance.py`(codex, 2026-04-28, route metadata apply_proposal boundary)
-- `src/swallow/meta_optimizer.py`(codex, 2026-04-28, reviewed proposal apply wrapper)
-- `src/swallow/cli.py`(codex, 2026-04-28, route/proposal apply caller收敛)
-- `tests/test_governance.py`(codex, 2026-04-28, route metadata governance test)
-- `tests/test_invariant_guards.py`(codex, 2026-04-28, route metadata guard test)
-- `docs/active_context.md`(codex, 2026-04-28, M2 review-ready state sync)
-- `change.md`(codex, 2026-04-28, stale workflow draft removed)
-- `.agents/workflows/model_review.md`(codex, 2026-04-28, conditional model review gate)
-- `.claude/skills/model-review/SKILL.md`(codex, 2026-04-28, Claude Code `/model-review` project skill)
-- `.agents/workflows/feature.md`(codex, 2026-04-28, feature workflow model review insertion)
-- `.agents/claude/rules.md`(codex, 2026-04-28, Claude model review responsibility)
-- `.agents/codex/rules.md`(codex, 2026-04-28, Codex pre-implementation gate check)
-- `.agents/codex/role.md`(codex, 2026-04-28, Codex local playbooks clarified)
-- `.codex/session_bootstrap.md`(codex, 2026-04-28, Codex model review boundary reminder)
-- `src/swallow/governance.py`(codex, 2026-04-28, policy apply_proposal boundary)
-- `src/swallow/cli.py`(codex, 2026-04-28, audit policy set / canonical promotion authority收敛)
-- `src/swallow/knowledge_review.py`(codex, 2026-04-28, canonical promotion decision authorities)
-- `tests/test_governance.py`(codex, 2026-04-28, policy governance test)
-- `tests/test_invariant_guards.py`(codex, 2026-04-28, aggregate private writer guard)
-- `tests/test_cli.py`(codex, 2026-04-28, operator-gated canonical promotion assertion)
-- `tests/test_run_task_subtasks.py`(codex, 2026-04-28, timeout isolation timing assertion robustness)
-- `docs/concerns_backlog.md`(codex, 2026-04-28, Phase 49 authority concern resolved)
-- `docs/active_context.md`(codex, 2026-04-28, M3 review-ready state sync)
-- `docs/plans/phase61/consistency_report.md`(claude/consistency-checker, 2026-04-28, Phase 61 implementation vs design consistency)
-- `docs/plans/phase61/review_comments.md`(claude, 2026-04-28, Phase 61 PR review checklist)
-- `docs/concerns_backlog.md`(claude, 2026-04-28, 3 new Open concerns from Phase 61 review + Meta Docs Sync open entry annotated)
-- `docs/active_context.md`(claude, 2026-04-28, post-review state + closeout TODO list)
-- `docs/design/SELF_EVOLUTION.md`(codex, 2026-04-28, Phase 61 closeout source / proposal_id semantics)
-- `docs/design/DATA_MODEL.md`(codex, 2026-04-28, Phase 61 closeout apply_proposal signature / guard note)
-- `docs/plans/phase61/design_decision.md`(codex, 2026-04-28, closeout line-number drift resolved)
-- `docs/plans/phase61/closeout.md`(codex, 2026-04-28, Phase 61 closeout)
-- `docs/concerns_backlog.md`(codex, 2026-04-28, Meta Docs Sync apply_proposal concern resolved)
-- `docs/active_context.md`(codex, 2026-04-28, closeout review-ready state sync)
-- `pr.md`(codex, 2026-04-28, Phase 61 PR body draft)
+- `docs/roadmap.md`(claude / roadmap-updater, 2026-04-28, post-merge 增量更新 + 重复段修正)
+- `docs/active_context.md`(claude, 2026-04-28, post-merge state sync + phase62 design 进度)
+- `docs/plans/phase62/context_brief.md`(claude/context-analyst, 2026-04-28, Phase 62 MPS 上下文 brief)
+- `docs/plans/phase62/kickoff.md`(claude, 2026-04-28, Phase 62 MPS 入手与范围)
+- `docs/plans/phase62/design_decision.md`(claude, 2026-04-28, Phase 62 MPS 实装决策,revised-after-model-review)
+- `docs/plans/phase62/risk_assessment.md`(claude, 2026-04-28, Phase 62 MPS 13 项风险与缓解,revised-after-model-review)
+- `docs/plans/phase62/kickoff.md`(claude, 2026-04-28, Phase 62 MPS 入手与范围,guard 列表已同步)
+- `docs/plans/phase62/design_audit.md`(claude/design-auditor, 2026-04-28, 3 BLOCKER + 9 CONCERN)
+- `docs/plans/phase62/model_review.md`(codex, 2026-04-28, Model Review Gate `blocked` — Path A / Provider Router boundary BLOCK)
+- `docs/concerns_backlog.md`(claude, 2026-04-28, 新增 Phase 62 audit 暴露 2 条 Open)
