@@ -3,12 +3,49 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from swallow.identity import local_actor
 from swallow.router import route_by_name
 from swallow.synthesis import _MPS_DEFAULT_HTTP_ROUTE, _route_is_path_a
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = REPO_ROOT / "src" / "swallow"
+ACTOR_SEMANTIC_KWARGS = frozenset(
+    {
+        "actor",
+        "actor_name",
+        "actor_id",
+        "submitted_by",
+        "performed_by",
+        "created_by",
+        "updated_by",
+        "modified_by",
+        "deleted_by",
+        "requested_by",
+        "approved_by",
+        "reviewed_by",
+        "applied_by",
+        "committed_by",
+        "authored_by",
+        "signed_by",
+        "initiated_by",
+        "caller",
+        "owner",
+        "owner_id",
+        "user",
+        "user_id",
+        "username",
+        "principal",
+        "principal_id",
+        "operator",
+        "operator_id",
+        "originator",
+        "agent",
+        "agent_id",
+        "executor_name",
+    }
+)
+LOCAL_EXECUTOR_IDENTITY_CALLS = {"ExecutorResult", "RouteSpec"}
 
 
 def _src_py_files() -> list[Path]:
@@ -17,6 +54,19 @@ def _src_py_files() -> list[Path]:
 
 def _relative(path: Path) -> str:
     return path.relative_to(REPO_ROOT).as_posix()
+
+
+def _call_name(call: ast.Call) -> str:
+    func = call.func
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        return func.attr
+    return ""
+
+
+def _is_allowed_local_executor_identity(call: ast.Call, keyword: ast.keyword) -> bool:
+    return keyword.arg == "executor_name" and _call_name(call) in LOCAL_EXECUTOR_IDENTITY_CALLS
 
 
 def _find_protected_writer_uses(*, protected_names: set[str], allowed_files: set[str]) -> list[str]:
@@ -72,6 +122,44 @@ def test_route_metadata_writes_only_via_apply_proposal() -> None:
             "src/swallow/router.py",
         },
     )
+
+    assert violations == []
+
+
+def test_no_hardcoded_local_actor_outside_identity_module() -> None:
+    violations: list[str] = []
+    for path in _src_py_files():
+        rel_path = _relative(path)
+        if rel_path == "src/swallow/identity.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg not in ACTOR_SEMANTIC_KWARGS:
+                    continue
+                if _is_allowed_local_executor_identity(node, keyword):
+                    continue
+                if isinstance(keyword.value, ast.Constant) and keyword.value.value == "local":
+                    violations.append(f"{rel_path}:{keyword.lineno} {keyword.arg}='local'")
+
+    assert local_actor() == "local"
+    assert violations == []
+
+
+def test_no_absolute_path_in_truth_writes() -> None:
+    violations: list[str] = []
+    for path in _src_py_files():
+        rel_path = _relative(path)
+        if rel_path == "src/swallow/workspace.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
+                continue
+            if node.func.attr in {"resolve", "absolute"}:
+                violations.append(f"{rel_path}:{node.lineno} calls Path.{node.func.attr}()")
 
     assert violations == []
 

@@ -115,6 +115,7 @@ from .paths import (
 )
 from .staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate, update_staged_candidate
 from .synthesis import load_synthesis_config, run_synthesis
+from .workspace import resolve_path
 from .router import (
     apply_route_capability_profiles,
     apply_route_weights,
@@ -2314,7 +2315,7 @@ def _read_clipboard_bytes() -> bytes:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    base_dir = Path(args.base_dir).resolve()
+    base_dir = resolve_path(args.base_dir)
     apply_route_weights(base_dir)
     apply_route_capability_profiles(base_dir)
 
@@ -2404,7 +2405,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "knowledge" and args.knowledge_command == "ingest-file":
         result = ingest_local_file(
             base_dir,
-            Path(args.source_path).resolve(),
+            resolve_path(args.source_path),
             dry_run=bool(args.dry_run),
         )
         output = build_ingestion_report(result)
@@ -2456,7 +2457,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "proposal" and args.proposal_command == "review":
         review_record, record_path = review_optimization_proposals(
             base_dir,
-            Path(args.proposal_file).resolve(),
+            resolve_path(args.proposal_file),
             decision=args.decision,
             proposal_ids=list(args.proposal_ids or []),
             note=args.note,
@@ -2466,7 +2467,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "proposal" and args.proposal_command == "apply":
-        review_path = Path(args.review_file).resolve()
+        review_path = resolve_path(args.review_file)
         review_record = load_optimization_proposal_review(review_path)
         proposal_id = register_route_metadata_proposal(
             base_dir=base_dir,
@@ -2531,7 +2532,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "synthesis" and args.synthesis_command == "run":
         state = load_state(base_dir, args.task_id)
-        config = load_synthesis_config(Path(args.config_path).resolve())
+        config = load_synthesis_config(resolve_path(args.config_path))
         result = run_synthesis(base_dir, state, config)
         summary = str(result.payload.get("arbiter_decision", {}).get("synthesis_summary", "")).strip()
         print(f"{state.task_id} synthesis_completed config_id={config.config_id} artifact={result.path}")
@@ -2609,7 +2610,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "route" and args.route_command == "weights" and args.route_weights_command == "apply":
-        proposal_path = Path(args.proposal_file).resolve()
+        proposal_path = resolve_path(args.proposal_file)
         proposals = extract_route_weight_proposals_from_report(proposal_path.read_text(encoding="utf-8"))
         if not proposals:
             raise ValueError(f"No route_weight proposals found in {proposal_path}")
@@ -2753,7 +2754,7 @@ def main(argv: list[str] | None = None) -> int:
         else:
             result = run_ingestion_pipeline(
                 base_dir,
-                Path(source_path).resolve(),
+                resolve_path(source_path),
                 format_hint=args.format,
                 dry_run=bool(args.dry_run),
             )
@@ -2779,7 +2780,7 @@ def main(argv: list[str] | None = None) -> int:
             document_paths: list[str] = []
             seen_paths: set[str] = set()
             for raw_path in args.document_paths:
-                normalized = str(Path(raw_path).resolve())
+                normalized = str(resolve_path(raw_path))
                 if not normalized or normalized in seen_paths:
                     continue
                 document_paths.append(normalized)
@@ -2790,7 +2791,7 @@ def main(argv: list[str] | None = None) -> int:
             base_dir=base_dir,
             title=args.title.strip(),
             goal=args.goal.strip(),
-            workspace_root=Path(args.workspace_root).resolve(),
+            workspace_root=resolve_path(args.workspace_root),
             executor_name=args.executor.strip(),
             input_context=input_context,
             constraints=args.constraint,

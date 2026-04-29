@@ -6,10 +6,11 @@ from pathlib import Path
 from ..models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED
 from ..paths import artifacts_dir
 from ..store import iter_task_states, load_events, load_knowledge_objects, load_state
+from ..workspace import resolve_path
 
 
 def _static_dir() -> Path:
-    return Path(__file__).resolve().parent / "static"
+    return resolve_path(Path(__file__), base=Path.cwd()).parent / "static"
 
 
 def _filter_task_states(states: list[object], focus: str) -> list[object]:
@@ -32,7 +33,7 @@ def _filter_task_states(states: list[object], focus: str) -> list[object]:
 
 def _relative_to_base(base_dir: Path, path: Path) -> str:
     try:
-        return path.resolve().relative_to(base_dir.resolve()).as_posix()
+        return resolve_path(path, base=base_dir).relative_to(resolve_path(base_dir)).as_posix()
     except ValueError:
         return path.as_posix()
 
