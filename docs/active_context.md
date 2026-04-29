@@ -13,9 +13,9 @@
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
 - active_track: `Governance`
 - active_phase: `Phase 63`
-- active_slice: `final-after-m0,待 Human Design Gate`
+- active_slice: `M1/S1 §7 centralized identity-workspace commit gate`
 - active_branch: `feat/phase63-governance-closure`
-- status: `phase63_final_after_m0_pending_human_design_gate`
+- status: `phase63_m1_s1_pending_human_commit_gate`
 
 ## 当前状态说明
 
@@ -152,6 +152,8 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Claude/roadmap-updater scope clarified]** 已写入 `docs/roadmap.md`(commit `0329ee2`):§三新增 NO_SKIP 红灯修复 + Truth Plane SQLite 一致性两条差距条目;§四 队列加候选 G.5 / 候选 H + 详细块;§五推荐顺序改为 G → G.5 → H → D;§六新增"治理边界 LLM 路径" / "Truth 物理存储"两个维度。
 - **[Claude]** Phase 63 三件套已重写到 `final-after-m0`:design_decision(461→336 行)/ kickoff(156→152 行)/ risk_assessment(346→217 行);整体精简 ~25%;深度参考 M0 audit 报告事实。
 - **[Claude/format-validator]** final-after-m0 三件套全部 PASS(design_decision TL;DR 已压成 5 行)。
+- **[Human]** Phase 63 final-after-m0 Design Gate 已通过(2026-04-29):Codex 开始按 M1 → M2 → M3 实施,每个 milestone 保留 commit gate。
+- **[Codex]** M1/S1 已完成:新增 `identity.py` / `workspace.py`,生产路径绝对化改走 `resolve_path()`,新增 2 条 S1 invariant guard。验证:`tests/test_invariant_guards.py` 11 passed;S1 定向 38 passed;`tests/test_run_task_subtasks.py` 5 passed;全量 pytest 560 passed / 1 timing-sensitive failure / 8 deselected,失败用例 targeted rerun passed;`git diff --check` passed。
 
 进行中:
 
@@ -159,19 +161,13 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human]** Design Gate ⛔:阅读 phase63 三件套 + design_audit + model_review + m0_audit_report,决定通过 / 打回。本 phase 特殊点(已据 M0 audit 与 Human 反馈大幅简化):
-  - **scope 收窄至 4 slice / 3 milestone**(S5 移到 Phase 64)
-  - **non-goals 恢复**"不修改 INVARIANTS 任何文字"(M0 audit 后无需 §5 矩阵更新)
-  - **仅 1 条高风险 slice**(S3 Repository 抽象层骨架)
-  - **roadmap 已展开三段式 phase 路径**:Phase 63 → G.5 → H → D
-  - **新发现 1 条 Phase 61 遗留 §5 漂移**(librarian_side_effect 在 canonical knowledge 路径),本 phase scope 外,登记 concerns_backlog
-- **[Human]** Design Gate 通过后,通知 Codex 在 `feat/phase63-governance-closure` 分支上开始 M1(S1)实装
-- **[Codex]** Phase 63 实装顺序:S1 → S2 → S3 → S4(milestone M1 / M2 / M3)
+- **[Human]** M1 commit gate:审查 S1 diff 并决定是否执行 milestone commit。
+- **[Codex]** M1 commit gate 通过后继续 M2(S2 → S3);M2 内按设计保留 S2 单独 commit + S3 Repository 分步 commit 建议。
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix
 
 当前阻塞项:
 
-- 等待 Human Design Gate 决议。
+- 等待 Human M1 commit gate 决议。
 
 ---
 
@@ -209,9 +205,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Human]** Design Gate ⛔:阅读 final-after-m0 三件套 + design_audit + model_review + m0_audit_report,决议通过 / 打回
-2. **[Human]** Design Gate 通过 → 通知 Codex 在 `feat/phase63-governance-closure` 分支上开始 M1(S1)
-3. **[Codex]** 实装顺序 S1 → S2 → S3 → S4(milestone M1 / M2 / M3),M0 已合并作为 PR base
+1. **[Human]** M1 commit gate:审查 S1 diff 后决定是否提交。
+2. **[Human]** 若通过,建议先提交 M1 milestone,再通知 Codex 继续 M2(S2 → S3)。
+3. **[Codex]** M1 commit gate 通过后继续 M2,不在当前 gate 前推进 S2/S3。
 
 ```markdown
 model_review:
@@ -277,3 +273,8 @@ model_review:
 - `docs/plans/phase63/design_decision.md`(claude, 2026-04-29, **final-after-m0** — 5 slice 含 M0;§S2 删 dead code;S5 推迟到 Phase 64;2 条 Repository bypass 守卫)
 - `docs/plans/phase63/risk_assessment.md`(claude, 2026-04-29, **final-after-m0** — 9 条风险,1 高 / 5 中 / 3 低;新增 R16 测试 mock 调整;取消 R5/R9/R10/R12/R13/R14/R5_NEW/R15)
 - `docs/active_context.md`(claude, 2026-04-29, final-after-m0 状态同步;清理过时新差距节;Design Gate 待审)
+- `docs/active_context.md`(codex, 2026-04-29, Human Design Gate 通过后切换到 M1/S1 implementation in progress)
+- `src/swallow/identity.py` / `src/swallow/workspace.py`(codex, 2026-04-29, M1/S1 centralized actor/path helpers)
+- `src/swallow/orchestrator.py` / `src/swallow/cli.py` / `src/swallow/executor.py` / `src/swallow/ingestion/pipeline.py` / `src/swallow/literature_specialist.py` / `src/swallow/quality_reviewer.py` / `src/swallow/web/api.py`(codex, 2026-04-29, M1/S1 path resolution centralized via `resolve_path()`)
+- `tests/test_invariant_guards.py`(codex, 2026-04-29, M1/S1 `test_no_hardcoded_local_actor_outside_identity_module` + `test_no_absolute_path_in_truth_writes`)
+- `docs/active_context.md`(codex, 2026-04-29, M1/S1 completion state + commit gate)
