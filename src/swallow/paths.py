@@ -210,8 +210,20 @@ def route_weights_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "route_weights.json"
 
 
+def route_registry_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "routes.json"
+
+
+def route_policy_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "route_policy.json"
+
+
 def route_capabilities_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "route_capabilities.json"
+
+
+def route_fallbacks_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "route_fallbacks.json"
 
 
 def canonical_registry_path(base_dir: Path) -> Path:

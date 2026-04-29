@@ -118,11 +118,17 @@ from .synthesis import load_synthesis_config, run_synthesis
 from .workspace import resolve_path
 from .router import (
     apply_route_capability_profiles,
+    apply_route_fallbacks,
+    apply_route_policy,
+    apply_route_registry,
     apply_route_weights,
     build_route_capability_profiles_report,
+    build_route_policy_report,
+    build_route_registry_report,
     build_route_weights_report,
     current_route_weights,
     load_route_capability_profiles,
+    load_route_policy_from_path,
     route_by_name,
     select_route,
 )
@@ -1328,6 +1334,28 @@ def build_parser() -> argparse.ArgumentParser:
 
     route_parser = subparsers.add_parser("route", help="Route registry and operator weight commands.")
     route_subparsers = route_parser.add_subparsers(dest="route_command", required=True)
+    route_registry_parser = route_subparsers.add_parser(
+        "registry",
+        help="Inspect or apply the full route registry metadata.",
+    )
+    route_registry_subparsers = route_registry_parser.add_subparsers(dest="route_registry_command", required=True)
+    route_registry_subparsers.add_parser("show", help="Print the current route registry metadata.")
+    route_registry_apply_parser = route_registry_subparsers.add_parser(
+        "apply",
+        help="Apply a route registry JSON file through route metadata governance.",
+    )
+    route_registry_apply_parser.add_argument("registry_file", help="Path to a route registry JSON file.")
+    route_policy_parser = route_subparsers.add_parser(
+        "policy",
+        help="Inspect or apply route selection policy metadata.",
+    )
+    route_policy_subparsers = route_policy_parser.add_subparsers(dest="route_policy_command", required=True)
+    route_policy_subparsers.add_parser("show", help="Print the current route selection policy metadata.")
+    route_policy_apply_parser = route_policy_subparsers.add_parser(
+        "apply",
+        help="Apply a route policy JSON file through route metadata governance.",
+    )
+    route_policy_apply_parser.add_argument("policy_file", help="Path to a route policy JSON file.")
     route_weights_parser = route_subparsers.add_parser(
         "weights",
         help="Inspect or apply per-route quality weights.",
@@ -2316,7 +2344,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     base_dir = resolve_path(args.base_dir)
+    apply_route_registry(base_dir)
+    apply_route_policy(base_dir)
     apply_route_weights(base_dir)
+    apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)
 
     if args.command == "knowledge" and args.knowledge_command == "stage-list":
@@ -2605,6 +2636,38 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{persisted.candidate_id} synthesis_staged config_id={config_id}")
         return 0
 
+    if args.command == "route" and args.route_command == "registry" and args.route_registry_command == "show":
+        print(build_route_registry_report(base_dir), end="")
+        return 0
+
+    if args.command == "route" and args.route_command == "registry" and args.route_registry_command == "apply":
+        registry_path = resolve_path(args.registry_file)
+        route_registry = json.loads(registry_path.read_text(encoding="utf-8"))
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=f"route-registry:{registry_path.name}",
+            route_registry=route_registry,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
+        print(build_route_registry_report(base_dir), end="")
+        return 0
+
+    if args.command == "route" and args.route_command == "policy" and args.route_policy_command == "show":
+        print(build_route_policy_report(base_dir), end="")
+        return 0
+
+    if args.command == "route" and args.route_command == "policy" and args.route_policy_command == "apply":
+        policy_path = resolve_path(args.policy_file)
+        route_policy = load_route_policy_from_path(policy_path)
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=f"route-policy:{policy_path.name}",
+            route_policy=route_policy,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
+        print(build_route_policy_report(base_dir), end="")
+        return 0
+
     if args.command == "route" and args.route_command == "weights" and args.route_weights_command == "show":
         print(build_route_weights_report(base_dir), end="")
         return 0
@@ -2710,7 +2773,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "route" and args.route_command == "select":
+        apply_route_registry(base_dir)
+        apply_route_policy(base_dir)
         apply_route_weights(base_dir)
+        apply_route_fallbacks(base_dir)
         apply_route_capability_profiles(base_dir)
         state = load_state(base_dir, args.task_id)
         selection = select_route(state, args.executor, args.route_mode)

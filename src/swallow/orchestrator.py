@@ -121,9 +121,14 @@ from .paths import (
 from .retrieval import build_retrieval_request
 from .router import (
     apply_route_capability_profiles,
+    apply_route_fallbacks,
+    apply_route_policy,
+    apply_route_registry,
     apply_route_weights,
     fallback_route_for,
     normalize_route_mode,
+    resolve_fallback_chain,
+    route_by_name,
     select_route,
 )
 from .planner import plan
@@ -232,6 +237,7 @@ def _apply_route_spec_to_state(
     state.route_is_fallback = False
     original_route_capabilities = route.capabilities.to_dict()
     state.route_capabilities = dict(original_route_capabilities)
+    state.fallback_route_chain = resolve_fallback_chain(route.name)
     return original_route_capabilities
 
 
@@ -2468,7 +2474,10 @@ def acknowledge_task(base_dir: Path, task_id: str, *, route_mode: str = "summary
     previous_phase = state.phase
     state.executor_name = "local"
     state.route_mode = normalize_route_mode(route_mode)
+    apply_route_registry(base_dir)
+    apply_route_policy(base_dir)
     apply_route_weights(base_dir)
+    apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)
     route_selection = select_route(state, route_mode_override=state.route_mode)
     _apply_route_spec_to_state(
@@ -2605,7 +2614,10 @@ def create_task(
         capability_assembly=capability_assembly.to_dict(),
         route_mode=normalize_route_mode(route_mode),
     )
+    apply_route_registry(base_dir)
+    apply_route_policy(base_dir)
     apply_route_weights(base_dir)
+    apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)
     initial_route = select_route(state, route_mode_override=state.route_mode)
     _apply_route_spec_to_state(state, initial_route.route, initial_route.reason, update_executor_name=False)
@@ -3296,7 +3308,10 @@ async def run_task_async(
         save_capability_manifest(base_dir, task_id, state.capability_manifest)
         save_capability_assembly(base_dir, task_id, state.capability_assembly)
     state.route_mode = normalize_route_mode(route_mode or state.route_mode)
+    apply_route_registry(base_dir)
+    apply_route_policy(base_dir)
     apply_route_weights(base_dir)
+    apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)
     route_selection = select_route(state, executor_name, route_mode)
     original_route_capabilities = _apply_route_spec_to_state(state, route_selection.route, route_selection.reason)

@@ -13,6 +13,16 @@ from typing import Callable, Protocol, runtime_checkable
 
 import httpx
 
+from ._http_helpers import (
+    DEFAULT_NEW_API_CHAT_COMPLETIONS_URL,
+    clean_output,
+    extract_api_usage,
+    http_request_headers as _http_request_headers,
+    normalize_http_response_content as _normalize_http_response_content,
+    parse_timeout_seconds,
+    resolve_new_api_api_key,
+    resolve_new_api_chat_completions_url,
+)
 from .cost_estimation import estimate_tokens
 from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
 from .dialect_adapters import ClaudeXMLDialect, FIMDialect
@@ -21,7 +31,6 @@ from .runtime_config import resolve_swl_chat_model
 from .workspace import resolve_path
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
-DEFAULT_NEW_API_CHAT_COMPLETIONS_URL = "http://localhost:3000/v1/chat/completions"
 
 
 class UnknownExecutorError(ValueError):
@@ -484,17 +493,6 @@ async def run_executor_inline_async(state: TaskState, retrieval_items: list[Retr
     return _attach_estimated_usage(result)
 
 
-def resolve_new_api_chat_completions_url() -> str:
-    configured = os.environ.get("SWL_API_BASE_URL", "").strip().rstrip("/")
-    if configured:
-        return f"{configured}/v1/chat/completions"
-    return DEFAULT_NEW_API_CHAT_COMPLETIONS_URL
-
-
-def resolve_new_api_api_key() -> str:
-    return os.environ.get("SWL_API_KEY", "").strip()
-
-
 def resolve_http_model_name(state: TaskState) -> str:
     configured_hint = str(state.route_model_hint or "").strip()
     if configured_hint and configured_hint not in {"http", "http-default"}:
@@ -507,13 +505,31 @@ def _executor_route_fallback_enabled(state: TaskState) -> bool:
     return route_name.startswith("http-") or route_name in {"local-http", "local-aider", "local-claude-code"}
 
 
-def _load_fallback_route(route_name: str) -> RouteSpec | None:
-    from .router import fallback_route_for
+def _load_fallback_route(
+    state: TaskState,
+    current_route_name: str,
+    visited_routes: set[str],
+) -> RouteSpec | None:
+    from .router import lookup_route_by_name
 
-    return fallback_route_for(route_name)
+    chain = tuple(str(route_name).strip() for route_name in state.fallback_route_chain if str(route_name).strip())
+    if not chain:
+        return None
+    try:
+        current_index = chain.index(current_route_name)
+    except ValueError:
+        return None
+    next_index = current_index + 1
+    if next_index >= len(chain):
+        return None
+    next_route_name = chain[next_index]
+    if next_route_name in visited_routes:
+        return None
+    return lookup_route_by_name(next_route_name)
 
 
 def _apply_route_spec_for_executor_fallback(state: TaskState, route: RouteSpec, reason: str) -> None:
+    # The fallback chain is an immutable execution plan from the orchestrator; do not rewrite it here.
     state.executor_name = route.executor_name
     state.route_name = route.name
     state.route_backend = route.backend_kind
@@ -711,7 +727,7 @@ def _apply_executor_route_fallback(
     seen_routes = set(visited_routes or ())
     seen_routes.add(current_route_name)
     primary_route_name = str(original_route_name or current_route_name).strip() or current_route_name
-    fallback_route = _load_fallback_route(current_route_name)
+    fallback_route = _load_fallback_route(state, current_route_name, seen_routes)
     if fallback_route is None or fallback_route.name in seen_routes:
         if result.degraded:
             return result
@@ -752,7 +768,7 @@ async def _apply_executor_route_fallback_async(
     seen_routes = set(visited_routes or ())
     seen_routes.add(current_route_name)
     primary_route_name = str(original_route_name or current_route_name).strip() or current_route_name
-    fallback_route = _load_fallback_route(current_route_name)
+    fallback_route = _load_fallback_route(state, current_route_name, seen_routes)
     if fallback_route is None or fallback_route.name in seen_routes:
         if result.degraded:
             return result
@@ -1130,56 +1146,11 @@ def build_formatted_executor_prompt(state: TaskState, retrieval_items: list[Retr
     return adapter.format_prompt(raw_prompt, state, retrieval_items)
 
 
-def _normalize_http_response_content(content: object) -> str:
-    if isinstance(content, str):
-        return content.strip()
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if isinstance(item, dict):
-                text_value = str(item.get("text", "")).strip()
-                if text_value:
-                    parts.append(text_value)
-            else:
-                text_value = str(item).strip()
-                if text_value:
-                    parts.append(text_value)
-        return "\n".join(parts).strip()
-    if content is None:
-        return ""
-    return str(content).strip()
-
-
 def _http_request_payload(prompt: str, state: TaskState) -> dict[str, object]:
     return {
         "model": resolve_http_model_name(state),
         "messages": [{"role": "user", "content": prompt}],
     }
-
-
-def _http_request_headers() -> dict[str, str]:
-    headers = {"Content-Type": "application/json"}
-    api_key = resolve_new_api_api_key()
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    return headers
-
-
-def extract_api_usage(response_data: object) -> tuple[int, int]:
-    if not isinstance(response_data, dict):
-        return (0, 0)
-    usage = response_data.get("usage", {})
-    if not isinstance(usage, dict):
-        return (0, 0)
-    try:
-        input_tokens = max(int(usage.get("prompt_tokens", 0) or 0), 0)
-    except (TypeError, ValueError):
-        input_tokens = 0
-    try:
-        output_tokens = max(int(usage.get("completion_tokens", 0) or 0), 0)
-    except (TypeError, ValueError):
-        output_tokens = 0
-    return (input_tokens, output_tokens)
 
 
 def run_http_executor(
@@ -1702,27 +1673,11 @@ async def run_cli_agent_executor_async(
         )
 
 
-def parse_timeout_seconds(raw_value: str) -> int:
-    try:
-        parsed = int(raw_value)
-    except ValueError:
-        return 20
-    return parsed if parsed > 0 else 20
-
-
 def read_last_message(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8").strip()
     except OSError:
         return ""
-
-
-def clean_output(raw: str | bytes | None) -> str:
-    if raw is None:
-        return ""
-    if isinstance(raw, bytes):
-        return raw.decode("utf-8", errors="ignore").strip()
-    return raw.strip()
 
 
 def clean_timeout_stream(primary: str | bytes | None, fallback: str | bytes | None) -> str:

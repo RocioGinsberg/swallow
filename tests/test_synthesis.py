@@ -6,9 +6,15 @@ import pytest
 
 from swallow.governance import OperatorToken, ProposalTarget, apply_proposal, register_mps_policy_proposal
 from swallow.models import ExecutorResult, SynthesisConfig, SynthesisParticipant, TaskState
+from swallow.router import resolve_fallback_chain
 from swallow.paths import artifacts_dir
 from swallow.store import load_events, load_state, save_state
-from swallow.synthesis import run_synthesis, synthesis_config_from_dict
+from swallow.synthesis import (
+    _participant_state_for_call,
+    _resolve_participant_route,
+    run_synthesis,
+    synthesis_config_from_dict,
+)
 
 
 def _state() -> TaskState:
@@ -67,6 +73,22 @@ def test_mps_participants_within_policy_cap(tmp_path, monkeypatch) -> None:
         run_synthesis(tmp_path, state, _config(participant_count=2))
 
 
+def test_mps_participant_state_gets_route_specific_fallback_chain() -> None:
+    state = _state()
+    state.fallback_route_chain = ("local-aider", "local-summary")
+    participant = SynthesisParticipant(
+        participant_id="participant-http",
+        role_prompt="Use the HTTP route.",
+        route_hint="http-claude",
+    )
+
+    route = _resolve_participant_route(participant, state)
+    participant_state = _participant_state_for_call(state, route)
+
+    assert participant_state.route_name == "http-claude"
+    assert participant_state.fallback_route_chain == resolve_fallback_chain("http-claude")
+
+
 def test_mps_arbiter_artifact_required(tmp_path, monkeypatch) -> None:
     state = _state()
     save_state(tmp_path, state)
@@ -109,8 +131,8 @@ def test_synthesis_run_rejects_if_arbitration_exists(tmp_path, monkeypatch) -> N
 
 def test_synthesis_does_not_mutate_main_task_state(tmp_path, monkeypatch) -> None:
     state = _state()
-    before = state.to_dict()
     save_state(tmp_path, state)
+    before = state.to_dict()
     monkeypatch.setattr("swallow.synthesis.run_http_executor", _mock_http_executor)
 
     run_synthesis(tmp_path, state, _config())

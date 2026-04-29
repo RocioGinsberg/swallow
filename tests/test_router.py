@@ -8,20 +8,34 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from swallow.agent_llm import call_agent_llm
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
-from swallow.paths import route_capabilities_path
+from swallow.paths import route_capabilities_path, route_fallbacks_path, route_policy_path, route_registry_path
 from swallow.router import (
     RouteRegistry,
+    apply_route_policy,
+    apply_route_fallbacks,
     apply_route_capability_profiles,
+    apply_route_registry,
     apply_route_weights,
     build_detached_route,
+    current_route_policy,
+    current_route_registry,
     current_route_capability_profiles,
     current_route_weights,
+    load_default_route_policy,
+    load_default_route_registry,
+    load_route_policy,
+    load_route_registry,
+    lookup_route_by_name,
     normalize_route_name,
+    resolve_fallback_chain,
     route_by_name,
     route_for_executor,
     route_for_mode,
     save_route_capability_profiles,
+    save_route_policy,
+    save_route_registry,
     save_route_weights,
     select_route,
 )
@@ -70,6 +84,18 @@ def _route(
     )
 
 
+class _FakeCompletionResponse:
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict[str, object]:
+        return {
+            "choices": [{"message": {"content": " routed completion "}}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 11},
+            "model": "router-test-model",
+        }
+
+
 class RouteRegistryTest(unittest.TestCase):
     def test_route_for_executor_returns_builtin_aider_route(self) -> None:
         route = route_for_executor("aider")
@@ -114,6 +140,150 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(route_by_name("http-gemini").fallback_route_name, "http-qwen")
         self.assertEqual(route_by_name("http-deepseek").dialect_hint, "fim")
         self.assertEqual(route_by_name("local-claude-code").dialect_hint, "plain_text")
+
+    def test_lookup_route_by_name_is_read_only_route_metadata_lookup(self) -> None:
+        self.assertIs(lookup_route_by_name("http-claude"), route_by_name("http-claude"))
+
+    def test_call_agent_llm_invokes_router_completion_gateway(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "SWL_API_BASE_URL": "http://gateway.example",
+                "SWL_API_KEY": "test-token",
+                "AIWF_EXECUTOR_TIMEOUT_SECONDS": "17",
+            },
+            clear=False,
+        ):
+            with patch("swallow.router.httpx.post", return_value=_FakeCompletionResponse()) as http_post:
+                response = call_agent_llm("hello", system="be terse", model="explicit-model")
+
+        self.assertEqual(response.content, "routed completion")
+        self.assertEqual(response.input_tokens, 7)
+        self.assertEqual(response.output_tokens, 11)
+        self.assertEqual(response.model, "router-test-model")
+        http_post.assert_called_once()
+        self.assertEqual(http_post.call_args.args[0], "http://gateway.example/v1/chat/completions")
+        self.assertEqual(http_post.call_args.kwargs["timeout"], 17)
+        self.assertEqual(http_post.call_args.kwargs["headers"]["Authorization"], "Bearer test-token")
+        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "explicit-model")
+        self.assertEqual(
+            http_post.call_args.kwargs["json"]["messages"],
+            [
+                {"role": "system", "content": "be terse"},
+                {"role": "user", "content": "hello"},
+            ],
+        )
+
+    def test_resolve_fallback_chain_covers_builtin_http_chain(self) -> None:
+        chain = resolve_fallback_chain("http-claude")
+
+        self.assertGreaterEqual(len(chain), 1)
+        self.assertEqual(chain[0], "http-claude")
+        for current_name, fallback_name in zip(chain, chain[1:]):
+            self.assertEqual(route_by_name(current_name).fallback_route_name, fallback_name)
+        self.assertFalse(route_by_name(chain[-1]).fallback_route_name)
+
+    def test_route_fallbacks_config_overrides_builtin_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            path = route_fallbacks_path(tmp_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('{"http-claude": "local-summary"}\n', encoding="utf-8")
+
+            try:
+                apply_route_fallbacks(tmp_path)
+                self.assertEqual(resolve_fallback_chain("http-claude"), ("http-claude", "local-summary"))
+            finally:
+                with tempfile.TemporaryDirectory() as reset_tmp:
+                    apply_route_fallbacks(Path(reset_tmp))
+
+    def test_default_route_registry_is_loaded_from_json_metadata(self) -> None:
+        default_registry = load_default_route_registry()
+
+        self.assertIn("http-claude", default_registry)
+        self.assertEqual(default_registry["http-claude"]["dialect_hint"], "claude_xml")
+        self.assertEqual(route_by_name("http-claude").to_dict(), default_registry["http-claude"])
+
+    def test_default_route_policy_is_loaded_from_json_metadata(self) -> None:
+        default_policy = load_default_route_policy()
+
+        self.assertEqual(default_policy["route_mode_routes"]["offline"], "local-note")
+        self.assertEqual(default_policy["complexity_bias_routes"]["high"], "local-claude-code")
+        self.assertEqual(default_policy["summary_fallback_route_name"], "local-summary")
+
+    def test_apply_route_registry_loads_workspace_route_metadata(self) -> None:
+        registry = RouteRegistry([_route(name="placeholder", executor_name="placeholder", backend_kind="mock")])
+        route_registry = {
+            "local-summary": _route(
+                name="local-summary",
+                executor_name="local",
+                backend_kind="local_summary",
+                model_hint="summary-custom",
+                fallback_route_name="",
+            ).to_dict(),
+            "custom-http": _route(
+                name="custom-http",
+                executor_name="http",
+                backend_kind="http_api",
+                model_hint="custom-model",
+                fallback_route_name="local-summary",
+                execution_site="local",
+                executor_family="api",
+            ).to_dict(),
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_route_registry(tmp_path, route_registry)
+
+            applied = apply_route_registry(tmp_path, registry)
+            loaded = load_route_registry(tmp_path)
+
+            self.assertEqual(route_registry_path(tmp_path).name, "routes.json")
+            self.assertEqual(loaded["custom-http"]["model_hint"], "custom-model")
+        self.assertEqual(applied["custom-http"]["fallback_route_name"], "local-summary")
+        self.assertEqual(registry.maybe_get("placeholder"), None)
+        self.assertEqual(registry.get("custom-http").model_hint, "custom-model")
+        self.assertEqual(current_route_registry(registry)["local-summary"]["model_hint"], "summary-custom")
+
+    def test_apply_route_policy_loads_workspace_selection_policy_metadata(self) -> None:
+        route_policy = {
+            "route_mode_routes": {"offline": "local-summary"},
+            "complexity_bias_routes": {"high": "local-summary"},
+            "strategy_complexity_hints": ["high"],
+            "parallel_intent_hints": ["fanout"],
+            "summary_fallback_route_name": "local-summary",
+        }
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                save_route_policy(tmp_path, route_policy)
+
+                applied = apply_route_policy(tmp_path)
+                loaded = load_route_policy(tmp_path)
+
+                self.assertEqual(route_policy_path(tmp_path).name, "route_policy.json")
+                self.assertEqual(loaded["complexity_bias_routes"]["high"], "local-summary")
+                self.assertEqual(applied["parallel_intent_hints"], ["fanout"])
+                self.assertEqual(current_route_policy()["route_mode_routes"]["offline"], "local-summary")
+
+                state = TaskState(
+                    task_id="policy-complexity-001",
+                    title="Workspace route policy",
+                    goal="Allow policy metadata to steer complexity bias",
+                    workspace_root="/tmp",
+                    executor_name="aider",
+                    route_executor_family="cli",
+                    route_execution_site="local",
+                    task_semantics={"complexity_hint": "high"},
+                )
+                selection = select_route(state)
+
+                self.assertEqual(selection.route.name, "local-summary")
+                self.assertFalse(selection.policy_inputs["parallel_intent"])
+        finally:
+            with tempfile.TemporaryDirectory() as reset_tmp:
+                apply_route_policy(Path(reset_tmp))
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
         detached = build_detached_route(route_for_executor("aider"))

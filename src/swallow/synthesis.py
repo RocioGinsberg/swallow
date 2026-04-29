@@ -10,7 +10,7 @@ from .executor import resolve_dialect_name, run_http_executor
 from .governance import load_mps_policy
 from .models import ExecutorResult, Event, RouteSpec, SynthesisConfig, SynthesisParticipant, TaskState, utc_now
 from .paths import artifacts_dir
-from .router import route_by_name, select_route
+from .router import resolve_fallback_chain, route_by_name, select_route
 from .store import append_event, write_artifact
 
 
@@ -155,6 +155,7 @@ def _participant_state_for_call(base_state: TaskState, route: RouteSpec) -> Task
         route_reason="MPS Path A route resolved for a transient synthesis call.",
         route_is_fallback=False,
         route_capabilities=route.capabilities.to_dict(),
+        fallback_route_chain=resolve_fallback_chain(route.name),
         topology_route_name=route.name,
         topology_executor_family=route.executor_family,
         topology_execution_site=route.execution_site,

@@ -5,9 +5,29 @@ import os
 from collections.abc import Iterable
 from pathlib import Path
 
+import httpx
+
+from ._http_helpers import (
+    AgentLLMResponse,
+    AgentLLMUnavailable,
+    clean_output,
+    extract_api_usage,
+    http_request_headers,
+    normalize_http_response_content,
+    parse_timeout_seconds,
+    resolve_new_api_api_key,
+    resolve_new_api_chat_completions_url,
+)
 from .executor import DEFAULT_EXECUTOR, normalize_executor_name
 from .models import RouteCapabilities, RouteSelection, RouteSpec, TaskState, TaxonomyProfile, infer_task_family
-from .paths import route_capabilities_path, route_weights_path
+from .paths import (
+    route_capabilities_path,
+    route_fallbacks_path,
+    route_policy_path,
+    route_registry_path,
+    route_weights_path,
+)
+from .runtime_config import resolve_swl_chat_model
 
 
 CAPABILITY_MATCH_FIELDS = (
@@ -19,15 +39,7 @@ CAPABILITY_MATCH_FIELDS = (
     "resumable",
 )
 
-ROUTE_MODE_TO_ROUTE_NAME = {
-    "live": "local-aider",
-    "http": "local-http",
-    "deterministic": "local-mock",
-    "offline": "local-note",
-    "summary": "local-summary",
-}
-
-SUMMARY_FALLBACK_ROUTE_NAME = "local-summary"
+SUMMARY_FALLBACK_ROUTE_NAME = ""
 
 ROUTE_MODE_ALIASES = {
     "": "auto",
@@ -41,6 +53,10 @@ ROUTE_MODE_ALIASES = {
 }
 
 ROUTE_NAME_ALIASES: dict[str, str] = {}
+ROUTE_MODE_TO_ROUTE_NAME: dict[str, str] = {}
+ROUTE_COMPLEXITY_BIAS_ROUTES: dict[str, str] = {}
+ROUTE_STRATEGY_COMPLEXITY_HINTS: set[str] = set()
+ROUTE_PARALLEL_INTENT_HINTS: set[str] = set()
 
 
 def _registered_executor_name(raw_name: str | None) -> str:
@@ -138,6 +154,11 @@ class RouteRegistry:
     def register(self, route: RouteSpec) -> None:
         self._routes[route.name] = route
 
+    def replace(self, routes: Iterable[RouteSpec]) -> None:
+        self._routes = {}
+        for route in routes:
+            self.register(route)
+
     def get(self, route_name: str) -> RouteSpec:
         return self._routes[route_name]
 
@@ -153,6 +174,9 @@ class RouteRegistry:
 
     def route_for_executor(self, executor_name: str) -> RouteSpec:
         normalized_executor = normalize_executor_name(executor_name)
+        mode_route = self.route_for_mode(normalized_executor)
+        if mode_route is not None and _registered_executor_name(mode_route.executor_name) == normalized_executor:
+            return mode_route
         for route in self.values():
             if _registered_executor_name(route.executor_name) == normalized_executor:
                 return route
@@ -270,322 +294,240 @@ def _route_matches_capabilities(route: RouteSpec, requirements: dict[str, object
     return has_requirement
 
 
-def _build_builtin_route_registry() -> RouteRegistry:
-    return RouteRegistry(
-        [
-            RouteSpec(
-                name="local-aider",
-                executor_name="aider",
-                backend_kind="local_cli",
-                model_hint="aider",
-                dialect_hint="plain_text",
-                fallback_route_name="local-summary",
-                executor_family="cli",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="local_process",
-                capabilities=RouteCapabilities(
-                    execution_kind="code_execution",
-                    supports_tool_loop=True,
-                    filesystem_access="workspace_write",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="local-codex",
-                executor_name="codex",
-                backend_kind="local_cli",
-                model_hint="codex",
-                dialect_hint="plain_text",
-                fallback_route_name="local-summary",
-                executor_family="cli",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="local_process",
-                capabilities=RouteCapabilities(
-                    execution_kind="code_execution",
-                    supports_tool_loop=True,
-                    filesystem_access="workspace_write",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="local-http",
-                executor_name="http",
-                backend_kind="http_api",
-                model_hint="http-default",
-                dialect_hint="plain_text",
-                fallback_route_name="local-claude-code",
-                executor_family="api",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="http",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="http-claude",
-                executor_name="http",
-                backend_kind="http_api",
-                model_hint="claude-3-7-sonnet",
-                dialect_hint="claude_xml",
-                fallback_route_name="http-qwen",
-                executor_family="api",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="http",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="http-qwen",
-                executor_name="http",
-                backend_kind="http_api",
-                model_hint="qwen2.5-coder-32b-instruct",
-                dialect_hint="plain_text",
-                fallback_route_name="http-glm",
-                executor_family="api",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="http",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="http-glm",
-                executor_name="http",
-                backend_kind="http_api",
-                model_hint="glm-4.5-air",
-                dialect_hint="plain_text",
-                fallback_route_name="local-claude-code",
-                executor_family="api",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="http",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="http-gemini",
-                executor_name="http",
-                backend_kind="http_api",
-                model_hint="gemini-2.5-pro",
-                dialect_hint="plain_text",
-                fallback_route_name="http-qwen",
-                executor_family="api",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="http",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="http-deepseek",
-                executor_name="http",
-                backend_kind="http_api",
-                model_hint="deepseek-chat",
-                dialect_hint="fim",
-                fallback_route_name="http-qwen",
-                executor_family="api",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="http",
-                capabilities=RouteCapabilities(
-                    execution_kind="code_execution",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="local-claude-code",
-                executor_name="claude-code",
-                backend_kind="local_cli",
-                model_hint="claude-code",
-                dialect_hint="plain_text",
-                fallback_route_name="local-summary",
-                executor_family="cli",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="local_process",
-                capabilities=RouteCapabilities(
-                    execution_kind="code_execution",
-                    supports_tool_loop=True,
-                    filesystem_access="workspace_write",
-                    network_access="optional",
-                    deterministic=False,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="local-mock",
-                executor_name="mock",
-                backend_kind="deterministic_test",
-                model_hint="mock",
-                dialect_hint="plain_text",
-                executor_family="cli",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="local_process",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="none",
-                    deterministic=True,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="local-note",
-                executor_name="note-only",
-                backend_kind="local_fallback",
-                model_hint="aider",
-                dialect_hint="plain_text",
-                executor_family="cli",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="local_process",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="none",
-                    deterministic=True,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="specialist",
-                    memory_authority="task-memory",
-                ),
-            ),
-            RouteSpec(
-                name="local-summary",
-                executor_name="local",
-                backend_kind="local_summary",
-                model_hint="local",
-                dialect_hint="plain_text",
-                executor_family="cli",
-                execution_site="local",
-                remote_capable=False,
-                transport_kind="local_process",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="none",
-                    deterministic=True,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-            RouteSpec(
-                name="mock-remote",
-                executor_name="mock-remote",
-                backend_kind="mock_remote",
-                model_hint="mock-remote",
-                dialect_hint="plain_text",
-                executor_family="cli",
-                execution_site="remote",
-                remote_capable=True,
-                transport_kind="mock_remote_transport",
-                capabilities=RouteCapabilities(
-                    execution_kind="artifact_generation",
-                    supports_tool_loop=False,
-                    filesystem_access="workspace_read",
-                    network_access="none",
-                    deterministic=True,
-                    resumable=True,
-                ),
-                taxonomy=TaxonomyProfile(
-                    system_role="general-executor",
-                    memory_authority="task-state",
-                ),
-            ),
-        ]
+DEFAULT_ROUTE_REGISTRY_PATH = Path(__file__).with_name("routes.default.json")
+DEFAULT_ROUTE_POLICY_PATH = Path(__file__).with_name("route_policy.default.json")
+
+
+def _coerce_string(value: object, *, default: str = "") -> str:
+    return str(value if value is not None else default).strip()
+
+
+def _coerce_bool(value: object, *, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return default
+
+
+def _normalize_route_name_value(raw_name: object) -> str:
+    normalized = str(raw_name or "").strip()
+    if not normalized:
+        return ""
+    if normalized.endswith("-detached"):
+        base_name = normalized[: -len("-detached")]
+        return f"{ROUTE_NAME_ALIASES.get(base_name, base_name)}-detached"
+    return ROUTE_NAME_ALIASES.get(normalized, normalized)
+
+
+def _normalize_route_mode_value(raw_mode: object) -> str:
+    normalized = str(raw_mode or "").strip().lower()
+    return ROUTE_MODE_ALIASES.get(normalized, "auto")
+
+
+def _normalize_hint_set(value: object) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+    return {str(item).strip().lower() for item in value if str(item).strip()}
+
+
+def normalize_route_policy_payload(payload: object) -> dict[str, object]:
+    if not isinstance(payload, dict):
+        raise ValueError("Route policy metadata must be a JSON object.")
+
+    raw_mode_routes = payload.get("route_mode_routes", {})
+    if not isinstance(raw_mode_routes, dict):
+        raise ValueError("route_mode_routes must be a JSON object.")
+    route_mode_routes: dict[str, str] = {}
+    for raw_mode, raw_route_name in raw_mode_routes.items():
+        mode = _normalize_route_mode_value(raw_mode)
+        route_name = _normalize_route_name_value(raw_route_name)
+        if mode in {"", "auto", "detached"} or not route_name:
+            continue
+        route_mode_routes[mode] = route_name
+
+    raw_complexity_routes = payload.get("complexity_bias_routes", {})
+    if not isinstance(raw_complexity_routes, dict):
+        raise ValueError("complexity_bias_routes must be a JSON object.")
+    complexity_bias_routes = {
+        str(raw_hint).strip().lower(): _normalize_route_name_value(raw_route_name)
+        for raw_hint, raw_route_name in raw_complexity_routes.items()
+        if str(raw_hint).strip() and _normalize_route_name_value(raw_route_name)
+    }
+
+    strategy_hints = _normalize_hint_set(payload.get("strategy_complexity_hints", []))
+    parallel_hints = _normalize_hint_set(payload.get("parallel_intent_hints", []))
+    summary_fallback = _normalize_route_name_value(payload.get("summary_fallback_route_name"))
+
+    return {
+        "route_mode_routes": dict(sorted(route_mode_routes.items())),
+        "complexity_bias_routes": dict(sorted(complexity_bias_routes.items())),
+        "strategy_complexity_hints": sorted(strategy_hints),
+        "parallel_intent_hints": sorted(parallel_hints),
+        "summary_fallback_route_name": summary_fallback,
+    }
+
+
+def load_route_policy_from_path(path: Path) -> dict[str, object]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return normalize_route_policy_payload(payload)
+
+
+def load_default_route_policy() -> dict[str, object]:
+    return load_route_policy_from_path(DEFAULT_ROUTE_POLICY_PATH)
+
+
+def _apply_route_policy_payload(route_policy: dict[str, object]) -> None:
+    global ROUTE_MODE_TO_ROUTE_NAME, ROUTE_COMPLEXITY_BIAS_ROUTES, ROUTE_STRATEGY_COMPLEXITY_HINTS
+    global ROUTE_PARALLEL_INTENT_HINTS, SUMMARY_FALLBACK_ROUTE_NAME
+
+    normalized = normalize_route_policy_payload(route_policy)
+    route_mode_routes = normalized.get("route_mode_routes", {})
+    complexity_bias_routes = normalized.get("complexity_bias_routes", {})
+    ROUTE_MODE_TO_ROUTE_NAME = dict(route_mode_routes) if isinstance(route_mode_routes, dict) else {}
+    ROUTE_COMPLEXITY_BIAS_ROUTES = (
+        dict(complexity_bias_routes) if isinstance(complexity_bias_routes, dict) else {}
+    )
+    ROUTE_STRATEGY_COMPLEXITY_HINTS = set(normalized.get("strategy_complexity_hints", []))
+    ROUTE_PARALLEL_INTENT_HINTS = set(normalized.get("parallel_intent_hints", []))
+    SUMMARY_FALLBACK_ROUTE_NAME = str(normalized.get("summary_fallback_route_name", "") or "")
+
+
+def _route_capabilities_from_dict(payload: object) -> RouteCapabilities:
+    if not isinstance(payload, dict):
+        payload = {}
+    return RouteCapabilities(
+        execution_kind=_coerce_string(payload.get("execution_kind"), default="unknown"),
+        supports_tool_loop=_coerce_bool(payload.get("supports_tool_loop")),
+        filesystem_access=_coerce_string(payload.get("filesystem_access"), default="none"),
+        network_access=_coerce_string(payload.get("network_access"), default="none"),
+        deterministic=_coerce_bool(payload.get("deterministic")),
+        resumable=_coerce_bool(payload.get("resumable")),
     )
 
 
-ROUTE_REGISTRY = _build_builtin_route_registry()
+def _route_taxonomy_from_dict(payload: object) -> TaxonomyProfile:
+    if not isinstance(payload, dict):
+        payload = {}
+    return TaxonomyProfile(
+        system_role=_coerce_string(payload.get("system_role"), default="general-executor"),
+        memory_authority=_coerce_string(payload.get("memory_authority"), default="task-state"),
+    )
+
+
+def route_spec_from_dict(payload: object) -> RouteSpec:
+    if not isinstance(payload, dict):
+        raise ValueError("route metadata entry must be a JSON object.")
+    route_name = _normalize_route_name_value(payload.get("name"))
+    if not route_name:
+        raise ValueError("route metadata entry requires a non-empty name.")
+    return RouteSpec(
+        name=route_name,
+        executor_name=_coerce_string(payload.get("executor_name")),
+        backend_kind=_coerce_string(payload.get("backend_kind")),
+        model_hint=_coerce_string(payload.get("model_hint")),
+        dialect_hint=_coerce_string(payload.get("dialect_hint")),
+        fallback_route_name=_normalize_route_name_value(payload.get("fallback_route_name")),
+        quality_weight=_normalize_quality_weight(payload.get("quality_weight", 1.0)),
+        task_family_scores=_normalize_task_family_scores(payload.get("task_family_scores", {})),
+        unsupported_task_types=_normalize_unsupported_task_types(payload.get("unsupported_task_types", [])),
+        executor_family=_coerce_string(payload.get("executor_family"), default="cli"),
+        execution_site=_coerce_string(payload.get("execution_site"), default="local"),
+        remote_capable=_coerce_bool(payload.get("remote_capable")),
+        transport_kind=_coerce_string(payload.get("transport_kind"), default="local_process"),
+        capabilities=_route_capabilities_from_dict(payload.get("capabilities", {})),
+        taxonomy=_route_taxonomy_from_dict(payload.get("taxonomy", {})),
+    )
+
+
+def normalize_route_registry_payload(payload: object) -> dict[str, dict[str, object]]:
+    if isinstance(payload, dict):
+        route_payloads = []
+        for route_name, route_payload in payload.items():
+            if not isinstance(route_payload, dict):
+                raise ValueError(f"Route registry entry must be an object: {route_name}")
+            merged_payload = dict(route_payload)
+            merged_payload.setdefault("name", route_name)
+            route_payloads.append(merged_payload)
+    elif isinstance(payload, list):
+        route_payloads = payload
+    else:
+        raise ValueError("Route registry metadata must be a JSON object or list.")
+
+    routes: dict[str, dict[str, object]] = {}
+    for route_payload in route_payloads:
+        route = route_spec_from_dict(route_payload)
+        if route.name in routes:
+            raise ValueError(f"Duplicate route registry entry: {route.name}")
+        routes[route.name] = route.to_dict()
+    if not routes:
+        raise ValueError("Route registry metadata must contain at least one route.")
+
+    known_route_names = set(routes)
+    for route_name, route_payload in routes.items():
+        fallback_name = _coerce_string(route_payload.get("fallback_route_name"))
+        if fallback_name and fallback_name not in known_route_names:
+            raise ValueError(f"Route {route_name} references unknown fallback route: {fallback_name}")
+    return dict(sorted(routes.items()))
+
+
+def load_route_registry_from_path(path: Path) -> dict[str, dict[str, object]]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return normalize_route_registry_payload(payload)
+
+
+def load_default_route_registry() -> dict[str, dict[str, object]]:
+    return load_route_registry_from_path(DEFAULT_ROUTE_REGISTRY_PATH)
+
+
+def _routes_from_registry_payload(payload: dict[str, dict[str, object]]) -> tuple[RouteSpec, ...]:
+    return tuple(route_spec_from_dict(route_payload) for route_payload in payload.values())
+
+
+def _build_default_route_registry() -> RouteRegistry:
+    return RouteRegistry(_routes_from_registry_payload(load_default_route_registry()))
+
+
+def current_route_registry(registry: RouteRegistry | None = None) -> dict[str, dict[str, object]]:
+    active_registry = registry or ROUTE_REGISTRY
+    return {route.name: route.to_dict() for route in active_registry.values()}
+
+
+def build_route_registry_report(base_dir: Path, registry: RouteRegistry | None = None) -> str:
+    active_registry = registry or ROUTE_REGISTRY
+    lines = [
+        "# Route Registry",
+        "",
+        f"- path: {route_registry_path(base_dir)}",
+        f"- default_path: {DEFAULT_ROUTE_REGISTRY_PATH}",
+        "",
+        "## Routes",
+    ]
+    for route in sorted(active_registry.values(), key=lambda item: item.name):
+        lines.extend(
+            [
+                f"- {route.name}",
+                f"  executor_name: {route.executor_name}",
+                f"  backend_kind: {route.backend_kind}",
+                f"  model_hint: {route.model_hint}",
+                f"  dialect_hint: {route.dialect_hint or '-'}",
+                f"  fallback_route_name: {route.fallback_route_name or '-'}",
+                f"  executor_family: {route.executor_family}",
+                f"  execution_site: {route.execution_site}",
+                f"  transport_kind: {route.transport_kind}",
+                f"  taxonomy: {route.taxonomy.system_role} / {route.taxonomy.memory_authority}",
+            ]
+        )
+    return "\n".join(lines) + "\n"
+
+
+ROUTE_REGISTRY = _build_default_route_registry()
+_apply_route_policy_payload(load_default_route_policy())
+_BUILTIN_ROUTE_FALLBACKS = {route.name: route.fallback_route_name for route in ROUTE_REGISTRY.values()}
 
 
 def build_detached_route(route: RouteSpec) -> RouteSpec:
@@ -607,18 +549,105 @@ def build_detached_route(route: RouteSpec) -> RouteSpec:
 
 
 def normalize_route_mode(raw_mode: str | None) -> str:
-    normalized = (raw_mode or "").strip().lower()
-    return ROUTE_MODE_ALIASES.get(normalized, "auto")
+    return _normalize_route_mode_value(raw_mode)
 
 
 def normalize_route_name(raw_name: str | None) -> str:
-    normalized = str(raw_name or "").strip()
-    if not normalized:
-        return ""
-    if normalized.endswith("-detached"):
-        base_name = normalized[: -len("-detached")]
-        return f"{ROUTE_NAME_ALIASES.get(base_name, base_name)}-detached"
-    return ROUTE_NAME_ALIASES.get(normalized, normalized)
+    return _normalize_route_name_value(raw_name)
+
+
+def load_route_registry(base_dir: Path) -> dict[str, dict[str, object]]:
+    path = route_registry_path(base_dir)
+    if path.exists():
+        return load_route_registry_from_path(path)
+    return load_default_route_registry()
+
+
+def load_route_policy(base_dir: Path) -> dict[str, object]:
+    path = route_policy_path(base_dir)
+    if path.exists():
+        return load_route_policy_from_path(path)
+    return load_default_route_policy()
+
+
+def save_route_registry(base_dir: Path, route_registry: object) -> Path:
+    path = route_registry_path(base_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_registry = normalize_route_registry_payload(route_registry)
+    path.write_text(json.dumps(normalized_registry, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def save_route_policy(base_dir: Path, route_policy: object) -> Path:
+    path = route_policy_path(base_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized_policy = normalize_route_policy_payload(route_policy)
+    path.write_text(json.dumps(normalized_policy, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+def apply_route_registry(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, dict[str, object]]:
+    global _BUILTIN_ROUTE_FALLBACKS
+
+    active_registry = registry or ROUTE_REGISTRY
+    route_registry = load_route_registry(base_dir)
+    active_registry.replace(_routes_from_registry_payload(route_registry))
+    if active_registry is ROUTE_REGISTRY:
+        _BUILTIN_ROUTE_FALLBACKS = {route.name: route.fallback_route_name for route in active_registry.values()}
+    return current_route_registry(active_registry)
+
+
+def apply_route_policy(base_dir: Path) -> dict[str, object]:
+    route_policy = load_route_policy(base_dir)
+    _apply_route_policy_payload(route_policy)
+    return current_route_policy()
+
+
+def current_route_policy() -> dict[str, object]:
+    return {
+        "route_mode_routes": dict(sorted(ROUTE_MODE_TO_ROUTE_NAME.items())),
+        "complexity_bias_routes": dict(sorted(ROUTE_COMPLEXITY_BIAS_ROUTES.items())),
+        "strategy_complexity_hints": sorted(ROUTE_STRATEGY_COMPLEXITY_HINTS),
+        "parallel_intent_hints": sorted(ROUTE_PARALLEL_INTENT_HINTS),
+        "summary_fallback_route_name": SUMMARY_FALLBACK_ROUTE_NAME,
+    }
+
+
+def build_route_policy_report(base_dir: Path) -> str:
+    route_policy = current_route_policy()
+    lines = [
+        "# Route Policy",
+        "",
+        f"- path: {route_policy_path(base_dir)}",
+        f"- default_path: {DEFAULT_ROUTE_POLICY_PATH}",
+        f"- summary_fallback_route_name: {route_policy['summary_fallback_route_name']}",
+        "",
+        "## Route Modes",
+    ]
+    route_mode_routes = route_policy["route_mode_routes"]
+    if isinstance(route_mode_routes, dict) and route_mode_routes:
+        for mode, route_name in sorted(route_mode_routes.items()):
+            lines.append(f"- {mode}: {route_name}")
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Complexity Bias"])
+    complexity_bias_routes = route_policy["complexity_bias_routes"]
+    if isinstance(complexity_bias_routes, dict) and complexity_bias_routes:
+        for hint, route_name in sorted(complexity_bias_routes.items()):
+            lines.append(f"- {hint}: {route_name}")
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Strategy Complexity Hints",
+            ", ".join(route_policy["strategy_complexity_hints"]) or "none",
+            "",
+            "## Parallel Intent Hints",
+            ", ".join(route_policy["parallel_intent_hints"]) or "none",
+        ]
+    )
+    return "\n".join(lines) + "\n"
 
 
 def load_route_weights(base_dir: Path) -> dict[str, float]:
@@ -758,6 +787,95 @@ def build_route_capability_profiles_report(base_dir: Path, registry: RouteRegist
     return "\n".join(lines) + "\n"
 
 
+def load_route_fallbacks(base_dir: Path) -> dict[str, str]:
+    path = route_fallbacks_path(base_dir)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+
+    fallbacks: dict[str, str] = {}
+    for route_name, raw_fallback in payload.items():
+        normalized_name = normalize_route_name(route_name)
+        if not normalized_name:
+            continue
+        fallback_name = normalize_route_name(str(raw_fallback or ""))
+        fallbacks[normalized_name] = fallback_name
+    return fallbacks
+
+
+def apply_route_fallbacks(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, str]:
+    active_registry = registry or ROUTE_REGISTRY
+    persisted_fallbacks = load_route_fallbacks(base_dir)
+    known_routes = {route.name for route in active_registry.values()}
+    baseline = (
+        _BUILTIN_ROUTE_FALLBACKS
+        if active_registry is ROUTE_REGISTRY
+        else {route.name: route.fallback_route_name for route in active_registry.values()}
+    )
+
+    for route in active_registry.values():
+        fallback_name = baseline.get(route.name, "")
+        if route.name in persisted_fallbacks:
+            configured_fallback = persisted_fallbacks[route.name]
+            if not configured_fallback or configured_fallback in known_routes:
+                fallback_name = configured_fallback
+        route.fallback_route_name = fallback_name
+    return {route.name: route.fallback_route_name for route in active_registry.values()}
+
+
+def invoke_completion(
+    prompt: str,
+    *,
+    system: str = "",
+    model: str | None = None,
+    timeout_seconds: int | None = None,
+) -> AgentLLMResponse:
+    api_key = resolve_new_api_api_key()
+    if not api_key:
+        raise AgentLLMUnavailable("LLM enhancement unavailable: API key not configured.")
+
+    resolved_timeout = timeout_seconds or parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "30"))
+    resolved_model = resolve_swl_chat_model(explicit_model=model)
+    messages: list[dict[str, str]] = []
+    if system.strip():
+        messages.append({"role": "system", "content": system.strip()})
+    messages.append({"role": "user", "content": prompt})
+
+    try:
+        response = httpx.post(
+            resolve_new_api_chat_completions_url(),
+            json={"model": resolved_model, "messages": messages},
+            headers=http_request_headers(),
+            timeout=resolved_timeout,
+        )
+        response.raise_for_status()
+        payload = response.json()
+        choices = payload["choices"]
+        message = choices[0]["message"]
+        content = normalize_http_response_content(message.get("content"))
+    except httpx.HTTPError as exc:
+        raise AgentLLMUnavailable(f"LLM enhancement unavailable: {exc}") from exc
+    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise AgentLLMUnavailable(f"LLM enhancement returned an unreadable payload: {exc}") from exc
+
+    if not content:
+        raise AgentLLMUnavailable("LLM enhancement returned an empty response.")
+
+    input_tokens, output_tokens = extract_api_usage(payload)
+    returned_model = clean_output(str(payload.get("model", "") or resolved_model)) or resolved_model
+    return AgentLLMResponse(
+        content=content,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        model=returned_model,
+    )
+
+
 def route_for_executor(executor_name: str) -> RouteSpec:
     return ROUTE_REGISTRY.route_for_executor(executor_name)
 
@@ -778,11 +896,35 @@ def route_by_name(route_name: str) -> RouteSpec | None:
     return None
 
 
+def lookup_route_by_name(route_name: str) -> RouteSpec | None:
+    """Return static route metadata by name without performing route selection."""
+
+    return route_by_name(route_name)
+
+
 def fallback_route_for(route_name: str) -> RouteSpec | None:
     route = route_by_name(route_name)
     if route is None or not route.fallback_route_name:
         return None
     return route_by_name(route.fallback_route_name)
+
+
+def resolve_fallback_chain(primary_route_name: str) -> tuple[str, ...]:
+    """Return the static fallback route-name chain for a primary route."""
+
+    route = route_by_name(primary_route_name)
+    if route is None:
+        return ()
+
+    chain: list[str] = []
+    seen: set[str] = set()
+    current_name = route.name
+    while current_name and current_name not in seen:
+        chain.append(current_name)
+        seen.add(current_name)
+        fallback_route = fallback_route_for(current_name)
+        current_name = fallback_route.name if fallback_route is not None else ""
+    return tuple(chain)
 
 
 def _reason_with_strategy_match(base_reason: str, match_kind: str) -> str:
@@ -807,11 +949,8 @@ def _resolve_complexity_hint(state: TaskState) -> str:
 def _apply_complexity_bias(candidates: list[RouteSpec], complexity_hint: str) -> list[RouteSpec]:
     if not candidates:
         return candidates
-    if complexity_hint in {"low", "routine"}:
-        preferred = "local-aider"
-    elif complexity_hint == "high":
-        preferred = "local-claude-code"
-    else:
+    preferred = ROUTE_COMPLEXITY_BIAS_ROUTES.get(complexity_hint)
+    if not preferred:
         return candidates
     return sorted(
         candidates,
@@ -876,7 +1015,7 @@ def select_route(
         task_family=task_family,
     )
     if (
-        complexity_hint in {"high", "low", "routine"}
+        complexity_hint in ROUTE_STRATEGY_COMPLEXITY_HINTS
         and executor_override is None
         and selected_mode == "auto"
         and configured_executor == DEFAULT_EXECUTOR
@@ -904,6 +1043,6 @@ def select_route(
             "task_route_mode": state.route_mode,
             "legacy_executor_mode": os.environ.get("AIWF_EXECUTOR_MODE", ""),
             "complexity_hint": complexity_hint,
-            "parallel_intent": complexity_hint == "parallel",
+            "parallel_intent": complexity_hint in ROUTE_PARALLEL_INTENT_HINTS,
         },
     )
