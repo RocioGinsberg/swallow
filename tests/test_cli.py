@@ -8825,7 +8825,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(final_state.route_name, "local-summary")
         self.assertEqual(final_state.phase, "summarize")
 
-    def test_run_task_routes_promote_intent_knowledge_to_staged_for_canonical_forbidden_route(self) -> None:
+    def test_run_task_canonical_forbidden_route_does_not_stage_knowledge_in_orchestrator(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             created = create_task(
@@ -8913,11 +8913,7 @@ class CliLifecycleTest(unittest.TestCase):
                         with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                             final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
-            staged_records = [
-                json.loads(line)
-                for line in (tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl").read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
+            staged_records = load_staged_candidates(tmp_path)
             events = [
                 json.loads(line)
                 for line in (tmp_path / ".swl" / "tasks" / created.task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
@@ -8926,18 +8922,13 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertEqual(final_state.status, "completed")
         self.assertEqual(final_state.route_taxonomy_memory_authority, "canonical-write-forbidden")
-        self.assertEqual(len(staged_records), 1)
-        self.assertEqual(staged_records[0]["source_task_id"], created.task_id)
-        self.assertEqual(staged_records[0]["source_object_id"], "knowledge-0001")
-        self.assertEqual(staged_records[0]["taxonomy_role"], "specialist")
-        self.assertEqual(staged_records[0]["taxonomy_memory_authority"], "canonical-write-forbidden")
-        self.assertEqual(staged_records[0]["status"], "pending")
+        self.assertEqual(staged_records, [])
         guard_warning = next(event for event in events if event["event_type"] == "task.canonical_write_guard_warning")
         self.assertEqual(guard_warning["payload"]["canonical_write_guard"], True)
         self.assertEqual(guard_warning["payload"]["executor_name"], "note-only")
         self.assertEqual(guard_warning["payload"]["route_taxonomy_memory_authority"], "canonical-write-forbidden")
-        self.assertTrue(any(event["event_type"] == "task.knowledge_staged" for event in events))
-        self.assertEqual(events[-1]["payload"]["staged_candidate_count"], 1)
+        self.assertFalse(any(event["event_type"] == "task.knowledge_staged" for event in events))
+        self.assertEqual(events[-1]["payload"]["staged_candidate_count"], 0)
 
     def test_run_task_keeps_task_state_route_off_staged_pipeline(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
