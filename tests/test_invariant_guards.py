@@ -668,6 +668,28 @@ def test_append_only_tables_reject_update_and_delete(tmp_path: Path) -> None:
             "UPDATE know_change_log SET action = 'mutated' WHERE change_id = 'change-guard'",
             "DELETE FROM know_change_log WHERE change_id = 'change-guard'",
         ),
+        "route_change_log": (
+            """
+            INSERT INTO route_change_log (
+                change_id, target_kind, target_id, action, timestamp, actor
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            ("route-change-guard", "route_registry", "local-summary", "upsert", "2026-01-01T00:00:00+00:00", local_actor()),
+            "UPDATE route_change_log SET action = 'mutated' WHERE change_id = 'route-change-guard'",
+            "DELETE FROM route_change_log WHERE change_id = 'route-change-guard'",
+        ),
+        "policy_change_log": (
+            """
+            INSERT INTO policy_change_log (
+                change_id, target_kind, target_id, action, timestamp, actor
+            )
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            ("policy-change-guard", "audit_trigger_policy", "audit_trigger:global", "upsert", "2026-01-01T00:00:00+00:00", local_actor()),
+            "UPDATE policy_change_log SET action = 'mutated' WHERE change_id = 'policy-change-guard'",
+            "DELETE FROM policy_change_log WHERE change_id = 'policy-change-guard'",
+        ),
     }
     assert set(APPEND_ONLY_TABLES) == set(insert_sql)
 

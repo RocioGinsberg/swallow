@@ -143,9 +143,85 @@ CREATE TABLE IF NOT EXISTS know_change_log (
     actor TEXT NOT NULL
 )
 """
+CREATE_ROUTE_REGISTRY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS route_registry (
+    route_id TEXT PRIMARY KEY,
+    model_family TEXT NOT NULL,
+    model_hint TEXT NOT NULL,
+    dialect_hint TEXT,
+    backend_kind TEXT NOT NULL,
+    transport_kind TEXT,
+    fallback_route_id TEXT,
+    quality_weight REAL NOT NULL DEFAULT 1.0,
+    unsupported_task_types TEXT NOT NULL DEFAULT '[]',
+    cost_profile TEXT NOT NULL DEFAULT 'null',
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL,
+    capabilities_json TEXT NOT NULL DEFAULT '{}',
+    taxonomy_json TEXT NOT NULL DEFAULT '{}',
+    execution_site TEXT NOT NULL,
+    executor_family TEXT NOT NULL,
+    executor_name TEXT NOT NULL,
+    remote_capable INTEGER NOT NULL DEFAULT 0
+)
+"""
+CREATE_POLICY_RECORDS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS policy_records (
+    policy_id TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    scope_value TEXT,
+    payload TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    updated_by TEXT NOT NULL
+)
+"""
+CREATE_ROUTE_CHANGE_LOG_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS route_change_log (
+    change_id TEXT PRIMARY KEY,
+    proposal_id TEXT,
+    target_kind TEXT NOT NULL,
+    target_id TEXT,
+    action TEXT NOT NULL,
+    before_payload TEXT,
+    after_payload TEXT,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'local'
+)
+"""
+CREATE_POLICY_CHANGE_LOG_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS policy_change_log (
+    change_id TEXT PRIMARY KEY,
+    proposal_id TEXT,
+    target_kind TEXT NOT NULL,
+    target_id TEXT,
+    action TEXT NOT NULL,
+    before_payload TEXT,
+    after_payload TEXT,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'local'
+)
+"""
+CREATE_SCHEMA_VERSION_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER PRIMARY KEY,
+    applied_at TEXT NOT NULL,
+    slug TEXT NOT NULL
+)
+"""
 CREATE_EVENT_LOG_TASK_TIME_INDEX_SQL = "CREATE INDEX IF NOT EXISTS idx_event_task_time ON event_log(task_id, timestamp)"
 CREATE_EVENT_LOG_KIND_TIME_INDEX_SQL = "CREATE INDEX IF NOT EXISTS idx_event_kind_time ON event_log(kind, timestamp)"
-APPEND_ONLY_TABLES = ("event_log", "event_telemetry", "route_health", "know_change_log")
+CREATE_POLICY_RECORDS_KIND_SCOPE_INDEX_SQL = (
+    "CREATE INDEX IF NOT EXISTS idx_policy_records_kind_scope ON policy_records(kind, scope, scope_value)"
+)
+APPEND_ONLY_TABLES = (
+    "event_log",
+    "event_telemetry",
+    "route_health",
+    "know_change_log",
+    "route_change_log",
+    "policy_change_log",
+)
 APPEND_ONLY_TRIGGER_SQLS = tuple(
     sql
     for table in APPEND_ONLY_TABLES
@@ -162,6 +238,9 @@ APPEND_ONLY_TRIGGER_SQLS = tuple(
         """,
     )
 )
+EXPECTED_SCHEMA_VERSION = 1
+SCHEMA_VERSION_SLUG = "phase65_initial"
+_CONNECTION_CACHE: dict[str, sqlite3.Connection] = {}
 
 
 def _knowledge_entry_id(payload: dict[str, object]) -> str:
@@ -180,6 +259,92 @@ def _table_exists(connection: sqlite3.Connection, table_name: str) -> bool:
     return row is not None
 
 
+def _connection_cache_key(base_dir: Path) -> str:
+    return str(base_dir)
+
+
+def _ensure_schema_version(connection: sqlite3.Connection) -> None:
+    row = connection.execute("SELECT MAX(version) AS version FROM schema_version").fetchone()
+    current_version = int(row["version"] or 0) if row is not None else 0
+    if current_version < EXPECTED_SCHEMA_VERSION:
+        connection.execute(
+            """
+            INSERT OR IGNORE INTO schema_version (version, applied_at, slug)
+            VALUES (?, ?, ?)
+            """,
+            (EXPECTED_SCHEMA_VERSION, utc_now(), SCHEMA_VERSION_SLUG),
+        )
+
+
+def _initialize_schema(connection: sqlite3.Connection) -> None:
+    connection.execute("PRAGMA journal_mode=WAL")
+    connection.execute("PRAGMA busy_timeout = 5000")
+    connection.execute(CREATE_TASKS_TABLE_SQL)
+    connection.execute(CREATE_EVENTS_TABLE_SQL)
+    connection.execute(CREATE_EVENTS_TASK_INDEX_SQL)
+    connection.execute(CREATE_TASKS_STATUS_INDEX_SQL)
+    connection.execute(CREATE_KNOWLEDGE_EVIDENCE_TABLE_SQL)
+    connection.execute(CREATE_KNOWLEDGE_WIKI_TABLE_SQL)
+    connection.execute(CREATE_KNOWLEDGE_EVIDENCE_TASK_INDEX_SQL)
+    connection.execute(CREATE_KNOWLEDGE_WIKI_TASK_INDEX_SQL)
+    connection.execute(CREATE_KNOWLEDGE_MIGRATIONS_TABLE_SQL)
+    connection.execute(CREATE_KNOWLEDGE_RELATIONS_TABLE_SQL)
+    connection.execute(CREATE_KNOWLEDGE_RELATIONS_SOURCE_INDEX_SQL)
+    connection.execute(CREATE_KNOWLEDGE_RELATIONS_TARGET_INDEX_SQL)
+    connection.execute(CREATE_KNOWLEDGE_RELATIONS_TYPE_INDEX_SQL)
+    connection.execute(CREATE_EVENT_LOG_TABLE_SQL)
+    connection.execute(CREATE_EVENT_TELEMETRY_TABLE_SQL)
+    connection.execute(CREATE_ROUTE_HEALTH_TABLE_SQL)
+    connection.execute(CREATE_KNOW_CHANGE_LOG_TABLE_SQL)
+    connection.execute(CREATE_ROUTE_REGISTRY_TABLE_SQL)
+    connection.execute(CREATE_POLICY_RECORDS_TABLE_SQL)
+    connection.execute(CREATE_ROUTE_CHANGE_LOG_TABLE_SQL)
+    connection.execute(CREATE_POLICY_CHANGE_LOG_TABLE_SQL)
+    connection.execute(CREATE_SCHEMA_VERSION_TABLE_SQL)
+    connection.execute(CREATE_EVENT_LOG_TASK_TIME_INDEX_SQL)
+    connection.execute(CREATE_EVENT_LOG_KIND_TIME_INDEX_SQL)
+    connection.execute(CREATE_POLICY_RECORDS_KIND_SCOPE_INDEX_SQL)
+    _ensure_schema_version(connection)
+    for trigger_sql in APPEND_ONLY_TRIGGER_SQLS:
+        connection.execute(trigger_sql)
+
+
+def get_connection(base_dir: Path) -> sqlite3.Connection:
+    """Return the process-local route/policy SQLite connection for base_dir.
+
+    This connection runs in autocommit mode so Repository methods can own
+    explicit BEGIN IMMEDIATE / COMMIT / ROLLBACK transaction lifecycles.
+    """
+
+    key = _connection_cache_key(base_dir)
+    cached = _CONNECTION_CACHE.get(key)
+    if cached is not None:
+        return cached
+    store = SqliteTaskStore()
+    store._ensure_layout(base_dir)
+    connection = sqlite3.connect(
+        swallow_db_path(base_dir),
+        timeout=5.0,
+        isolation_level=None,
+        check_same_thread=False,
+    )
+    connection.row_factory = sqlite3.Row
+    _initialize_schema(connection)
+    _CONNECTION_CACHE[key] = connection
+    return connection
+
+
+def get_schema_status(base_dir: Path) -> dict[str, int]:
+    connection = get_connection(base_dir)
+    row = connection.execute("SELECT MAX(version) AS version FROM schema_version").fetchone()
+    current_version = int(row["version"] or 0) if row is not None else 0
+    return {
+        "schema_version": current_version,
+        "expected_schema_version": EXPECTED_SCHEMA_VERSION,
+        "pending": max(EXPECTED_SCHEMA_VERSION - current_version, 0),
+    }
+
+
 class SqliteTaskStore:
     def _ensure_layout(self, base_dir: Path, task_id: str = "") -> None:
         app_root(base_dir).mkdir(parents=True, exist_ok=True)
@@ -192,29 +357,7 @@ class SqliteTaskStore:
         self._ensure_layout(base_dir)
         connection = sqlite3.connect(swallow_db_path(base_dir), timeout=5.0)
         connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=WAL")
-        connection.execute("PRAGMA busy_timeout = 5000")
-        connection.execute(CREATE_TASKS_TABLE_SQL)
-        connection.execute(CREATE_EVENTS_TABLE_SQL)
-        connection.execute(CREATE_EVENTS_TASK_INDEX_SQL)
-        connection.execute(CREATE_TASKS_STATUS_INDEX_SQL)
-        connection.execute(CREATE_KNOWLEDGE_EVIDENCE_TABLE_SQL)
-        connection.execute(CREATE_KNOWLEDGE_WIKI_TABLE_SQL)
-        connection.execute(CREATE_KNOWLEDGE_EVIDENCE_TASK_INDEX_SQL)
-        connection.execute(CREATE_KNOWLEDGE_WIKI_TASK_INDEX_SQL)
-        connection.execute(CREATE_KNOWLEDGE_MIGRATIONS_TABLE_SQL)
-        connection.execute(CREATE_KNOWLEDGE_RELATIONS_TABLE_SQL)
-        connection.execute(CREATE_KNOWLEDGE_RELATIONS_SOURCE_INDEX_SQL)
-        connection.execute(CREATE_KNOWLEDGE_RELATIONS_TARGET_INDEX_SQL)
-        connection.execute(CREATE_KNOWLEDGE_RELATIONS_TYPE_INDEX_SQL)
-        connection.execute(CREATE_EVENT_LOG_TABLE_SQL)
-        connection.execute(CREATE_EVENT_TELEMETRY_TABLE_SQL)
-        connection.execute(CREATE_ROUTE_HEALTH_TABLE_SQL)
-        connection.execute(CREATE_KNOW_CHANGE_LOG_TABLE_SQL)
-        connection.execute(CREATE_EVENT_LOG_TASK_TIME_INDEX_SQL)
-        connection.execute(CREATE_EVENT_LOG_KIND_TIME_INDEX_SQL)
-        for trigger_sql in APPEND_ONLY_TRIGGER_SQLS:
-            connection.execute(trigger_sql)
+        _initialize_schema(connection)
         return connection
 
     def _connect_existing(self, base_dir: Path) -> sqlite3.Connection | None:

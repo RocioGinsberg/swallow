@@ -81,9 +81,19 @@ from swallow.paths import (
     route_weights_path,
     swallow_db_path,
 )
+from swallow.mps_policy_store import read_mps_policy
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
-from swallow.router import apply_route_policy, apply_route_registry, route_by_name, select_route
+from swallow.router import (
+    apply_route_policy,
+    apply_route_registry,
+    load_route_capability_profiles,
+    load_route_policy,
+    load_route_registry,
+    load_route_weights,
+    route_by_name,
+    select_route,
+)
 from swallow.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
 from swallow.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
 from swallow.store import (
@@ -160,8 +170,8 @@ class CliLifecycleTest(unittest.TestCase):
                 )
 
             self.assertIn("mps_round_limit: 3", stdout.getvalue())
-            persisted = json.loads(mps_policy_path(base_dir).read_text(encoding="utf-8"))
-            self.assertEqual(persisted, {"mps_round_limit": 3})
+            self.assertEqual(read_mps_policy(base_dir, "mps_round_limit"), 3)
+            self.assertFalse(mps_policy_path(base_dir).exists())
 
     def test_synthesis_stage_rejects_duplicate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -5801,12 +5811,13 @@ class CliLifecycleTest(unittest.TestCase):
                     )
                 self.assertEqual(exit_code, 0)
                 self.assertIn("applied_count: 1", apply_stdout.getvalue())
-                persisted_weights = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
+                persisted_weights = load_route_weights(base_dir)
                 self.assertAlmostEqual(
                     persisted_weights["local-codex"],
                     route_weight.suggested_weight or 1.0,
                     places=2,
                 )
+                self.assertFalse(route_weights_path(base_dir).exists())
         finally:
             route.quality_weight = original_weight
 
@@ -5909,12 +5920,13 @@ class CliLifecycleTest(unittest.TestCase):
                     )
                 self.assertEqual(exit_code, 0)
                 self.assertIn("applied_count: 1", apply_stdout.getvalue())
-                persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
+                persisted_profiles = load_route_capability_profiles(base_dir)
                 self.assertAlmostEqual(
                     persisted_profiles["local-http"]["task_family_scores"]["review"],
                     capability_proposal.suggested_task_family_score or 0.0,
                     places=2,
                 )
+                self.assertFalse(route_capabilities_path(base_dir).exists())
         finally:
             route.task_family_scores = original_scores
             route.unsupported_task_types = original_unsupported
@@ -5943,9 +5955,10 @@ class CliLifecycleTest(unittest.TestCase):
                 )
 
             self.assertEqual(exit_code, 0)
-            persisted = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
+            persisted = load_route_capability_profiles(base_dir)
             self.assertEqual(persisted["local-http"]["task_family_scores"]["review"], 0.75)
             self.assertEqual(persisted["local-http"]["unsupported_task_types"], ["execution"])
+            self.assertFalse(route_capabilities_path(base_dir).exists())
             self.assertIn("local-http", update_stdout.getvalue())
             self.assertIn("task_family_scores: review=0.750000", update_stdout.getvalue())
             self.assertIn("unsupported_task_types: execution", update_stdout.getvalue())
@@ -5989,7 +6002,8 @@ class CliLifecycleTest(unittest.TestCase):
                     )
 
                 self.assertEqual(exit_code, 0)
-                self.assertEqual(json.loads(route_registry_path(base_dir).read_text(encoding="utf-8")), registry_payload)
+                self.assertEqual(load_route_registry(base_dir), registry_payload)
+                self.assertFalse(route_registry_path(base_dir).exists())
                 self.assertIn("# Route Registry", apply_stdout.getvalue())
                 self.assertIn("summary-cli-governed", apply_stdout.getvalue())
 
@@ -6032,7 +6046,8 @@ class CliLifecycleTest(unittest.TestCase):
                     )
 
                 self.assertEqual(exit_code, 0)
-                self.assertEqual(json.loads(route_policy_path(base_dir).read_text(encoding="utf-8")), policy_payload)
+                self.assertEqual(load_route_policy(base_dir), policy_payload)
+                self.assertFalse(route_policy_path(base_dir).exists())
                 self.assertIn("# Route Policy", apply_stdout.getvalue())
                 self.assertIn("- high: local-summary", apply_stdout.getvalue())
                 self.assertIn("fanout", apply_stdout.getvalue())
