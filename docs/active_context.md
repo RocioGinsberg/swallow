@@ -13,9 +13,9 @@
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
 - active_track: `Governance`
 - active_phase: `Phase 63`
-- active_slice: `M2/S2+S3 dead-code removal and repository abstraction commit gate`
+- active_slice: `M3/S4 invariant guard batch commit gate`
 - active_branch: `feat/phase63-governance-closure`
-- status: `phase63_m2_s2_s3_pending_human_commit_gate`
+- status: `phase63_m3_s4_pending_human_commit_gate`
 
 ## 当前状态说明
 
@@ -156,6 +156,8 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Codex]** M1/S1 已完成:新增 `identity.py` / `workspace.py`,生产路径绝对化改走 `resolve_path()`,新增 2 条 S1 invariant guard。验证:`tests/test_invariant_guards.py` 11 passed;S1 定向 38 passed;`tests/test_run_task_subtasks.py` 5 passed;全量 pytest 560 passed / 1 timing-sensitive failure / 8 deselected,失败用例 targeted rerun passed;`git diff --check` passed。
 - **[Human]** M1 commit gate 已通过并提交(2026-04-29):`e905eee feat(phase63): centralize actor and path resolution guards` + `de06fef docs(state): record Phase 63 M1 commit gate`。Codex 继续 M2(S2 → S3)实装。
 - **[Codex]** M2/S2+S3 已完成:S2 删除 `_route_knowledge_to_staged` Orchestrator stagedK dead code;S3 新增 `swallow.truth` Repository 骨架、duplicate proposal guard、2 条 Repository bypass 守卫,并保持 meta-optimizer review replay 语义。验证:`tests/test_governance.py` 8 passed;`tests/test_invariant_guards.py` 13 passed;M2 定向 48 passed;全量 pytest 564 passed / 8 deselected;`git diff --check` passed;`docs/design/INVARIANTS.md` 无改动。
+- **[Human]** M2 commit gate 已通过并提交(2026-04-29):`088836f refactor(phase63): remove orchestrator staged knowledge dead code` + `1df5992 feat(phase63): add truth repository write boundary` + `5489a16 docs(state): record Phase 63 M2 commit gate`。Codex 继续 M3/S4 实装。
+- **[Codex]** M3/S4 已完成:补齐 §9 剩余 12 条守卫(10 pass + 2 条 G.5 skip 占位),新增 append-only SQLite 表/trigger 基础设施,移除现有 SQLite schema 跨命名空间 FK,并收紧 artifact name 边界。验证:`tests/test_invariant_guards.py` 23 passed / 2 skipped;`tests/test_sqlite_store.py` 15 passed;`tests/test_web_api.py` 10 passed;全量 pytest 574 passed / 2 skipped / 8 deselected;`git diff --check` passed;`docs/design/INVARIANTS.md` 无改动。
 
 进行中:
 
@@ -163,13 +165,13 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human]** M2 commit gate:审查 S2/S3 diff 并决定是否执行 milestone commit(s)。
-- **[Codex]** M2 commit gate 通过后继续 M3/S4:§9 剩余 12 条守卫批量实装(NO_SKIP 6/8 启用,2 条 G.5 skip 占位)。
+- **[Human]** 审查 M3 diff 并决定是否执行 M3 milestone commit。
+- **[Codex]** M3 commit gate 通过后进入 Phase 63 review/closeout 路径(按 Human 指令继续)。
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix
 
 当前阻塞项:
 
-- 等待 Human M2 commit gate 决议。
+- 等待 Human M3 commit gate 决议。
 
 ---
 
@@ -207,9 +209,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Human]** M2 commit gate:审查 S2/S3 diff 后决定是否提交。
-2. **[Human]** 若通过,建议按 S2 / S3 分步提交,再通知 Codex 继续 M3/S4。
-3. **[Codex]** M2 commit gate 通过后继续 M3;不在当前 gate 前推进 S4。
+1. **[Human]** M3 commit gate:审查 S4 diff 后决定是否提交。
+2. **[Human]** 若通过,建议提交 M3 implementation + tests,再单独提交本文状态同步。
+3. **[Codex]** M3 commit gate 通过后,按指令进入 Phase 63 review/closeout 路径。
 
 ```markdown
 model_review:
@@ -288,3 +290,10 @@ model_review:
 - `src/swallow/governance.py` / `src/swallow/meta_optimizer.py`(codex, 2026-04-29, M2/S3 governance dispatch through Repository + duplicate-safe meta-optimizer review apply)
 - `tests/test_governance.py` / `tests/test_invariant_guards.py`(codex, 2026-04-29, M2/S3 duplicate proposal test + Repository bypass guards)
 - `docs/active_context.md`(codex, 2026-04-29, M2/S2+S3 completion state + commit gate)
+- `088836f refactor(phase63): remove orchestrator staged knowledge dead code`(human, 2026-04-29, M2/S2 implementation commit)
+- `1df5992 feat(phase63): add truth repository write boundary`(human, 2026-04-29, M2/S3 implementation commit)
+- `5489a16 docs(state): record Phase 63 M2 commit gate`(human, 2026-04-29, M2 state commit)
+- `docs/active_context.md`(codex, 2026-04-29, M2 commits observed;M3/S4 implementation started)
+- `src/swallow/sqlite_store.py` / `src/swallow/store.py`(codex, 2026-04-29, M3/S4 append-only schema triggers + artifact name boundary)
+- `tests/test_invariant_guards.py`(codex, 2026-04-29, M3/S4 12 条 §9 guard,2 条 G.5 skip 占位)
+- `docs/active_context.md`(codex, 2026-04-29, M3/S4 completion state + commit gate)
