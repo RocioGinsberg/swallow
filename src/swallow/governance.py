@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import logging
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -88,6 +90,7 @@ class _MpsPolicyProposal:
 
 
 _PENDING_PROPOSALS = PendingProposalRepo()
+logger = logging.getLogger(__name__)
 
 
 def register_canonical_proposal(
@@ -575,7 +578,17 @@ def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_i
         entries=entries,
     )
     application_path = optimization_proposal_application_path(proposal.base_dir, application_record.application_id)
-    _write_json(application_path, application_record.to_dict())
+    try:
+        _write_json(application_path, application_record.to_dict())
+    except OSError as exc:
+        logger.warning(
+            "review record artifact write failed; SQLite truth already committed",
+            extra={
+                "application_id": application_record.application_id,
+                "path": str(application_path),
+                "error": repr(exc),
+            },
+        )
     return ApplyResult(
         proposal_id=proposal_id,
         target=ProposalTarget.ROUTE_METADATA,
