@@ -172,10 +172,7 @@ class ExecutorAsyncProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.fallback_route_name, "http-qwen")
         self.assertEqual(state.route_name, "http-qwen")
         self.assertEqual(state.route_dialect, "plain_text")
-        self.assertEqual(
-            state.fallback_route_chain,
-            ("http-claude", "http-qwen", "http-glm", "local-claude-code", "local-summary"),
-        )
+        self.assertEqual(state.fallback_route_chain, _resolve_fallback_chain("http-claude"))
         self.assertEqual(primary_client.calls[0]["kwargs"]["json"]["model"], "claude-3-7-sonnet")
         self.assertEqual(fallback_client.calls[0]["kwargs"]["json"]["model"], "qwen2.5-coder-32b-instruct")
 

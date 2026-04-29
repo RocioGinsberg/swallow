@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .executor import DEFAULT_EXECUTOR, normalize_executor_name
 from .models import RouteCapabilities, RouteSelection, RouteSpec, TaskState, TaxonomyProfile, infer_task_family
-from .paths import route_capabilities_path, route_weights_path
+from .paths import route_capabilities_path, route_fallbacks_path, route_weights_path
 
 
 CAPABILITY_MATCH_FIELDS = (
@@ -586,6 +586,7 @@ def _build_builtin_route_registry() -> RouteRegistry:
 
 
 ROUTE_REGISTRY = _build_builtin_route_registry()
+_BUILTIN_ROUTE_FALLBACKS = {route.name: route.fallback_route_name for route in ROUTE_REGISTRY.values()}
 
 
 def build_detached_route(route: RouteSpec) -> RouteSpec:
@@ -756,6 +757,47 @@ def build_route_capability_profiles_report(base_dir: Path, registry: RouteRegist
             ]
         )
     return "\n".join(lines) + "\n"
+
+
+def load_route_fallbacks(base_dir: Path) -> dict[str, str]:
+    path = route_fallbacks_path(base_dir)
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+
+    fallbacks: dict[str, str] = {}
+    for route_name, raw_fallback in payload.items():
+        normalized_name = normalize_route_name(route_name)
+        if not normalized_name:
+            continue
+        fallback_name = normalize_route_name(str(raw_fallback or ""))
+        fallbacks[normalized_name] = fallback_name
+    return fallbacks
+
+
+def apply_route_fallbacks(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, str]:
+    active_registry = registry or ROUTE_REGISTRY
+    persisted_fallbacks = load_route_fallbacks(base_dir)
+    known_routes = {route.name for route in active_registry.values()}
+    baseline = (
+        _BUILTIN_ROUTE_FALLBACKS
+        if active_registry is ROUTE_REGISTRY
+        else {route.name: route.fallback_route_name for route in active_registry.values()}
+    )
+
+    for route in active_registry.values():
+        fallback_name = baseline.get(route.name, "")
+        if route.name in persisted_fallbacks:
+            configured_fallback = persisted_fallbacks[route.name]
+            if not configured_fallback or configured_fallback in known_routes:
+                fallback_name = configured_fallback
+        route.fallback_route_name = fallback_name
+    return {route.name: route.fallback_route_name for route in active_registry.values()}
 
 
 def route_for_executor(executor_name: str) -> RouteSpec:

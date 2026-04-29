@@ -6,6 +6,7 @@ import pytest
 
 from swallow.governance import OperatorToken, ProposalTarget, apply_proposal, register_mps_policy_proposal
 from swallow.models import ExecutorResult, SynthesisConfig, SynthesisParticipant, TaskState
+from swallow.orchestrator import _resolve_fallback_chain
 from swallow.paths import artifacts_dir
 from swallow.store import load_events, load_state, save_state
 from swallow.synthesis import (
@@ -85,13 +86,7 @@ def test_mps_participant_state_gets_route_specific_fallback_chain() -> None:
     participant_state = _participant_state_for_call(state, route)
 
     assert participant_state.route_name == "http-claude"
-    assert participant_state.fallback_route_chain == (
-        "http-claude",
-        "http-qwen",
-        "http-glm",
-        "local-claude-code",
-        "local-summary",
-    )
+    assert participant_state.fallback_route_chain == _resolve_fallback_chain("http-claude")
 
 
 def test_mps_arbiter_artifact_required(tmp_path, monkeypatch) -> None:

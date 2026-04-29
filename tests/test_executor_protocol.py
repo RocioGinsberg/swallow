@@ -458,10 +458,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(result.fallback_route_name, "http-qwen")
         self.assertEqual(state.route_name, "http-qwen")
         self.assertEqual(state.route_dialect, "plain_text")
-        self.assertEqual(
-            state.fallback_route_chain,
-            ("http-claude", "http-qwen", "http-glm", "local-claude-code", "local-summary"),
-        )
+        self.assertEqual(state.fallback_route_chain, _resolve_fallback_chain("http-claude"))
         self.assertEqual(http_post.call_count, 2)
         self.assertEqual(http_post.call_args.kwargs["json"]["model"], "qwen2.5-coder-32b-instruct")
 
@@ -502,7 +499,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(state.route_name, "local-summary")
         self.assertEqual(state.executor_name, "local")
         self.assertEqual(state.route_dialect, "plain_text")
-        self.assertEqual(state.fallback_route_chain, ("http-glm", "local-claude-code", "local-summary"))
+        self.assertEqual(state.fallback_route_chain, _resolve_fallback_chain("http-glm"))
         self.assertIn("Route: local-summary", result.prompt)
 
     def test_run_executor_inline_raises_for_unknown_executor(self) -> None:

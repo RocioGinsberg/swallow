@@ -10,9 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
 from swallow.orchestrator import _resolve_fallback_chain
-from swallow.paths import route_capabilities_path
+from swallow.paths import route_capabilities_path, route_fallbacks_path
 from swallow.router import (
     RouteRegistry,
+    apply_route_fallbacks,
     apply_route_capability_profiles,
     apply_route_weights,
     build_detached_route,
@@ -121,10 +122,27 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertIs(lookup_route_by_name("http-claude"), route_by_name("http-claude"))
 
     def test_resolve_fallback_chain_covers_builtin_http_chain(self) -> None:
-        self.assertEqual(
-            _resolve_fallback_chain("http-claude"),
-            ("http-claude", "http-qwen", "http-glm", "local-claude-code", "local-summary"),
-        )
+        chain = _resolve_fallback_chain("http-claude")
+
+        self.assertGreaterEqual(len(chain), 1)
+        self.assertEqual(chain[0], "http-claude")
+        for current_name, fallback_name in zip(chain, chain[1:]):
+            self.assertEqual(route_by_name(current_name).fallback_route_name, fallback_name)
+        self.assertFalse(route_by_name(chain[-1]).fallback_route_name)
+
+    def test_route_fallbacks_config_overrides_builtin_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            path = route_fallbacks_path(tmp_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('{"http-claude": "local-summary"}\n', encoding="utf-8")
+
+            try:
+                apply_route_fallbacks(tmp_path)
+                self.assertEqual(_resolve_fallback_chain("http-claude"), ("http-claude", "local-summary"))
+            finally:
+                with tempfile.TemporaryDirectory() as reset_tmp:
+                    apply_route_fallbacks(Path(reset_tmp))
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
         detached = build_detached_route(route_for_executor("aider"))

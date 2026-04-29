@@ -118,6 +118,7 @@ from .synthesis import load_synthesis_config, run_synthesis
 from .workspace import resolve_path
 from .router import (
     apply_route_capability_profiles,
+    apply_route_fallbacks,
     apply_route_weights,
     build_route_capability_profiles_report,
     build_route_weights_report,
@@ -2317,6 +2318,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     base_dir = resolve_path(args.base_dir)
     apply_route_weights(base_dir)
+    apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)
 
     if args.command == "knowledge" and args.knowledge_command == "stage-list":
@@ -2711,6 +2713,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "route" and args.route_command == "select":
         apply_route_weights(base_dir)
+        apply_route_fallbacks(base_dir)
         apply_route_capability_profiles(base_dir)
         state = load_state(base_dir, args.task_id)
         selection = select_route(state, args.executor, args.route_mode)

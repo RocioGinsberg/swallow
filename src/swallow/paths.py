@@ -214,6 +214,10 @@ def route_capabilities_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "route_capabilities.json"
 
 
+def route_fallbacks_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "route_fallbacks.json"
+
+
 def canonical_registry_path(base_dir: Path) -> Path:
     return canonical_registry_root(base_dir) / "registry.jsonl"
 
