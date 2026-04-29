@@ -499,6 +499,8 @@ def test_event_log_has_actor_field(tmp_path: Path) -> None:
 
 
 def test_no_foreign_key_across_namespaces(tmp_path: Path) -> None:
+    """Current schema uses no FK constraints, a strict superset of no cross-namespace FK."""
+
     connection = SqliteTaskStore()._connect(tmp_path)
     try:
         tables = [
