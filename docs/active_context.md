@@ -13,24 +13,9 @@
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
 - active_track: `Governance`
 - active_phase: `Phase 63`
-- active_slice: `M0 pre-implementation audit completed, waiting Claude / Human decision`
+- active_slice: `final-after-m0,待 Human Design Gate`
 - active_branch: `feat/phase63-governance-closure`
-- status: `phase63_m0_audit_completed_waiting_decision`
-
-## 新差距(2026-04-29 Direction Gate 后输入,待 roadmap-updater 增补 §三/§四)
-
-### G:治理守卫收口(Governance Closure)
-
-- **相关设计文档**:INVARIANTS / DATA_MODEL / SELF_EVOLUTION
-- **当前状态**:Phase 61 / 62 暴露 5 条宪法-代码漂移 Open(详见 `docs/concerns_backlog.md`):
-  1. INVARIANTS §9 剩余 14 条守卫测试缺失(Phase 61 non-goal Open)
-  2. Repository 抽象层(`KnowledgeRepo` / `RouteRepo` / `PolicyRepo`)未实装,`_PENDING_PROPOSALS` 模块级 in-memory 注册表(Phase 61 non-goal Open)
-  3. `apply_proposal` 事务性回滚缺失,`save_route_weights → apply_route_weights → save_route_capability_profiles → apply_route_capability_profiles` 四步中途失败会导致状态不一致(Phase 61 non-goal Open)
-  4. `orchestrator.py:3145` `submit_staged_candidate(...)` 既有 stagedK 直写违反 §5 矩阵 Orchestrator 行 stagedK 列 `-`(Phase 62 design audit Open)
-  5. INVARIANTS §7 集中化函数 `swallow.identity.local_actor()` / `swallow.workspace.resolve_path()` 不存在,§9 守卫 `test_no_hardcoded_local_actor_outside_identity_module` / `test_no_absolute_path_in_truth_writes` 可能 vacuous(Phase 62 design audit Open)
-- **演进方向**:**候选 G(Phase 63)** —— 一次性收敛 5 条宪法漂移 Open,把 INVARIANTS §5 / §7 / §9 与代码侧拉齐
-
----
+- status: `phase63_final_after_m0_pending_human_design_gate`
 
 ## 当前状态说明
 
@@ -155,7 +140,18 @@ post-merge 决议(Human 已确认,2026-04-28):
   - M0 audit 范围从 2 项扩到 **3 项**(新增 `_route_knowledge_to_staged` 触发场景 audit)
   - kickoff non-goals 软化:`§5 矩阵是否更新由 M0 audit 决定`(不再固定要求更新)
   - risk_assessment 新增 R15(§S2 方案选择失误,中);R12(§5 矩阵更新)调整为 M0-dependent
-- **[Claude]** Phase 63 design 现处于"待 M0 audit 决定 §S2 方案"状态,而非"待 Human Design Gate"状态;Human Design Gate 仍可基于当前三件套审批整体 phase 计划,但 §S2 具体实装在 M0 完成后由 Claude 在 active_context 中给出方案选择 + 必要时同步修订三件套。
+- **[Codex]** M0 已完成并 commit (`c3637b1 docs(phase63): add M0 governance audit report`):3 项 audit 全部产出。NO_SKIP scan = 6 green / 2 red(`executor.py:510 fallback_route_for` + `agent_llm.py:57 httpx.post` 直连);store connection mode = filesystem JSON + in-memory(SQLite transaction wrapping 物理上不可行);`_route_knowledge_to_staged` 触发场景 = 生产 0 触发,`librarian_side_effect` token 已存在于 canonical knowledge 路径(governance.py:26)。
+- **[Human]** 在 design review 中提出关键反思(2026-04-29):**Phase 63 自称消化漂移却引入新漂移自相矛盾**;General Executor 不应该有 stagedK 写权限是设计原意,代码若让 General Executor 走这条流是 routing bug 不是合规需要;SQLite 长期是正确方向(履行 INVARIANTS P2,且兼容未来对象存储后端);roadmap 控制规则过严,Claude 应该可以直接写新差距。
+- **[Claude]** 据 M0 audit 三决策 + Human 反馈,产出 final 设计:
+  - **决策 1:§S2 = 删除 dead code**(M0 audit 确认生产 0 触发,删除替代 token 引入或 Specialist 下沉,零行为变化,无需 §5 矩阵更新)
+  - **决策 2:S5 推迟到 Phase 64(候选 H)**(filesystem JSON 现状不适用 SQLite transaction;P2 兑现作为独立 phase,顺便兑现"对象存储后端兼容"的长期路径)
+  - **决策 3:NO_SKIP 红灯 2 条拆 Phase 63.5(候选 G.5)**(M0 暴露的真实治理边界问题,本 phase 启用 6/8 条 NO_SKIP,2 条 G.5 启用)
+  - **决策 4:Phase 63 final scope = 4 slice / 3 milestone**(S5 移走;S2 改为删 dead code 后 risk 从中-低降到低;non-goals 恢复"不修改 INVARIANTS 任何文字")
+  - **决策 5:发现新 Open 登记 backlog**:`librarian_side_effect` token 在 canonical knowledge 路径的 §5 漂移(Phase 61 引入,本 phase scope 外,后续治理 phase 消化)
+- **[Claude]** 已修订 `.agents/claude/rules.md` §一(commit `f05102f`):解除"不自行新增差距条目"禁令,允许 Claude 主线直接写 roadmap §三/§四/§五/§六。配套修订 `roadmap-updater` subagent 边界(commit `f05102f`)。
+- **[Claude/roadmap-updater scope clarified]** 已写入 `docs/roadmap.md`(commit `0329ee2`):§三新增 NO_SKIP 红灯修复 + Truth Plane SQLite 一致性两条差距条目;§四 队列加候选 G.5 / 候选 H + 详细块;§五推荐顺序改为 G → G.5 → H → D;§六新增"治理边界 LLM 路径" / "Truth 物理存储"两个维度。
+- **[Claude]** Phase 63 三件套已重写到 `final-after-m0`:design_decision(461→336 行)/ kickoff(156→152 行)/ risk_assessment(346→217 行);整体精简 ~25%;深度参考 M0 audit 报告事实。
+- **[Claude/format-validator]** final-after-m0 三件套全部 PASS(design_decision TL;DR 已压成 5 行)。
 
 进行中:
 
@@ -163,12 +159,19 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Claude / Human]** 基于 `docs/plans/phase63/m0_audit_report.md` 决定 §S2 方案(A/D)、Phase 63 scope(维持 6-slice / 拆 Phase 63.5)、S5 实装路径。
+- **[Human]** Design Gate ⛔:阅读 phase63 三件套 + design_audit + model_review + m0_audit_report,决定通过 / 打回。本 phase 特殊点(已据 M0 audit 与 Human 反馈大幅简化):
+  - **scope 收窄至 4 slice / 3 milestone**(S5 移到 Phase 64)
+  - **non-goals 恢复**"不修改 INVARIANTS 任何文字"(M0 audit 后无需 §5 矩阵更新)
+  - **仅 1 条高风险 slice**(S3 Repository 抽象层骨架)
+  - **roadmap 已展开三段式 phase 路径**:Phase 63 → G.5 → H → D
+  - **新发现 1 条 Phase 61 遗留 §5 漂移**(librarian_side_effect 在 canonical knowledge 路径),本 phase scope 外,登记 concerns_backlog
+- **[Human]** Design Gate 通过后,通知 Codex 在 `feat/phase63-governance-closure` 分支上开始 M1(S1)实装
+- **[Codex]** Phase 63 实装顺序:S1 → S2 → S3 → S4(milestone M1 / M2 / M3)
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix
 
 当前阻塞项:
 
-- 等待 Claude / Human 基于 M0 audit 决定 §S2 方案(A/D)、后续 scope、S5 实装路径。
+- 等待 Human Design Gate 决议。
 
 ---
 
@@ -206,11 +209,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Claude / Human]** 基于 `docs/plans/phase63/m0_audit_report.md` 决定:
-   - §S2 走方案 A(librarian_side_effect token + §5 矩阵更新)还是方案 D(下沉 Specialist 内部 + §5 不动)
-   - Phase 63 维持 6-slice 计划还是拆 Phase 63.5
-   - S5 SQLite transaction 实装走 Path A / B / C
-2. **[Codex]** 等待方案选择后,再按 design_decision 推进 M1 → M2 → M3 → M4。
+1. **[Human]** Design Gate ⛔:阅读 final-after-m0 三件套 + design_audit + model_review + m0_audit_report,决议通过 / 打回
+2. **[Human]** Design Gate 通过 → 通知 Codex 在 `feat/phase63-governance-closure` 分支上开始 M1(S1)
+3. **[Codex]** 实装顺序 S1 → S2 → S3 → S4(milestone M1 / M2 / M3),M0 已合并作为 PR base
 
 ```markdown
 model_review:
@@ -218,7 +219,7 @@ model_review:
 - artifact: docs/plans/phase63/model_review.md
 - reviewer: external-model (GPT-5 via mcp__gpt5__chat-with-gpt5_5)
 - verdict: BLOCK
-- next: 待人工决定 follow-up scope (revised-after-model-review / phase split / partial accept)
+- next: 已闭环 — 3 BLOCK 全部消化(Q1 §5 不动 / Q5 S5 推迟到 Phase 64 / Q6 加 2 条 bypass 守卫);3 CONCERN 全部消化;final-after-m0 已产出
 ```
 
 ```markdown
@@ -270,3 +271,9 @@ model_review:
 - `tests/audit_no_skip_drift.py`(codex, 2026-04-29, Phase 63 M0 report-only NO_SKIP guard pre-scan)
 - `tests/audit_route_knowledge_to_staged.py`(codex, 2026-04-29, Phase 63 M0 `_route_knowledge_to_staged` trigger audit)
 - `docs/plans/phase63/m0_audit_report.md`(codex, 2026-04-29, Phase 63 M0 audit result:2 NO_SKIP red signals; 0 built-in blocked routes; S5 SQLite path mismatch)
+- `docs/roadmap.md`(claude, 2026-04-29, 写入 Phase 63.5 + 候选 H + 推荐顺序 G→G.5→H→D;commit 0329ee2)
+- `.agents/claude/rules.md` / `.claude/agents/roadmap-updater.md`(claude, 2026-04-29, governance rules clarify;Claude 主线允许直接写 roadmap;commit f05102f)
+- `docs/plans/phase63/kickoff.md`(claude, 2026-04-29, **final-after-m0** — 4 slice / 3 milestone,non-goals 恢复严格版,删 dead code 替代 token 引入)
+- `docs/plans/phase63/design_decision.md`(claude, 2026-04-29, **final-after-m0** — 5 slice 含 M0;§S2 删 dead code;S5 推迟到 Phase 64;2 条 Repository bypass 守卫)
+- `docs/plans/phase63/risk_assessment.md`(claude, 2026-04-29, **final-after-m0** — 9 条风险,1 高 / 5 中 / 3 低;新增 R16 测试 mock 调整;取消 R5/R9/R10/R12/R13/R14/R5_NEW/R15)
+- `docs/active_context.md`(claude, 2026-04-29, final-after-m0 状态同步;清理过时新差距节;Design Gate 待审)
