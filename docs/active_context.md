@@ -13,9 +13,9 @@
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
 - active_track: `Governance`
 - active_phase: `Phase 63`
-- active_slice: `M3/S4 invariant guard batch commit gate`
+- active_slice: `Phase 63 implementation complete / PR review handoff`
 - active_branch: `feat/phase63-governance-closure`
-- status: `phase63_m3_s4_pending_human_commit_gate`
+- status: `phase63_implementation_complete_waiting_claude_review`
 
 ## 当前状态说明
 
@@ -158,6 +158,8 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Codex]** M2/S2+S3 已完成:S2 删除 `_route_knowledge_to_staged` Orchestrator stagedK dead code;S3 新增 `swallow.truth` Repository 骨架、duplicate proposal guard、2 条 Repository bypass 守卫,并保持 meta-optimizer review replay 语义。验证:`tests/test_governance.py` 8 passed;`tests/test_invariant_guards.py` 13 passed;M2 定向 48 passed;全量 pytest 564 passed / 8 deselected;`git diff --check` passed;`docs/design/INVARIANTS.md` 无改动。
 - **[Human]** M2 commit gate 已通过并提交(2026-04-29):`088836f refactor(phase63): remove orchestrator staged knowledge dead code` + `1df5992 feat(phase63): add truth repository write boundary` + `5489a16 docs(state): record Phase 63 M2 commit gate`。Codex 继续 M3/S4 实装。
 - **[Codex]** M3/S4 已完成:补齐 §9 剩余 12 条守卫(10 pass + 2 条 G.5 skip 占位),新增 append-only SQLite 表/trigger 基础设施,移除现有 SQLite schema 跨命名空间 FK,并收紧 artifact name 边界。验证:`tests/test_invariant_guards.py` 23 passed / 2 skipped;`tests/test_sqlite_store.py` 15 passed;`tests/test_web_api.py` 10 passed;全量 pytest 574 passed / 2 skipped / 8 deselected;`git diff --check` passed;`docs/design/INVARIANTS.md` 无改动。
+- **[Human]** M3 commit gate 已通过并提交(2026-04-29):`5116b62 test(phase63): add invariant guard batch` + `bf6caa4 docs(state): record Phase 63 M3 commit gate`。Phase 63 所有 implementation milestones 已完成并提交。
+- **[Codex]** 已整理 Phase 63 implementation handoff:`docs/plans/phase63/commit_summary.md`。当前分支 worktree 在 handoff 前为 clean,下一步交给 Claude 进行 PR review。
 
 进行中:
 
@@ -165,13 +167,14 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human]** 审查 M3 diff 并决定是否执行 M3 milestone commit。
-- **[Codex]** M3 commit gate 通过后进入 Phase 63 review/closeout 路径(按 Human 指令继续)。
+- **[Claude]** Phase 63 PR review:读取 `main...HEAD` diff、final-after-M0 设计文档与 Codex commit summary,产出 `docs/plans/phase63/review_comments.md`。
+- **[Codex]** Claude review 完成后,按 `.agents/templates/pr_body.md` 整理 `./pr.md`。
+- **[Human]** `./pr.md` 准备完成后 push branch 并创建 PR。
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix
 
 当前阻塞项:
 
-- 等待 Human M3 commit gate 决议。
+- 等待 Claude PR review。
 
 ---
 
@@ -209,9 +212,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Human]** M3 commit gate:审查 S4 diff 后决定是否提交。
-2. **[Human]** 若通过,建议提交 M3 implementation + tests,再单独提交本文状态同步。
-3. **[Codex]** M3 commit gate 通过后,按指令进入 Phase 63 review/closeout 路径。
+1. **[Claude]** 进行 Phase 63 PR review,产出 `docs/plans/phase63/review_comments.md`。
+2. **[Codex]** review 完成后整理 `./pr.md`,同步 review 结论与测试结果。
+3. **[Human]** 使用 `./pr.md` push / 创建 PR,再进入 Merge Gate。
 
 ```markdown
 model_review:
@@ -297,3 +300,7 @@ model_review:
 - `src/swallow/sqlite_store.py` / `src/swallow/store.py`(codex, 2026-04-29, M3/S4 append-only schema triggers + artifact name boundary)
 - `tests/test_invariant_guards.py`(codex, 2026-04-29, M3/S4 12 条 §9 guard,2 条 G.5 skip 占位)
 - `docs/active_context.md`(codex, 2026-04-29, M3/S4 completion state + commit gate)
+- `5116b62 test(phase63): add invariant guard batch`(human, 2026-04-29, M3/S4 implementation commit)
+- `bf6caa4 docs(state): record Phase 63 M3 commit gate`(human, 2026-04-29, M3 state commit)
+- `docs/plans/phase63/commit_summary.md`(codex, 2026-04-29, Phase 63 implementation handoff summary for PR review)
+- `docs/active_context.md`(codex, 2026-04-29, implementation complete;next step Claude PR review)
