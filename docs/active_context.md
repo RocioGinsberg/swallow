@@ -13,45 +13,26 @@
 - latest_completed_slice: `Governance Boundary LLM Path Closure + route metadata externalization + review follow-up`
 - active_track: `Governance`
 - active_phase: `Phase 65`
-- active_slice: `Phase 65 三件套 revised-after-model-review 完成 / 等 Human Design Gate`
-- active_branch: `main`(Phase 65 branch 待 Design Gate 后切出)
-- status: `phase65_design_revised_pending_human_gate`
+- active_slice: `Phase 65 implementation complete — pending Human/Claude review`
+- active_branch: `feat/phase65-truth-plane-sqlite`
+- status: `phase65_implementation_complete_pending_review`
 
 ## 当前状态说明
 
-当前 `main` 正在合入 Phase 64。`docs/active_context.md` 的冲突来自两边高频状态漂移:
+Phase 65 implementation is complete on `feat/phase65-truth-plane-sqlite` and ready for Human/Claude review.
 
-- `main` 侧仍携带 Phase 64 design-pending / Phase 63 handoff 前后的旧状态。
-- Phase 64 分支侧已推进到 review follow-up + closeout commit gate。
+Implemented scope:
 
-本次 resolution 以 git 当前合入事实为准,保留 Phase 64 已完成状态,丢弃旧的 Phase 62 / Phase 63 启动流水。Human 完成当前 merge / squash commit 后,再由 Codex 同步 `current_state.md`;随后交给 roadmap-updater 做 post-merge factual update,再进入 tag decision。
+- M1/S1: `route_registry` / `policy_records` / `route_change_log` / `policy_change_log` / `schema_version` schema; route registry / route policy / weights / capability profile readers now load from SQLite with legacy JSON bootstrap and default seed fallback.
+- M2/S2: route metadata and policy writers now persist SQLite rows; `RouteRepo._apply_metadata_change` and `PolicyRepo._apply_policy_change` own explicit `BEGIN IMMEDIATE` transactions via `sqlite_store.get_connection(base_dir)` (`isolation_level=None`); route rollback redoes in-memory registry state from SQLite; audit rows are written in-transaction.
+- M3/S3: append-only guard table set expanded 4 -> 6; `swl migrate --status` reports `schema_version: 1, pending: 0`; `DATA_MODEL.md` synced to Phase 65 schema; `INVARIANTS.md` unchanged.
 
-Phase 64 = roadmap 候选 G.5,目标是收口两条 NO_SKIP 红灯对应的 LLM path governance gap:
+Verification:
 
-- Path B Executor 不再执行 Provider Router selection。Orchestrator 预解析 fallback chain plan 到 `TaskState.fallback_route_chain`;Executor 只消费 chain 并通过只读 `lookup_route_by_name(...)` 读取静态 route metadata。
-- Specialist internal chat-completion 不再直连 provider。`agent_llm.call_agent_llm(...)` 变成 thin caller,统一穿透 `router.invoke_completion(...)`;共享 HTTP helper 已移到 `swallow._http_helpers`。
-
-Human-approved follow-up scope 也已完成:
-
-- fallback override config seam: `.swl/route_fallbacks.json`
-- route registry metadata externalization: `src/swallow/routes.default.json` + `.swl/routes.json` + `swl route registry show/apply` + route metadata governance 写入
-- route selection policy metadata externalization: `src/swallow/route_policy.default.json` + `.swl/route_policy.json` + `swl route policy show/apply` + route metadata governance 写入
-
-Review 状态:
-
-- `docs/plans/phase64/review_comments.md`: APPROVE,0 BLOCK / 1 CONCERN / 8 NOTE。
-- 唯一 CONCERN-1 已消化:新增 public `router.resolve_fallback_chain(...)`,Orchestrator / synthesis / tests 不再 import Orchestrator private `_resolve_fallback_chain`。
-- `docs/plans/phase64/consistency_report.md`: consistent。
-- `docs/plans/phase64/closeout.md`: ready for PR / Merge Gate。
-- `docs/design/INVARIANTS.md` 与 `docs/design/DATA_MODEL.md` 保持无改动。
-
-最终验证记录:
-
-- `.venv/bin/python -m pytest tests/test_router.py tests/test_synthesis.py tests/test_executor_protocol.py tests/test_executor_async.py tests/test_invariant_guards.py -q` -> 94 passed
+- `.venv/bin/python -m pytest -q` -> `597 passed, 8 deselected, 10 subtests passed`
 - `.venv/bin/python tests/audit_no_skip_drift.py` -> all 8 tracked guards green
-- `.venv/bin/python -m pytest` -> 589 passed / 8 deselected
 - `git diff --check` -> passed
-- `git diff -- docs/design/INVARIANTS.md docs/design/DATA_MODEL.md` -> no output
+- `git diff -- docs/design/INVARIANTS.md` -> no output
 
 ## 当前关键文档
 
@@ -60,19 +41,11 @@ Review 状态:
 3. `docs/plans/phase65/context_brief.md`(claude/context-analyst)
 4. `docs/plans/phase65/design_audit.md`(claude/design-auditor,verdict = NEEDS_REVISION_BEFORE_GATE)
 5. `docs/plans/phase65/model_review.md`(claude + external GPT-5,verdict = BLOCK)
-6. `docs/plans/phase64/closeout.md`
-3. `docs/plans/phase64/review_comments.md`
-4. `docs/plans/phase64/consistency_report.md`
-5. `docs/plans/phase64/commit_summary.md`
-6. `docs/plans/phase64/kickoff.md`
-7. `docs/plans/phase64/design_decision.md`
-8. `docs/plans/phase64/risk_assessment.md`
-9. `docs/plans/phase64/design_audit.md`
-10. `docs/plans/phase64/model_review.md`
-11. `docs/concerns_backlog.md`
-12. `current_state.md`(merge commit 后待同步)
-13. `docs/roadmap.md`(merge commit 后由 roadmap-updater factual update)
-14. `pr.md`(local ignored PR body draft)
+6. `docs/plans/phase65/commit_summary.md`(codex, implementation summary)
+7. `docs/design/DATA_MODEL.md`(Phase 65 schema sync; `INVARIANTS.md` unchanged)
+8. `docs/concerns_backlog.md`
+9. `current_state.md`(merge 后待同步)
+10. `docs/roadmap.md`(merge 后由 roadmap-updater factual update)
 
 ---
 
@@ -110,6 +83,7 @@ Review 状态:
   - `kickoff.md` G6 改"首次建表 + schema_version 协议"(不再叫 migration);G7 DATA_MODEL §3.4 边界放宽至加 6 列;§完成条件 加"M1 不可单独 release"约束;Model Review Gate 段标 completed
   - `risk_assessment.md` 风险矩阵 9→11 条;R5 增 audit 大小测试约束;R10 新增(§8 narrowing 不充分,Phase 66+ 仍需补 migration runner);R11 新增(§3.4 加 6 列后 bootstrap / UPSERT 漏填字段)
   - 不再触发二次 model_review:5 BLOCK 已通过文字修订消化,internal 一致性由 Human Gate 把关
+- **[Codex]** Phase 65 implementation completed(M1+M2+M3):route/policy truth moved to SQLite, explicit transaction + audit rows landed, append-only guard extended, `swl migrate --status` added, DATA_MODEL synced, verification green(`597 passed / 8 deselected / 10 subtests`)。
 
 进行中:
 
@@ -117,34 +91,28 @@ Review 状态:
 
 待执行:
 
-- **[Human]** Phase 65 Design Gate 审批。重点核查 5 项(详见 `model_review.md §Human Gate Note`):
-  1. design_decision §S2 已含 SQLite `isolation_level=None` + `sqlite_store.get_connection` accessor 决议(BLOCK-1 / BLOCK-2)?
-  2. design_decision §S1 已含 §3.4 加 6 列决议;DATA_MODEL §3.4 修改边界放宽到补字段(BLOCK-3,Human 已选 (a))?
-  3. design_decision §S2 已含 policy_records round-trip 映射表(BLOCK-4)?
-  4. design_decision §S3 已含 BLOCK-5 narrowing(首次建表不算 §8 migration;§8 文字不动;Human 已选 (i))?
-  5. kickoff §完成条件 已含"Phase 65 整体 release 不允许停在 M1 后"约束(CONCERN-5)?
-- **[Human]** Gate 通过后切出 `feat/phase65-truth-plane-sqlite` branch。
-- **[Codex]** Phase 65 实装 + 验证 + closeout(M1 → M2 → M3,每个 milestone 单独 commit gate;**M1 不允许单独 release**;参考 design_decision 各 slice 修订决议;失败注入矩阵 8+4 个 case 必入测试)。
+- **[Human]** Review working tree and decide commit split. Suggested split is in `docs/plans/phase65/commit_summary.md`.
+- **[Claude]** Review Phase 65 implementation and produce review / consistency artifacts before merge decision.
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
 
-- 等待 Human Phase 65 Design Gate 决策(三件套 revised-after-model-review;design_audit + model_review 已完成且消化)。
+- 无。
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** Phase 65 Design Gate;核查 5 项 BLOCK 消化情况(详见上方"待执行")。
-2. **[Human]** Gate 通过后切出 `feat/phase65-truth-plane-sqlite` branch。
-3. **[Codex]** M1 → M2 → M3 顺序实装;**M1 commit 必须立即接 M2,不能停在 M1 release**;Codex 实装前先读 `design_decision.md` 各 slice "S? 修订决议" 段获 authoritative 决策。
+1. **[Human]** Review Phase 65 implementation diff and commit at milestone/document boundaries.
+2. **[Claude]** Run implementation review / consistency check against `design_decision.md`.
+3. **[Codex]** Address review findings if any; then prepare PR body when Human requests PR creation.
 
 ```markdown
 design_audit:
 - status: completed
 - artifact: docs/plans/phase65/design_audit.md
 - verdict: NEEDS_REVISION_BEFORE_GATE (2 BLOCKER + 4 CONCERN + 3 OK)
-- next: 待 Claude 根据 model_review 共同结论修订三件套
+- next: findings consumed by revised design; implementation now ready for review
 ```
 
 ```markdown
@@ -153,7 +121,7 @@ model_review:
 - artifact: docs/plans/phase65/model_review.md
 - reviewer: external-model (GPT-5 via mcp__gpt5__chat-with-gpt5_5)
 - verdict: BLOCK (5 BLOCK + 9 CONCERN + 3 PASS)
-- next: Claude 必修 9 项(详见 model_review.md §Claude Follow-Up);修订后无需再触发二次 model_review
+- next: BLOCK items consumed by revised design; no second model_review required per phase plan
 ```
 
 ---
@@ -184,3 +152,7 @@ model_review:
 - `docs/plans/phase65/risk_assessment.md`(claude, 2026-04-29, revised-after-model-review)
 - `docs/plans/phase65/design_audit.md`(claude/design-auditor, 2026-04-29, verdict = NEEDS_REVISION_BEFORE_GATE)
 - `docs/plans/phase65/model_review.md`(claude + external GPT-5, 2026-04-29, verdict = BLOCK)
+- `docs/plans/phase65/commit_summary.md`(codex, 2026-04-29, implementation summary)
+- `docs/design/DATA_MODEL.md`(codex, Phase 65 schema sync; `INVARIANTS.md` unchanged)
+- `src/swallow/sqlite_store.py` / `src/swallow/router.py` / `src/swallow/truth/route.py` / `src/swallow/truth/policy.py` / `src/swallow/consistency_audit.py` / `src/swallow/mps_policy_store.py` / `src/swallow/governance.py` / `src/swallow/cli.py`(codex, Phase 65 implementation)
+- `tests/test_phase65_sqlite_truth.py` / `tests/test_invariant_guards.py` / `tests/test_router.py` / `tests/test_governance.py` / `tests/test_cli.py` / `tests/test_meta_optimizer.py`(codex, Phase 65 tests / fixture migration)
