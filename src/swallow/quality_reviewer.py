@@ -7,6 +7,7 @@ from pathlib import Path
 
 from .agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
 from .models import ExecutorResult, TaskCard, TaskState
+from .workspace import resolve_path
 
 
 QUALITY_REVIEWER_EXECUTOR_NAME = "quality-reviewer"
@@ -38,7 +39,7 @@ class QualityReviewerAgent:
         artifact_path = Path(raw_ref)
         if artifact_path.is_absolute():
             return artifact_path
-        return (base_dir / artifact_path).resolve()
+        return resolve_path(artifact_path, base=base_dir)
 
     def _resolve_quality_criteria(self, card: TaskCard) -> list[str]:
         raw_criteria = card.input_context.get("quality_criteria")

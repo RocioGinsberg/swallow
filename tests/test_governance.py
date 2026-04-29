@@ -4,6 +4,7 @@ import pytest
 
 from swallow.governance import (
     ApplyResult,
+    DuplicateProposalError,
     OperatorToken,
     ProposalTarget,
     apply_proposal,
@@ -86,6 +87,39 @@ def test_apply_canonical_proposal_writes_registry_wiki_and_derivatives(tmp_path)
 def test_apply_canonical_proposal_requires_registered_payload() -> None:
     with pytest.raises(ValueError, match="Unknown proposal artifact"):
         apply_proposal("missing", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
+
+
+def test_duplicate_proposal_id_raises(tmp_path) -> None:
+    canonical_record = {
+        "canonical_id": "canonical-duplicate",
+        "canonical_key": "task-object:task-duplicate:knowledge-0001",
+        "source_task_id": "task-duplicate",
+        "source_object_id": "knowledge-0001",
+        "promoted_at": "2026-04-29T00:00:00+00:00",
+        "promoted_by": "swl_cli",
+        "decision_note": "approved",
+        "decision_ref": ".swl/staged_knowledge/registry.jsonl#staged-duplicate",
+        "artifact_ref": "",
+        "source_ref": "chat://governance",
+        "text": "Duplicate proposals should fail fast.",
+        "evidence_status": "source_only",
+        "canonical_stage": "canonical",
+        "canonical_status": "active",
+        "superseded_by": "",
+        "superseded_at": "",
+    }
+    register_canonical_proposal(
+        base_dir=tmp_path,
+        proposal_id="duplicate-proposal",
+        canonical_record=canonical_record,
+    )
+
+    with pytest.raises(DuplicateProposalError, match="duplicate-proposal"):
+        register_canonical_proposal(
+            base_dir=tmp_path,
+            proposal_id="duplicate-proposal",
+            canonical_record=canonical_record,
+        )
 
 
 def test_apply_route_metadata_proposal_saves_and_refreshes_registry(tmp_path) -> None:

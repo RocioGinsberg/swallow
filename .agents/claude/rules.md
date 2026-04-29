@@ -4,31 +4,42 @@
 
 ---
 
-## 一、Roadmap 优先级评审规则
+## 一、Roadmap 维护规则
 
 Claude 与 roadmap-updater subagent 共同维护 `docs/roadmap.md`。分工如下：
 
-- **roadmap-updater subagent 负责**：差距总表的事实层（phase 完成登记、差距状态更新、蓝图对齐标注）
-- **Claude 负责**：推荐 phase 队列的优先级排序与风险批注
+- **roadmap-updater subagent 负责**：phase 完成事实登记（已有差距条目的状态更新、phase 完成标注、蓝图对齐自动同步）
+- **Claude 主线负责**：差距条目新增、推荐 phase 队列、优先级排序与风险批注、推荐顺序
 
-### 评审时机
+### 触发时机
 
-- roadmap-updater subagent 完成增量更新后
+- roadmap-updater subagent 完成增量更新后（评审与微调）
 - Human 请求方向建议时
+- **会话讨论中浮现新方向时（直接写入,不再延迟到 active_context）**
+- Phase 拆分（如 Phase 63 → 63 + 63.5）发生时
 
-### 评审内容
+### Claude 可写内容
 
-在 roadmap "推荐 phase 队列"中：
+在 `docs/roadmap.md` 中，Claude 可以直接：
 
-1. **调整优先级排序**：基于依赖关系、风险、ROI 判断
-2. **添加风险批注**：每条队列项可附加简短风险提示（≤2 句）
-3. **标注依赖前置**：如某方向依赖另一方向先完成，显式标注
+1. **新增 §三 差距条目**：差距描述、相关设计文档、当前状态、演进方向。讨论中浮现的真实新方向应当**直接落笔**到 §三，不要留在 active_context 等下一次 roadmap-updater 触发
+2. **新增/修改 §四 推荐 phase 队列**：候选块、队列总览行、依赖关系标注
+3. **修改 §五 Claude 推荐顺序**：基于依赖关系、风险、ROI 判断
+4. **修改 §六 战略锚点分析**：当现有维度的现状或下一步候选发生变化时
+5. **添加风险批注**：每条候选可附加简短风险提示（≤2 句）
 
 ### 不做的事
 
-- 不修改差距总表中的蓝图对齐内容（那是 roadmap-updater subagent 的领域）
-- 不自行新增差距条目（发现新差距时在 active_context.md 中标注，由 roadmap-updater 下次运行时补充）
-- 不产出独立的方向评审文档
+- **不修改差距条目的"已消化"状态标注**（那是 roadmap-updater subagent 的事实层职责，phase 完成时由 subagent 自动同步；Claude 手动改容易破坏 subagent 下次同步）
+- 不修改 §一 当前实现基线 / §二 Era 演进锚点（这两节的更新也属于 subagent 事实层）
+- 不产出独立的方向评审文档（直接写 roadmap，不另开 brainstorm 文件）
+
+### 与 active_context 的边界
+
+- `docs/roadmap.md` 承载**跨 phase 蓝图**（差距、候选、长期方向）
+- `docs/active_context.md` 承载**当前 phase 高频状态**（active_slice、当前下一步、阻塞项）
+- 讨论中浮现的新方向 → 直接写 roadmap §三 / §四
+- 当前 phase 内的状态变化 → 写 active_context
 
 ---
 

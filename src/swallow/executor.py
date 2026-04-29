@@ -18,6 +18,7 @@ from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_execu
 from .dialect_adapters import ClaudeXMLDialect, FIMDialect
 from .models import DialectSpec, ExecutorResult, RetrievalItem, RouteSpec, TaskCard, TaskState
 from .runtime_config import resolve_swl_chat_model
+from .workspace import resolve_path
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
 DEFAULT_NEW_API_CHAT_COMPLETIONS_URL = "http://localhost:3000/v1/chat/completions"
@@ -788,7 +789,7 @@ def run_detached_executor(state: TaskState, retrieval_items: list[RetrievalItem]
         )
         child_env = os.environ.copy()
         child_env[DETACHED_CHILD_ENV] = "1"
-        repo_root = Path(__file__).resolve().parents[2]
+        repo_root = resolve_path(Path(__file__), base=Path.cwd()).parents[2]
         src_root = str(repo_root / "src")
         existing_pythonpath = child_env.get("PYTHONPATH", "")
         child_env["PYTHONPATH"] = src_root if not existing_pythonpath else f"{src_root}{os.pathsep}{existing_pythonpath}"

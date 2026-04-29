@@ -714,6 +714,10 @@ def save_checkpoint_snapshot(base_dir: Path, task_id: str, payload: dict[str, ob
 
 def write_artifact(base_dir: Path, task_id: str, name: str, content: str) -> Path:
     ensure_task_layout(base_dir, task_id)
-    path = artifacts_dir(base_dir, task_id) / name
+    artifact_name = Path(name)
+    if not str(name).strip() or artifact_name.is_absolute() or ".." in artifact_name.parts:
+        raise ValueError("Artifact name must be relative to the task artifact directory.")
+    path = artifacts_dir(base_dir, task_id) / artifact_name
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
     return path

@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from ..models import LIBRARIAN_SYSTEM_ROLE
 from ..staged_knowledge import StagedCandidate, submit_staged_candidate
+from ..workspace import resolve_path
 from .filters import ExtractedFragment, filter_conversation_turns
 from .parsers import (
     ConversationTurn,
@@ -49,7 +50,7 @@ def run_ingestion_pipeline(
     taxonomy_role: str = DEFAULT_INGESTION_TAXONOMY_ROLE,
     taxonomy_memory_authority: str = DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY,
 ) -> IngestionPipelineResult:
-    resolved_source = source_path.resolve()
+    resolved_source = resolve_path(source_path)
     turns = parse_ingestion_path(resolved_source, format_hint=format_hint)
     fragments = filter_conversation_turns(turns)
     staged_candidates = build_staged_candidates(
@@ -122,7 +123,7 @@ def ingest_local_file(
     taxonomy_role: str = DEFAULT_INGESTION_TAXONOMY_ROLE,
     taxonomy_memory_authority: str = DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY,
 ) -> IngestionPipelineResult:
-    resolved_source = source_path.resolve()
+    resolved_source = resolve_path(source_path)
     candidate_texts = parse_local_file(resolved_source)
     source_task_id = _build_source_task_id(resolved_source)
     source_ref = f"file://{resolved_source}"

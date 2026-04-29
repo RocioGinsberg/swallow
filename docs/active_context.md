@@ -11,13 +11,11 @@
 - latest_completed_track: `Orchestration`
 - latest_completed_phase: `Phase 62`
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
-- active_track: `Release`
-- active_phase: `v1.3.1`
-- active_slice: `Tag Result Sync`
-- active_branch: `main`
-- status: `v1.3.1_tag_completed`
-
----
+- active_track: `Governance`
+- active_phase: `Phase 63`
+- active_slice: `Phase 63 review follow-up complete / PR ready`
+- active_branch: `feat/phase63-governance-closure`
+- status: `phase63_ready_for_human_pr`
 
 ## 当前状态说明
 
@@ -72,10 +70,12 @@ post-merge 决议(Human 已确认,2026-04-28):
 1. `README.md`(v1.3.1 release snapshot 已同步)
 2. `docs/active_context.md`(本文)
 3. `current_state.md`(v1.3.1 release checkpoint 已同步)
-4. `.agents/workflows/tag_release.md`
-5. `docs/plans/phase62/closeout.md`
-6. `docs/concerns_backlog.md`
-7. `docs/design/INVARIANTS.md`
+4. `docs/plans/phase63/kickoff.md` / `docs/plans/phase63/design_decision.md` / `docs/plans/phase63/risk_assessment.md`(final-after-M0 design baseline)
+5. `docs/plans/phase63/review_comments.md` / `docs/plans/phase63/consistency_report.md`
+6. `docs/plans/phase63/commit_summary.md` / `docs/plans/phase63/closeout.md`
+7. `docs/concerns_backlog.md`
+8. `docs/design/INVARIANTS.md`
+9. `pr.md`(local ignored PR body draft)
 
 ---
 
@@ -99,6 +99,72 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Codex]** `v1.3.1` release docs 已同步:`README.md` release snapshot + `current_state.md` release checkpoint + 本文状态;tag preflight `.venv/bin/python -m pytest` 已通过(559 passed / 8 deselected)。
 - **[Human]** 已提交 release docs 并完成 annotated tag `v1.3.1`(`d6e4b90`,tag message:`v1.3.1: Governance boundary and multi-perspective synthesis`)。
 - **[Codex]** 已同步 tag result 状态。
+- **[Claude]** 已触发 `roadmap-updater` subagent 完成 Phase 62 post-merge 增量事实更新:§三差距表"完整 Multi-Perspective Synthesis"行标 [已消化]、§四 候选 E strikethrough、§六"思考-讨论-沉淀"现状改为 MPS 已落地。
+- **[Claude]** 已修订 `docs/roadmap.md` §五 Claude 推荐顺序:消除原"D 首选 + 无瓶颈推动"自相矛盾,新文 §五 显式说明候选 D 后置、下一轮可考虑非 §三 差距类 phase(治理守卫收口 / 真实使用反馈收集)。
+- **[Human]** Direction Gate 已通过(2026-04-29):选定候选 G(治理守卫收口)为 Phase 63 active direction。
+- **[Claude/roadmap-updater]** 已增补 `docs/roadmap.md` §三差距表新增"治理守卫收口"行;§四推荐队列新增候选 G 块、候选 D 降至推荐次序 2;§六"写入治理"维度下一步候选改为候选 G(Phase 63 active)。
+- **[Claude]** 已二次修订 `docs/roadmap.md` §五 Claude 推荐顺序为"G → D"格式,与 §四对齐。
+- **[Claude/context-analyst]** Phase 63 `context_brief.md` 已产出。关键发现:(a) §9 标准表 17 条已实装 3 条(Phase 61 apply_proposal),Phase 62 新增 4 条 MPS 守卫不在 §9 标准表内,§9 表内净缺 14 条;(b) `"local"` 字面量 25+ 命中,大部分是 `execution_site="local"`(站点语义,不应受 §7 集中化约束),需 disambiguate;(c) `orchestrator.py:3145` 是 stagedK 直写唯一漂移点,cli/ingestion 4 处合规;(d) `rollback_*` 字段已存在但只是快照,缺执行路径;(e) `test_append_only_tables_reject_update_and_delete` 需要 SQLite trigger 基础设施。
+- **[Claude]** Phase 63 `kickoff.md` / `design_decision.md` / `risk_assessment.md` 已起草完成。设计要点:5 slice / 4 milestone(M1=S1 §7 集中化 / M2=S2 stagedK 治理 + S3 Repository 骨架 / M3=S4 §9 13 条守卫批量 / M4=S5 事务回滚)。S3 标记**高风险(7)**,其他 1 低 / 2 中 / 1 中-低。Phase-guard 内嵌检查已通过。**Model Review Gate 标 required**(触及 INVARIANTS / DATA_MODEL §4.1 / truth write path / S3 高风险)。
+- **[Claude/format-validator]** Phase 63 三件套 frontmatter + TL;DR 全部 PASS。
+- **[Claude/design-auditor]** Phase 63 `design_audit.md` 已产出:has-blockers,2 BLOCKER + 7 CONCERN。BLOCKER:(a) `apply_proposal` 签名冲突(我误写四参数 + `payload`,实际既有签名是三参数 `(proposal_id, operator_token, target)`,governance.py:209 / DATA_MODEL §4.1);(b) `test_only_orchestrator_uses_librarian_side_effect_token` 守卫无 AST 实装策略说明。
+- **[Claude]** 已修订 `design_decision.md` / `kickoff.md` / `risk_assessment.md` → `revised-after-audit`,消化 2 BLOCKER + 7 CONCERN:
+  - **BLOCKER S2/S3 签名修正**:S2 改为两步 `register_staged_knowledge_proposal(payload) → apply_proposal(proposal_id, OperatorToken(source="librarian_side_effect", reason=...), STAGED_KNOWLEDGE)`;扩展 `_VALID_OPERATOR_SOURCES` + `ProposalTarget` enum + 新增 `_StagedKnowledgeProposal` dataclass + 新增 `register_staged_knowledge_proposal` 函数;`OperatorToken` 字段保持 `source` / `reason`(无 `actor`)
+  - **BLOCKER S2 守卫策略**:7 步 AST 实装规则具体化,允许命中文件集合 ⊆ {orchestrator.py, governance.py};tests/ 豁免;额外断言 orchestrator.py 至少有一次签发(防止伪实装)
+  - **CONCERN S1**:`ACTOR_SEMANTIC_KWARGS` 闭集统一为 `{actor, submitted_by, caller, action, actor_name, performed_by}`(authoritative,与 R2 对齐);`workspace.py base` 解析优先级显式 base > SWL_ROOT > cwd;DDL `DEFAULT 'local'` 字面量自然豁免(不在 AST kwarg 调用语境)
+  - **CONCERN S3**:Repository 私有方法签名映射表 + Codex PR body 要求列出 actual signature;`_PENDING_PROPOSALS` key 元组化 `(target, proposal_id)`(与既有实装一致)
+  - **CONCERN S4**:`NO_SKIP_GUARDS` 白名单(8 条 §0 核心不变量守卫不可 skip);`test_only_apply_proposal_calls_private_writers` S3 内更新扫描目标(不计入 S4 新增)
+  - **CONCERN S4/S5 milestone 边界**:`test_append_only_tables_reject_update_and_delete` S4 内只覆盖既有 4 张表,S5 内扩展到包含 `route_change_log` / `policy_change_log`(6 张)
+  - **CONCERN S5**:完整 DDL + 字段对照表(对齐 `know_change_log` 的 `timestamp`/`actor`/`target_kind`/`target_id`/`action`/`rationale`,仅 `before_snapshot`/`after_snapshot` 是 route/policy 专用);R10 风险等级降低
+- **[Claude/format-validator]** revised-after-audit 三件套 frontmatter + TL;DR 全部 PASS。
+- **[Claude/model-review]** Phase 63 `model_review.md` 已产出(reviewer = external-model GPT-5 via `mcp__gpt5__chat-with-gpt5_5`):**verdict = BLOCK**。3 BLOCK + 3 CONCERN:
+  - **[BLOCK Q1]** `librarian_side_effect` token 创建 §5 矩阵-代码漂移(本 phase 自称消化漂移却引入新漂移,自我矛盾);Claude 决策:**本 phase 内更新 §5 矩阵 Orchestrator 行 stagedK 列**(需要把"不修改 INVARIANTS 文字"的 non-goal 收紧)
+  - **[BLOCK Q5]** staged 应用 + 失败回滚在 SQLite WAL 下不是 race-free,中间状态对 reader 可见,违反"零行为变化";Claude 决策:**改用 SQLite transaction/savepoint(`BEGIN IMMEDIATE`)**;实装路径要 M0 audit 现有 store 函数 connection 模式后定
+  - **[BLOCK Q6]** Repository 是新的 bypass surface(私有方法可被任何模块直接调);Claude 决策:S3 增加 2 条守卫(`test_only_governance_calls_repository_write_methods` + `test_no_module_outside_governance_imports_store_writes`)
+  - **[CONCERN Q2]** Repository 公开-私有边界(已通过 Q6 follow-up 消化)
+  - **[CONCERN Q3]** ACTOR_SEMANTIC_KWARGS 闭集太窄;Claude 决策:**扩展闭集 + 移除 `action`**(action 不是 actor 语义)
+  - **[CONCERN Q4]** NO_SKIP_GUARDS 中途红灯无 fallback;Claude 决策:**新增 M0 pre-implementation audit slice**(report-only NO_SKIP 扫描),根据 audit 结果决定是否拆 Phase 63.5
+- 修订 follow-up 范围较大(增加 M0、改 §5 文字、改 SQLite 实装、加 2 守卫、扩展闭集),待 Human 在下方"当前下一步"中决定 follow-up scope。
+- **[Human]** 已确认完整 revised-after-model-review(2026-04-29):follow-up scope = 完整修订三件套。
+- **[Claude]** 已修订 design_decision / kickoff / risk_assessment → `revised-after-model-review`,落实所有 BLOCK + CONCERN 的消化:
+  - **新增 S0 / M0 — Pre-implementation audit slice**:NO_SKIP_GUARDS report-only 扫描 + store 函数 connection 模式 audit;Claude 据 M0 报告决定 phase scope(维持 6-slice / 拆 Phase 63.5)+ S5 实装路径(A/B/C);Human 在 M0 完成后审阅决策再继续
+  - **§5 矩阵文字本 phase 内更新一行**(Orchestrator 行 stagedK 列从 "-" 改为 "W*(via apply_proposal + librarian_side_effect token)"+ 配套注脚);non-goals 收紧到"不修改 §0/§1/§2/§3/§4/§6/§7/§8 等核心原则文字;§5 矩阵此一行允许更新"
+  - **S5 改用 SQLite `BEGIN IMMEDIATE` transaction wrapping**(取代原 staged 应用 + 失败回滚方案);`action` 字段去掉 `rollback_failed`(SQLite ROLLBACK 原子);S5 实装路径 A/B/C 由 M0 audit 决定
+  - **S3 增加 2 条 Repository bypass 守卫**:`test_only_governance_calls_repository_write_methods` + `test_no_module_outside_governance_imports_store_writes`(§9 表外架构守卫)
+  - **ACTOR_SEMANTIC_KWARGS 闭集扩展**:加入 `created_by` / `updated_by` / `owner` / `user` / `principal` / `agent` / `originator` / `executor_name` 等;移除 `action`(不是 actor-semantic)
+  - **风险条目调整**:R9(原 staged 回滚函数失败)取消;新增 R12(§5 文字更新下游不一致)/ R13(store connection refactor)/ R14(M0 暴露大范围漂移触发 Phase 63.5)/ R5_NEW(SQLite transaction 路径选择失误);**2 条高风险 slice**(R3 Repository + R5_NEW SQLite transaction)
+  - **Slice 数量**:5 → 6(M0 + S1-S5);**5 milestone**(M0/M1/M2/M3/M4);Human Design Gate 时显式审批超出"≤5 slice"指引的例外
+- **[Claude/format-validator]** revised-after-model-review 三件套 frontmatter + TL;DR 全部 PASS;model_review.md status 字段是 SKILL 模板要求的 `review`,符合 `.agents/shared/rules.md §七` 允许值。
+- **[Human]** Design review 阶段反馈(2026-04-29):**质疑 §5 矩阵更新的必要性**,指出 `_route_knowledge_to_staged` 实际是按 `taxonomy_memory_authority` 路由的通用副作用流(不限于 Librarian),**让 Specialist 直接写 stagedK 才是干净路径**(§5 Specialist 行 stagedK 列已 W,合规)。
+- **[Claude]** 已修订 design_decision / kickoff / risk_assessment,**§S2 标记为 M0-dependent 双方案待定**:
+  - **方案 A**(librarian_side_effect token + §5 矩阵更新):若 M0 audit 显示 General Executor 等非-Specialist 也走这条流
+  - **方案 D**(下沉到 Specialist 内部 + §5 不动):若 M0 audit 显示仅 Specialist 类 executor 触发
+  - M0 audit 范围从 2 项扩到 **3 项**(新增 `_route_knowledge_to_staged` 触发场景 audit)
+  - kickoff non-goals 软化:`§5 矩阵是否更新由 M0 audit 决定`(不再固定要求更新)
+  - risk_assessment 新增 R15(§S2 方案选择失误,中);R12(§5 矩阵更新)调整为 M0-dependent
+- **[Codex]** M0 已完成并 commit (`c3637b1 docs(phase63): add M0 governance audit report`):3 项 audit 全部产出。NO_SKIP scan = 6 green / 2 red(`executor.py:510 fallback_route_for` + `agent_llm.py:57 httpx.post` 直连);store connection mode = filesystem JSON + in-memory(SQLite transaction wrapping 物理上不可行);`_route_knowledge_to_staged` 触发场景 = 生产 0 触发,`librarian_side_effect` token 已存在于 canonical knowledge 路径(governance.py:26)。
+- **[Human]** 在 design review 中提出关键反思(2026-04-29):**Phase 63 自称消化漂移却引入新漂移自相矛盾**;General Executor 不应该有 stagedK 写权限是设计原意,代码若让 General Executor 走这条流是 routing bug 不是合规需要;SQLite 长期是正确方向(履行 INVARIANTS P2,且兼容未来对象存储后端);roadmap 控制规则过严,Claude 应该可以直接写新差距。
+- **[Claude]** 据 M0 audit 三决策 + Human 反馈,产出 final 设计:
+  - **决策 1:§S2 = 删除 dead code**(M0 audit 确认生产 0 触发,删除替代 token 引入或 Specialist 下沉,零行为变化,无需 §5 矩阵更新)
+  - **决策 2:S5 推迟到 Phase 64(候选 H)**(filesystem JSON 现状不适用 SQLite transaction;P2 兑现作为独立 phase,顺便兑现"对象存储后端兼容"的长期路径)
+  - **决策 3:NO_SKIP 红灯 2 条拆 Phase 63.5(候选 G.5)**(M0 暴露的真实治理边界问题,本 phase 启用 6/8 条 NO_SKIP,2 条 G.5 启用)
+  - **决策 4:Phase 63 final scope = 4 slice / 3 milestone**(S5 移走;S2 改为删 dead code 后 risk 从中-低降到低;non-goals 恢复"不修改 INVARIANTS 任何文字")
+  - **决策 5:发现新 Open 登记 backlog**:`librarian_side_effect` token 在 canonical knowledge 路径的 §5 漂移(Phase 61 引入,本 phase scope 外,后续治理 phase 消化)
+- **[Claude]** 已修订 `.agents/claude/rules.md` §一(commit `f05102f`):解除"不自行新增差距条目"禁令,允许 Claude 主线直接写 roadmap §三/§四/§五/§六。配套修订 `roadmap-updater` subagent 边界(commit `f05102f`)。
+- **[Claude/roadmap-updater scope clarified]** 已写入 `docs/roadmap.md`(commit `0329ee2`):§三新增 NO_SKIP 红灯修复 + Truth Plane SQLite 一致性两条差距条目;§四 队列加候选 G.5 / 候选 H + 详细块;§五推荐顺序改为 G → G.5 → H → D;§六新增"治理边界 LLM 路径" / "Truth 物理存储"两个维度。
+- **[Claude]** Phase 63 三件套已重写到 `final-after-m0`:design_decision(461→336 行)/ kickoff(156→152 行)/ risk_assessment(346→217 行);整体精简 ~25%;深度参考 M0 audit 报告事实。
+- **[Claude/format-validator]** final-after-m0 三件套全部 PASS(design_decision TL;DR 已压成 5 行)。
+- **[Human]** Phase 63 final-after-m0 Design Gate 已通过(2026-04-29):Codex 开始按 M1 → M2 → M3 实施,每个 milestone 保留 commit gate。
+- **[Codex]** M1/S1 已完成:新增 `identity.py` / `workspace.py`,生产路径绝对化改走 `resolve_path()`,新增 2 条 S1 invariant guard。验证:`tests/test_invariant_guards.py` 11 passed;S1 定向 38 passed;`tests/test_run_task_subtasks.py` 5 passed;全量 pytest 560 passed / 1 timing-sensitive failure / 8 deselected,失败用例 targeted rerun passed;`git diff --check` passed。
+- **[Human]** M1 commit gate 已通过并提交(2026-04-29):`e905eee feat(phase63): centralize actor and path resolution guards` + `de06fef docs(state): record Phase 63 M1 commit gate`。Codex 继续 M2(S2 → S3)实装。
+- **[Codex]** M2/S2+S3 已完成:S2 删除 `_route_knowledge_to_staged` Orchestrator stagedK dead code;S3 新增 `swallow.truth` Repository 骨架、duplicate proposal guard、2 条 Repository bypass 守卫,并保持 meta-optimizer review replay 语义。验证:`tests/test_governance.py` 8 passed;`tests/test_invariant_guards.py` 13 passed;M2 定向 48 passed;全量 pytest 564 passed / 8 deselected;`git diff --check` passed;`docs/design/INVARIANTS.md` 无改动。
+- **[Human]** M2 commit gate 已通过并提交(2026-04-29):`088836f refactor(phase63): remove orchestrator staged knowledge dead code` + `1df5992 feat(phase63): add truth repository write boundary` + `5489a16 docs(state): record Phase 63 M2 commit gate`。Codex 继续 M3/S4 实装。
+- **[Codex]** M3/S4 已完成:补齐 §9 剩余 12 条守卫(10 pass + 2 条 G.5 skip 占位),新增 append-only SQLite 表/trigger 基础设施,移除现有 SQLite schema 跨命名空间 FK,并收紧 artifact name 边界。验证:`tests/test_invariant_guards.py` 23 passed / 2 skipped;`tests/test_sqlite_store.py` 15 passed;`tests/test_web_api.py` 10 passed;全量 pytest 574 passed / 2 skipped / 8 deselected;`git diff --check` passed;`docs/design/INVARIANTS.md` 无改动。
+- **[Human]** M3 commit gate 已通过并提交(2026-04-29):`5116b62 test(phase63): add invariant guard batch` + `bf6caa4 docs(state): record Phase 63 M3 commit gate`。Phase 63 所有 implementation milestones 已完成并提交。
+- **[Codex]** 已整理 Phase 63 implementation handoff:`docs/plans/phase63/commit_summary.md`。当前分支 worktree 在 handoff 前为 clean,下一步交给 Claude 进行 PR review。
+- **[Claude/consistency-checker]** Phase 63 / S3 Repository abstraction consistency report 已产出 → `docs/plans/phase63/consistency_report.md`(verdict = `minor-drift`,11 consistent / 2 minor-drift,均为文档/描述类细节,无行为或架构违规)。
+- **[Claude]** Phase 63 PR review 已完成 → `docs/plans/phase63/review_comments.md`(verdict = APPROVE,0 BLOCK / 2 CONCERN / 9 NOTE)。复跑 `.venv/bin/python -m pytest` 仍 574 passed / 2 skipped / 8 deselected。`git diff main...HEAD -- docs/design/` 零行。两条 CONCERN:(M2-A)commit_summary 缺 §S3 1:1 signature mapping table,Codex 在 `pr.md` 中补;(M3-A)`test_no_foreign_key_across_namespaces` 名实不符建议 docstring 补一句。
+- **[Codex]** 已完成 review follow-up 与收口准备:CONCERN M2-A 已在 `docs/plans/phase63/commit_summary.md` 与本地 ignored `pr.md` 补 Repository signature mapping table;CONCERN M3-A 已在 `tests/test_invariant_guards.py` 补 docstring;`docs/concerns_backlog.md` 已标注 Phase 63 resolved/open;`docs/plans/phase63/closeout.md` 已起草为 PR/Merge Gate 前收口记录。Review follow-up 后验证:`.venv/bin/python -m pytest tests/test_invariant_guards.py` → 23 passed / 2 skipped;`git diff --check` passed;`git diff -- docs/design` 无输出。
 
 进行中:
 
@@ -106,20 +172,63 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human / Claude]** 进入下一轮 direction / roadmap factual update 决策
-- **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix(post-merge cleanup,可与后续 docs commit 合并)
+- **[Human]** 审阅并提交当前 review follow-up / closeout bundle(含 Claude review artifacts、Codex docstring 修正、commit_summary、concerns_backlog、closeout、active_context)。
+- **[Human]** 提交后 push branch,使用本地 `./pr.md` 创建 PR,再进入 Merge Gate。
+- **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md`;随后由 roadmap-updater 做 post-merge factual update。
+- **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
 
-- 无。
+- 等待 Human 提交 review follow-up / closeout bundle 并创建 PR。
+
+---
+
+## 下一轮 direction 候选(2026-04-29 Claude 提案)
+
+> 以下候选不直接写入 roadmap §四,先由 Human 在 Direction Gate 阶段对比选择,通过后再走 roadmap-updater 标准流程。
+
+### 候选 G:治理守卫收口(Governance Closure)
+
+- **核心价值**:消化 Phase 61 / 62 暴露的 5 条宪法-代码漂移 Open(详见 `docs/concerns_backlog.md`):
+  1. INVARIANTS §9 剩余 14 条守卫测试缺失(Phase 61 Open)
+  2. Repository 抽象层(`KnowledgeRepo` / `RouteRepo` / `PolicyRepo`)未实装(Phase 61 Open)
+  3. `apply_proposal` 事务性回滚缺失(Phase 61 Open)
+  4. `orchestrator.py:3145` stagedK 直写违反 §5 矩阵(Phase 62 audit Open)
+  5. INVARIANTS §7 集中化函数(`identity.py` / `workspace.py`)不存在,§9 守卫 vacuous(Phase 62 audit Open)
+- **可能 slice**:M1 §7 集中化函数 + 守卫真实化 / M2 stagedK 治理通道 + Repository 抽象层骨架 / M3 §9 剩余守卫批量实装 / M4 事务回滚 staged 应用
+- **风险**:中——多在治理表面收敛,回滚成本低;但 Repository 抽象层涉及现有 store 函数封装,需谨慎设计接口
+- **优先级理由**:宪法层债务继续累积会让 INVARIANTS 失去威慑力;Phase 61/62 已经引入两次"承认现状、登记 Open"模式,再不收口会成习惯
+- **依赖**:无,且与未来 D 不冲突(Repository 抽象层是 D 的有用前置)
+
+### 候选 D:编排增强(Planner / DAG / Strategy Router)
+
+- **核心价值**:见 roadmap §四
+- **风险**:高——orchestrator 主链路重构,回滚成本高
+- **优先级理由**:架构债务清理,但当前编排能力实际可用,**无真实瓶颈推动**;建议在 MPS 真实使用反馈或多 task 复杂依赖场景出现后再做
+
+### 候选 R:真实使用反馈收集(无新代码 phase)
+
+- **核心价值**:用 1-2 周时间真实使用 A-lite + MPS,产出使用反馈,作为后续 Phase 63 / 64 方向的事实输入
+- **可能产出**:`docs/feedback/<date>.md` 真实使用记录、新 concern 登记、roadmap §三 新差距条目
+- **风险**:低——无代码改动
+- **优先级理由**:Phase 60-62 连续三个 phase 都是新能力实装,需要一个"消化期"评估能力是否真正有效;否则 D 没有信号支撑
 
 ---
 
 ## 当前下一步
 
-1. **[Human / Claude]** 决定下一轮 active direction / phase
-2. **[Codex]** 等待下一轮 design gate 或实现任务
-3. **[Codex / 低优先]** 后续 docs commit 可顺手修复 Phase 61 closeout cosmetic typo
+1. **[Human]** 提交当前 review follow-up / closeout bundle。
+2. **[Human]** push branch,使用本地 `./pr.md` 创建 PR,进入 Merge Gate。
+3. **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md`;roadmap-updater 随后完成 post-merge factual update。
+
+```markdown
+model_review:
+- status: completed
+- artifact: docs/plans/phase63/model_review.md
+- reviewer: external-model (GPT-5 via mcp__gpt5__chat-with-gpt5_5)
+- verdict: BLOCK
+- next: 已闭环 — 3 BLOCK 全部消化(Q1 §5 不动 / Q5 S5 推迟到 Phase 64 / Q6 加 2 条 bypass 守卫);3 CONCERN 全部消化;final-after-m0 已产出
+```
 
 ```markdown
 model_review:
@@ -154,3 +263,57 @@ model_review:
 - `docs/active_context.md`(codex, 2026-04-29, post-merge + release docs sync state)
 - `v1.3.1`(human, 2026-04-29, annotated tag completed at `d6e4b90`)
 - `docs/active_context.md`(codex, 2026-04-29, tag result sync completed)
+- `docs/roadmap.md`(claude / roadmap-updater, 2026-04-29, Phase 62 post-merge 增量事实更新 + §五 推荐顺序修订 + 候选 G 增补到 §三/§四/§六 + §五 改为 G→D 顺序)
+- `docs/active_context.md`(claude, 2026-04-29, Direction Gate 决议 G + Phase 63 三件套起草 + 状态切换到 design-auditor 待触发)
+- `docs/plans/phase63/context_brief.md`(claude/context-analyst, 2026-04-29, Phase 63 治理守卫收口上下文 brief)
+- `docs/plans/phase63/kickoff.md`(claude, 2026-04-29, Phase 63 入手与范围)
+- `docs/plans/phase63/design_decision.md`(claude, 2026-04-29, Phase 63 5 slice / 4 milestone 治理收口方案)
+- `docs/plans/phase63/risk_assessment.md`(claude, 2026-04-29, Phase 63 11 项风险与缓解 — 1 高 / 5 中 / 5 低,revised-after-audit)
+- `docs/plans/phase63/design_audit.md`(claude/design-auditor, 2026-04-29, has-blockers — 2 BLOCKER + 7 CONCERN)
+- `docs/plans/phase63/kickoff.md`(claude, 2026-04-29, revised-after-audit — G2/G3 调用形式与 key 描述对齐既有签名)
+- `docs/plans/phase63/design_decision.md`(claude, 2026-04-29, revised-after-audit — 2 BLOCKER + 7 CONCERN 全部消化)
+- `docs/plans/phase63/model_review.md`(claude, 2026-04-29, Model Review Gate verdict = BLOCK,3 BLOCK + 3 CONCERN,reviewer = GPT-5 via mcp__gpt5__chat-with-gpt5_5)
+- `docs/plans/phase63/kickoff.md`(claude, 2026-04-29, revised-after-model-review + Human 反馈:G0 audit 第 3 项 + G2 双方案)
+- `docs/plans/phase63/design_decision.md`(claude, 2026-04-29, revised-after-model-review + Human 反馈:S0 audit 3 项 + S2 M0-dependent 方案 A/D 决策表)
+- `docs/plans/phase63/risk_assessment.md`(claude, 2026-04-29, revised-after-model-review + Human 反馈:R12 改 M0-dependent + 新增 R15 方案选择失误)
+- `tests/audit_no_skip_drift.py`(codex, 2026-04-29, Phase 63 M0 report-only NO_SKIP guard pre-scan)
+- `tests/audit_route_knowledge_to_staged.py`(codex, 2026-04-29, Phase 63 M0 `_route_knowledge_to_staged` trigger audit)
+- `docs/plans/phase63/m0_audit_report.md`(codex, 2026-04-29, Phase 63 M0 audit result:2 NO_SKIP red signals; 0 built-in blocked routes; S5 SQLite path mismatch)
+- `docs/roadmap.md`(claude, 2026-04-29, 写入 Phase 63.5 + 候选 H + 推荐顺序 G→G.5→H→D;commit 0329ee2)
+- `.agents/claude/rules.md` / `.claude/agents/roadmap-updater.md`(claude, 2026-04-29, governance rules clarify;Claude 主线允许直接写 roadmap;commit f05102f)
+- `docs/plans/phase63/kickoff.md`(claude, 2026-04-29, **final-after-m0** — 4 slice / 3 milestone,non-goals 恢复严格版,删 dead code 替代 token 引入)
+- `docs/plans/phase63/design_decision.md`(claude, 2026-04-29, **final-after-m0** — 5 slice 含 M0;§S2 删 dead code;S5 推迟到 Phase 64;2 条 Repository bypass 守卫)
+- `docs/plans/phase63/risk_assessment.md`(claude, 2026-04-29, **final-after-m0** — 9 条风险,1 高 / 5 中 / 3 低;新增 R16 测试 mock 调整;取消 R5/R9/R10/R12/R13/R14/R5_NEW/R15)
+- `docs/active_context.md`(claude, 2026-04-29, final-after-m0 状态同步;清理过时新差距节;Design Gate 待审)
+- `docs/active_context.md`(codex, 2026-04-29, Human Design Gate 通过后切换到 M1/S1 implementation in progress)
+- `src/swallow/identity.py` / `src/swallow/workspace.py`(codex, 2026-04-29, M1/S1 centralized actor/path helpers)
+- `src/swallow/orchestrator.py` / `src/swallow/cli.py` / `src/swallow/executor.py` / `src/swallow/ingestion/pipeline.py` / `src/swallow/literature_specialist.py` / `src/swallow/quality_reviewer.py` / `src/swallow/web/api.py`(codex, 2026-04-29, M1/S1 path resolution centralized via `resolve_path()`)
+- `tests/test_invariant_guards.py`(codex, 2026-04-29, M1/S1 `test_no_hardcoded_local_actor_outside_identity_module` + `test_no_absolute_path_in_truth_writes`)
+- `docs/active_context.md`(codex, 2026-04-29, M1/S1 completion state + commit gate)
+- `e905eee feat(phase63): centralize actor and path resolution guards`(human, 2026-04-29, M1 implementation commit)
+- `de06fef docs(state): record Phase 63 M1 commit gate`(human, 2026-04-29, M1 state commit)
+- `docs/active_context.md`(codex, 2026-04-29, M1 commit observed;M2 implementation started)
+- `src/swallow/orchestrator.py` / `tests/test_cli.py`(codex, 2026-04-29, M2/S2 removed `_route_knowledge_to_staged` dead code and adjusted stagedK side-effect test)
+- `src/swallow/truth/__init__.py` / `src/swallow/truth/knowledge.py` / `src/swallow/truth/route.py` / `src/swallow/truth/policy.py` / `src/swallow/truth/proposals.py`(codex, 2026-04-29, M2/S3 Repository abstraction skeleton + pending proposal repo)
+- `src/swallow/governance.py` / `src/swallow/meta_optimizer.py`(codex, 2026-04-29, M2/S3 governance dispatch through Repository + duplicate-safe meta-optimizer review apply)
+- `tests/test_governance.py` / `tests/test_invariant_guards.py`(codex, 2026-04-29, M2/S3 duplicate proposal test + Repository bypass guards)
+- `docs/active_context.md`(codex, 2026-04-29, M2/S2+S3 completion state + commit gate)
+- `088836f refactor(phase63): remove orchestrator staged knowledge dead code`(human, 2026-04-29, M2/S2 implementation commit)
+- `1df5992 feat(phase63): add truth repository write boundary`(human, 2026-04-29, M2/S3 implementation commit)
+- `5489a16 docs(state): record Phase 63 M2 commit gate`(human, 2026-04-29, M2 state commit)
+- `docs/active_context.md`(codex, 2026-04-29, M2 commits observed;M3/S4 implementation started)
+- `src/swallow/sqlite_store.py` / `src/swallow/store.py`(codex, 2026-04-29, M3/S4 append-only schema triggers + artifact name boundary)
+- `tests/test_invariant_guards.py`(codex, 2026-04-29, M3/S4 12 条 §9 guard,2 条 G.5 skip 占位)
+- `docs/active_context.md`(codex, 2026-04-29, M3/S4 completion state + commit gate)
+- `5116b62 test(phase63): add invariant guard batch`(human, 2026-04-29, M3/S4 implementation commit)
+- `bf6caa4 docs(state): record Phase 63 M3 commit gate`(human, 2026-04-29, M3 state commit)
+- `docs/plans/phase63/commit_summary.md`(codex, 2026-04-29, Phase 63 implementation handoff summary for PR review)
+- `docs/active_context.md`(codex, 2026-04-29, implementation complete;next step Claude PR review)
+- `docs/plans/phase63/consistency_report.md`(claude/consistency-checker, 2026-04-29, S3 Repository abstraction consistency check verdict = minor-drift)
+- `docs/plans/phase63/review_comments.md`(claude, 2026-04-29, Phase 63 PR review verdict = APPROVE;0 BLOCK / 2 CONCERN / 9 NOTE)
+- `tests/test_invariant_guards.py`(codex, 2026-04-29, review follow-up docstring for no-FK guard)
+- `docs/plans/phase63/commit_summary.md`(codex, 2026-04-29, added Repository signature mapping table)
+- `docs/concerns_backlog.md`(codex, 2026-04-29, Phase 63 resolved/open concern sync)
+- `docs/plans/phase63/closeout.md`(codex, 2026-04-29, Phase 63 closeout draft for PR/Merge Gate)
+- `pr.md`(codex, 2026-04-29, local ignored PR body draft;use for PR creation)
+- `docs/active_context.md`(codex, 2026-04-29, review follow-up complete;waiting Human PR)

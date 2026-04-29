@@ -1,27 +1,18 @@
 from __future__ import annotations
-
-import json
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Literal
 
-from .canonical_registry import build_canonical_registry_index
-from .canonical_reuse import build_canonical_reuse_summary
-from .knowledge_store import LIBRARIAN_AGENT_WRITE_AUTHORITY, persist_wiki_entry_from_record
+from .knowledge_store import LIBRARIAN_AGENT_WRITE_AUTHORITY
 from .models import AuditTriggerPolicy
-from .paths import canonical_registry_path
 from .router import (
-    apply_route_capability_profiles,
-    apply_route_weights,
     load_route_capability_profiles,
     load_route_weights,
     normalize_route_name,
     route_by_name,
-    save_route_capability_profiles,
-    save_route_weights,
 )
-from .store import append_canonical_record, save_canonical_registry_index, save_canonical_reuse_policy
+from .truth import DuplicateProposalError, KnowledgeRepo, PendingProposalRepo, PolicyRepo, RouteRepo
 
 OperatorSource = Literal["cli", "system_auto", "librarian_side_effect"]
 _VALID_OPERATOR_SOURCES = {"cli", "system_auto", "librarian_side_effect"}
@@ -92,7 +83,7 @@ class _MpsPolicyProposal:
     value: int
 
 
-_PENDING_PROPOSALS: dict[tuple[ProposalTarget, str], object] = {}
+_PENDING_PROPOSALS = PendingProposalRepo()
 
 
 def register_canonical_proposal(
@@ -117,16 +108,19 @@ def register_canonical_proposal(
     normalized_id = proposal_id.strip()
     if not normalized_id:
         raise ValueError("proposal_id must be a non-empty string.")
-    _PENDING_PROPOSALS[(ProposalTarget.CANONICAL_KNOWLEDGE, normalized_id)] = _CanonicalProposal(
-        base_dir=base_dir,
-        canonical_record=dict(canonical_record),
-        write_authority=write_authority,
-        mirror_files=mirror_files,
-        persist_wiki=persist_wiki,
-        persist_wiki_first=persist_wiki_first,
-        refresh_derived=refresh_derived,
+    return _PENDING_PROPOSALS.register(
+        ProposalTarget.CANONICAL_KNOWLEDGE,
+        normalized_id,
+        _CanonicalProposal(
+            base_dir=base_dir,
+            canonical_record=dict(canonical_record),
+            write_authority=write_authority,
+            mirror_files=mirror_files,
+            persist_wiki=persist_wiki,
+            persist_wiki_first=persist_wiki_first,
+            refresh_derived=refresh_derived,
+        ),
     )
-    return normalized_id
 
 
 def register_route_metadata_proposal(
@@ -151,13 +145,16 @@ def register_route_metadata_proposal(
             route_name: dict(profile)
             for route_name, profile in route_capability_profiles.items()
         }
-    _PENDING_PROPOSALS[(ProposalTarget.ROUTE_METADATA, normalized_id)] = _RouteMetadataProposal(
-        base_dir=base_dir,
-        route_weights=dict(route_weights) if route_weights is not None else None,
-        route_capability_profiles=copied_profiles,
-        review_path=review_path,
+    return _PENDING_PROPOSALS.register(
+        ProposalTarget.ROUTE_METADATA,
+        normalized_id,
+        _RouteMetadataProposal(
+            base_dir=base_dir,
+            route_weights=dict(route_weights) if route_weights is not None else None,
+            route_capability_profiles=copied_profiles,
+            review_path=review_path,
+        ),
     )
-    return normalized_id
 
 
 def register_policy_proposal(
@@ -171,11 +168,14 @@ def register_policy_proposal(
         raise ValueError("proposal_id must be a non-empty string.")
     if not isinstance(audit_trigger_policy, AuditTriggerPolicy):
         raise TypeError("audit_trigger_policy must be an AuditTriggerPolicy.")
-    _PENDING_PROPOSALS[(ProposalTarget.POLICY, normalized_id)] = _PolicyProposal(
-        base_dir=base_dir,
-        audit_trigger_policy=AuditTriggerPolicy.from_dict(audit_trigger_policy.to_dict()),
+    return _PENDING_PROPOSALS.register(
+        ProposalTarget.POLICY,
+        normalized_id,
+        _PolicyProposal(
+            base_dir=base_dir,
+            audit_trigger_policy=AuditTriggerPolicy.from_dict(audit_trigger_policy.to_dict()),
+        ),
     )
-    return normalized_id
 
 
 def register_mps_policy_proposal(
@@ -192,12 +192,15 @@ def register_mps_policy_proposal(
         raise ValueError("proposal_id must be a non-empty string.")
     normalized_kind = normalize_mps_policy_kind(kind)
     normalized_value = validate_mps_policy_value(normalized_kind, value)
-    _PENDING_PROPOSALS[(ProposalTarget.POLICY, normalized_id)] = _MpsPolicyProposal(
-        base_dir=base_dir,
-        kind=normalized_kind,
-        value=normalized_value,
+    return _PENDING_PROPOSALS.register(
+        ProposalTarget.POLICY,
+        normalized_id,
+        _MpsPolicyProposal(
+            base_dir=base_dir,
+            kind=normalized_kind,
+            value=normalized_value,
+        ),
     )
-    return normalized_id
 
 
 def load_mps_policy(base_dir: Path, kind: str) -> int | None:
@@ -238,10 +241,7 @@ def _load_proposal_artifact(proposal_id: str, target: ProposalTarget) -> object:
     normalized_id = proposal_id.strip()
     if not normalized_id:
         raise ValueError("proposal_id must be a non-empty string.")
-    key = (target, normalized_id)
-    if key not in _PENDING_PROPOSALS:
-        raise ValueError(f"Unknown proposal artifact: {normalized_id} ({target.value})")
-    return _PENDING_PROPOSALS[key]
+    return _PENDING_PROPOSALS.load(target, normalized_id)
 
 
 def _validate_target(proposal: object, target: ProposalTarget) -> None:
@@ -257,46 +257,23 @@ def _apply_canonical(proposal: object, _operator_token: OperatorToken, *, propos
     if not isinstance(proposal, _CanonicalProposal):
         raise TypeError("canonical proposal payload is invalid.")
 
-    applied_writes: list[str] = []
-    if proposal.persist_wiki and proposal.persist_wiki_first:
-        persist_wiki_entry_from_record(
-            proposal.base_dir,
-            proposal.canonical_record,
-            mirror_files=proposal.mirror_files,
-            write_authority=proposal.write_authority,
-        )
-        applied_writes.append("wiki_entry")
-
-    append_canonical_record(proposal.base_dir, proposal.canonical_record)
-    applied_writes.append("canonical_registry")
-
-    if proposal.persist_wiki and not proposal.persist_wiki_first:
-        persist_wiki_entry_from_record(
-            proposal.base_dir,
-            proposal.canonical_record,
-            mirror_files=proposal.mirror_files,
-            write_authority=proposal.write_authority,
-        )
-        applied_writes.append("wiki_entry")
-
-    if proposal.refresh_derived:
-        _refresh_canonical_derivatives(proposal.base_dir)
-        applied_writes.extend(["canonical_registry_index", "canonical_reuse_policy"])
-
+    applied_writes = KnowledgeRepo()._promote_canonical(
+        base_dir=proposal.base_dir,
+        canonical_record=proposal.canonical_record,
+        write_authority=proposal.write_authority,
+        mirror_files=proposal.mirror_files,
+        persist_wiki=proposal.persist_wiki,
+        persist_wiki_first=proposal.persist_wiki_first,
+        refresh_derived=proposal.refresh_derived,
+    )
     canonical_id = str(proposal.canonical_record.get("canonical_id", "")).strip()
     return ApplyResult(
         proposal_id=proposal_id,
         target=ProposalTarget.CANONICAL_KNOWLEDGE,
         success=True,
         detail=f"canonical_applied canonical_id={canonical_id or '-'}",
-        applied_writes=tuple(applied_writes),
+        applied_writes=applied_writes,
     )
-
-
-def _refresh_canonical_derivatives(base_dir: Path) -> None:
-    canonical_records = _load_json_lines(canonical_registry_path(base_dir))
-    save_canonical_registry_index(base_dir, build_canonical_registry_index(canonical_records))
-    save_canonical_reuse_policy(base_dir, build_canonical_reuse_summary(canonical_records))
 
 
 def _apply_route_metadata(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
@@ -305,23 +282,18 @@ def _apply_route_metadata(proposal: object, _operator_token: OperatorToken, *, p
     if proposal.review_path is not None:
         return _apply_route_review_metadata(proposal, proposal_id=proposal_id)
 
-    applied_writes: list[str] = []
-    if proposal.route_weights is not None:
-        save_route_weights(proposal.base_dir, proposal.route_weights)
-        apply_route_weights(proposal.base_dir)
-        applied_writes.append("route_weights")
-
-    if proposal.route_capability_profiles is not None:
-        save_route_capability_profiles(proposal.base_dir, proposal.route_capability_profiles)
-        apply_route_capability_profiles(proposal.base_dir)
-        applied_writes.append("route_capability_profiles")
+    applied_writes = RouteRepo()._apply_metadata_change(
+        base_dir=proposal.base_dir,
+        route_weights=proposal.route_weights,
+        route_capability_profiles=proposal.route_capability_profiles,
+    )
 
     return ApplyResult(
         proposal_id=proposal_id,
         target=ProposalTarget.ROUTE_METADATA,
         success=True,
         detail="route_metadata_applied",
-        applied_writes=tuple(applied_writes),
+        applied_writes=applied_writes,
     )
 
 
@@ -549,15 +521,16 @@ def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_i
         for route_name, weight in updated_weights.items()
         if abs(weight - 1.0) > 1e-9
     }
-    save_route_weights(proposal.base_dir, persisted_weights)
-    apply_route_weights(proposal.base_dir)
     persisted_profiles = {
         route_name: profile
         for route_name, profile in updated_profiles.items()
         if profile.get("task_family_scores") or profile.get("unsupported_task_types")
     }
-    save_route_capability_profiles(proposal.base_dir, persisted_profiles)
-    apply_route_capability_profiles(proposal.base_dir)
+    RouteRepo()._apply_metadata_change(
+        base_dir=proposal.base_dir,
+        route_weights=persisted_weights,
+        route_capability_profiles=persisted_profiles,
+    )
 
     applied_at = utc_now()
     application_record = OptimizationProposalApplicationRecord(
@@ -587,43 +560,35 @@ def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_i
 
 def _apply_policy(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
     if isinstance(proposal, _MpsPolicyProposal):
-        from .mps_policy_store import save_mps_policy
-
-        policy_path = save_mps_policy(proposal.base_dir, proposal.kind, proposal.value)
+        applied_write, policy_path = PolicyRepo()._apply_policy_change(
+            base_dir=proposal.base_dir,
+            mps_kind=proposal.kind,
+            mps_value=proposal.value,
+        )
         return ApplyResult(
             proposal_id=proposal_id,
             target=ProposalTarget.POLICY,
             success=True,
             detail=f"mps_policy_applied kind={proposal.kind} path={policy_path}",
-            applied_writes=("mps_policy",),
+            applied_writes=(applied_write,),
             payload=policy_path,
         )
 
     if not isinstance(proposal, _PolicyProposal):
         raise TypeError("policy proposal payload is invalid.")
 
-    from .consistency_audit import save_audit_trigger_policy
-
-    policy_path = save_audit_trigger_policy(proposal.base_dir, proposal.audit_trigger_policy)
+    applied_write, policy_path = PolicyRepo()._apply_policy_change(
+        base_dir=proposal.base_dir,
+        audit_trigger_policy=proposal.audit_trigger_policy,
+    )
     return ApplyResult(
         proposal_id=proposal_id,
         target=ProposalTarget.POLICY,
         success=True,
         detail=f"policy_applied path={policy_path}",
-        applied_writes=("audit_trigger_policy",),
+        applied_writes=(applied_write,),
         payload=policy_path,
     )
-
-
-def _load_json_lines(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-    records: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped:
-            records.append(json.loads(stripped))
-    return records
 
 
 def _emit_event(_operator_token: OperatorToken, _target: ProposalTarget, _result: ApplyResult) -> None:

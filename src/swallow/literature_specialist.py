@@ -10,6 +10,7 @@ from urllib.parse import urlparse
 from .agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
 from .knowledge_relations import KNOWLEDGE_RELATION_TYPES
 from .models import ExecutorResult, RetrievalItem, TaskCard, TaskState
+from .workspace import resolve_path
 
 
 LITERATURE_SPECIALIST_EXECUTOR_NAME = "literature-specialist"
@@ -77,7 +78,7 @@ class LiteratureSpecialistAgent:
     def _resolve_path(self, base_dir: Path, raw_path: Path) -> Path:
         if raw_path.is_absolute():
             return raw_path
-        return (base_dir / raw_path).resolve()
+        return resolve_path(raw_path, base=base_dir)
 
     def _normalize_token(self, token: str) -> str:
         if token.isascii():

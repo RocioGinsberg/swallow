@@ -136,7 +136,6 @@ from .review_gate import (
     run_review_gate,
     run_review_gate_async,
 )
-from .staged_knowledge import StagedCandidate, submit_staged_candidate
 from .subtask_orchestrator import (
     AsyncSubtaskOrchestrator,
     SubtaskOrchestrator,
@@ -165,6 +164,7 @@ from .store import (
 )
 from .task_semantics import build_task_semantics, normalize_retrieval_source_types
 from .models import utc_now
+from .workspace import resolve_path
 
 
 STANDARD_SUBTASK_ARTIFACT_NAMES = {
@@ -183,6 +183,10 @@ EXECUTOR_ARTIFACT_NAMES = (
 
 DEBATE_MAX_ROUNDS = 3
 _BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
+
+
+def _resolved_path_string(path: Path) -> str:
+    return str(resolve_path(path))
 _RETRIEVAL_SOURCE_POLICY: dict[tuple[str, str], tuple[str, ...]] = {
     ("autonomous_cli_coding", "*"): ("knowledge",),
     ("api", "*"): ("knowledge", "notes"),
@@ -2592,7 +2596,7 @@ def create_task(
         task_id=task_id,
         title=title,
         goal=goal,
-        workspace_root=str(workspace_root.resolve()),
+        workspace_root=_resolved_path_string(workspace_root),
         executor_name=normalize_executor_name(executor_name),
         input_context=dict(input_context or {}),
         task_semantics=task_semantics_payload,
@@ -2609,35 +2613,39 @@ def create_task(
     _apply_execution_topology(state, dispatch_status="not_requested")
     _apply_execution_site_contract(state)
     state.artifact_paths = {
-        "task_semantics_json": str(task_semantics_path(base_dir, task_id).resolve()),
-        "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
-        "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
-        "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
-        "librarian_change_log": str((artifacts_dir(base_dir, task_id) / "librarian_change_log.json").resolve()),
-        "librarian_change_log_report": str(
-            (artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md").resolve()
+        "task_semantics_json": _resolved_path_string(task_semantics_path(base_dir, task_id)),
+        "task_semantics_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "task_semantics_report.md"),
+        "knowledge_objects_json": _resolved_path_string(knowledge_objects_path(base_dir, task_id)),
+        "knowledge_objects_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md"),
+        "librarian_change_log": _resolved_path_string(artifacts_dir(base_dir, task_id) / "librarian_change_log.json"),
+        "librarian_change_log_report": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md"
         ),
-        "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
-        "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
-        "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
-        "knowledge_index_report": str((artifacts_dir(base_dir, task_id) / "knowledge_index_report.md").resolve()),
-        "knowledge_decisions_json": str(knowledge_decisions_path(base_dir, task_id).resolve()),
-        "knowledge_decisions_report": str((artifacts_dir(base_dir, task_id) / "knowledge_decisions_report.md").resolve()),
-        "canonical_registry_json": str(canonical_registry_path(base_dir).resolve()),
-        "canonical_registry_report": str((artifacts_dir(base_dir, task_id) / "canonical_registry_report.md").resolve()),
-        "canonical_registry_index_json": str(canonical_registry_index_path(base_dir).resolve()),
-        "canonical_registry_index_report": str((artifacts_dir(base_dir, task_id) / "canonical_registry_index_report.md").resolve()),
-        "canonical_reuse_policy_json": str(canonical_reuse_policy_path(base_dir).resolve()),
-        "canonical_reuse_policy_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md").resolve()),
-        "canonical_reuse_eval_json": str(canonical_reuse_eval_path(base_dir, task_id).resolve()),
-        "canonical_reuse_eval_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_eval_report.md").resolve()),
-        "canonical_reuse_regression_json": str(canonical_reuse_regression_path(base_dir, task_id).resolve()),
-        "remote_handoff_contract_json": str(remote_handoff_contract_path(base_dir, task_id).resolve()),
-        "remote_handoff_contract_report": str(
-            (artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md").resolve()
+        "knowledge_partition_json": _resolved_path_string(knowledge_partition_path(base_dir, task_id)),
+        "knowledge_partition_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md"),
+        "knowledge_index_json": _resolved_path_string(knowledge_index_path(base_dir, task_id)),
+        "knowledge_index_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_index_report.md"),
+        "knowledge_decisions_json": _resolved_path_string(knowledge_decisions_path(base_dir, task_id)),
+        "knowledge_decisions_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_decisions_report.md"),
+        "canonical_registry_json": _resolved_path_string(canonical_registry_path(base_dir)),
+        "canonical_registry_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "canonical_registry_report.md"),
+        "canonical_registry_index_json": _resolved_path_string(canonical_registry_index_path(base_dir)),
+        "canonical_registry_index_report": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "canonical_registry_index_report.md"
         ),
-        "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
-        "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
+        "canonical_reuse_policy_json": _resolved_path_string(canonical_reuse_policy_path(base_dir)),
+        "canonical_reuse_policy_report": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md"
+        ),
+        "canonical_reuse_eval_json": _resolved_path_string(canonical_reuse_eval_path(base_dir, task_id)),
+        "canonical_reuse_eval_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "canonical_reuse_eval_report.md"),
+        "canonical_reuse_regression_json": _resolved_path_string(canonical_reuse_regression_path(base_dir, task_id)),
+        "remote_handoff_contract_json": _resolved_path_string(remote_handoff_contract_path(base_dir, task_id)),
+        "remote_handoff_contract_report": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md"
+        ),
+        "checkpoint_snapshot_json": _resolved_path_string(checkpoint_snapshot_path(base_dir, task_id)),
+        "checkpoint_snapshot_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md"),
     }
     knowledge_partition = build_knowledge_partition(state.knowledge_objects)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
@@ -3128,53 +3136,6 @@ def _load_previous_executor_result(base_dir: Path, state: TaskState) -> Executor
     )
 
 
-def _route_knowledge_to_staged(base_dir: Path, state: TaskState) -> list[StagedCandidate]:
-    if state.route_taxonomy_memory_authority not in {"canonical-write-forbidden", "staged-knowledge"}:
-        return []
-
-    knowledge_objects = load_knowledge_objects(base_dir, state.task_id)
-    if not knowledge_objects and isinstance(state.knowledge_objects, list):
-        knowledge_objects = list(state.knowledge_objects)
-
-    staged_candidates: list[StagedCandidate] = []
-    for item in knowledge_objects:
-        if str(item.get("canonicalization_intent", "none")) != "promote":
-            continue
-        if str(item.get("stage", "raw")) != "verified":
-            continue
-        candidate = submit_staged_candidate(
-            base_dir,
-            StagedCandidate(
-                candidate_id="",
-                text=str(item.get("text", "")),
-                source_task_id=state.task_id,
-                source_object_id=str(item.get("object_id", "")).strip(),
-                submitted_by=state.executor_name,
-                taxonomy_role=state.route_taxonomy_role,
-                taxonomy_memory_authority=state.route_taxonomy_memory_authority,
-            ),
-        )
-        staged_candidates.append(candidate)
-
-    if staged_candidates:
-        append_event(
-            base_dir,
-            Event(
-                task_id=state.task_id,
-                event_type="task.knowledge_staged",
-                message="Knowledge objects were routed into staged knowledge.",
-                payload={
-                    "candidate_count": len(staged_candidates),
-                    "candidate_ids": [candidate.candidate_id for candidate in staged_candidates],
-                    "source_object_ids": [candidate.source_object_id for candidate in staged_candidates],
-                    "taxonomy_role": state.route_taxonomy_role,
-                    "taxonomy_memory_authority": state.route_taxonomy_memory_authority,
-                },
-            ),
-        )
-    return staged_candidates
-
-
 def _retrieval_policy_family(state: TaskState) -> str:
     capabilities = state.route_capabilities if isinstance(state.route_capabilities, dict) else {}
     executor_family = str(state.route_executor_family or "").strip().lower()
@@ -3580,67 +3541,73 @@ async def run_task_async(
 
     _set_phase(base_dir, state, "summarize")
     state.artifact_paths = {
-        "executor_prompt": str((artifacts_dir(base_dir, task_id) / "executor_prompt.md").resolve()),
-        "executor_output": str((artifacts_dir(base_dir, task_id) / "executor_output.md").resolve()),
-        "executor_stdout": str((artifacts_dir(base_dir, task_id) / "executor_stdout.txt").resolve()),
-        "executor_stderr": str((artifacts_dir(base_dir, task_id) / "executor_stderr.txt").resolve()),
-        "task_semantics_json": str(task_semantics_path(base_dir, task_id).resolve()),
-        "task_semantics_report": str((artifacts_dir(base_dir, task_id) / "task_semantics_report.md").resolve()),
-        "knowledge_objects_json": str(knowledge_objects_path(base_dir, task_id).resolve()),
-        "knowledge_objects_report": str((artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md").resolve()),
-        "librarian_change_log": str((artifacts_dir(base_dir, task_id) / "librarian_change_log.json").resolve()),
-        "librarian_change_log_report": str(
-            (artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md").resolve()
+        "executor_prompt": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_prompt.md"),
+        "executor_output": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_output.md"),
+        "executor_stdout": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_stdout.txt"),
+        "executor_stderr": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_stderr.txt"),
+        "task_semantics_json": _resolved_path_string(task_semantics_path(base_dir, task_id)),
+        "task_semantics_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "task_semantics_report.md"),
+        "knowledge_objects_json": _resolved_path_string(knowledge_objects_path(base_dir, task_id)),
+        "knowledge_objects_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md"),
+        "librarian_change_log": _resolved_path_string(artifacts_dir(base_dir, task_id) / "librarian_change_log.json"),
+        "librarian_change_log_report": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md"
         ),
-        "knowledge_partition_json": str(knowledge_partition_path(base_dir, task_id).resolve()),
-        "knowledge_partition_report": str((artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md").resolve()),
-        "knowledge_index_json": str(knowledge_index_path(base_dir, task_id).resolve()),
-        "knowledge_index_report": str((artifacts_dir(base_dir, task_id) / "knowledge_index_report.md").resolve()),
-        "knowledge_policy_json": str(knowledge_policy_path(base_dir, task_id).resolve()),
-        "canonical_reuse_policy_json": str(canonical_reuse_policy_path(base_dir).resolve()),
-        "knowledge_policy_report": str((artifacts_dir(base_dir, task_id) / "knowledge_policy_report.md").resolve()),
-        "canonical_reuse_policy_report": str((artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md").resolve()),
-        "summary": str((artifacts_dir(base_dir, task_id) / "summary.md").resolve()),
-        "resume_note": str((artifacts_dir(base_dir, task_id) / "resume_note.md").resolve()),
-        "route_report": str((artifacts_dir(base_dir, task_id) / "route_report.md").resolve()),
-        "compatibility_report": str((artifacts_dir(base_dir, task_id) / "compatibility_report.md").resolve()),
-        "source_grounding": str((artifacts_dir(base_dir, task_id) / "source_grounding.md").resolve()),
-        "grounding_evidence_json": str((artifacts_dir(base_dir, task_id) / "grounding_evidence.json").resolve()),
-        "grounding_evidence_report": str((artifacts_dir(base_dir, task_id) / "grounding_evidence_report.md").resolve()),
-        "retrieval_report": str((artifacts_dir(base_dir, task_id) / "retrieval_report.md").resolve()),
-        "retrieval_json": str(retrieval_path(base_dir, task_id).resolve()),
-        "validation_report": str((artifacts_dir(base_dir, task_id) / "validation_report.md").resolve()),
-        "compatibility_json": str(compatibility_path(base_dir, task_id).resolve()),
-        "validation_json": str(validation_path(base_dir, task_id).resolve()),
-        "task_memory": str(memory_path(base_dir, task_id).resolve()),
-        "capability_manifest_json": str(capability_manifest_path(base_dir, task_id).resolve()),
-        "capability_assembly_json": str(capability_assembly_path(base_dir, task_id).resolve()),
-        "route_json": str(route_path(base_dir, task_id).resolve()),
-        "topology_report": str((artifacts_dir(base_dir, task_id) / "topology_report.md").resolve()),
-        "topology_json": str(topology_path(base_dir, task_id).resolve()),
-        "execution_site_report": str((artifacts_dir(base_dir, task_id) / "execution_site_report.md").resolve()),
-        "execution_site_json": str(execution_site_path(base_dir, task_id).resolve()),
-        "dispatch_report": str((artifacts_dir(base_dir, task_id) / "dispatch_report.md").resolve()),
-        "dispatch_json": str(dispatch_path(base_dir, task_id).resolve()),
-        "handoff_report": str((artifacts_dir(base_dir, task_id) / "handoff_report.md").resolve()),
-        "handoff_json": str(handoff_path(base_dir, task_id).resolve()),
-        "remote_handoff_contract_report": str(
-            (artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md").resolve()
+        "knowledge_partition_json": _resolved_path_string(knowledge_partition_path(base_dir, task_id)),
+        "knowledge_partition_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md"),
+        "knowledge_index_json": _resolved_path_string(knowledge_index_path(base_dir, task_id)),
+        "knowledge_index_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_index_report.md"),
+        "knowledge_policy_json": _resolved_path_string(knowledge_policy_path(base_dir, task_id)),
+        "canonical_reuse_policy_json": _resolved_path_string(canonical_reuse_policy_path(base_dir)),
+        "knowledge_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_policy_report.md"),
+        "canonical_reuse_policy_report": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md"
         ),
-        "remote_handoff_contract_json": str(remote_handoff_contract_path(base_dir, task_id).resolve()),
-        "execution_fit_report": str((artifacts_dir(base_dir, task_id) / "execution_fit_report.md").resolve()),
-        "execution_fit_json": str(execution_fit_path(base_dir, task_id).resolve()),
-        "retry_policy_report": str((artifacts_dir(base_dir, task_id) / "retry_policy_report.md").resolve()),
-        "retry_policy_json": str(retry_policy_path(base_dir, task_id).resolve()),
-        "execution_budget_policy_report": str((artifacts_dir(base_dir, task_id) / "execution_budget_policy_report.md").resolve()),
-        "execution_budget_policy_json": str(execution_budget_policy_path(base_dir, task_id).resolve()),
-        "stop_policy_report": str((artifacts_dir(base_dir, task_id) / "stop_policy_report.md").resolve()),
-        "stop_policy_json": str(stop_policy_path(base_dir, task_id).resolve()),
-        "checkpoint_snapshot_report": str((artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md").resolve()),
-        "checkpoint_snapshot_json": str(checkpoint_snapshot_path(base_dir, task_id).resolve()),
+        "summary": _resolved_path_string(artifacts_dir(base_dir, task_id) / "summary.md"),
+        "resume_note": _resolved_path_string(artifacts_dir(base_dir, task_id) / "resume_note.md"),
+        "route_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "route_report.md"),
+        "compatibility_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "compatibility_report.md"),
+        "source_grounding": _resolved_path_string(artifacts_dir(base_dir, task_id) / "source_grounding.md"),
+        "grounding_evidence_json": _resolved_path_string(artifacts_dir(base_dir, task_id) / "grounding_evidence.json"),
+        "grounding_evidence_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "grounding_evidence_report.md"),
+        "retrieval_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "retrieval_report.md"),
+        "retrieval_json": _resolved_path_string(retrieval_path(base_dir, task_id)),
+        "validation_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "validation_report.md"),
+        "compatibility_json": _resolved_path_string(compatibility_path(base_dir, task_id)),
+        "validation_json": _resolved_path_string(validation_path(base_dir, task_id)),
+        "task_memory": _resolved_path_string(memory_path(base_dir, task_id)),
+        "capability_manifest_json": _resolved_path_string(capability_manifest_path(base_dir, task_id)),
+        "capability_assembly_json": _resolved_path_string(capability_assembly_path(base_dir, task_id)),
+        "route_json": _resolved_path_string(route_path(base_dir, task_id)),
+        "topology_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "topology_report.md"),
+        "topology_json": _resolved_path_string(topology_path(base_dir, task_id)),
+        "execution_site_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "execution_site_report.md"),
+        "execution_site_json": _resolved_path_string(execution_site_path(base_dir, task_id)),
+        "dispatch_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "dispatch_report.md"),
+        "dispatch_json": _resolved_path_string(dispatch_path(base_dir, task_id)),
+        "handoff_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "handoff_report.md"),
+        "handoff_json": _resolved_path_string(handoff_path(base_dir, task_id)),
+        "remote_handoff_contract_report": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md"
+        ),
+        "remote_handoff_contract_json": _resolved_path_string(remote_handoff_contract_path(base_dir, task_id)),
+        "execution_fit_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "execution_fit_report.md"),
+        "execution_fit_json": _resolved_path_string(execution_fit_path(base_dir, task_id)),
+        "retry_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "retry_policy_report.md"),
+        "retry_policy_json": _resolved_path_string(retry_policy_path(base_dir, task_id)),
+        "execution_budget_policy_report": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "execution_budget_policy_report.md"
+        ),
+        "execution_budget_policy_json": _resolved_path_string(execution_budget_policy_path(base_dir, task_id)),
+        "stop_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "stop_policy_report.md"),
+        "stop_policy_json": _resolved_path_string(stop_policy_path(base_dir, task_id)),
+        "checkpoint_snapshot_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md"),
+        "checkpoint_snapshot_json": _resolved_path_string(checkpoint_snapshot_path(base_dir, task_id)),
     }
     if multi_card_plan:
-        state.artifact_paths["subtask_summary"] = str((artifacts_dir(base_dir, task_id) / "subtask_summary.md").resolve())
+        state.artifact_paths["subtask_summary"] = _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "subtask_summary.md"
+        )
     state.execution_phase = "analysis_done"
     state.last_phase_checkpoint_at = utc_now()
     save_state(base_dir, state)
@@ -3685,7 +3652,7 @@ async def run_task_async(
             else "failed"
         )
         state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
-    staged_candidates = _route_knowledge_to_staged(base_dir, state)
+    staged_candidate_count = 0
     save_state(base_dir, state)
     _record_phase_checkpoint(base_dir, state, "analysis_done", source="live_analysis")
     if manual_intervention_required:
@@ -3707,7 +3674,7 @@ async def run_task_async(
                     "retrieval_count": state.retrieval_count,
                     "executor_name": state.executor_name,
                     "review_feedback_ref": state.review_feedback_ref,
-                    "staged_candidate_count": len(staged_candidates),
+                    "staged_candidate_count": staged_candidate_count,
                     "grounding_refs": state.grounding_refs,
                     "grounding_locked": state.grounding_locked,
                     "execution_phase": state.execution_phase,
@@ -3768,7 +3735,7 @@ async def run_task_async(
                     "stop_policy_status": stop_policy_result.status,
                     "knowledge_policy_status": knowledge_policy_result.status,
                     "validation_status": validation_result.status,
-                    "staged_candidate_count": len(staged_candidates),
+                    "staged_candidate_count": staged_candidate_count,
                     "grounding_refs": state.grounding_refs,
                     "grounding_locked": state.grounding_locked,
                     "execution_phase": state.execution_phase,
