@@ -778,6 +778,12 @@ def route_by_name(route_name: str) -> RouteSpec | None:
     return None
 
 
+def lookup_route_by_name(route_name: str) -> RouteSpec | None:
+    """Return static route metadata by name without performing route selection."""
+
+    return route_by_name(route_name)
+
+
 def fallback_route_for(route_name: str) -> RouteSpec | None:
     route = route_by_name(route_name)
     if route is None or not route.fallback_route_name:

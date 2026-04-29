@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import swallow.router as router
 from swallow.identity import local_actor
 from swallow.paths import artifacts_dir
 from swallow.router import route_by_name
@@ -454,7 +455,26 @@ def test_route_override_only_set_by_operator() -> None:
 
 
 def test_path_b_does_not_call_provider_router() -> None:
-    pytest.skip(reason="G.5 will enable, see roadmap candidate G.5")
+    """Path B executor code may consume route metadata, but must not perform route selection."""
+
+    assert hasattr(router, "fallback_route_for")
+    selection_calls = {"select_route", "route_by_name", "fallback_route_for", "route_for_mode"}
+    path = SRC_ROOT / "executor.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=_relative(path))
+    violations: list[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            imported = {alias.name for alias in node.names}
+            if node.module == "router" and imported & selection_calls:
+                for name in sorted(imported & selection_calls):
+                    violations.append(f"{_relative(path)}:{node.lineno} imports Provider Router selection function {name}")
+        elif isinstance(node, ast.Call) and _call_name(node) in selection_calls:
+            violations.append(
+                f"{_relative(path)}:{node.lineno} calls Provider Router selection function {_call_name(node)}"
+            )
+
+    assert violations == []
 
 
 def test_specialist_internal_llm_calls_go_through_router() -> None:

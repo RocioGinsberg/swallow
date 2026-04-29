@@ -36,6 +36,7 @@ from swallow.librarian_executor import LibrarianAgent, LibrarianExecutor
 from swallow.literature_specialist import LiteratureSpecialistAgent, LiteratureSpecialistExecutor
 from swallow.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
 from swallow.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
+from swallow.orchestrator import _resolve_fallback_chain
 from swallow.quality_reviewer import QualityReviewerAgent, QualityReviewerExecutor
 from swallow.validator_agent import ValidatorAgent, ValidatorExecutor
 
@@ -77,6 +78,7 @@ def _http_state(
         route_model_hint=route_model_hint,
         route_dialect=route_dialect,
         route_capabilities={"execution_kind": execution_kind, "supports_tool_loop": False},
+        fallback_route_chain=_resolve_fallback_chain(route_name),
     )
 
 
@@ -456,6 +458,10 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(result.fallback_route_name, "http-qwen")
         self.assertEqual(state.route_name, "http-qwen")
         self.assertEqual(state.route_dialect, "plain_text")
+        self.assertEqual(
+            state.fallback_route_chain,
+            ("http-claude", "http-qwen", "http-glm", "local-claude-code", "local-summary"),
+        )
         self.assertEqual(http_post.call_count, 2)
         self.assertEqual(http_post.call_args.kwargs["json"]["model"], "qwen2.5-coder-32b-instruct")
 
@@ -496,6 +502,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertEqual(state.route_name, "local-summary")
         self.assertEqual(state.executor_name, "local")
         self.assertEqual(state.route_dialect, "plain_text")
+        self.assertEqual(state.fallback_route_chain, ("http-glm", "local-claude-code", "local-summary"))
         self.assertIn("Route: local-summary", result.prompt)
 
     def test_run_executor_inline_raises_for_unknown_executor(self) -> None:

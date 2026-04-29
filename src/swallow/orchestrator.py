@@ -124,6 +124,7 @@ from .router import (
     apply_route_weights,
     fallback_route_for,
     normalize_route_mode,
+    route_by_name,
     select_route,
 )
 from .planner import plan
@@ -209,6 +210,22 @@ def _serialize_capability_constraints(constraints: list[CapabilityConstraint]) -
     return [constraint.to_dict() for constraint in constraints]
 
 
+def _resolve_fallback_chain(primary_route_name: str) -> tuple[str, ...]:
+    route = route_by_name(primary_route_name)
+    if route is None:
+        return ()
+
+    chain: list[str] = []
+    seen: set[str] = set()
+    current_name = route.name
+    while current_name and current_name not in seen:
+        chain.append(current_name)
+        seen.add(current_name)
+        fallback_route = fallback_route_for(current_name)
+        current_name = fallback_route.name if fallback_route is not None else ""
+    return tuple(chain)
+
+
 def _apply_route_spec_to_state(
     state: TaskState,
     route: RouteSpec,
@@ -232,6 +249,7 @@ def _apply_route_spec_to_state(
     state.route_is_fallback = False
     original_route_capabilities = route.capabilities.to_dict()
     state.route_capabilities = dict(original_route_capabilities)
+    state.fallback_route_chain = _resolve_fallback_chain(route.name)
     return original_route_capabilities
 
 

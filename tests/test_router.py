@@ -9,6 +9,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
+from swallow.orchestrator import _resolve_fallback_chain
 from swallow.paths import route_capabilities_path
 from swallow.router import (
     RouteRegistry,
@@ -17,6 +18,7 @@ from swallow.router import (
     build_detached_route,
     current_route_capability_profiles,
     current_route_weights,
+    lookup_route_by_name,
     normalize_route_name,
     route_by_name,
     route_for_executor,
@@ -114,6 +116,15 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(route_by_name("http-gemini").fallback_route_name, "http-qwen")
         self.assertEqual(route_by_name("http-deepseek").dialect_hint, "fim")
         self.assertEqual(route_by_name("local-claude-code").dialect_hint, "plain_text")
+
+    def test_lookup_route_by_name_is_read_only_route_metadata_lookup(self) -> None:
+        self.assertIs(lookup_route_by_name("http-claude"), route_by_name("http-claude"))
+
+    def test_resolve_fallback_chain_covers_builtin_http_chain(self) -> None:
+        self.assertEqual(
+            _resolve_fallback_chain("http-claude"),
+            ("http-claude", "http-qwen", "http-glm", "local-claude-code", "local-summary"),
+        )
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
         detached = build_detached_route(route_for_executor("aider"))

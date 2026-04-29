@@ -389,6 +389,7 @@ class TaskState:
     route_reason: str = "Default local Aider route."
     route_is_fallback: bool = False
     route_capabilities: dict[str, Any] = field(default_factory=dict)
+    fallback_route_chain: tuple[str, ...] = ()
     topology_route_name: str = "local-aider"
     topology_executor_family: str = "cli"
     topology_execution_site: str = "local"
@@ -425,7 +426,15 @@ class TaskState:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "TaskState":
-        return cls(**data)
+        normalized = dict(data)
+        fallback_route_chain = normalized.get("fallback_route_chain", ())
+        if isinstance(fallback_route_chain, (list, tuple)):
+            normalized["fallback_route_chain"] = tuple(str(item) for item in fallback_route_chain)
+        elif fallback_route_chain in {"", None}:
+            normalized["fallback_route_chain"] = ()
+        else:
+            normalized["fallback_route_chain"] = (str(fallback_route_chain),)
+        return cls(**normalized)
 
 
 @dataclass(frozen=True, slots=True)

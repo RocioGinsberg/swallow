@@ -507,13 +507,31 @@ def _executor_route_fallback_enabled(state: TaskState) -> bool:
     return route_name.startswith("http-") or route_name in {"local-http", "local-aider", "local-claude-code"}
 
 
-def _load_fallback_route(route_name: str) -> RouteSpec | None:
-    from .router import fallback_route_for
+def _load_fallback_route(
+    state: TaskState,
+    current_route_name: str,
+    visited_routes: set[str],
+) -> RouteSpec | None:
+    from .router import lookup_route_by_name
 
-    return fallback_route_for(route_name)
+    chain = tuple(str(route_name).strip() for route_name in state.fallback_route_chain if str(route_name).strip())
+    if not chain:
+        return None
+    try:
+        current_index = chain.index(current_route_name)
+    except ValueError:
+        return None
+    next_index = current_index + 1
+    if next_index >= len(chain):
+        return None
+    next_route_name = chain[next_index]
+    if next_route_name in visited_routes:
+        return None
+    return lookup_route_by_name(next_route_name)
 
 
 def _apply_route_spec_for_executor_fallback(state: TaskState, route: RouteSpec, reason: str) -> None:
+    # The fallback chain is an immutable execution plan from the orchestrator; do not rewrite it here.
     state.executor_name = route.executor_name
     state.route_name = route.name
     state.route_backend = route.backend_kind
@@ -711,7 +729,7 @@ def _apply_executor_route_fallback(
     seen_routes = set(visited_routes or ())
     seen_routes.add(current_route_name)
     primary_route_name = str(original_route_name or current_route_name).strip() or current_route_name
-    fallback_route = _load_fallback_route(current_route_name)
+    fallback_route = _load_fallback_route(state, current_route_name, seen_routes)
     if fallback_route is None or fallback_route.name in seen_routes:
         if result.degraded:
             return result
@@ -752,7 +770,7 @@ async def _apply_executor_route_fallback_async(
     seen_routes = set(visited_routes or ())
     seen_routes.add(current_route_name)
     primary_route_name = str(original_route_name or current_route_name).strip() or current_route_name
-    fallback_route = _load_fallback_route(current_route_name)
+    fallback_route = _load_fallback_route(state, current_route_name, seen_routes)
     if fallback_route is None or fallback_route.name in seen_routes:
         if result.degraded:
             return result
