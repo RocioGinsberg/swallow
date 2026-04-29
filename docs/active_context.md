@@ -13,13 +13,13 @@
 - latest_completed_slice: `Governance Boundary LLM Path Closure + route metadata externalization + review follow-up`
 - active_track: `Governance`
 - active_phase: `Phase 65`
-- active_slice: `Phase 65 implementation complete — pending Human/Claude review`
+- active_slice: `Phase 65 review follow-up complete — pending Human/Claude review`
 - active_branch: `feat/phase65-truth-plane-sqlite`
-- status: `phase65_implementation_complete_pending_review`
+- status: `phase65_review_followup_complete_pending_review`
 
 ## 当前状态说明
 
-Phase 65 implementation is complete on `feat/phase65-truth-plane-sqlite` and ready for Human/Claude review.
+Phase 65 implementation review follow-up is complete on `feat/phase65-truth-plane-sqlite` and ready for Human/Claude review.
 
 Implemented scope:
 
@@ -27,12 +27,24 @@ Implemented scope:
 - M2/S2: route metadata and policy writers now persist SQLite rows; `RouteRepo._apply_metadata_change` and `PolicyRepo._apply_policy_change` own explicit `BEGIN IMMEDIATE` transactions via `sqlite_store.get_connection(base_dir)` (`isolation_level=None`); route rollback redoes in-memory registry state from SQLite; audit rows are written in-transaction.
 - M3/S3: append-only guard table set expanded 4 -> 6; `swl migrate --status` reports `schema_version: 1, pending: 0`; `DATA_MODEL.md` synced to Phase 65 schema; `INVARIANTS.md` unchanged.
 
-Verification:
+Latest verification:
 
-- `.venv/bin/python -m pytest -q` -> `597 passed, 8 deselected, 10 subtests passed`
+- `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+- `.venv/bin/python -m pytest tests/test_governance.py -q` -> `10 passed`
+- `.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` -> `19 passed`
+- `.venv/bin/python -m pytest tests/test_cli.py -q` -> `241 passed, 10 subtests passed`
+- `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+- `.venv/bin/python -m pytest -q` -> `610 passed, 8 deselected, 10 subtests passed`
 - `.venv/bin/python tests/audit_no_skip_drift.py` -> all 8 tracked guards green
 - `git diff --check` -> passed
 - `git diff -- docs/design/INVARIANTS.md` -> no output
+
+Review follow-up result:
+
+- BLOCK-1 fixed: `_write_json(application_path, ...)` now logs warning only after SQLite truth commit if the review artifact write fails.
+- CONCERN-1 fixed: Phase 65 transaction failure injection coverage expanded in `tests/test_phase65_sqlite_truth.py`.
+- CONCERN-2 fixed: non-trivial route round-trip fixture added with 3 routes and 5 task-family scores per route.
+- NOTE-1 fixed: `DATA_MODEL.md` §8 `schema_version.slug` now matches implementation as `slug TEXT NOT NULL`.
 
 ## 当前关键文档
 
@@ -42,10 +54,12 @@ Verification:
 4. `docs/plans/phase65/design_audit.md`(claude/design-auditor,verdict = NEEDS_REVISION_BEFORE_GATE)
 5. `docs/plans/phase65/model_review.md`(claude + external GPT-5,verdict = BLOCK)
 6. `docs/plans/phase65/commit_summary.md`(codex, implementation summary)
-7. `docs/design/DATA_MODEL.md`(Phase 65 schema sync; `INVARIANTS.md` unchanged)
-8. `docs/concerns_backlog.md`
-9. `current_state.md`(merge 后待同步)
-10. `docs/roadmap.md`(merge 后由 roadmap-updater factual update)
+7. `docs/plans/phase65/consistency_report.md`(claude/consistency-checker, verdict = concerns)
+8. `docs/plans/phase65/review_comments.md`(claude, verdict = APPROVE_WITH_CONDITIONS)
+9. `docs/design/DATA_MODEL.md`(Phase 65 schema sync; `INVARIANTS.md` unchanged)
+10. `docs/concerns_backlog.md`
+11. `current_state.md`(merge 后待同步)
+12. `docs/roadmap.md`(merge 后由 roadmap-updater factual update)
 
 ---
 
@@ -84,6 +98,9 @@ Verification:
   - `risk_assessment.md` 风险矩阵 9→11 条;R5 增 audit 大小测试约束;R10 新增(§8 narrowing 不充分,Phase 66+ 仍需补 migration runner);R11 新增(§3.4 加 6 列后 bootstrap / UPSERT 漏填字段)
   - 不再触发二次 model_review:5 BLOCK 已通过文字修订消化,internal 一致性由 Human Gate 把关
 - **[Codex]** Phase 65 implementation completed(M1+M2+M3):route/policy truth moved to SQLite, explicit transaction + audit rows landed, append-only guard extended, `swl migrate --status` added, DATA_MODEL synced, verification green(`597 passed / 8 deselected / 10 subtests`)。
+- **[Claude/consistency-checker]** Phase 65 consistency report 已产出,verdict = `concerns`。
+- **[Claude]** Phase 65 review comments 已产出,verdict = `APPROVE_WITH_CONDITIONS`:1 BLOCK-CODE + 2 CONCERN + 1 NOTE。
+- **[Codex]** Phase 65 review follow-up 已完成:BLOCK-1 / CONCERN-1 / CONCERN-2 / NOTE-1 均已处理;最新验证绿(`610 passed / 8 deselected / 10 subtests`)。
 
 进行中:
 
@@ -92,7 +109,7 @@ Verification:
 待执行:
 
 - **[Human]** Review working tree and decide commit split. Suggested split is in `docs/plans/phase65/commit_summary.md`.
-- **[Claude]** Review Phase 65 implementation and produce review / consistency artifacts before merge decision.
+- **[Human/Claude]** Review Phase 65 follow-up diff and decide merge gate.
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
@@ -103,9 +120,9 @@ Verification:
 
 ## 当前下一步
 
-1. **[Human]** Review Phase 65 implementation diff and commit at milestone/document boundaries.
-2. **[Claude]** Run implementation review / consistency check against `design_decision.md`.
-3. **[Codex]** Address review findings if any; then prepare PR body when Human requests PR creation.
+1. **[Human/Claude]** Review Phase 65 follow-up diff and decide merge gate.
+2. **[Codex]** Address any follow-up findings if review reopens issues.
+3. **[Codex]** Prepare PR body when Human requests PR creation.
 
 ```markdown
 design_audit:
@@ -152,7 +169,9 @@ model_review:
 - `docs/plans/phase65/risk_assessment.md`(claude, 2026-04-29, revised-after-model-review)
 - `docs/plans/phase65/design_audit.md`(claude/design-auditor, 2026-04-29, verdict = NEEDS_REVISION_BEFORE_GATE)
 - `docs/plans/phase65/model_review.md`(claude + external GPT-5, 2026-04-29, verdict = BLOCK)
-- `docs/plans/phase65/commit_summary.md`(codex, 2026-04-29, implementation summary)
-- `docs/design/DATA_MODEL.md`(codex, Phase 65 schema sync; `INVARIANTS.md` unchanged)
+- `docs/plans/phase65/commit_summary.md`(codex, 2026-04-30, implementation + review follow-up summary)
+- `docs/plans/phase65/consistency_report.md`(claude/consistency-checker, 2026-04-30, verdict = concerns)
+- `docs/plans/phase65/review_comments.md`(claude, 2026-04-30, verdict = APPROVE_WITH_CONDITIONS)
+- `docs/design/DATA_MODEL.md`(codex, Phase 65 schema sync + review NOTE-1 fix; `INVARIANTS.md` unchanged)
 - `src/swallow/sqlite_store.py` / `src/swallow/router.py` / `src/swallow/truth/route.py` / `src/swallow/truth/policy.py` / `src/swallow/consistency_audit.py` / `src/swallow/mps_policy_store.py` / `src/swallow/governance.py` / `src/swallow/cli.py`(codex, Phase 65 implementation)
-- `tests/test_phase65_sqlite_truth.py` / `tests/test_invariant_guards.py` / `tests/test_router.py` / `tests/test_governance.py` / `tests/test_cli.py` / `tests/test_meta_optimizer.py`(codex, Phase 65 tests / fixture migration)
+- `tests/test_phase65_sqlite_truth.py` / `tests/test_invariant_guards.py` / `tests/test_router.py` / `tests/test_governance.py` / `tests/test_cli.py` / `tests/test_meta_optimizer.py`(codex, Phase 65 tests / fixture migration / review follow-up coverage)
