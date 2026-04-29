@@ -12,10 +12,10 @@
 - latest_completed_phase: `Phase 64`
 - latest_completed_slice: `Governance Boundary LLM Path Closure + route metadata externalization + review follow-up`
 - active_track: `Governance`
-- active_phase: `Post-Phase 64 merge`
-- active_slice: `merge resolution / post-merge state sync / roadmap factual update / tag decision`
-- active_branch: `main`
-- status: `phase64_merge_resolved_pending_human_commit`
+- active_phase: `Phase 65`
+- active_slice: `Phase 65 三件套 revised-after-model-review 完成 / 等 Human Design Gate`
+- active_branch: `main`(Phase 65 branch 待 Design Gate 后切出)
+- status: `phase65_design_revised_pending_human_gate`
 
 ## 当前状态说明
 
@@ -56,7 +56,11 @@ Review 状态:
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
-2. `docs/plans/phase64/closeout.md`
+2. `docs/plans/phase65/kickoff.md` / `design_decision.md` / `risk_assessment.md`(revised-after-model-review)
+3. `docs/plans/phase65/context_brief.md`(claude/context-analyst)
+4. `docs/plans/phase65/design_audit.md`(claude/design-auditor,verdict = NEEDS_REVISION_BEFORE_GATE)
+5. `docs/plans/phase65/model_review.md`(claude + external GPT-5,verdict = BLOCK)
+6. `docs/plans/phase64/closeout.md`
 3. `docs/plans/phase64/review_comments.md`
 4. `docs/plans/phase64/consistency_report.md`
 5. `docs/plans/phase64/commit_summary.md`
@@ -90,46 +94,66 @@ Review 状态:
 - **[Codex]** 已消化唯一 review CONCERN:promote fallback chain resolver to `router.resolve_fallback_chain(...)`。
 - **[Codex]** Phase 64 closeout 已完成;`docs/concerns_backlog.md` 已标记 G.5 guard skip placeholder resolved,并新增 indirect chat-completion URL guard gap Open concern。
 - **[Codex]** 当前 merge conflict 已收敛到本文,并按 post-Phase 64 main 状态解析。
+- **[Human]** Phase 64 merge 已完成(`7b38aeb Merge branch 'feat/phase64-llm-router-boundary'`,2026-04-29)。
+- **[Claude/roadmap-updater]** Phase 64 post-merge factual update 已完成:§三 NO_SKIP 红灯修复行 + 治理守卫收口行 标 [已消化];§四候选 G.5 块 strikethrough(merge 日期 + closeout 引用);§五推荐顺序更新为 G ✓ → G.5 ✓ → H → D;§六治理边界 LLM 路径 + 写入治理两个维度同步标 Phase 64 完成,下一步候选 = 候选 H。
+- **[Human]** Direction Gate(2026-04-29)选定下一阶段 = 候选 H(Truth Plane SQLite 一致性);Tag 决策 = 等 H 完成后整体打 `v1.4.0`(治理三段 G + G.5 + H 完整闭合)。
+- **[Claude/roadmap-updater]** 已绑定 Phase 65 = 候选 H:§三 Truth Plane SQLite 行 [active in Phase 65];§四候选 H 块 标头改为 "Phase 65 active";§五推荐顺序加 "(Phase 65 active)";§七 Tag/Release 决策追踪节新增 v1.4.0 决议记录。
+- **[Claude/context-analyst]** Phase 65 `docs/plans/phase65/context_brief.md` 已产出。关键发现:(a) DATA_MODEL §3.4 / §3.5 表 schema 已定义但 `sqlite_store.py` 未建表,Phase 65 是 schema 兑现 + 实装 phase;(b) `RouteRepo._apply_metadata_change` 当前 4 对 save+apply 无事务,失败导致 in-memory 与 disk 局部不一致;(c) `_emit_event` 桩函数是审计写入位置决策点(Repository 层事务内 vs 事务外);(d) Phase 64 的 5 个加载入口顺序对齐,Phase 65 不改顺序只改 reader 实装;(e) 测试 fixture 中 `tests/test_router.py:242, 265` 等有路径名 assertion 需要随迁移更新。
+- **[Claude]** Phase 65 三件套 draft 已完成:**3 milestone / 3 slice**(M1 schema 兑现 + reader 切 SQLite + 一次性 migration / M2 writer 切 SQLite + `BEGIN IMMEDIATE` 事务包裹 + 审计表写入 / M3 守卫扩展 + migration 协议落地 + DATA_MODEL.md 同步)。1 高风险 slice(S2 事务边界 + in-memory ROUTE_REGISTRY redo)。**触动 DATA_MODEL.md** §3.4/§3.5/§4.2/§8(已定义未实装的兑现 + 表清单 4→6 + migration 协议落地);**INVARIANTS.md 文字不动**。Model Review Gate 推荐触发(高风险事务边界 + DATA_MODEL 实装兑现)。
+- **[Claude/format-validator]** Phase 65 三件套手工核验 PASS(API quota 异常,subagent 暂调不动;通过 `head -10` 校验 frontmatter + TL;DR + status):author=claude / phase=phase65 / slice 各异 / status=draft / depends_on 含 context_brief.md。
+- **[Claude/format-validator]**(2026-04-29 重跑)Phase 65 四件套(含 context_brief)PASS,frontmatter + TL;DR 全齐。
+- **[Claude/design-auditor]**(2026-04-29)Phase 65 三件套审计完成,产出 `docs/plans/phase65/design_audit.md`,verdict = NEEDS_REVISION_BEFORE_GATE。Findings:**2 BLOCKER**(BLOCKER-1 Python sqlite3 隐式事务与 `BEGIN IMMEDIATE` 冲突;BLOCKER-2 `_get_connection(base_dir)` 不存在,connection access pattern 缺失)+ **4 CONCERN**(§3.4 schema 字段缺口 / §3.5 policy 持久化映射 / §8 "不允许运行时静默执行" vs dev-mode auto-migrate 直接矛盾 / action enum 不含 migration 路径) + 3 OK。
+- **[Claude/model-review]**(2026-04-29)GPT-5 二次核验完成,产出 `docs/plans/phase65/model_review.md`,verdict = **BLOCK**(5 BLOCK + 9 CONCERN + 3 PASS)。把 design-auditor 的 3 个 CONCERN 升级为 BLOCK:**§3.4 schema 字段缺口威胁 P2 兑现性**、**§3.5 policy 持久化语义未定**、**§8 与 dev-mode auto-migrate 直接矛盾**;新增失败注入测试矩阵 + M1/M3 概念分离 + "Phase 65 不允许停在 M1 后" 约束等 9 个 CONCERN。Reviewer = external-model (`mcp__gpt5__chat-with-gpt5_5`)。
+- **[Human]**(2026-04-29)Design 决策两条关键路径:BLOCK-5 §8 矛盾 → 路径 (i) 收紧 Phase 65 即"首次建表不算 §8 migration",§8 文字不动;BLOCK-3 §3.4 字段缺口 → 路径 (a) 加 6 个独立列(capabilities_json / taxonomy_json / execution_site / executor_family / executor_name / remote_capable)。
+- **[Claude]**(2026-04-29)Phase 65 三件套修订完成至 `status: revised-after-model-review`:
+  - `design_decision.md` §S1 加 BLOCK-3 列扩展决议 + BLOCK-2 connection accessor 决议 + CONCERN-4 命名分离 + CONCERN-6 audit enum;§S2 加 BLOCK-1 isolation_level=None + 事务模式模板 + BLOCK-4 policy_records 映射表 + CONCERN-1 redo 时序 + CONCERN-2 失败注入矩阵 + CONCERN-3 artifact 归类 + CONCERN-7 大小测试约束;§S3 加 BLOCK-5 §8 narrowing(首次建表不算 migration)+ DATA_MODEL §3.4 加 6 列 + §8 文字不动 + reference 一行
+  - `kickoff.md` G6 改"首次建表 + schema_version 协议"(不再叫 migration);G7 DATA_MODEL §3.4 边界放宽至加 6 列;§完成条件 加"M1 不可单独 release"约束;Model Review Gate 段标 completed
+  - `risk_assessment.md` 风险矩阵 9→11 条;R5 增 audit 大小测试约束;R10 新增(§8 narrowing 不充分,Phase 66+ 仍需补 migration runner);R11 新增(§3.4 加 6 列后 bootstrap / UPSERT 漏填字段)
+  - 不再触发二次 model_review:5 BLOCK 已通过文字修订消化,internal 一致性由 Human Gate 把关
 
 进行中:
 
-- **[Human]** 当前 Phase 64 merge / squash commit 尚未完成。
+- 无。
 
 待执行:
 
-- **[Human]** 完成当前 merge / squash commit。
-- **[Codex]** merge commit 完成后同步 `current_state.md` 与必要的 `docs/active_context.md` 后续状态。
-- **[Claude/roadmap-updater]** 完成 Phase 64 post-merge factual update。
-- **[Claude/Human]** 进入 tag decision:判断 Phase 64 是否构成新的稳定 checkpoint,或是否等候候选 H / Truth Plane 后续 phase。
+- **[Human]** Phase 65 Design Gate 审批。重点核查 5 项(详见 `model_review.md §Human Gate Note`):
+  1. design_decision §S2 已含 SQLite `isolation_level=None` + `sqlite_store.get_connection` accessor 决议(BLOCK-1 / BLOCK-2)?
+  2. design_decision §S1 已含 §3.4 加 6 列决议;DATA_MODEL §3.4 修改边界放宽到补字段(BLOCK-3,Human 已选 (a))?
+  3. design_decision §S2 已含 policy_records round-trip 映射表(BLOCK-4)?
+  4. design_decision §S3 已含 BLOCK-5 narrowing(首次建表不算 §8 migration;§8 文字不动;Human 已选 (i))?
+  5. kickoff §完成条件 已含"Phase 65 整体 release 不允许停在 M1 后"约束(CONCERN-5)?
+- **[Human]** Gate 通过后切出 `feat/phase65-truth-plane-sqlite` branch。
+- **[Codex]** Phase 65 实装 + 验证 + closeout(M1 → M2 → M3,每个 milestone 单独 commit gate;**M1 不允许单独 release**;参考 design_decision 各 slice 修订决议;失败注入矩阵 8+4 个 case 必入测试)。
+- **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
 
-- 等待 Human 完成当前 merge / squash commit。
+- 等待 Human Phase 65 Design Gate 决策(三件套 revised-after-model-review;design_audit + model_review 已完成且消化)。
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** 检查 merge resolution 后执行提交。
-2. **[Codex]** 在提交完成后同步 `current_state.md` / `docs/active_context.md`。
-3. **[Claude/roadmap-updater]** 更新 `docs/roadmap.md` 的 Phase 64 factual state。
-4. **[Claude/Human]** 决定是否进入 tag 流程。
-
-```markdown
-model_review:
-- status: completed
-- artifact: docs/plans/phase64/model_review.md
-- reviewer: external-model (GPT-5 via mcp__gpt5__chat-with-gpt5_5)
-- verdict: BLOCK
-- next: 已闭环 — 4 BLOCK + 7 CONCERN 已通过 revised-after-model-review 三件套与 design_audit 复核消化;不再触发二次 model review
-```
+1. **[Human]** Phase 65 Design Gate;核查 5 项 BLOCK 消化情况(详见上方"待执行")。
+2. **[Human]** Gate 通过后切出 `feat/phase65-truth-plane-sqlite` branch。
+3. **[Codex]** M1 → M2 → M3 顺序实装;**M1 commit 必须立即接 M2,不能停在 M1 release**;Codex 实装前先读 `design_decision.md` 各 slice "S? 修订决议" 段获 authoritative 决策。
 
 ```markdown
 design_audit:
 - status: completed
-- artifact: docs/plans/phase64/design_audit.md
-- verdict: concerns-only
-- next: 已闭环 — Codex 实现和交接已记录 S1/S2 CONCERN 假设,当前无 BLOCKER
+- artifact: docs/plans/phase65/design_audit.md
+- verdict: NEEDS_REVISION_BEFORE_GATE (2 BLOCKER + 4 CONCERN + 3 OK)
+- next: 待 Claude 根据 model_review 共同结论修订三件套
+```
+
+```markdown
+model_review:
+- status: completed
+- artifact: docs/plans/phase65/model_review.md
+- reviewer: external-model (GPT-5 via mcp__gpt5__chat-with-gpt5_5)
+- verdict: BLOCK (5 BLOCK + 9 CONCERN + 3 PASS)
+- next: Claude 必修 9 项(详见 model_review.md §Claude Follow-Up);修订后无需再触发二次 model_review
 ```
 
 ---
@@ -154,3 +178,9 @@ design_audit:
 - `tests/test_router.py` / `tests/test_executor_protocol.py` / `tests/test_executor_async.py` / `tests/test_synthesis.py` / `tests/test_invariant_guards.py` / `tests/test_cli.py` / `tests/test_governance.py` / `tests/audit_no_skip_drift.py`(codex, Phase 64 verification)
 - `pr.md`(codex, local ignored Phase 64 PR body)
 - `docs/active_context.md`(codex, 2026-04-29, Phase 64 merge resolution)
+- `docs/plans/phase65/context_brief.md`(claude/context-analyst, 2026-04-29)
+- `docs/plans/phase65/kickoff.md`(claude, 2026-04-29, revised-after-model-review)
+- `docs/plans/phase65/design_decision.md`(claude, 2026-04-29, revised-after-model-review)
+- `docs/plans/phase65/risk_assessment.md`(claude, 2026-04-29, revised-after-model-review)
+- `docs/plans/phase65/design_audit.md`(claude/design-auditor, 2026-04-29, verdict = NEEDS_REVISION_BEFORE_GATE)
+- `docs/plans/phase65/model_review.md`(claude + external GPT-5, 2026-04-29, verdict = BLOCK)
