@@ -53,7 +53,7 @@ status: living-document
 | **完整 Multi-Perspective Synthesis** | ORCHESTRATION | [已消化] MPS Path A route-resolved participant / arbiter 编排、policy governance、staged knowledge bridge、13 条守卫测试完整落地 | **Phase 62 完成**:基于 artifact pointer 的多视角并行+仲裁,受控 multi-route synthesis 编排与显式 staged handoff 闭合;A-lite 低摩擦捕获反馈基础已具备 |
 | **治理守卫收口** | INVARIANTS / DATA_MODEL / SELF_EVOLUTION | [已消化] Phase 63 + Phase 64 完成:§7 集中化函数 + Repository 抽象层 + §9 17 条守卫全 active(0 skip);route metadata / policy 三层外部化(fallback override config + route registry + route selection policy);剩余事务回滚(JSON 存储架构不支持)拆出候选 H | **Phase 63+64 完成**:详见 `docs/plans/phase63/closeout.md` + `docs/plans/phase64/closeout.md` |
 | **NO_SKIP 守卫红灯修复** | INVARIANTS §0 / §4 | [已消化] Phase 64 完成:Path B fallback chain plan 前移 Orchestrator,Executor 通过只读 `lookup_route_by_name` 消费;Specialist internal chat-completion 穿透 `router.invoke_completion()`,§9 两条红灯对应守卫全启用;详见 `docs/plans/phase64/closeout.md` | **Phase 64 完成**:治理边界澄清 — fallback route 选择责任归位 + agent_llm 改走 Provider Router |
-| **Truth Plane SQLite 一致性** | INVARIANTS P2 / DATA_MODEL §3 / SELF_EVOLUTION | route metadata / policy 当前以 JSON 文件 + 进程内 dict 存储,违背 P2 "SQLite-primary truth"。`apply_proposal` 4 步序列(`save_route_weights → apply → save_capability_profiles → apply`)缺事务保证,中途失败导致 in-memory 不一致;长期亦阻碍对象存储后端兼容(S3 / MinIO / OSS 没有文件系统原子 rename) | [active in Phase 65]:route metadata / policy 迁入 SQLite,`apply_proposal` 用 `BEGIN IMMEDIATE` transaction,引入 `route_change_log` / `policy_change_log` 审计表;履行 INVARIANTS P2 在治理状态上的代码层承诺 |
+| **Truth Plane SQLite 一致性** | INVARIANTS P2 / DATA_MODEL §3 / SELF_EVOLUTION | route metadata / policy 当前以 JSON 文件 + 进程内 dict 存储,违背 P2 "SQLite-primary truth"。`apply_proposal` 4 步序列(`save_route_weights → apply → save_capability_profiles → apply`)缺事务保证,中途失败导致 in-memory 不一致;长期亦阻碍对象存储后端兼容(S3 / MinIO / OSS 没有文件系统原子 rename) | [已消化]:Phase 65 completed(2026-04-30,commit `64cbba7`);route metadata / policy 迁入 SQLite,`apply_proposal` 用 `BEGIN IMMEDIATE` transaction,引入 `route_change_log` / `policy_change_log` 审计表;履行 INVARIANTS P2 在治理状态上的代码层承诺。详见 `docs/plans/phase65/closeout.md` |
 | **代码卫生(dead code / 硬编码 / 复用)** | 跨模块 | Phase 64 router 三层外部化清理硬编码后,Human 观察到"还有很多类似问题散落在现有实现"——dead code、可外部化的字面量、可抽出的重复 helper、可复用的逻辑分支均未做系统盘点 | **候选 K**(Phase 65 完成后启动):read-only audit phase,Codex 扫 dead code / 硬编码 / 重复 helper / 复用机会,产出分类 report → backlog;真实修复在后续清理 phase 按重要性排队 |
 | **能力画像自动学习** | PROVIDER_ROUTER / SELF_EVOLUTION | 已被路由消费;自动学习质量与 guard 可观测性仍需提升 | **后续方向** |
 | **Runtime v1** | HARNESS | harness bridge 为 v0 约束 | 低优先级 |
@@ -71,7 +71,7 @@ status: living-document
 | ~~推荐次序 1~~ | ~~候选 F~~ | ~~`apply_proposal()` 入口函数化(Architectural fix)~~ | ~~Design / Governance~~ | ~~✅ Phase 61 已完成~~ |
 | ~~推荐次序 1~~ | ~~候选 E~~ | ~~完整 Multi-Perspective Synthesis~~ | ~~Orchestration~~ | ~~✅ Phase 62 已完成~~ |
 | ~~当前 active~~ | ~~候选 G.5 / Phase 64~~ | ~~NO_SKIP 守卫红灯修复~~ | ~~Governance~~ | ~~Direction = 候选 G.5(Phase 64);2 条红灯由 Phase 63 M0 audit 精确定位;fallback_route 边界澄清 + agent_llm 改走 Provider Router~~ → 已 merge(Phase 64,2026-04-29,详见 `docs/plans/phase64/closeout.md`) |
-| 推荐次序 2 | 候选 H | Truth Plane SQLite 一致性 | Truth / Storage | 履行 INVARIANTS P2;依赖 G + G.5 完成;Phase 65 |
+| 推荐次序 2 | 候选 H | Truth Plane SQLite 一致性 | Truth / Storage | ✅ Phase 65 已完成(2026-04-30,commit `64cbba7`;closeout: `docs/plans/phase65/closeout.md`) |
 | 推荐次序 3 | 候选 K | 代码卫生 audit(dead code / 硬编码 / 复用) | Refactor / Hygiene | read-only audit phase,产出分类 report → backlog;Phase 65 完成后启动 |
 | 推荐次序 4 | 候选 D | 编排增强(Planner / DAG / Strategy Router) | Orchestration | 无真实瓶颈推动 |
 
@@ -100,7 +100,16 @@ status: living-document
 - **依赖**:Phase 63(G)✅ + G.5(Phase 64)完成。G 的 Repository 抽象层骨架是 H 的天然实装载体(Repository 私有方法切换到 SQL 写,governance 层无感)
 - Phase 65 已启动 design phase(2026-04-29 Direction Gate);phase artifacts 在 docs/plans/phase65/
 
-### 候选 K:代码卫生 audit(dead code / 硬编码 / 复用)— 待规划
+### ~~候选 H:Truth Plane SQLite 一致性~~ — Phase 65 已完成
+
+✅ **Phase 65 merge 完成**(2026-04-30,commit `64cbba7`)
+
+- **完成内容**:route metadata / policy 迁入 SQLite(`route_registry` / `policy_records` / `route_change_log` / `policy_change_log` / `schema_version`),`apply_proposal` 用 `BEGIN IMMEDIATE` transaction 包装,引入审计表,legacy JSON 作 bootstrap 源
+- **验证**:610 passed / 8 deselected / 10 subtests;append-only 守卫 6 表齐全;DATA_MODEL §3.4/§3.5/§4.2/§8 同步,INVARIANTS.md 零改动
+- **治理三段闭合**:Phase 63(G) + Phase 64(G.5) + Phase 65(H)完整实现 = 事务回滚、NO_SKIP 红灯、SQLite 一致性三维度兑现,INVARIANTS P2 代码层履行
+- **详见**:`docs/plans/phase65/closeout.md`
+
+### 候选 K:代码卫生 audit(dead code / 硬编码 / 复用)— 推荐次序 3
 
 - **核心价值**:Phase 64 router 三层外部化清理硬编码后,Human 观察到"还有很多类似问题散落在现有实现"。Phase 60-64 连续 5 个实装 phase,代码卫生(dead code / 硬编码字面量 / 重复 helper / 抽象机会)未做系统盘点
 - **scope(audit-only,read-only)**:
@@ -127,14 +136,16 @@ status: living-document
 
 ## 五、Claude 推荐顺序
 
-**G ✓ → G.5 ✓ → H (Phase 65 active) → K → D**(2026-04-29,Phase 64 merge 后确认;G.5 已 merge,编号为 Phase 64;新增候选 K 代码卫生 audit,在 H 完成后启动)
+**G ✓ → G.5 ✓ → H ✓ → K(推荐) / R(观察) / D(后置)**(2026-04-30,Phase 65 merge 后确认;治理三段 G + G.5 + H 完整闭合;候选 K 推荐次序 3,Phase 65 完成后启动)
 
 理由:
 
 1. **候选 G 已完成✅(治理守卫收口,Phase 63)** —— Phase 61 / 62 引入两次"承认现状、登记 Open"模式,已通过 Phase 63 收口让 INVARIANTS 重获威慑力。§7 集中化 + Repository 抽象层骨架 + §9 守卫批量(15 active + 2 G.5 skip)已落地,为后续 G.5 / H / D 准备好前置
-2. **候选 G.5 紧随(NO_SKIP 红灯修复,Phase 64)** —— Phase 63 完成后 §9 守卫只启用 6/8 条会留治理尾巴;G.5 是 G 的自然延续,2 条红灯已被 M0 audit 精确定位(`executor.py:510` + `agent_llm.py:57`),scope 可控,完成后宪法守卫真正全启用
-3. **候选 H 优先于 D(Truth Plane SQLite 一致性)** —— P2 "SQLite-primary truth" 是 INVARIANTS 已写但代码未兑现的不变量。从 Phase 61 留下的"事务回滚"Open 视角,H 是这条 Open 的**唯一正确实装路径**(filesystem 层 staging 治标不治本);从长期视角,H 是对象存储后端兼容的前提。Phase 63 的 Repository 抽象层骨架已为 H 准备实装载体
-4. **候选 D 后置(Planner / DAG / Strategy Router)** —— 编排能力实际可用,无真实瓶颈推动。orchestrator 主链路重构回滚成本高,等到真实需求(MPS 真实使用反馈 / 多 task 复杂依赖场景 / H 的 SQL-backed state 形成稳定基础)出现后再做
+2. **候选 G.5 紧随已完成✅(NO_SKIP 红灯修复,Phase 64)** —— Phase 63 完成后 §9 守卫只启用 6/8 条会留治理尾巴;G.5 是 G 的自然延续,2 条红灯已被 M0 audit 精确定位(`executor.py:510` + `agent_llm.py:57`),scope 可控,完成后宪法守卫真正全启用
+3. **候选 H 已完成✅(Truth Plane SQLite 一致性,Phase 65)** —— P2 "SQLite-primary truth" 是 INVARIANTS 已写但代码未兑现的不变量。Phase 65 通过迁入 SQLite + `BEGIN IMMEDIATE` transaction + audit log 完整闭合;从 Phase 61 留下的"事务回滚"Open 视角,H 是这条 Open 的**唯一正确实装路径**。治理三段(G + G.5 + H)合璧后,INVARIANTS 宪法在治理维度实现完整兑现
+4. **候选 K 推荐次序 3(代码卫生 audit)** —— Phase 60-64 连续 5 个实装 phase,代码债积累(dead code / 硬编码 / 重复 helper / 抽象机会)未盘点。Phase 65 完成且代码状态稳定后,启动 read-only audit 产出分类 report,为后续清理 phase 排队;低风险、高整理价值
+5. **候选 R 观察期(真实使用反馈)** —— 治理三段完成后,建议观察一轮真实使用反馈(多 agent 协作、复杂任务编排、长期知识沉淀),验证 P1 / P2 代码承诺在生产负载下的有效性,推动后续优先级排序
+6. **候选 D 后置(Planner / DAG / Strategy Router)** —— 编排能力实际可用,无真实瓶颈推动。orchestrator 主链路重构回滚成本高,等到真实需求(MPS 真实使用反馈 / 多 task 复杂依赖场景 / H 的 SQL-backed state 形成稳定基础)出现后再做
 
 ---
 
@@ -147,9 +158,9 @@ status: living-document
 | CLI 生态 | aider + claude-code + codex 三足鼎立 | 三者均为独立 route | 稳定期 |
 | 检索分流 | retrieval policy 感知 execution family + task intent | ✅ 已按 path / executor family / task_family 分流 | **稳定期**;后续可评估 operator-facing override CLI / 更细粒度 task-family 专用化 |
 | Agent 体系 | 4 个 Specialist + 2 个 Validator 独立生命周期 | 全部落地 | 稳定期 |
-| 写入治理 | INVARIANTS §0.4 canonical / route / policy 唯一入口 + §9 守卫测试 | Phase 61 apply_proposal() 三类主写入收敛,3 条守卫测试落地;**Phase 63+64 完成**:§7 集中化 + Repository 抽象层 + §9 17 条守卫全 active;route metadata 三层外部化(fallback override + registry + policy),writes 通过 `apply_proposal(..., ROUTE_METADATA)` 收敛;剩余事务回滚拆出候选 H | **Phase 63+64 完成✅** → **候选 H**(Truth Plane SQLite,事务回滚) |
-| 治理边界 LLM 路径 | INVARIANTS §0.3 + §4 三条 LLM 路径(A 受控 HTTP / B agent 黑盒 / C Specialist 内部穿透 Provider Router) | ✅ Phase 64 完成:Path B fallback chain plan 前移 Orchestrator(不再违反 control plane 边界),Specialist internal chat-completion 穿透 `router.invoke_completion()`(履行 Path C),§9 两条红灯对应守卫全启用 | **候选 H**(Truth Plane SQLite 一致性)+ 真实使用反馈观察期 |
-| Truth 物理存储 | INVARIANTS P2 SQLite-primary truth + 对象存储后端兼容性 | task / event / knowledge / evidence / relations 已迁 SQLite;route metadata / policy 仍为 JSON 文件 + 进程内 dict(Phase 64 中已三层外部化),阻碍事务保证 + 对象存储后端 + multi-actor 扩展 | **候选 H**(依赖 G + G.5✅ 完成) |
+| 写入治理 | INVARIANTS §0.4 canonical / route / policy 唯一入口 + §9 守卫测试 | ✅ **Phase 61+63+64+65 完成**:apply_proposal() 三类主写入收敛;§7 集中化 + Repository 抽象层 + §9 17 条守卫全 active;route metadata 三层外部化(fallback override + registry + policy);事务回滚通过 Phase 65 SQLite `BEGIN IMMEDIATE` transaction 完整实装 | **完整闭合**;观察稳定后进后续编排增强 |
+| 治理边界 LLM 路径 | INVARIANTS §0.3 + §4 三条 LLM 路径(A 受控 HTTP / B agent 黑盒 / C Specialist 内部穿透 Provider Router) | ✅ **Phase 64 + 65 完成**:Path B fallback chain plan 前移 Orchestrator(不再违反 control plane 边界),Specialist internal chat-completion 穿透 `router.invoke_completion()`(履行 Path C),§9 17 条守卫全 active | **稳定期**;观察真实使用反馈后推进多 agent 协作扩展 |
+| Truth 物理存储 | INVARIANTS P2 SQLite-primary truth + 对象存储后端兼容性 | ✅ **Phase 65 完成**:task / event / knowledge / evidence / relations / route metadata / policy 全迁 SQLite,事务保证 + 对象存储后端兼容性基础已就位 | **稳定期**;观察 multi-actor 扩展真实需求后推进 |
 | 执行编排 | 高并发多路 + DAG | fan-out 已落地 | **候选 D**(后置) |
 | 思考-讨论-沉淀(完整) | 受控多视角综合 + multi-route synthesis | MPS 受控多视角综合 + 仲裁已落地(Phase 62) | **稳定期** |
 | 自我进化 | Librarian + Meta-Optimizer 提案应用闭环 | 已基本完成 | 远期 |
@@ -161,7 +172,7 @@ status: living-document
 | Release | Trigger Phase(s) | 决议 | 决议日期 |
 |---------|-----------------|------|---------|
 | v1.3.1 | Phase 62 | Phase 62(Multi-Perspective Synthesis)merge 后,单独打 tag 标记检索 / 编排稳定基线 | 2026-04-29 |
-| v1.4.0 | Phase 63 + Phase 64 + Phase 65 | Phase 64 merge 后决议:不立即打 tag,等 Phase 65(候选 H:Truth Plane SQLite 一致性)完成后,以**治理三段完整闭合**(G 治理守卫收口 + G.5 NO_SKIP 红灯修复 + H Truth Plane 一致性)为主题,整体打 minor bump `v1.4.0` | 2026-04-29 |
+| v1.4.0 | Phase 63 + Phase 64 + Phase 65 | Phase 64 merge 后决议(2026-04-29):等 Phase 65 完成后整体打 tag。Phase 65 merge 完成(2026-04-30,commit `64cbba7`);治理三段完整闭合(G 治理守卫收口 + G.5 NO_SKIP 红灯修复 + H Truth Plane SQLite 一致性)。**待 Human 在新会话单独决定打 tag 时机**(不替 Human 代决) | 2026-04-29 / 2026-04-30 |
 
 ---
 
