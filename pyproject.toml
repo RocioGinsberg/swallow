@@ -32,7 +32,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-swallow = ["routes.default.json"]
+swallow = ["route_policy.default.json", "routes.default.json"]
 
 [tool.pytest.ini_options]
 markers = [

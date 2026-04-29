@@ -22,10 +22,11 @@ from swallow.paths import (
     knowledge_wiki_entry_path,
     mps_policy_path,
     route_capabilities_path,
+    route_policy_path,
     route_registry_path,
     route_weights_path,
 )
-from swallow.router import apply_route_registry, route_by_name
+from swallow.router import apply_route_policy, apply_route_registry, current_route_policy, route_by_name
 
 
 def test_operator_token_rejects_invalid_source() -> None:
@@ -188,6 +189,39 @@ def test_apply_route_metadata_proposal_saves_and_refreshes_route_registry(tmp_pa
     finally:
         route.model_hint = original_model_hint
         apply_route_registry(tmp_path.parent)
+
+
+def test_apply_route_metadata_proposal_saves_and_refreshes_route_policy(tmp_path) -> None:
+    route_policy = {
+        "route_mode_routes": {"offline": "local-summary"},
+        "complexity_bias_routes": {"high": "local-summary"},
+        "strategy_complexity_hints": ["high"],
+        "parallel_intent_hints": ["fanout"],
+        "summary_fallback_route_name": "local-summary",
+    }
+    try:
+        register_route_metadata_proposal(
+            base_dir=tmp_path,
+            proposal_id="route-policy",
+            route_policy=route_policy,
+        )
+
+        result = apply_proposal("route-policy", OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
+
+        assert result.success is True
+        assert result.applied_writes == ("route_policy",)
+        persisted_policy = json.loads(route_policy_path(tmp_path).read_text(encoding="utf-8"))
+        assert persisted_policy == {
+            "complexity_bias_routes": {"high": "local-summary"},
+            "parallel_intent_hints": ["fanout"],
+            "route_mode_routes": {"offline": "local-summary"},
+            "strategy_complexity_hints": ["high"],
+            "summary_fallback_route_name": "local-summary",
+        }
+        assert current_route_policy()["complexity_bias_routes"]["high"] == "local-summary"
+        assert current_route_policy()["parallel_intent_hints"] == ["fanout"]
+    finally:
+        apply_route_policy(tmp_path.parent)
 
 
 def test_apply_policy_proposal_saves_audit_trigger_policy(tmp_path) -> None:

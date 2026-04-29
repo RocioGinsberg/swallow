@@ -119,13 +119,16 @@ from .workspace import resolve_path
 from .router import (
     apply_route_capability_profiles,
     apply_route_fallbacks,
+    apply_route_policy,
     apply_route_registry,
     apply_route_weights,
     build_route_capability_profiles_report,
+    build_route_policy_report,
     build_route_registry_report,
     build_route_weights_report,
     current_route_weights,
     load_route_capability_profiles,
+    load_route_policy_from_path,
     route_by_name,
     select_route,
 )
@@ -1342,6 +1345,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Apply a route registry JSON file through route metadata governance.",
     )
     route_registry_apply_parser.add_argument("registry_file", help="Path to a route registry JSON file.")
+    route_policy_parser = route_subparsers.add_parser(
+        "policy",
+        help="Inspect or apply route selection policy metadata.",
+    )
+    route_policy_subparsers = route_policy_parser.add_subparsers(dest="route_policy_command", required=True)
+    route_policy_subparsers.add_parser("show", help="Print the current route selection policy metadata.")
+    route_policy_apply_parser = route_policy_subparsers.add_parser(
+        "apply",
+        help="Apply a route policy JSON file through route metadata governance.",
+    )
+    route_policy_apply_parser.add_argument("policy_file", help="Path to a route policy JSON file.")
     route_weights_parser = route_subparsers.add_parser(
         "weights",
         help="Inspect or apply per-route quality weights.",
@@ -2331,6 +2345,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     base_dir = resolve_path(args.base_dir)
     apply_route_registry(base_dir)
+    apply_route_policy(base_dir)
     apply_route_weights(base_dir)
     apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)
@@ -2637,6 +2652,22 @@ def main(argv: list[str] | None = None) -> int:
         print(build_route_registry_report(base_dir), end="")
         return 0
 
+    if args.command == "route" and args.route_command == "policy" and args.route_policy_command == "show":
+        print(build_route_policy_report(base_dir), end="")
+        return 0
+
+    if args.command == "route" and args.route_command == "policy" and args.route_policy_command == "apply":
+        policy_path = resolve_path(args.policy_file)
+        route_policy = load_route_policy_from_path(policy_path)
+        proposal_id = register_route_metadata_proposal(
+            base_dir=base_dir,
+            proposal_id=f"route-policy:{policy_path.name}",
+            route_policy=route_policy,
+        )
+        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
+        print(build_route_policy_report(base_dir), end="")
+        return 0
+
     if args.command == "route" and args.route_command == "weights" and args.route_weights_command == "show":
         print(build_route_weights_report(base_dir), end="")
         return 0
@@ -2743,6 +2774,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "route" and args.route_command == "select":
         apply_route_registry(base_dir)
+        apply_route_policy(base_dir)
         apply_route_weights(base_dir)
         apply_route_fallbacks(base_dir)
         apply_route_capability_profiles(base_dir)

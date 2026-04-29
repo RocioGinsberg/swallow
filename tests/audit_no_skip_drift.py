@@ -282,6 +282,7 @@ def run_audit() -> list[GuardAudit]:
                 "append_canonical_record",
                 "persist_wiki_entry_from_record",
                 "save_route_registry",
+                "save_route_policy",
                 "save_route_weights",
                 "save_route_capability_profiles",
                 "save_audit_trigger_policy",
@@ -299,7 +300,12 @@ def run_audit() -> list[GuardAudit]:
             },
         ),
         "test_route_metadata_writes_only_via_apply_proposal": _find_protected_writer_uses(
-            protected_names={"save_route_registry", "save_route_weights", "save_route_capability_profiles"},
+            protected_names={
+                "save_route_registry",
+                "save_route_policy",
+                "save_route_weights",
+                "save_route_capability_profiles",
+            },
             allowed_files={
                 "src/swallow/router.py",
                 "src/swallow/truth/route.py",

@@ -214,6 +214,10 @@ def route_registry_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "routes.json"
 
 
+def route_policy_path(base_dir: Path) -> Path:
+    return app_root(base_dir) / "route_policy.json"
+
+
 def route_capabilities_path(base_dir: Path) -> Path:
     return app_root(base_dir) / "route_capabilities.json"
 

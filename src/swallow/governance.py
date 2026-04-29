@@ -9,6 +9,7 @@ from .models import AuditTriggerPolicy
 from .router import (
     load_route_capability_profiles,
     load_route_weights,
+    normalize_route_policy_payload,
     normalize_route_registry_payload,
     normalize_route_name,
     route_by_name,
@@ -67,6 +68,7 @@ class _CanonicalProposal:
 class _RouteMetadataProposal:
     base_dir: Path
     route_registry: dict[str, dict[str, object]] | None = None
+    route_policy: dict[str, object] | None = None
     route_weights: dict[str, float] | None = None
     route_capability_profiles: dict[str, dict[str, object]] | None = None
     review_path: Path | None = None
@@ -130,6 +132,7 @@ def register_route_metadata_proposal(
     base_dir: Path,
     proposal_id: str,
     route_registry: dict[str, dict[str, object]] | None = None,
+    route_policy: dict[str, object] | None = None,
     route_weights: dict[str, float] | None = None,
     route_capability_profiles: dict[str, dict[str, object]] | None = None,
     review_path: Path | None = None,
@@ -138,13 +141,26 @@ def register_route_metadata_proposal(
     if not normalized_id:
         raise ValueError("proposal_id must be a non-empty string.")
     if review_path is not None and (
-        route_registry is not None or route_weights is not None or route_capability_profiles is not None
+        route_registry is not None
+        or route_policy is not None
+        or route_weights is not None
+        or route_capability_profiles is not None
     ):
         raise ValueError("review_path proposals cannot also carry direct route metadata payloads.")
-    if review_path is None and route_registry is None and route_weights is None and route_capability_profiles is None:
-        raise ValueError("route metadata proposal requires route_registry, route_weights, route_capability_profiles, or review_path.")
+    if (
+        review_path is None
+        and route_registry is None
+        and route_policy is None
+        and route_weights is None
+        and route_capability_profiles is None
+    ):
+        raise ValueError(
+            "route metadata proposal requires route_registry, route_policy, route_weights, "
+            "route_capability_profiles, or review_path."
+        )
 
     copied_registry = normalize_route_registry_payload(route_registry) if route_registry is not None else None
+    copied_policy = normalize_route_policy_payload(route_policy) if route_policy is not None else None
     copied_profiles = None
     if route_capability_profiles is not None:
         copied_profiles = {
@@ -157,6 +173,7 @@ def register_route_metadata_proposal(
         _RouteMetadataProposal(
             base_dir=base_dir,
             route_registry=copied_registry,
+            route_policy=copied_policy,
             route_weights=dict(route_weights) if route_weights is not None else None,
             route_capability_profiles=copied_profiles,
             review_path=review_path,
@@ -292,6 +309,7 @@ def _apply_route_metadata(proposal: object, _operator_token: OperatorToken, *, p
     applied_writes = RouteRepo()._apply_metadata_change(
         base_dir=proposal.base_dir,
         route_registry=proposal.route_registry,
+        route_policy=proposal.route_policy,
         route_weights=proposal.route_weights,
         route_capability_profiles=proposal.route_capability_profiles,
     )

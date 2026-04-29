@@ -1,0 +1,23 @@
+{
+  "complexity_bias_routes": {
+    "high": "local-claude-code",
+    "low": "local-aider",
+    "routine": "local-aider"
+  },
+  "parallel_intent_hints": [
+    "parallel"
+  ],
+  "route_mode_routes": {
+    "deterministic": "local-mock",
+    "http": "local-http",
+    "live": "local-aider",
+    "offline": "local-note",
+    "summary": "local-summary"
+  },
+  "strategy_complexity_hints": [
+    "high",
+    "low",
+    "routine"
+  ],
+  "summary_fallback_route_name": "local-summary"
+}

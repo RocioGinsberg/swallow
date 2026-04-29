@@ -122,6 +122,7 @@ from .retrieval import build_retrieval_request
 from .router import (
     apply_route_capability_profiles,
     apply_route_fallbacks,
+    apply_route_policy,
     apply_route_registry,
     apply_route_weights,
     fallback_route_for,
@@ -2489,6 +2490,7 @@ def acknowledge_task(base_dir: Path, task_id: str, *, route_mode: str = "summary
     state.executor_name = "local"
     state.route_mode = normalize_route_mode(route_mode)
     apply_route_registry(base_dir)
+    apply_route_policy(base_dir)
     apply_route_weights(base_dir)
     apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)
@@ -2628,6 +2630,7 @@ def create_task(
         route_mode=normalize_route_mode(route_mode),
     )
     apply_route_registry(base_dir)
+    apply_route_policy(base_dir)
     apply_route_weights(base_dir)
     apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)
@@ -3321,6 +3324,7 @@ async def run_task_async(
         save_capability_assembly(base_dir, task_id, state.capability_assembly)
     state.route_mode = normalize_route_mode(route_mode or state.route_mode)
     apply_route_registry(base_dir)
+    apply_route_policy(base_dir)
     apply_route_weights(base_dir)
     apply_route_fallbacks(base_dir)
     apply_route_capability_profiles(base_dir)

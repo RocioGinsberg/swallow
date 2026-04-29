@@ -11,18 +11,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from swallow.agent_llm import call_agent_llm
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
 from swallow.orchestrator import _resolve_fallback_chain
-from swallow.paths import route_capabilities_path, route_fallbacks_path, route_registry_path
+from swallow.paths import route_capabilities_path, route_fallbacks_path, route_policy_path, route_registry_path
 from swallow.router import (
     RouteRegistry,
+    apply_route_policy,
     apply_route_fallbacks,
     apply_route_capability_profiles,
     apply_route_registry,
     apply_route_weights,
     build_detached_route,
+    current_route_policy,
     current_route_registry,
     current_route_capability_profiles,
     current_route_weights,
+    load_default_route_policy,
     load_default_route_registry,
+    load_route_policy,
     load_route_registry,
     lookup_route_by_name,
     normalize_route_name,
@@ -30,6 +34,7 @@ from swallow.router import (
     route_for_executor,
     route_for_mode,
     save_route_capability_profiles,
+    save_route_policy,
     save_route_registry,
     save_route_weights,
     select_route,
@@ -199,6 +204,13 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(default_registry["http-claude"]["dialect_hint"], "claude_xml")
         self.assertEqual(route_by_name("http-claude").to_dict(), default_registry["http-claude"])
 
+    def test_default_route_policy_is_loaded_from_json_metadata(self) -> None:
+        default_policy = load_default_route_policy()
+
+        self.assertEqual(default_policy["route_mode_routes"]["offline"], "local-note")
+        self.assertEqual(default_policy["complexity_bias_routes"]["high"], "local-claude-code")
+        self.assertEqual(default_policy["summary_fallback_route_name"], "local-summary")
+
     def test_apply_route_registry_loads_workspace_route_metadata(self) -> None:
         registry = RouteRegistry([_route(name="placeholder", executor_name="placeholder", backend_kind="mock")])
         route_registry = {
@@ -233,6 +245,45 @@ class RouteRegistryTest(unittest.TestCase):
         self.assertEqual(registry.maybe_get("placeholder"), None)
         self.assertEqual(registry.get("custom-http").model_hint, "custom-model")
         self.assertEqual(current_route_registry(registry)["local-summary"]["model_hint"], "summary-custom")
+
+    def test_apply_route_policy_loads_workspace_selection_policy_metadata(self) -> None:
+        route_policy = {
+            "route_mode_routes": {"offline": "local-summary"},
+            "complexity_bias_routes": {"high": "local-summary"},
+            "strategy_complexity_hints": ["high"],
+            "parallel_intent_hints": ["fanout"],
+            "summary_fallback_route_name": "local-summary",
+        }
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                save_route_policy(tmp_path, route_policy)
+
+                applied = apply_route_policy(tmp_path)
+                loaded = load_route_policy(tmp_path)
+
+                self.assertEqual(route_policy_path(tmp_path).name, "route_policy.json")
+                self.assertEqual(loaded["complexity_bias_routes"]["high"], "local-summary")
+                self.assertEqual(applied["parallel_intent_hints"], ["fanout"])
+                self.assertEqual(current_route_policy()["route_mode_routes"]["offline"], "local-summary")
+
+                state = TaskState(
+                    task_id="policy-complexity-001",
+                    title="Workspace route policy",
+                    goal="Allow policy metadata to steer complexity bias",
+                    workspace_root="/tmp",
+                    executor_name="aider",
+                    route_executor_family="cli",
+                    route_execution_site="local",
+                    task_semantics={"complexity_hint": "high"},
+                )
+                selection = select_route(state)
+
+                self.assertEqual(selection.route.name, "local-summary")
+                self.assertFalse(selection.policy_inputs["parallel_intent"])
+        finally:
+            with tempfile.TemporaryDirectory() as reset_tmp:
+                apply_route_policy(Path(reset_tmp))
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
         detached = build_detached_route(route_for_executor("aider"))
