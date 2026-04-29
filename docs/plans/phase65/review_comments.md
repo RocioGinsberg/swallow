@@ -2,7 +2,7 @@
 author: claude
 phase: phase65
 slice: pr-review
-status: review
+status: resolved
 depends_on:
   - docs/plans/phase65/kickoff.md
   - docs/plans/phase65/design_decision.md
@@ -13,10 +13,46 @@ depends_on:
   - docs/plans/phase65/commit_summary.md
   - docs/design/INVARIANTS.md
   - docs/design/DATA_MODEL.md
-verdict: APPROVE_WITH_CONDITIONS
+verdict: APPROVE
 ---
 
-TL;DR: 实装质量高,**5 BLOCK 全部 consistent**(transaction ownership / connection accessor / §3.4 加 6 列 / policy 映射 / §8 narrowing 全对齐 design)。但合并前需消化 **1 BLOCK + 2 CONCERN**:(B-1) `_write_json(application_path, ...)` 在 SQL COMMIT 之后无 try/except,异常会传播导致 caller 拿到错误状态(违反 design_decision §S2 CONCERN-3 "log warning only / at-least-once" 文字);(C-1) 失败注入测试矩阵只覆盖 12 个 case 中的 2 个;(C-2) 非 trivial round-trip 测试规格不达标(单 route × 2 score,设计要求 ≥3 routes × 5+ scores)。另有 1 NOTE(DATA_MODEL §8 schema_version DDL `slug TEXT` 缺 `NOT NULL`,与代码不同步)。Verdict = **APPROVE_WITH_CONDITIONS**:B-1 必修才 merge;C-1/C-2 可登记 closeout backlog 后 merge,但建议补齐再 merge。
+TL;DR(2026-04-30 follow-up review):Codex 已消化全部 1 BLOCK + 2 CONCERN + 1 NOTE,follow-up commits `b00ed2a` / `b694e3b` 对位修复,`tests/test_phase65_sqlite_truth.py` 由 8 个测试扩到 21 个(含 12 注入点矩阵 + non-trivial 3 routes × 5 scores round-trip + artifact 失败 log warning 行为)。`pytest tests/test_phase65_sqlite_truth.py tests/test_invariant_guards.py -q` 本机复跑 46 passed。Verdict 升级:**APPROVE_WITH_CONDITIONS → APPROVE**(无 merge-blocker 遗留)。
+
+## Follow-Up Resolution(2026-04-30)
+
+Codex 在 commits `b00ed2a fix(phase65): address sqlite truth review follow-up` + `b694e3b docs(design): align schema_version slug constraint` 中消化首轮 review:
+
+| 首轮 finding | 修复位置 | 复查结论 |
+|---|---|---|
+| **BLOCK-1** `_write_json(application_path, ...)` 缺 try/except | `governance.py:578-590` 加 `try/except OSError` + `logger.warning("review record artifact write failed; SQLite truth already committed", ...)` + 文件顶导入 `logging` 与 `logger = logging.getLogger(__name__)` | ✅ Resolved。catch 范围 `OSError` 与 review 文档建议一致;`_write_json` 实际仅 `mkdir + write_text + json.dumps(应用 dataclass)`,序列化路径不会有运行时 `TypeError`,`OSError` 已覆盖磁盘写失败全部场景 |
+| **CONCERN-1** 失败注入矩阵 12 个 case 缺 10 | `tests/test_phase65_sqlite_truth.py` 新增 10 个 test:`test_route_metadata_transaction_rolls_back_when_registry_save_fails_before_upsert` / `..._policy_save_fails_after_registry_upsert` / `..._weights_save_fails_after_policy_upsert` / `..._capability_apply_fails_after_upsert` / `..._in_memory_weight_apply_fails` / `..._audit_insert_fails_after_insert` / `test_route_metadata_commit_survives_caller_exception_after_commit`(route 8 个对齐 review 文档列出的注入点 1/2/3/4/5/6/7/8)+ `test_policy_transaction_rolls_back_when_audit_trigger_save_fails_after_upsert` / `..._mps_save_fails_after_upsert` / `..._after_payload_capture_fails_after_upsert` / `..._audit_insert_fails_after_insert`(policy 4 个对齐注入点 1/2/3/4) | ✅ Resolved。共 12 注入 case,与 design_decision §S2 CONCERN-2 列出的矩阵一一对位;断言含 SQLite ROLLBACK + audit 行不存在 + in-memory 恢复事务前状态 |
+| **CONCERN-2** non-trivial round-trip(≥3 routes × 5+ scores) | `tests/test_phase65_sqlite_truth.py:195-241 test_route_registry_round_trip_with_non_trivial_capability_profiles`:3 routes(`phase65-route-1/2/3`)× 5 task_families(`planning / execution / review / synthesis / retrieval`),断言 `loaded == route_payload` + `len(profiles[name]["task_family_scores"]) == 5` + audit `after_payload` 全 3 routes 完整反序列化 | ✅ Resolved。规模等于设计要求下限;字段完整性 + audit 持久化均验证 |
+| **NOTE-1** DATA_MODEL §8 `slug TEXT` 缺 `NOT NULL` | `docs/design/DATA_MODEL.md:392` `slug TEXT` → `slug TEXT NOT NULL`(commit `b694e3b`) | ✅ Resolved |
+
+## 复跑验证
+
+- `git log feat/phase65-truth-plane-sqlite ^main --oneline` → 9 commits(含 4 个本轮 follow-up commit:`b00ed2a` / `b694e3b` / `49f6295` / `cbb6578`)
+- `git status` → 干净;branch 在 `feat/phase65-truth-plane-sqlite`
+- 本机复跑 `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py tests/test_invariant_guards.py -q` → 46 passed in 7.17s(全量 597 由 commit_summary 报告;本次 follow-up 不应影响其他套件)
+- `git diff main -- docs/design/INVARIANTS.md` 仍为空(本轮 follow-up 同样不动 INVARIANTS)
+
+## Backlog 提醒
+
+合并前 closeout 仍需登记的 known gap(均在 design 文字内已声明,不阻塞 merge):
+
+1. review record artifact 写在事务外,失败仅 log warning(本轮已实装 + 测试覆盖;后续 phase 若需要更强语义可考虑 outbox / mark-stale)
+2. audit snapshot 无大小上限(>1MB payload 整体 ROLLBACK 是 intentional)
+3. migration runner 完整实装推迟 Phase 66+
+4. events / event_log 双写继续 deferred
+5. Phase 61 "事务回滚"Open 由本 phase 闭合,closeout 标 Resolved
+
+---
+
+## 历史:首轮 Review(2026-04-29)
+
+> 以下为首轮 review 原文,保留作为 follow-up 修复来源。Codex 已消化全部条目,见上方 Follow-Up Resolution 段。
+
+
 
 ## 审查范围
 

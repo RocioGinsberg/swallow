@@ -13,13 +13,14 @@
 - latest_completed_slice: `Governance Boundary LLM Path Closure + route metadata externalization + review follow-up`
 - active_track: `Governance`
 - active_phase: `Phase 65`
-- active_slice: `Phase 65 review follow-up complete — pending Human/Claude review`
+- active_slice: `Phase 65 PR / merge-prep complete`
 - active_branch: `feat/phase65-truth-plane-sqlite`
-- status: `phase65_review_followup_complete_pending_review`
+- status: `phase65_pr_ready_pending_human_merge_gate`
 
 ## 当前状态说明
 
-Phase 65 implementation review follow-up is complete on `feat/phase65-truth-plane-sqlite` and ready for Human/Claude review.
+Phase 65 PR / merge-prep is complete on `feat/phase65-truth-plane-sqlite`.
+The branch is ready for Human PR creation and Merge Gate.
 
 Implemented scope:
 
@@ -46,6 +47,13 @@ Review follow-up result:
 - CONCERN-2 fixed: non-trivial route round-trip fixture added with 3 routes and 5 task-family scores per route.
 - NOTE-1 fixed: `DATA_MODEL.md` §8 `schema_version.slug` now matches implementation as `slug TEXT NOT NULL`.
 
+Merge-prep outputs:
+
+- `docs/plans/phase65/closeout.md` created.
+- `docs/concerns_backlog.md` updated:Phase 61 transaction rollback concern resolved by Phase 65; Phase 65 known gaps recorded.
+- `pr.md` rewritten for Phase 65 PR creation.
+- `review_comments.md` verdict is `APPROVE` after Claude follow-up review.
+
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
@@ -55,11 +63,13 @@ Review follow-up result:
 5. `docs/plans/phase65/model_review.md`(claude + external GPT-5,verdict = BLOCK)
 6. `docs/plans/phase65/commit_summary.md`(codex, implementation summary)
 7. `docs/plans/phase65/consistency_report.md`(claude/consistency-checker, verdict = concerns)
-8. `docs/plans/phase65/review_comments.md`(claude, verdict = APPROVE_WITH_CONDITIONS)
+8. `docs/plans/phase65/review_comments.md`(claude, verdict = APPROVE)
 9. `docs/design/DATA_MODEL.md`(Phase 65 schema sync; `INVARIANTS.md` unchanged)
 10. `docs/concerns_backlog.md`
-11. `current_state.md`(merge 后待同步)
-12. `docs/roadmap.md`(merge 后由 roadmap-updater factual update)
+11. `docs/plans/phase65/closeout.md`(codex, merge-prep closeout)
+12. `pr.md`(codex, PR body draft; local ignored file)
+13. `current_state.md`(merge 后待同步)
+14. `docs/roadmap.md`(merge 后由 roadmap-updater factual update)
 
 ---
 
@@ -101,6 +111,8 @@ Review follow-up result:
 - **[Claude/consistency-checker]** Phase 65 consistency report 已产出,verdict = `concerns`。
 - **[Claude]** Phase 65 review comments 已产出,verdict = `APPROVE_WITH_CONDITIONS`:1 BLOCK-CODE + 2 CONCERN + 1 NOTE。
 - **[Codex]** Phase 65 review follow-up 已完成:BLOCK-1 / CONCERN-1 / CONCERN-2 / NOTE-1 均已处理;最新验证绿(`610 passed / 8 deselected / 10 subtests`)。
+- **[Claude]** Phase 65 follow-up review 已完成,`review_comments.md` verdict 升级为 `APPROVE`,无 merge-blocker 遗留。
+- **[Codex]** Phase 65 merge-prep 已完成:`closeout.md` / `docs/concerns_backlog.md` / `pr.md` 已同步到 PR / Merge Gate 状态。
 
 进行中:
 
@@ -108,8 +120,8 @@ Review follow-up result:
 
 待执行:
 
-- **[Human]** Review working tree and decide commit split. Suggested split is in `docs/plans/phase65/commit_summary.md`.
-- **[Human/Claude]** Review Phase 65 follow-up diff and decide merge gate.
+- **[Human]** Commit merge-prep artifacts, push `feat/phase65-truth-plane-sqlite`, and create PR using `pr.md`.
+- **[Human]** Run Merge Gate after PR creation.
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
@@ -120,9 +132,10 @@ Review follow-up result:
 
 ## 当前下一步
 
-1. **[Human/Claude]** Review Phase 65 follow-up diff and decide merge gate.
-2. **[Codex]** Address any follow-up findings if review reopens issues.
-3. **[Codex]** Prepare PR body when Human requests PR creation.
+1. **[Human]** Commit current merge-prep docs and review resolution.
+2. **[Human]** Push branch and create PR using `pr.md`.
+3. **[Human]** Merge Gate:confirm PR description matches `pr.md` and `review_comments.md` verdict remains `APPROVE`.
+4. **[Codex]** After merge to `main`, update `current_state.md` and `docs/active_context.md`.
 
 ```markdown
 design_audit:
@@ -171,7 +184,10 @@ model_review:
 - `docs/plans/phase65/model_review.md`(claude + external GPT-5, 2026-04-29, verdict = BLOCK)
 - `docs/plans/phase65/commit_summary.md`(codex, 2026-04-30, implementation + review follow-up summary)
 - `docs/plans/phase65/consistency_report.md`(claude/consistency-checker, 2026-04-30, verdict = concerns)
-- `docs/plans/phase65/review_comments.md`(claude, 2026-04-30, verdict = APPROVE_WITH_CONDITIONS)
+- `docs/plans/phase65/review_comments.md`(claude, 2026-04-30, verdict = APPROVE)
+- `docs/plans/phase65/closeout.md`(codex, 2026-04-30, merge-prep closeout)
+- `docs/concerns_backlog.md`(codex, 2026-04-30, Phase 65 closeout updates)
+- `pr.md`(codex, 2026-04-30, Phase 65 PR body draft)
 - `docs/design/DATA_MODEL.md`(codex, Phase 65 schema sync + review NOTE-1 fix; `INVARIANTS.md` unchanged)
 - `src/swallow/sqlite_store.py` / `src/swallow/router.py` / `src/swallow/truth/route.py` / `src/swallow/truth/policy.py` / `src/swallow/consistency_audit.py` / `src/swallow/mps_policy_store.py` / `src/swallow/governance.py` / `src/swallow/cli.py`(codex, Phase 65 implementation)
 - `tests/test_phase65_sqlite_truth.py` / `tests/test_invariant_guards.py` / `tests/test_router.py` / `tests/test_governance.py` / `tests/test_cli.py` / `tests/test_meta_optimizer.py`(codex, Phase 65 tests / fixture migration / review follow-up coverage)
