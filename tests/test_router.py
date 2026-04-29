@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from swallow.agent_llm import call_agent_llm
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
 from swallow.orchestrator import _resolve_fallback_chain
 from swallow.paths import route_capabilities_path, route_fallbacks_path
@@ -73,6 +74,18 @@ def _route(
     )
 
 
+class _FakeCompletionResponse:
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self) -> dict[str, object]:
+        return {
+            "choices": [{"message": {"content": " routed completion "}}],
+            "usage": {"prompt_tokens": 7, "completion_tokens": 11},
+            "model": "router-test-model",
+        }
+
+
 class RouteRegistryTest(unittest.TestCase):
     def test_route_for_executor_returns_builtin_aider_route(self) -> None:
         route = route_for_executor("aider")
@@ -120,6 +133,36 @@ class RouteRegistryTest(unittest.TestCase):
 
     def test_lookup_route_by_name_is_read_only_route_metadata_lookup(self) -> None:
         self.assertIs(lookup_route_by_name("http-claude"), route_by_name("http-claude"))
+
+    def test_call_agent_llm_invokes_router_completion_gateway(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "SWL_API_BASE_URL": "http://gateway.example",
+                "SWL_API_KEY": "test-token",
+                "AIWF_EXECUTOR_TIMEOUT_SECONDS": "17",
+            },
+            clear=False,
+        ):
+            with patch("swallow.router.httpx.post", return_value=_FakeCompletionResponse()) as http_post:
+                response = call_agent_llm("hello", system="be terse", model="explicit-model")
+
+        self.assertEqual(response.content, "routed completion")
+        self.assertEqual(response.input_tokens, 7)
+        self.assertEqual(response.output_tokens, 11)
+        self.assertEqual(response.model, "router-test-model")
+        http_post.assert_called_once()
+        self.assertEqual(http_post.call_args.args[0], "http://gateway.example/v1/chat/completions")
+        self.assertEqual(http_post.call_args.kwargs["timeout"], 17)
+        self.assertEqual(http_post.call_args.kwargs["headers"]["Authorization"], "Bearer test-token")
+        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "explicit-model")
+        self.assertEqual(
+            http_post.call_args.kwargs["json"]["messages"],
+            [
+                {"role": "system", "content": "be terse"},
+                {"role": "user", "content": "hello"},
+            ],
+        )
 
     def test_resolve_fallback_chain_covers_builtin_http_chain(self) -> None:
         chain = _resolve_fallback_chain("http-claude")

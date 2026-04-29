@@ -177,31 +177,88 @@ def _audit_path_b_provider_router_calls() -> list[AuditFinding]:
     return findings
 
 
+def _is_httpx_client_constructor(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in {"Client", "AsyncClient"}
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "httpx"
+    )
+
+
+def _collect_httpx_client_names(tree: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and _is_httpx_client_constructor(node.value):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    names.add(target.id)
+        elif isinstance(node, ast.AnnAssign) and _is_httpx_client_constructor(node.value):
+            if isinstance(node.target, ast.Name):
+                names.add(node.target.id)
+        elif isinstance(node, ast.With | ast.AsyncWith):
+            for item in node.items:
+                if _is_httpx_client_constructor(item.context_expr) and isinstance(item.optional_vars, ast.Name):
+                    names.add(item.optional_vars.id)
+    return names
+
+
+def _chat_completion_url_expression(node: ast.AST) -> bool:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return "/chat/completions" in node.value
+    return isinstance(node, ast.Call) and _called_name(node) == "resolve_new_api_chat_completions_url"
+
+
+def _post_call_url_arg(call: ast.Call) -> ast.AST | None:
+    if call.args:
+        return call.args[0]
+    for keyword in call.keywords:
+        if keyword.arg == "url":
+            return keyword.value
+    return None
+
+
+def _is_httpx_post_call(call: ast.Call, httpx_client_names: set[str]) -> bool:
+    if not isinstance(call.func, ast.Attribute) or call.func.attr != "post":
+        return False
+    receiver = call.func.value
+    if isinstance(receiver, ast.Name):
+        return receiver.id == "httpx" or receiver.id in httpx_client_names
+    return False
+
+
 def _audit_specialist_internal_llm_router() -> list[AuditFinding]:
     findings: list[AuditFinding] = []
-    specialist_files = [
-        SRC_ROOT / "agent_llm.py",
-        SRC_ROOT / "literature_specialist.py",
-        SRC_ROOT / "quality_reviewer.py",
-        SRC_ROOT / "meta_optimizer.py",
-        SRC_ROOT / "librarian_executor.py",
-        SRC_ROOT / "ingestion_specialist.py",
-        SRC_ROOT / "consistency_reviewer.py",
-    ]
-    for path in specialist_files:
-        if not path.exists():
-            continue
+    for path in _src_py_files():
         rel_path = _relative(path)
-        for node in ast.walk(_parse(path)):
-            if isinstance(node, ast.ImportFrom) and node.module == "agent_llm":
-                if "call_agent_llm" in _imported_names(node):
-                    findings.append(AuditFinding(rel_path, node.lineno, "imports call_agent_llm"))
-            if isinstance(node, ast.Call):
-                called_name = _called_name(node)
-                if called_name == "call_agent_llm":
-                    findings.append(AuditFinding(rel_path, node.lineno, "calls call_agent_llm"))
-                if rel_path == "src/swallow/agent_llm.py" and called_name == "post":
-                    findings.append(AuditFinding(rel_path, node.lineno, "calls httpx.post directly"))
+        if rel_path == "src/swallow/_http_helpers.py":
+            continue
+        tree = _parse(path)
+        httpx_client_names = _collect_httpx_client_names(tree)
+        function_stack: list[str] = []
+
+        class Visitor(ast.NodeVisitor):
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                function_stack.append(node.name)
+                self.generic_visit(node)
+                function_stack.pop()
+
+            def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+                function_stack.append(node.name)
+                self.generic_visit(node)
+                function_stack.pop()
+
+            def visit_Call(self, node: ast.Call) -> None:
+                if _is_httpx_post_call(node, httpx_client_names):
+                    url_arg = _post_call_url_arg(node)
+                    if url_arg is not None and _chat_completion_url_expression(url_arg):
+                        current_function = function_stack[-1] if function_stack else ""
+                        if rel_path != "src/swallow/router.py" or current_function != "invoke_completion":
+                            findings.append(AuditFinding(rel_path, node.lineno, "calls chat-completion HTTP directly"))
+                self.generic_visit(node)
+
+        Visitor().visit(tree)
     return findings
 
 

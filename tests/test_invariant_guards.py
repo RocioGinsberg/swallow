@@ -477,8 +477,94 @@ def test_path_b_does_not_call_provider_router() -> None:
     assert violations == []
 
 
+def _is_httpx_client_constructor(node: ast.AST) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr in {"Client", "AsyncClient"}
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "httpx"
+    )
+
+
+def _collect_httpx_client_names(tree: ast.AST) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and _is_httpx_client_constructor(node.value):
+            for target in node.targets:
+                if isinstance(target, ast.Name):
+                    names.add(target.id)
+        elif isinstance(node, ast.AnnAssign) and _is_httpx_client_constructor(node.value):
+            if isinstance(node.target, ast.Name):
+                names.add(node.target.id)
+        elif isinstance(node, ast.With | ast.AsyncWith):
+            for item in node.items:
+                if _is_httpx_client_constructor(item.context_expr) and isinstance(item.optional_vars, ast.Name):
+                    names.add(item.optional_vars.id)
+    return names
+
+
+def _chat_completion_url_expression(node: ast.AST) -> bool:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return "/chat/completions" in node.value
+    return isinstance(node, ast.Call) and _call_name(node) == "resolve_new_api_chat_completions_url"
+
+
+def _post_call_url_arg(call: ast.Call) -> ast.AST | None:
+    if call.args:
+        return call.args[0]
+    for keyword in call.keywords:
+        if keyword.arg == "url":
+            return keyword.value
+    return None
+
+
+def _is_httpx_post_call(call: ast.Call, httpx_client_names: set[str]) -> bool:
+    if not isinstance(call.func, ast.Attribute) or call.func.attr != "post":
+        return False
+    receiver = call.func.value
+    if isinstance(receiver, ast.Name):
+        return receiver.id == "httpx" or receiver.id in httpx_client_names
+    return False
+
+
 def test_specialist_internal_llm_calls_go_through_router() -> None:
-    pytest.skip(reason="G.5 will enable, see roadmap candidate G.5")
+    """Chat-completion HTTP calls must go through Provider Router; embeddings and other HTTP are out of scope."""
+
+    assert hasattr(router, "invoke_completion")
+    violations: list[str] = []
+
+    for path in _src_py_files():
+        rel_path = _relative(path)
+        if rel_path == "src/swallow/_http_helpers.py":
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
+        httpx_client_names = _collect_httpx_client_names(tree)
+        function_stack: list[str] = []
+
+        class Visitor(ast.NodeVisitor):
+            def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+                function_stack.append(node.name)
+                self.generic_visit(node)
+                function_stack.pop()
+
+            def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+                function_stack.append(node.name)
+                self.generic_visit(node)
+                function_stack.pop()
+
+            def visit_Call(self, node: ast.Call) -> None:
+                if _is_httpx_post_call(node, httpx_client_names):
+                    url_arg = _post_call_url_arg(node)
+                    if url_arg is not None and _chat_completion_url_expression(url_arg):
+                        current_function = function_stack[-1] if function_stack else ""
+                        if rel_path != "src/swallow/router.py" or current_function != "invoke_completion":
+                            violations.append(f"{rel_path}:{node.lineno} calls chat-completion HTTP directly")
+                self.generic_visit(node)
+
+        Visitor().visit(tree)
+
+    assert violations == []
 
 
 def test_all_ids_are_global_unique_no_local_identity() -> None:

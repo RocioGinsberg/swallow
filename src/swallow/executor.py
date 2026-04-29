@@ -13,6 +13,16 @@ from typing import Callable, Protocol, runtime_checkable
 
 import httpx
 
+from ._http_helpers import (
+    DEFAULT_NEW_API_CHAT_COMPLETIONS_URL,
+    clean_output,
+    extract_api_usage,
+    http_request_headers as _http_request_headers,
+    normalize_http_response_content as _normalize_http_response_content,
+    parse_timeout_seconds,
+    resolve_new_api_api_key,
+    resolve_new_api_chat_completions_url,
+)
 from .cost_estimation import estimate_tokens
 from .dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
 from .dialect_adapters import ClaudeXMLDialect, FIMDialect
@@ -21,7 +31,6 @@ from .runtime_config import resolve_swl_chat_model
 from .workspace import resolve_path
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
-DEFAULT_NEW_API_CHAT_COMPLETIONS_URL = "http://localhost:3000/v1/chat/completions"
 
 
 class UnknownExecutorError(ValueError):
@@ -482,17 +491,6 @@ async def run_executor_inline_async(state: TaskState, retrieval_items: list[Retr
     result = replace(result, review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip())
     result.dialect = state.route_dialect or result.dialect or resolve_dialect_name(model_hint=state.route_model_hint)
     return _attach_estimated_usage(result)
-
-
-def resolve_new_api_chat_completions_url() -> str:
-    configured = os.environ.get("SWL_API_BASE_URL", "").strip().rstrip("/")
-    if configured:
-        return f"{configured}/v1/chat/completions"
-    return DEFAULT_NEW_API_CHAT_COMPLETIONS_URL
-
-
-def resolve_new_api_api_key() -> str:
-    return os.environ.get("SWL_API_KEY", "").strip()
 
 
 def resolve_http_model_name(state: TaskState) -> str:
@@ -1148,56 +1146,11 @@ def build_formatted_executor_prompt(state: TaskState, retrieval_items: list[Retr
     return adapter.format_prompt(raw_prompt, state, retrieval_items)
 
 
-def _normalize_http_response_content(content: object) -> str:
-    if isinstance(content, str):
-        return content.strip()
-    if isinstance(content, list):
-        parts: list[str] = []
-        for item in content:
-            if isinstance(item, dict):
-                text_value = str(item.get("text", "")).strip()
-                if text_value:
-                    parts.append(text_value)
-            else:
-                text_value = str(item).strip()
-                if text_value:
-                    parts.append(text_value)
-        return "\n".join(parts).strip()
-    if content is None:
-        return ""
-    return str(content).strip()
-
-
 def _http_request_payload(prompt: str, state: TaskState) -> dict[str, object]:
     return {
         "model": resolve_http_model_name(state),
         "messages": [{"role": "user", "content": prompt}],
     }
-
-
-def _http_request_headers() -> dict[str, str]:
-    headers = {"Content-Type": "application/json"}
-    api_key = resolve_new_api_api_key()
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-    return headers
-
-
-def extract_api_usage(response_data: object) -> tuple[int, int]:
-    if not isinstance(response_data, dict):
-        return (0, 0)
-    usage = response_data.get("usage", {})
-    if not isinstance(usage, dict):
-        return (0, 0)
-    try:
-        input_tokens = max(int(usage.get("prompt_tokens", 0) or 0), 0)
-    except (TypeError, ValueError):
-        input_tokens = 0
-    try:
-        output_tokens = max(int(usage.get("completion_tokens", 0) or 0), 0)
-    except (TypeError, ValueError):
-        output_tokens = 0
-    return (input_tokens, output_tokens)
 
 
 def run_http_executor(
@@ -1720,27 +1673,11 @@ async def run_cli_agent_executor_async(
         )
 
 
-def parse_timeout_seconds(raw_value: str) -> int:
-    try:
-        parsed = int(raw_value)
-    except ValueError:
-        return 20
-    return parsed if parsed > 0 else 20
-
-
 def read_last_message(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8").strip()
     except OSError:
         return ""
-
-
-def clean_output(raw: str | bytes | None) -> str:
-    if raw is None:
-        return ""
-    if isinstance(raw, bytes):
-        return raw.decode("utf-8", errors="ignore").strip()
-    return raw.strip()
 
 
 def clean_timeout_stream(primary: str | bytes | None, fallback: str | bytes | None) -> str:
