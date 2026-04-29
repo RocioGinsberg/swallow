@@ -13,9 +13,9 @@
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
 - active_track: `Governance`
 - active_phase: `Phase 63`
-- active_slice: `Phase 63 implementation complete / PR review handoff`
+- active_slice: `Phase 63 review follow-up complete / PR ready`
 - active_branch: `feat/phase63-governance-closure`
-- status: `phase63_implementation_complete_waiting_claude_review`
+- status: `phase63_ready_for_human_pr`
 
 ## 当前状态说明
 
@@ -70,10 +70,12 @@ post-merge 决议(Human 已确认,2026-04-28):
 1. `README.md`(v1.3.1 release snapshot 已同步)
 2. `docs/active_context.md`(本文)
 3. `current_state.md`(v1.3.1 release checkpoint 已同步)
-4. `.agents/workflows/tag_release.md`
-5. `docs/plans/phase62/closeout.md`
-6. `docs/concerns_backlog.md`
-7. `docs/design/INVARIANTS.md`
+4. `docs/plans/phase63/kickoff.md` / `docs/plans/phase63/design_decision.md` / `docs/plans/phase63/risk_assessment.md`(final-after-M0 design baseline)
+5. `docs/plans/phase63/review_comments.md` / `docs/plans/phase63/consistency_report.md`
+6. `docs/plans/phase63/commit_summary.md` / `docs/plans/phase63/closeout.md`
+7. `docs/concerns_backlog.md`
+8. `docs/design/INVARIANTS.md`
+9. `pr.md`(local ignored PR body draft)
 
 ---
 
@@ -160,6 +162,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Codex]** M3/S4 已完成:补齐 §9 剩余 12 条守卫(10 pass + 2 条 G.5 skip 占位),新增 append-only SQLite 表/trigger 基础设施,移除现有 SQLite schema 跨命名空间 FK,并收紧 artifact name 边界。验证:`tests/test_invariant_guards.py` 23 passed / 2 skipped;`tests/test_sqlite_store.py` 15 passed;`tests/test_web_api.py` 10 passed;全量 pytest 574 passed / 2 skipped / 8 deselected;`git diff --check` passed;`docs/design/INVARIANTS.md` 无改动。
 - **[Human]** M3 commit gate 已通过并提交(2026-04-29):`5116b62 test(phase63): add invariant guard batch` + `bf6caa4 docs(state): record Phase 63 M3 commit gate`。Phase 63 所有 implementation milestones 已完成并提交。
 - **[Codex]** 已整理 Phase 63 implementation handoff:`docs/plans/phase63/commit_summary.md`。当前分支 worktree 在 handoff 前为 clean,下一步交给 Claude 进行 PR review。
+- **[Claude/consistency-checker]** Phase 63 / S3 Repository abstraction consistency report 已产出 → `docs/plans/phase63/consistency_report.md`(verdict = `minor-drift`,11 consistent / 2 minor-drift,均为文档/描述类细节,无行为或架构违规)。
+- **[Claude]** Phase 63 PR review 已完成 → `docs/plans/phase63/review_comments.md`(verdict = APPROVE,0 BLOCK / 2 CONCERN / 9 NOTE)。复跑 `.venv/bin/python -m pytest` 仍 574 passed / 2 skipped / 8 deselected。`git diff main...HEAD -- docs/design/` 零行。两条 CONCERN:(M2-A)commit_summary 缺 §S3 1:1 signature mapping table,Codex 在 `pr.md` 中补;(M3-A)`test_no_foreign_key_across_namespaces` 名实不符建议 docstring 补一句。
+- **[Codex]** 已完成 review follow-up 与收口准备:CONCERN M2-A 已在 `docs/plans/phase63/commit_summary.md` 与本地 ignored `pr.md` 补 Repository signature mapping table;CONCERN M3-A 已在 `tests/test_invariant_guards.py` 补 docstring;`docs/concerns_backlog.md` 已标注 Phase 63 resolved/open;`docs/plans/phase63/closeout.md` 已起草为 PR/Merge Gate 前收口记录。Review follow-up 后验证:`.venv/bin/python -m pytest tests/test_invariant_guards.py` → 23 passed / 2 skipped;`git diff --check` passed;`git diff -- docs/design` 无输出。
 
 进行中:
 
@@ -167,14 +172,14 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Claude]** Phase 63 PR review:读取 `main...HEAD` diff、final-after-M0 设计文档与 Codex commit summary,产出 `docs/plans/phase63/review_comments.md`。
-- **[Codex]** Claude review 完成后,按 `.agents/templates/pr_body.md` 整理 `./pr.md`。
-- **[Human]** `./pr.md` 准备完成后 push branch 并创建 PR。
-- **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix
+- **[Human]** 审阅并提交当前 review follow-up / closeout bundle(含 Claude review artifacts、Codex docstring 修正、commit_summary、concerns_backlog、closeout、active_context)。
+- **[Human]** 提交后 push branch,使用本地 `./pr.md` 创建 PR,再进入 Merge Gate。
+- **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md`;随后由 roadmap-updater 做 post-merge factual update。
+- **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
 
-- 等待 Claude PR review。
+- 等待 Human 提交 review follow-up / closeout bundle 并创建 PR。
 
 ---
 
@@ -212,9 +217,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Claude]** 进行 Phase 63 PR review,产出 `docs/plans/phase63/review_comments.md`。
-2. **[Codex]** review 完成后整理 `./pr.md`,同步 review 结论与测试结果。
-3. **[Human]** 使用 `./pr.md` push / 创建 PR,再进入 Merge Gate。
+1. **[Human]** 提交当前 review follow-up / closeout bundle。
+2. **[Human]** push branch,使用本地 `./pr.md` 创建 PR,进入 Merge Gate。
+3. **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md`;roadmap-updater 随后完成 post-merge factual update。
 
 ```markdown
 model_review:
@@ -304,3 +309,11 @@ model_review:
 - `bf6caa4 docs(state): record Phase 63 M3 commit gate`(human, 2026-04-29, M3 state commit)
 - `docs/plans/phase63/commit_summary.md`(codex, 2026-04-29, Phase 63 implementation handoff summary for PR review)
 - `docs/active_context.md`(codex, 2026-04-29, implementation complete;next step Claude PR review)
+- `docs/plans/phase63/consistency_report.md`(claude/consistency-checker, 2026-04-29, S3 Repository abstraction consistency check verdict = minor-drift)
+- `docs/plans/phase63/review_comments.md`(claude, 2026-04-29, Phase 63 PR review verdict = APPROVE;0 BLOCK / 2 CONCERN / 9 NOTE)
+- `tests/test_invariant_guards.py`(codex, 2026-04-29, review follow-up docstring for no-FK guard)
+- `docs/plans/phase63/commit_summary.md`(codex, 2026-04-29, added Repository signature mapping table)
+- `docs/concerns_backlog.md`(codex, 2026-04-29, Phase 63 resolved/open concern sync)
+- `docs/plans/phase63/closeout.md`(codex, 2026-04-29, Phase 63 closeout draft for PR/Merge Gate)
+- `pr.md`(codex, 2026-04-29, local ignored PR body draft;use for PR creation)
+- `docs/active_context.md`(codex, 2026-04-29, review follow-up complete;waiting Human PR)

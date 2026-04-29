@@ -7,15 +7,16 @@ updated_at: 2026-04-29
 depends_on: ["docs/plans/phase63/design_decision.md", "docs/plans/phase63/m0_audit_report.md"]
 ---
 
-TL;DR: Phase 63 implementation is complete on `feat/phase63-governance-closure`; M0/M1/M2/M3 have all passed human commit gates. Final validation: full pytest `574 passed / 2 skipped / 8 deselected`, `git diff --check` passed, and `docs/design/INVARIANTS.md` had no diff. Next workflow step is Claude PR review.
+TL;DR: Phase 63 implementation is complete on `feat/phase63-governance-closure`; M0/M1/M2/M3 have all passed human commit gates. Claude review approved with 0 BLOCK / 2 CONCERN / 9 NOTE; both CONCERN items have been handled in review follow-up. Final implementation validation: full pytest `574 passed / 2 skipped / 8 deselected`, `git diff --check` passed, and `docs/design/INVARIANTS.md` had no diff.
 
 # Phase 63 Commit Summary
 
 ## Status
 
 Phase 63 implementation is complete on branch `feat/phase63-governance-closure`.
-All implementation milestones have passed human commit gates. The next workflow
-step is Claude PR review.
+All implementation milestones have passed human commit gates. Claude PR review
+is complete and approved; the current workflow step is Human review of the
+closeout bundle, then PR creation from the local `pr.md`.
 
 ## Commit Sequence
 
@@ -81,6 +82,14 @@ Validation at gate:
 - `git diff --check` passed.
 - `docs/design/INVARIANTS.md` had no diff.
 
+Repository signature mapping:
+
+| Repository private method | Forwarded store writers | Source module |
+|---|---|---|
+| `KnowledgeRepo._promote_canonical(*, base_dir, canonical_record, write_authority, mirror_files, persist_wiki, persist_wiki_first, refresh_derived) -> tuple[str, ...]` | `persist_wiki_entry_from_record(base_dir, record, *, mirror_files, write_authority)`, `append_canonical_record(base_dir, record)`, optional `save_canonical_registry_index(base_dir, index)`, optional `save_canonical_reuse_policy(base_dir, summary)` | `knowledge_store.py`, `store.py` |
+| `RouteRepo._apply_metadata_change(*, base_dir, route_weights=None, route_capability_profiles=None) -> tuple[str, ...]` | if `route_weights is not None`: `save_route_weights(base_dir, weights)` then `apply_route_weights(base_dir)`; if `route_capability_profiles is not None`: `save_route_capability_profiles(base_dir, profiles)` then `apply_route_capability_profiles(base_dir)` | `router.py` |
+| `PolicyRepo._apply_policy_change(*, base_dir, audit_trigger_policy=None, mps_kind=None, mps_value=None) -> tuple[str, Path]` | `save_audit_trigger_policy(base_dir, policy)` or `save_mps_policy(base_dir, kind, value)` | `consistency_audit.py`, `mps_policy_store.py` |
+
 ### M3/S4
 
 - Added the remaining 12 INVARIANTS §9 standard guard names.
@@ -110,16 +119,21 @@ Validation at gate:
 - The existing `librarian_side_effect` canonical path drift remains outside
   Phase 63 scope, as recorded in the final-after-M0 design discussion.
 
-## Review Handoff
+## Review Result
 
-Recommended review base:
+- Claude review artifact: `docs/plans/phase63/review_comments.md`.
+- Consistency-checker artifact: `docs/plans/phase63/consistency_report.md`.
+- Verdict: APPROVE, 0 BLOCK / 2 CONCERN / 9 NOTE.
+- Both CONCERN items have been handled:
+  - M2-A: this file and `pr.md` now include the Repository signature mapping table.
+  - M3-A: `test_no_foreign_key_across_namespaces` now documents that the current no-FK implementation is a strict superset of no cross-namespace FK.
+
+Review follow-up verification:
 
 ```bash
-git diff main...HEAD
-```
+.venv/bin/python -m pytest tests/test_invariant_guards.py
+# 23 passed, 2 skipped
 
-Recommended verification command:
-
-```bash
-.venv/bin/python -m pytest
+git diff --check
+# passed
 ```
