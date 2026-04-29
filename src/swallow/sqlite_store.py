@@ -4,7 +4,9 @@ import json
 import sqlite3
 from pathlib import Path
 from typing import Iterable
+from uuid import uuid4
 
+from .identity import local_actor
 from .knowledge_store import (
     enforce_canonical_knowledge_write_authority,
     normalize_task_knowledge_view,
@@ -29,8 +31,7 @@ CREATE TABLE IF NOT EXISTS events (
     task_id TEXT NOT NULL,
     event_json TEXT NOT NULL,
     kind TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+    created_at TEXT NOT NULL
 )
 """
 
@@ -45,8 +46,7 @@ CREATE TABLE IF NOT EXISTS knowledge_evidence (
     stage TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     embedding_blob BLOB,
-    PRIMARY KEY (task_id, object_id),
-    FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+    PRIMARY KEY (task_id, object_id)
 )
 """
 CREATE_KNOWLEDGE_WIKI_TABLE_SQL = """
@@ -57,8 +57,7 @@ CREATE TABLE IF NOT EXISTS knowledge_wiki (
     entry_json TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     embedding_blob BLOB,
-    PRIMARY KEY (task_id, entry_id),
-    FOREIGN KEY (task_id) REFERENCES tasks(task_id)
+    PRIMARY KEY (task_id, entry_id)
 )
 """
 CREATE_KNOWLEDGE_EVIDENCE_TASK_INDEX_SQL = (
@@ -94,6 +93,74 @@ CREATE_KNOWLEDGE_RELATIONS_TARGET_INDEX_SQL = (
 )
 CREATE_KNOWLEDGE_RELATIONS_TYPE_INDEX_SQL = (
     "CREATE INDEX IF NOT EXISTS idx_knowledge_relations_type ON knowledge_relations(relation_type)"
+)
+CREATE_EVENT_LOG_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS event_log (
+    event_id TEXT PRIMARY KEY,
+    task_id TEXT,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'local',
+    kind TEXT NOT NULL,
+    payload TEXT NOT NULL
+)
+"""
+CREATE_EVENT_TELEMETRY_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS event_telemetry (
+    telemetry_id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    step_id TEXT,
+    executor_id TEXT NOT NULL,
+    logical_path TEXT NOT NULL,
+    physical_route TEXT,
+    latency_ms INTEGER,
+    token_input INTEGER,
+    token_output INTEGER,
+    cost_usd REAL,
+    degraded INTEGER NOT NULL DEFAULT 0,
+    error_code TEXT,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL DEFAULT 'local'
+)
+"""
+CREATE_ROUTE_HEALTH_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS route_health (
+    health_id TEXT PRIMARY KEY,
+    route_id TEXT NOT NULL,
+    timestamp TEXT NOT NULL,
+    status TEXT NOT NULL,
+    error_code TEXT,
+    sample_size INTEGER
+)
+"""
+CREATE_KNOW_CHANGE_LOG_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS know_change_log (
+    change_id TEXT PRIMARY KEY,
+    target_kind TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    action TEXT NOT NULL,
+    rationale TEXT,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL
+)
+"""
+CREATE_EVENT_LOG_TASK_TIME_INDEX_SQL = "CREATE INDEX IF NOT EXISTS idx_event_task_time ON event_log(task_id, timestamp)"
+CREATE_EVENT_LOG_KIND_TIME_INDEX_SQL = "CREATE INDEX IF NOT EXISTS idx_event_kind_time ON event_log(kind, timestamp)"
+APPEND_ONLY_TABLES = ("event_log", "event_telemetry", "route_health", "know_change_log")
+APPEND_ONLY_TRIGGER_SQLS = tuple(
+    sql
+    for table in APPEND_ONLY_TABLES
+    for sql in (
+        f"""
+        CREATE TRIGGER IF NOT EXISTS {table}_no_update
+        BEFORE UPDATE ON {table}
+        BEGIN SELECT RAISE(FAIL, '{table} is append-only'); END
+        """,
+        f"""
+        CREATE TRIGGER IF NOT EXISTS {table}_no_delete
+        BEFORE DELETE ON {table}
+        BEGIN SELECT RAISE(FAIL, '{table} is append-only'); END
+        """,
+    )
 )
 
 
@@ -140,6 +207,14 @@ class SqliteTaskStore:
         connection.execute(CREATE_KNOWLEDGE_RELATIONS_SOURCE_INDEX_SQL)
         connection.execute(CREATE_KNOWLEDGE_RELATIONS_TARGET_INDEX_SQL)
         connection.execute(CREATE_KNOWLEDGE_RELATIONS_TYPE_INDEX_SQL)
+        connection.execute(CREATE_EVENT_LOG_TABLE_SQL)
+        connection.execute(CREATE_EVENT_TELEMETRY_TABLE_SQL)
+        connection.execute(CREATE_ROUTE_HEALTH_TABLE_SQL)
+        connection.execute(CREATE_KNOW_CHANGE_LOG_TABLE_SQL)
+        connection.execute(CREATE_EVENT_LOG_TASK_TIME_INDEX_SQL)
+        connection.execute(CREATE_EVENT_LOG_KIND_TIME_INDEX_SQL)
+        for trigger_sql in APPEND_ONLY_TRIGGER_SQLS:
+            connection.execute(trigger_sql)
         return connection
 
     def _connect_existing(self, base_dir: Path) -> sqlite3.Connection | None:
@@ -228,6 +303,20 @@ class SqliteTaskStore:
                     payload,
                     event.event_type,
                     event.created_at,
+                ),
+            )
+            connection.execute(
+                """
+                INSERT INTO event_log (event_id, task_id, timestamp, actor, kind, payload)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    f"event-{uuid4().hex}",
+                    event.task_id,
+                    event.created_at,
+                    local_actor(),
+                    event.event_type,
+                    json.dumps(event.payload),
                 ),
             )
         self._checkpoint(base_dir)
