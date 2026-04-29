@@ -221,10 +221,16 @@ CREATE TABLE route_registry (
     transport_kind        TEXT,
     fallback_route_id     TEXT,
     quality_weight        REAL NOT NULL DEFAULT 1.0,
-    unsupported_task_types JSON,                 -- list[str]
-    cost_profile          JSON,
+    unsupported_task_types TEXT NOT NULL DEFAULT '[]',   -- JSON list[str]
+    cost_profile          TEXT NOT NULL DEFAULT 'null',  -- JSON object or null
     updated_at            TEXT NOT NULL,
-    updated_by            TEXT NOT NULL          -- operator,通过 apply_proposal
+    updated_by            TEXT NOT NULL,         -- operator,通过 apply_proposal
+    capabilities_json     TEXT NOT NULL DEFAULT '{}',
+    taxonomy_json         TEXT NOT NULL DEFAULT '{}',
+    execution_site        TEXT NOT NULL,
+    executor_family       TEXT NOT NULL,
+    executor_name         TEXT NOT NULL,
+    remote_capable        INTEGER NOT NULL DEFAULT 0
 );
 
 -- Route 健康观测(append-only,Provider Router 写入)
@@ -236,7 +242,28 @@ CREATE TABLE route_health (
     error_code       TEXT,
     sample_size      INTEGER
 );
+
+-- Route metadata change log(append-only,Repository 事务内写入)
+CREATE TABLE route_change_log (
+    change_id        TEXT PRIMARY KEY,
+    proposal_id      TEXT,
+    target_kind      TEXT NOT NULL,              -- route_registry | route_policy | route_weights | route_capability_profiles
+    target_id        TEXT,
+    action           TEXT NOT NULL,              -- upsert | delete
+    before_payload   TEXT,                       -- JSON snapshot
+    after_payload    TEXT,                       -- JSON snapshot
+    timestamp        TEXT NOT NULL,
+    actor            TEXT NOT NULL DEFAULT 'local'
+);
 ```
+
+Phase 65 实装说明:
+- `route_id = RouteSpec.name`,是 human-readable stable key,不是独立 ULID。
+- SQLite 无原生 JSON 类型,实现层统一用 `TEXT NOT NULL` 保存 JSON 字符串;空 list 用 `'[]'`,缺失 optional object 用 `'null'`。
+- `capabilities_json` 保存 RouteCapabilities 字段,并承载 route capability profile 的 `task_family_scores` 扩展;`unsupported_task_types` 独立列承载 capability profile 的 unsupported list。
+- `taxonomy_json` 保存 `{system_role, memory_authority}`。
+- `remote_capable` 用 SQLite `INTEGER` 表示 bool。
+- 本表通过 `apply_proposal(..., ROUTE_METADATA)` 间接写入;`route_change_log` 记录同事务审计。
 
 ### 3.5 Policy 命名空间
 
@@ -251,7 +278,30 @@ CREATE TABLE policy_records (
     updated_at       TEXT NOT NULL,
     updated_by       TEXT NOT NULL               -- operator,通过 apply_proposal
 );
+
+-- Policy change log(append-only,Repository 事务内写入)
+CREATE TABLE policy_change_log (
+    change_id        TEXT PRIMARY KEY,
+    proposal_id      TEXT,
+    target_kind      TEXT NOT NULL,              -- audit_trigger_policy | mps_policy
+    target_id        TEXT,
+    action           TEXT NOT NULL,              -- upsert | delete
+    before_payload   TEXT,
+    after_payload    TEXT,
+    timestamp        TEXT NOT NULL,
+    actor            TEXT NOT NULL DEFAULT 'local'
+);
 ```
+
+Phase 65 实装说明:
+
+| 逻辑对象 | `kind` | `scope` | `scope_value` | `policy_id` | `payload` |
+|---|---|---|---|---|---|
+| route selection policy | `route_selection` | `global` | `NULL` | `route_selection:global` | normalized route policy JSON |
+| audit trigger policy | `audit_trigger` | `global` | `NULL` | `audit_trigger:global` | `AuditTriggerPolicy.to_dict()` |
+| MPS policy | `mps` | `mps_kind` | `<mps_kind>` | `mps:<mps_kind>` | `{"value": <int>}` |
+
+本表通过 `apply_proposal(..., ROUTE_METADATA)` 或 `apply_proposal(..., POLICY)` 间接写入;`policy_change_log` 记录 policy 写入审计。
 
 ---
 
@@ -283,7 +333,7 @@ CI 守卫:`grep '\\b_apply_metadata_change\\b\\|\\b_apply_policy_change\\b\\|\\b
 
 ### 4.2 Append-only 表的写约束
 
-`event_log` / `event_telemetry` / `route_health` / `know_change_log` 四张表标记为 append-only:
+`event_log` / `event_telemetry` / `route_health` / `know_change_log` / `route_change_log` / `policy_change_log` 六张表标记为 append-only:
 
 - Repository 层不暴露 update / delete 方法
 - 数据库层加触发器拒绝 UPDATE / DELETE(开发期可选,生产期必须)
@@ -339,13 +389,14 @@ class ContextPointer(TypedDict):
 CREATE TABLE schema_version (
     version          INTEGER NOT NULL,
     applied_at       TEXT NOT NULL,
-    description      TEXT
+    slug             TEXT
 );
 ```
 
 - 每次 schema 变更必须 +1 version 并提交 migration 脚本到 `swallow/migrations/<version>_<slug>.sql`
 - 不向后兼容的 migration 必须在 PR 中显式标记 `BREAKING-MIGRATION` 标签,并附带:数据保全策略、回滚步骤、对 INVARIANTS §5 矩阵的影响评估
 - Migration 不允许在运行时静默执行;`swl` 启动时检测 schema 落后会进入 `waiting_human`,提示运行 `swl migrate`
+- `首次建表(table creation on fresh DB)` 不属于本节 migration 范围,由 `sqlite_store.py:_connect` 内 `CREATE TABLE IF NOT EXISTS` 一次性维护;`schema_version` 在首次建表后直接 INSERT `version=1, slug='phase65_initial'`。
 
 ---
 
