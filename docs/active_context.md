@@ -8,14 +8,14 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Orchestration`
-- latest_completed_phase: `Phase 62`
-- latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
+- latest_completed_track: `Governance`
+- latest_completed_phase: `Phase 63`
+- latest_completed_slice: `Phase 63 Governance Closure(候选 G)+ Merge`
 - active_track: `Governance`
-- active_phase: `Phase 63`
-- active_slice: `Phase 63 review follow-up complete / PR ready`
-- active_branch: `feat/phase63-governance-closure`
-- status: `phase63_ready_for_human_pr`
+- active_phase: `Phase 64`
+- active_slice: `Phase 64 revised-after-model-review 完成 / 待 Human Design Gate`
+- active_branch: `main`(Phase 64 branch 待 Human 切出)
+- status: `phase64_revised_after_model_review_pending_human_design_gate`
 
 ## 当前状态说明
 
@@ -50,6 +50,10 @@ Phase 62 design 产物(2026-04-28):
 - **[Claude]** Phase 62 PR review 已完成 → `docs/plans/phase62/review_comments.md`(0 [BLOCK] / 4 [CONCERN] / 4 [NOTE])。复跑 `pytest` 仍 557 passed / 8 deselected。CONCERN-1..4 建议本 PR 内消化(participant executor 失败处理 / participant artifact 存全 prompt / participant_id 唯一性 / stage duplicate CLI UX);4 条 NOTE 推荐进 closeout 留痕,不写入 concerns_backlog。其中 NOTE-D(`_MPS_DEFAULT_HTTP_ROUTE` design §B.1 文字偏差)经复核确认 implementer 主动纠正了 design 文字错误(把 Path B 的 `local-claude-code` 误标为 Path A),代码侧无需变更,closeout 中应同步修订 design 表述。
 - **[Codex]** 已消化 Phase 62 review:CONCERN-1..4 全部修复;NOTE-B/C 低风险 tightening 已落地;NOTE-A/D 记录到 `docs/plans/phase62/closeout.md`。验证:`.venv/bin/python -m pytest` → 559 passed / 8 deselected;`git diff --check` passed。`pr.md` 已更新为 Phase 62 PR body。
 
+Phase 63 已 merge 至 `main`(`a1d2418 merge: Governance Closure`,2026-04-29)。Governance Closure 候选 G 完整落地:§7 集中化(`identity.py` / `workspace.py`)、删 `_route_knowledge_to_staged` dead code、`swallow.truth.{KnowledgeRepo,RouteRepo,PolicyRepo,PendingProposalRepo}` 抽象层骨架、`DuplicateProposalError`、§9 标准表 17 条守卫(15 active + 2 G.5 skip 占位)、append-only SQLite trigger 基础设施。Closeout 验证:`.venv/bin/python -m pytest` → 574 passed / 2 skipped(G.5 占位)/ 8 deselected;`docs/design/` 零 diff;`docs/concerns_backlog.md` 新增 3 条 review NOTE Open(M2-1 / M2-5 / M3-1)。
+
+Phase 64 启动(2026-04-29 Human 决议):**承接候选 G.5(NO_SKIP 红灯 2 条修复)**——`executor.py:510-513 _load_fallback_route` 在 executor 内 import + 调用 `fallback_route_for`(M0 audit `test_path_b_does_not_call_provider_router` 红);`agent_llm.py:57 httpx.post` 直接调外部 chat completion(M0 audit `test_specialist_internal_llm_calls_go_through_router` 红)。两点是真实 Provider Router 边界问题(非机械漂移)。原 roadmap"候选 H"在本轮让出 Phase 64 编号,启动时再分配新编号。
+
 post-merge 决议(Human 已确认,2026-04-28):
 
 1. **Tag 决策**:打 `v1.3.1`(patch bump)。后续动作:Codex 同步 release docs → Human commit + execute `git tag v1.3.1` → Codex 同步 tag 结果。详见 `.agents/workflows/tag_release.md`。
@@ -67,15 +71,16 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前关键文档
 
-1. `README.md`(v1.3.1 release snapshot 已同步)
-2. `docs/active_context.md`(本文)
-3. `current_state.md`(v1.3.1 release checkpoint 已同步)
-4. `docs/plans/phase63/kickoff.md` / `docs/plans/phase63/design_decision.md` / `docs/plans/phase63/risk_assessment.md`(final-after-M0 design baseline)
-5. `docs/plans/phase63/review_comments.md` / `docs/plans/phase63/consistency_report.md`
-6. `docs/plans/phase63/commit_summary.md` / `docs/plans/phase63/closeout.md`
-7. `docs/concerns_backlog.md`
-8. `docs/design/INVARIANTS.md`
-9. `pr.md`(local ignored PR body draft)
+1. `docs/active_context.md`(本文)
+2. `docs/plans/phase63/closeout.md`(Phase 63 收口记录)
+3. `docs/plans/phase63/m0_audit_report.md`(G.5 红灯定位的事实基线,Phase 64 直接复用)
+4. `docs/roadmap.md`(候选 G.5 = Phase 64 active;候选 H 待启动时分配编号)
+5. `docs/concerns_backlog.md`(Phase 63 review 新增 3 条 Open;G.5 完成后再消化部分)
+6. `docs/design/INVARIANTS.md`(§0 第 1 条 + §0 第 4 条直接约束 G.5;§9 表内 2 条 NO_SKIP 守卫待启用)
+7. `docs/design/ORCHESTRATION.md`(Provider Router 契约的现行规范基线)
+8. `src/swallow/router.py`(Provider Router 实装 + `fallback_route_for` 现存定义)
+9. `src/swallow/agent_llm.py`(Specialist 内部 LLM 调用路径)
+10. `src/swallow/executor.py`(Path B fallback route helper)
 
 ---
 
@@ -165,6 +170,29 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Claude/consistency-checker]** Phase 63 / S3 Repository abstraction consistency report 已产出 → `docs/plans/phase63/consistency_report.md`(verdict = `minor-drift`,11 consistent / 2 minor-drift,均为文档/描述类细节,无行为或架构违规)。
 - **[Claude]** Phase 63 PR review 已完成 → `docs/plans/phase63/review_comments.md`(verdict = APPROVE,0 BLOCK / 2 CONCERN / 9 NOTE)。复跑 `.venv/bin/python -m pytest` 仍 574 passed / 2 skipped / 8 deselected。`git diff main...HEAD -- docs/design/` 零行。两条 CONCERN:(M2-A)commit_summary 缺 §S3 1:1 signature mapping table,Codex 在 `pr.md` 中补;(M3-A)`test_no_foreign_key_across_namespaces` 名实不符建议 docstring 补一句。
 - **[Codex]** 已完成 review follow-up 与收口准备:CONCERN M2-A 已在 `docs/plans/phase63/commit_summary.md` 与本地 ignored `pr.md` 补 Repository signature mapping table;CONCERN M3-A 已在 `tests/test_invariant_guards.py` 补 docstring;`docs/concerns_backlog.md` 已标注 Phase 63 resolved/open;`docs/plans/phase63/closeout.md` 已起草为 PR/Merge Gate 前收口记录。Review follow-up 后验证:`.venv/bin/python -m pytest tests/test_invariant_guards.py` → 23 passed / 2 skipped;`git diff --check` passed;`git diff -- docs/design` 无输出。
+- **[Human]** Phase 63 已 merge 到 `main`(`a1d2418 merge: Governance Closure`,2026-04-29)。
+- **[Human]** Phase 64 Direction 已确认(2026-04-29):承接候选 G.5(NO_SKIP 红灯 2 条修复)。原 roadmap"候选 H = Phase 64"释放编号,Phase 64 现指 G.5 内容;H 启动时再分配。
+- **[Claude/state-sync-checker]** Phase 63 merge 后状态核查完成:closeout 完整、3 条 review backlog 已正确登记到 `docs/concerns_backlog.md`、active_context 5 处头部字段已同步、roadmap §三/§四 候选 G 状态待 roadmap-updater 增量更新。
+
+进行中:
+
+- **[Claude]** Phase 64 design draft (kickoff / design_decision / risk_assessment) 已起草到 `docs/plans/phase64/`(全部 status=draft)。
+- **[Claude/design-auditor]** Phase 64 `design_audit.md` 已产出 → `verdict: has-blockers`,2 BLOCKER + 7 CONCERN。
+- **[Human/暂停]** S1 关键 BLOCKER 的解决路径选择留待明天:
+  - **BLOCKER S1-1**:`RouteSpec.from_dict()` classmethod 不存在(`models.py:978-998 RouteSpec` 只有 `to_dict`,且 `capabilities`/`taxonomy` 是嵌套 dataclass)。design 设想的 "executor 从 state.fallback_route_spec_payload 重建 RouteSpec" 缺反序列化入口。
+  - **BLOCKER S1-2**:`_load_fallback_route(route_name: str)` 现行签名拿不到 `state`;design 给出的"保留签名 + 16 调用点零修改"承诺与"读 state.fallback_route_spec_payload"实装互相矛盾;且 `_apply_executor_route_fallback` 的重入路径(L724 `_run_executor_for_fallback_route`)说明 executor 实际需要查"任意 route 的 fallback chain 下一跳"(不只 primary 的一跳),与单跳 state 字段语义不符。
+  - **CONCERN P1 牵涉**:`retrieval_adapters.py:206` 还有合法的 `httpx.post` embeddings 调用,S2 守卫 allow-list 漏列;Phase 62 MPS `_participant_state_for_call` 通过 `dataclasses.replace` 复制 state 时不携带 fallback payload,会破坏 MPS HTTP participant 的 fallback 行为。
+- **[Claude]** 已向用户提出 4 选项(保 BLOCKER 走 dict 方案 / 改守卫语义为 "executor 不调 select_route" / 抽 lookup_route_by_name read-only helper / 暂停);用户选择"暂停到明天"。
+- **[Human]** 触发 model_review,Claude 调用 `/model-review` skill + GPT-5 channel 完成第二模型审查。GPT-5 verdict = BLOCK,新增 2 个结构性 BLOCK(守卫语义未锁定 / chain 单跳隐性 invariant)与 helper 破环必须中性模块 / `httpx.post` 守卫过宽 = invariant-misaligned 两条 BLOCK。提供 1 个具体 design pivot:**immutable fallback chain plan + 守卫语义重新框定**(Claude 推荐方向)。
+- **[Claude]** 三件套已修订到 `revised-after-model-review`(2026-04-29):
+  - **S1 pivot** = GPT-5 option iii(orchestrator 预解析整条 fallback chain plan `tuple[str, ...]`,环检测内置)+ option i(守卫语义重新框定 = "executor 不调 selection 函数",允许 lookup_route_by_name);新增 `swallow.router.lookup_route_by_name(name)` read-only 数据查询助手桥接 chain name → RouteSpec
+  - **S2 锁定** = 强制中性模块 `swallow/_http_helpers.py` + 完整 authoritative 搬迁清单 + `route_hint` 直接 drop(YAGNI)+ chat-completion URL AST pattern(含 AsyncClient.post 形态)+ Codex PR body 强制 grep 命中清单 + integration smoke test
+  - **invoke_completion 内部** = `model or resolve_swl_chat_model()` inline 展开(避免 router 反向 import agent_llm)
+  - **chain plan 不可变约束** explicit:`_apply_route_spec_for_executor_fallback` 不 mutate `fallback_route_chain` 字段
+  - **R2 ROUTE_REGISTRY 形态修正**:实际是线性多入口汇合 + 无环,最长链 5 跳(`http-claude → http-qwen → http-glm → local-claude-code → local-summary`),非原稿误写的"http-glm ↔ http-qwen 互链"
+  - 风险条目从 7 → 10:R1/R2 重写、新增 R7(MPS Path A regression)/ R8(lookup 隐性升级)/ R9(router god-module)/ R10(chain plan 静态对齐)
+- **[Claude/format-validator]** revised 三件套全部 PASS(status = `revised-after-model-review`,depends_on 含 model_review.md)。
+- **[Claude/design-auditor]** 二次 audit 已产出 → `verdict: concerns-only`,**0 BLOCKER + 4 CONCERN**(S1-C1 chain immutability 未明说 / S1-C2 R2 ROUTE_REGISTRY 形态错 / S2-C1 invoke_completion 模板引用不存在的 `_resolve_invoke_completion_model` / S2-C2 AsyncClient.post AST 未具体化)。Claude 已逐条修订 design_decision §S1 + §S2 + risk_assessment R2,4 个 CONCERN 全部消化。
 
 进行中:
 
@@ -172,54 +200,31 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human]** 审阅并提交当前 review follow-up / closeout bundle(含 Claude review artifacts、Codex docstring 修正、commit_summary、concerns_backlog、closeout、active_context)。
-- **[Human]** 提交后 push branch,使用本地 `./pr.md` 创建 PR,再进入 Merge Gate。
-- **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md`;随后由 roadmap-updater 做 post-merge factual update。
+- **[Human]** Phase 64 Design Gate 审批(material 齐全:三件套 revised-after-model-review、design_audit revised concerns-only、model_review BLOCK 已闭环)。
+- **[Human]** Design Gate 通过后切出 `feat/phase64-llm-router-boundary` branch。
+- **[Codex]** Phase 64 实装 + 验证 + closeout(M1 = S1 chain plan + lookup_route_by_name + 守卫 unskip;M2 = `_http_helpers.py` + `invoke_completion` + 守卫 unskip + integration smoke test)。每个 milestone 单独 commit gate。
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
 
-- 等待 Human 提交 review follow-up / closeout bundle 并创建 PR。
-
----
-
-## 下一轮 direction 候选(2026-04-29 Claude 提案)
-
-> 以下候选不直接写入 roadmap §四,先由 Human 在 Direction Gate 阶段对比选择,通过后再走 roadmap-updater 标准流程。
-
-### 候选 G:治理守卫收口(Governance Closure)
-
-- **核心价值**:消化 Phase 61 / 62 暴露的 5 条宪法-代码漂移 Open(详见 `docs/concerns_backlog.md`):
-  1. INVARIANTS §9 剩余 14 条守卫测试缺失(Phase 61 Open)
-  2. Repository 抽象层(`KnowledgeRepo` / `RouteRepo` / `PolicyRepo`)未实装(Phase 61 Open)
-  3. `apply_proposal` 事务性回滚缺失(Phase 61 Open)
-  4. `orchestrator.py:3145` stagedK 直写违反 §5 矩阵(Phase 62 audit Open)
-  5. INVARIANTS §7 集中化函数(`identity.py` / `workspace.py`)不存在,§9 守卫 vacuous(Phase 62 audit Open)
-- **可能 slice**:M1 §7 集中化函数 + 守卫真实化 / M2 stagedK 治理通道 + Repository 抽象层骨架 / M3 §9 剩余守卫批量实装 / M4 事务回滚 staged 应用
-- **风险**:中——多在治理表面收敛,回滚成本低;但 Repository 抽象层涉及现有 store 函数封装,需谨慎设计接口
-- **优先级理由**:宪法层债务继续累积会让 INVARIANTS 失去威慑力;Phase 61/62 已经引入两次"承认现状、登记 Open"模式,再不收口会成习惯
-- **依赖**:无,且与未来 D 不冲突(Repository 抽象层是 D 的有用前置)
-
-### 候选 D:编排增强(Planner / DAG / Strategy Router)
-
-- **核心价值**:见 roadmap §四
-- **风险**:高——orchestrator 主链路重构,回滚成本高
-- **优先级理由**:架构债务清理,但当前编排能力实际可用,**无真实瓶颈推动**;建议在 MPS 真实使用反馈或多 task 复杂依赖场景出现后再做
-
-### 候选 R:真实使用反馈收集(无新代码 phase)
-
-- **核心价值**:用 1-2 周时间真实使用 A-lite + MPS,产出使用反馈,作为后续 Phase 63 / 64 方向的事实输入
-- **可能产出**:`docs/feedback/<date>.md` 真实使用记录、新 concern 登记、roadmap §三 新差距条目
-- **风险**:低——无代码改动
-- **优先级理由**:Phase 60-62 连续三个 phase 都是新能力实装,需要一个"消化期"评估能力是否真正有效;否则 D 没有信号支撑
+- 等待 Human Phase 64 Design Gate 审批。
 
 ---
 
 ## 当前下一步
 
-1. **[Human]** 提交当前 review follow-up / closeout bundle。
-2. **[Human]** push branch,使用本地 `./pr.md` 创建 PR,进入 Merge Gate。
-3. **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md`;roadmap-updater 随后完成 post-merge factual update。
+1. **[Human]** Phase 64 Design Gate 审批(三件套 revised-after-model-review、design_audit revised concerns-only、model_review 已闭环)。
+2. **[Human]** Gate 通过后切出 `feat/phase64-llm-router-boundary` branch。
+3. **[Codex]** Phase 64 M1 实装(S1 chain plan + lookup_route_by_name + 守卫 unskip)→ commit gate → M2 实装(_http_helpers + invoke_completion + 守卫 unskip + integration smoke test)→ closeout。
+
+```markdown
+model_review:
+- status: completed
+- artifact: docs/plans/phase64/model_review.md
+- reviewer: external-model (GPT-5 via mcp__gpt5__chat-with-gpt5_5)
+- verdict: BLOCK
+- next: 等待 Human 选定 S1 pivot(Claude 推荐 = immutable fallback chain plan + 守卫语义重新框定);Claude 据决策修订三件套到 revised-after-model-review;不需要再触发一次 model review(GPT-5 一轮已覆盖)
+```
 
 ```markdown
 model_review:
