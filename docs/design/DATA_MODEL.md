@@ -389,7 +389,7 @@ class ContextPointer(TypedDict):
 CREATE TABLE schema_version (
     version          INTEGER NOT NULL,
     applied_at       TEXT NOT NULL,
-    slug             TEXT
+    slug             TEXT NOT NULL
 );
 ```
 
