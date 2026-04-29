@@ -27,18 +27,21 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `Phase 62`
-- latest_public_tag: `v1.3.1`
-- current_working_phase: `Release v1.3.1`
-- checkpoint_type: `v1.3.1_tag_completed`
+- latest_main_checkpoint_phase: `Phase 65`
+- latest_executed_public_tag: `v1.3.1`
+- pending_release_tag: `v1.4.0`
+- current_working_phase: `Release v1.4.0`
+- checkpoint_type: `v1.4.0_release_docs_prepared_pending_tag`
 - active_branch: `main`
-- last_checked: `2026-04-29`
+- last_checked: `2026-04-30`
 
 说明：
 
-- `main` 已包含 Phase 62 merge(`ce98f92 merge: Complete Refine codes after PRD change`):Multi-Perspective Synthesis(MPS) 的 Path A participant / arbiter 编排、MPS policy、仲裁 artifact 与 explicit staged handoff 已落地。
-- `v1.3.1` tag 已完成,覆盖 `v1.3.0` 之后的 Phase 60 / 61 / 62 稳定成果。tag message:`v1.3.1: Governance boundary and multi-perspective synthesis`;tag 指向 release docs commit `d6e4b90`。
-- 当前默认动作是进入下一轮 direction / phase 决策,不要继续扩张 Phase 62。
+- `main` 已包含 Phase 65 merge(`64cbba7 merge: Truth Plane SQLite Transfer`)。
+- Phase 65 完成 Governance 三段闭合中的候选 H：route metadata / policy truth 迁入 SQLite,`apply_proposal` route/policy 写入由显式 `BEGIN IMMEDIATE` transaction 保护,并新增 `route_change_log` / `policy_change_log` append-only audit log。
+- `docs/roadmap.md` 已完成 Phase 65 post-merge factual update。
+- 本文件与 `README.md` 已按 `v1.4.0` release doc sync 准备；Human 尚需提交 release docs 并执行 tag。
+- 当前默认动作是完成 `v1.4.0` tag 前置提交与 tag 命令,不要启动新 phase。
 
 ---
 
@@ -48,15 +51,18 @@
 
 - active_branch: `main`
 - active_track: `Release`
-- active_phase: `v1.3.1`
-- active_slice: `Tag Completed`
-- workflow_status: `v1.3.1_tag_completed`
+- active_phase: `v1.4.0`
+- active_slice: `Release docs prepared — pending Human tag`
+- workflow_status: `v1.4.0_release_docs_prepared_pending_tag`
 
 说明：
 
-- 当前默认动作不是继续扩张 Phase 62,而是进入下一轮 direction / phase 决策。
-- release docs 已同步并提交;tag preflight `.venv/bin/python -m pytest` 已通过(559 passed / 8 deselected)。
-- tag result 已同步到 `docs/active_context.md`;后续若进入新 phase,先更新 active_context 的 active track / phase / slice。
+- Phase 63 + Phase 64 + Phase 65 合并后形成治理三段完整闭合：
+  - Phase 63:治理守卫收口、Repository 抽象层、§7 集中化函数、apply_proposal 写边界。
+  - Phase 64:NO_SKIP 红灯修复、Path B fallback selection 归位、Specialist Internal 调用穿透 Provider Router、route metadata/policy 外部化。
+  - Phase 65:route/policy truth SQLite 化、事务回滚与 append-only audit log。
+- `v1.4.0` 是 minor bump,主题为 Governance boundary + SQLite truth closure。
+- tag 完成后,再进入下一轮 Direction Gate。当前 roadmap 推荐候选包括代码卫生 audit(K)、真实使用反馈观察(R)、以及后置编排增强(D)。
 
 ---
 
@@ -71,7 +77,7 @@
 5. `.agents/workflows/tag_release.md`
 6. `.agents/workflows/feature.md`
 7. `docs/design/INVARIANTS.md`
-8. `docs/plans/phase62/closeout.md`
+8. `docs/plans/phase65/closeout.md`
 9. `README.md`
 10. `docs/roadmap.md`
 
@@ -80,8 +86,8 @@
 - `CLAUDE.md`
 - `.codex/session_bootstrap.md`
 - `docs/concerns_backlog.md`
-- `docs/plans/phase62/review_comments.md`
-- `docs/plans/phase61/closeout.md`
+- `docs/plans/phase65/review_comments.md`
+- `docs/plans/phase64/closeout.md`
 - 历史 phase closeout / review_comments / archive 文档
 
 ---
@@ -98,25 +104,37 @@ git log --oneline --decorate -8
 git tag --list 'v*' --sort=-creatordate | head -n 5
 ```
 
-当前 tag 后恢复验证命令：
+当前 tag preflight 验证命令：
 
 ```bash
-.venv/bin/python -m pytest
+.venv/bin/python -m pytest -q
 git diff --check
+git diff -- docs/design/INVARIANTS.md
+```
+
+Phase 65 最近一次完整验证：
+
+```bash
+.venv/bin/python -m pytest -q
+# 610 passed, 8 deselected, 10 subtests passed
+
+.venv/bin/python tests/audit_no_skip_drift.py
+# all 8 tracked guards green
 ```
 
 ---
 
 ## 当前已知边界
 
-- `v1.3.1` tag 已完成;不要删除或重打该 tag。
-- Phase 62 不引入 Planner 自动路由到 MPS;MPS 当前仅通过 `swl synthesis` CLI 显式触发。
-- Phase 62 不给 Orchestrator 新增 stagedK 写权限;`swl synthesis stage` 是 Operator CLI 路径。
-- Phase 62 不实现自动 knowledge promotion;仲裁结果只进入 staged review。
-- MPS Path A 默认 route 使用 `local-http`;不要把 Path B 的 `local-claude-code` 当作 HTTP Path A route。
-- Phase 62 audit 已登记的 `orchestrator.py` librarian-side-effect 等价 stagedK 直写路径仍为 Open concern。
-- INVARIANTS §7 提及的 `swallow.identity.local_actor()` / `swallow.workspace.resolve_path()` 实际缺失仍为 Open concern。
-- `docs/design/` 是产品设计真相源;协作规则、release sync 和状态信息不应在 `AGENTS.md` 里重复维护副本。
+- `v1.4.0` release docs 已准备,但 tag command 仍需 Human 执行；完成前最新已执行 tag 仍是 `v1.3.1`。
+- 不删除、不重打历史 tag。
+- `docs/design/INVARIANTS.md` 在 Phase 65 中未修改。
+- `route_fallbacks.json` 仍是 operator-local config seam,不属于 SQLite truth 迁移范围。
+- Review record application artifact 写在 SQLite transaction 外；Phase 65 已将失败语义收敛为 warning-only,后续如需更强语义可设计 outbox / stale marker。
+- `route_change_log` / `policy_change_log` 目前存完整 JSON snapshot,无 size cap / truncation policy；超大 payload 写入失败时整体 rollback 是 intentional。
+- Phase 65 只建立 initial `schema_version=1` 与 `swl migrate --status`;真正 v1 -> v2 migration runner 留到首次 schema upgrade phase。
+- `events` / `event_log` 历史 backfill 仍为 Open concern,不属于 Phase 65。
+- durable proposal artifact lifecycle 仍未实现；`PendingProposalRepo` 仍为进程内 proposal registry。
 - README 当前为单文件双语结构;不要再要求同步不存在的 `README.zh-CN.md`。
 
 ---

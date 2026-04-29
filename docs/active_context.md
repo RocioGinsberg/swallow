@@ -9,18 +9,18 @@
 ## 当前轮次
 
 - latest_completed_track: `Governance`
-- latest_completed_phase: `Phase 64`
-- latest_completed_slice: `Governance Boundary LLM Path Closure + route metadata externalization + review follow-up`
-- active_track: `Governance`
-- active_phase: `Phase 65`
-- active_slice: `Phase 65 PR / merge-prep complete`
-- active_branch: `feat/phase65-truth-plane-sqlite`
-- status: `phase65_pr_ready_pending_human_merge_gate`
+- latest_completed_phase: `Phase 65`
+- latest_completed_slice: `Truth Plane SQLite Transfer`
+- active_track: `Release`
+- active_phase: `v1.4.0`
+- active_slice: `Release docs prepared — pending Human tag`
+- active_branch: `main`
+- status: `v1.4.0_release_docs_prepared_pending_human_tag`
 
 ## 当前状态说明
 
-Phase 65 PR / merge-prep is complete on `feat/phase65-truth-plane-sqlite`.
-The branch is ready for Human PR creation and Merge Gate.
+Phase 65 has been merged to `main` (`64cbba7 merge: Truth Plane SQLite Transfer`) and roadmap factual update is complete.
+Codex has prepared `v1.4.0` release docs for Human review, release-doc commit, and tag execution.
 
 Implemented scope:
 
@@ -54,22 +54,29 @@ Merge-prep outputs:
 - `pr.md` rewritten for Phase 65 PR creation.
 - `review_comments.md` verdict is `APPROVE` after Claude follow-up review.
 
+Tag-prep outputs:
+
+- `README.md` synced to release snapshot `v1.4.0`.
+- `current_state.md` synced to `v1.4.0_release_docs_prepared_pending_tag`.
+- Target tag: `v1.4.0`.
+- Suggested tag message: `v1.4.0: Governance boundary and SQLite truth closure`.
+- Tag preflight rerun: `.venv/bin/python -m pytest -q` -> `610 passed, 8 deselected, 10 subtests passed`; `git diff --check` passed; `git diff -- docs/design/INVARIANTS.md` no output.
+
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
-2. `docs/plans/phase65/kickoff.md` / `design_decision.md` / `risk_assessment.md`(revised-after-model-review)
-3. `docs/plans/phase65/context_brief.md`(claude/context-analyst)
-4. `docs/plans/phase65/design_audit.md`(claude/design-auditor,verdict = NEEDS_REVISION_BEFORE_GATE)
-5. `docs/plans/phase65/model_review.md`(claude + external GPT-5,verdict = BLOCK)
-6. `docs/plans/phase65/commit_summary.md`(codex, implementation summary)
-7. `docs/plans/phase65/consistency_report.md`(claude/consistency-checker, verdict = concerns)
-8. `docs/plans/phase65/review_comments.md`(claude, verdict = APPROVE)
-9. `docs/design/DATA_MODEL.md`(Phase 65 schema sync; `INVARIANTS.md` unchanged)
-10. `docs/concerns_backlog.md`
-11. `docs/plans/phase65/closeout.md`(codex, merge-prep closeout)
-12. `pr.md`(codex, PR body draft; local ignored file)
-13. `current_state.md`(merge 后待同步)
-14. `docs/roadmap.md`(merge 后由 roadmap-updater factual update)
+2. `current_state.md`(`v1.4.0` release-doc checkpoint)
+3. `README.md`(`v1.4.0` release snapshot)
+4. `docs/roadmap.md`(Phase 65 post-merge factual update)
+5. `docs/plans/phase65/closeout.md`(codex closeout)
+6. `docs/plans/phase65/review_comments.md`(claude, verdict = APPROVE)
+7. `docs/plans/phase65/commit_summary.md`(codex verification summary)
+8. `docs/plans/phase65/kickoff.md` / `design_decision.md` / `risk_assessment.md`(revised-after-model-review)
+9. `docs/plans/phase65/context_brief.md`
+10. `docs/plans/phase65/design_audit.md`
+11. `docs/plans/phase65/model_review.md`
+12. `docs/design/DATA_MODEL.md`(Phase 65 schema sync; `INVARIANTS.md` unchanged)
+13. `docs/concerns_backlog.md`
 
 ---
 
@@ -113,6 +120,9 @@ Merge-prep outputs:
 - **[Codex]** Phase 65 review follow-up 已完成:BLOCK-1 / CONCERN-1 / CONCERN-2 / NOTE-1 均已处理;最新验证绿(`610 passed / 8 deselected / 10 subtests`)。
 - **[Claude]** Phase 65 follow-up review 已完成,`review_comments.md` verdict 升级为 `APPROVE`,无 merge-blocker 遗留。
 - **[Codex]** Phase 65 merge-prep 已完成:`closeout.md` / `docs/concerns_backlog.md` / `pr.md` 已同步到 PR / Merge Gate 状态。
+- **[Human]** Phase 65 已 merge 到 `main`(`64cbba7 merge: Truth Plane SQLite Transfer`)。
+- **[Claude/roadmap-updater]** Phase 65 post-merge roadmap factual update 已完成:候选 H 标 [已消化],推荐顺序更新为 G ✓ → G.5 ✓ → H ✓ → K/R/D,Tag/Release 决策追踪更新到 v1.4.0 待 Human tag gate。
+- **[Codex]** `v1.4.0` release doc sync 已完成:`README.md` release snapshot 与 `current_state.md` checkpoint 已对齐到 pending tag 状态。
 
 进行中:
 
@@ -120,8 +130,8 @@ Merge-prep outputs:
 
 待执行:
 
-- **[Human]** Commit merge-prep artifacts, push `feat/phase65-truth-plane-sqlite`, and create PR using `pr.md`.
-- **[Human]** Run Merge Gate after PR creation.
+- **[Human]** Review release-doc diff and roadmap diff, then commit `README.md` / `current_state.md` / `docs/active_context.md` plus existing roadmap update as release-prep docs.
+- **[Human]** Execute `v1.4.0` annotated tag after release-doc commit.
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
@@ -132,10 +142,11 @@ Merge-prep outputs:
 
 ## 当前下一步
 
-1. **[Human]** Commit current merge-prep docs and review resolution.
-2. **[Human]** Push branch and create PR using `pr.md`.
-3. **[Human]** Merge Gate:confirm PR description matches `pr.md` and `review_comments.md` verdict remains `APPROVE`.
-4. **[Codex]** After merge to `main`, update `current_state.md` and `docs/active_context.md`.
+1. **[Human]** Review and commit release docs on `main`.
+2. **[Human]** Run tag preflight if desired:`.venv/bin/python -m pytest -q && git diff --check`.
+3. **[Human]** Execute annotated tag:`git tag -a v1.4.0 -m "v1.4.0: Governance boundary and SQLite truth closure"`.
+4. **[Human]** Push `main` and tags.
+5. **[Codex]** After tag completion, sync `docs/active_context.md` to `tag completed`.
 
 ```markdown
 design_audit:
@@ -188,6 +199,9 @@ model_review:
 - `docs/plans/phase65/closeout.md`(codex, 2026-04-30, merge-prep closeout)
 - `docs/concerns_backlog.md`(codex, 2026-04-30, Phase 65 closeout updates)
 - `pr.md`(codex, 2026-04-30, Phase 65 PR body draft)
+- `README.md`(codex, 2026-04-30, v1.4.0 release snapshot prep)
+- `current_state.md`(codex, 2026-04-30, v1.4.0 release-doc checkpoint prep)
+- `docs/roadmap.md`(claude/roadmap-updater, 2026-04-30, Phase 65 post-merge factual update)
 - `docs/design/DATA_MODEL.md`(codex, Phase 65 schema sync + review NOTE-1 fix; `INVARIANTS.md` unchanged)
 - `src/swallow/sqlite_store.py` / `src/swallow/router.py` / `src/swallow/truth/route.py` / `src/swallow/truth/policy.py` / `src/swallow/consistency_audit.py` / `src/swallow/mps_policy_store.py` / `src/swallow/governance.py` / `src/swallow/cli.py`(codex, Phase 65 implementation)
 - `tests/test_phase65_sqlite_truth.py` / `tests/test_invariant_guards.py` / `tests/test_router.py` / `tests/test_governance.py` / `tests/test_cli.py` / `tests/test_meta_optimizer.py`(codex, Phase 65 tests / fixture migration / review follow-up coverage)

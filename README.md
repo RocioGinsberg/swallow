@@ -10,13 +10,14 @@ swallow sustains multi-step, multi-session tasks by combining task orchestration
 
 ## Release Snapshot
 
-Current release: **v1.3.1**.
+Current release: **v1.4.0**.
 
-This snapshot includes the post-`v1.3.0` stabilization line:
+This snapshot closes the Governance G + G.5 + H sequence after `v1.3.1`:
 
-- Route-aware retrieval policy: autonomous CLI coding routes default to knowledge sources, HTTP routes default to knowledge + notes, and repository retrieval remains explicit.
-- `apply_proposal()` governance boundary: canonical knowledge, route metadata, and policy writes converge on one operator-gated entrypoint.
-- Multi-Perspective Synthesis (MPS): controlled Path A participant + arbiter synthesis, MPS cost policy, arbitration artifacts, and explicit staged-knowledge handoff via `swl synthesis`.
+- `apply_proposal()` governance boundary: canonical knowledge, route metadata, and policy writes converge on one operator-gated entrypoint backed by Repository write boundaries.
+- LLM path closure: Path B fallback selection is resolved by the Orchestrator before execution, while Specialist Internal calls go through the Provider Router via `router.invoke_completion(...)`.
+- SQLite-primary route and policy truth: route registry, route selection policy, route weights, capability profiles, audit-trigger policy, and MPS policy now persist through SQLite with explicit `BEGIN IMMEDIATE` transactions and append-only route/policy audit logs.
+- Migration/status baseline: the initial schema records `schema_version=1` and `swl migrate --status` reports `schema_version: 1, pending: 0`.
 
 ---
 
@@ -187,13 +188,14 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 ## Release Snapshot
 
-当前 release:**v1.3.1**。
+当前 release:**v1.4.0**。
 
-这个快照包含 `v1.3.0` 之后的稳定化能力:
+这个快照闭合 `v1.3.1` 之后的治理三段(G + G.5 + H):
 
-- 路径感知 retrieval policy:autonomous CLI coding route 默认取 knowledge,HTTP route 默认取 knowledge + notes,repo retrieval 保持显式触发。
-- `apply_proposal()` governance boundary:canonical knowledge / route metadata / policy 三类写入收敛到单一 operator-gated 入口。
-- Multi-Perspective Synthesis(MPS):受控 Path A participant + arbiter 综合、MPS 成本 policy、仲裁 artifact,以及通过 `swl synthesis` 显式进入 staged knowledge。
+- `apply_proposal()` governance boundary:canonical knowledge / route metadata / policy 三类写入收敛到单一 operator-gated 入口,并由 Repository 写边界承接。
+- LLM path closure:Path B fallback selection 由 Orchestrator 在执行前解析,Specialist Internal 调用通过 `router.invoke_completion(...)` 穿透 Provider Router。
+- SQLite-primary route / policy truth:route registry、route selection policy、route weights、capability profiles、audit-trigger policy、MPS policy 现在通过 SQLite 持久化,并由显式 `BEGIN IMMEDIATE` transaction 与 append-only route/policy audit log 保护。
+- Migration/status baseline:初始 schema 记录 `schema_version=1`,`swl migrate --status` 输出 `schema_version: 1, pending: 0`。
 
 ---
 
