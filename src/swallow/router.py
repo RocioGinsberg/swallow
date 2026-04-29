@@ -909,6 +909,24 @@ def fallback_route_for(route_name: str) -> RouteSpec | None:
     return route_by_name(route.fallback_route_name)
 
 
+def resolve_fallback_chain(primary_route_name: str) -> tuple[str, ...]:
+    """Return the static fallback route-name chain for a primary route."""
+
+    route = route_by_name(primary_route_name)
+    if route is None:
+        return ()
+
+    chain: list[str] = []
+    seen: set[str] = set()
+    current_name = route.name
+    while current_name and current_name not in seen:
+        chain.append(current_name)
+        seen.add(current_name)
+        fallback_route = fallback_route_for(current_name)
+        current_name = fallback_route.name if fallback_route is not None else ""
+    return tuple(chain)
+
+
 def _reason_with_strategy_match(base_reason: str, match_kind: str) -> str:
     if match_kind in {"exact_executor", "exact_route_name"}:
         return base_reason

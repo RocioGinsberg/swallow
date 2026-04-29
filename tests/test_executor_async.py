@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.executor import HTTPExecutor, run_http_executor_async
 from swallow.models import ExecutorResult, TaskCard, TaskState
-from swallow.orchestrator import _resolve_fallback_chain
+from swallow.router import resolve_fallback_chain
 
 
 class _FakeHTTPResponse:
@@ -72,7 +72,7 @@ def _http_state(
         route_model_hint=route_model_hint,
         route_dialect=route_dialect,
         route_capabilities={"execution_kind": "artifact_generation", "supports_tool_loop": False},
-        fallback_route_chain=_resolve_fallback_chain(route_name),
+        fallback_route_chain=resolve_fallback_chain(route_name),
     )
 
 
@@ -172,7 +172,7 @@ class ExecutorAsyncProtocolTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.fallback_route_name, "http-qwen")
         self.assertEqual(state.route_name, "http-qwen")
         self.assertEqual(state.route_dialect, "plain_text")
-        self.assertEqual(state.fallback_route_chain, _resolve_fallback_chain("http-claude"))
+        self.assertEqual(state.fallback_route_chain, resolve_fallback_chain("http-claude"))
         self.assertEqual(primary_client.calls[0]["kwargs"]["json"]["model"], "claude-3-7-sonnet")
         self.assertEqual(fallback_client.calls[0]["kwargs"]["json"]["model"], "qwen2.5-coder-32b-instruct")
 

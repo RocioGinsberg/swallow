@@ -10,7 +10,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.agent_llm import call_agent_llm
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
-from swallow.orchestrator import _resolve_fallback_chain
 from swallow.paths import route_capabilities_path, route_fallbacks_path, route_policy_path, route_registry_path
 from swallow.router import (
     RouteRegistry,
@@ -30,6 +29,7 @@ from swallow.router import (
     load_route_registry,
     lookup_route_by_name,
     normalize_route_name,
+    resolve_fallback_chain,
     route_by_name,
     route_for_executor,
     route_for_mode,
@@ -175,7 +175,7 @@ class RouteRegistryTest(unittest.TestCase):
         )
 
     def test_resolve_fallback_chain_covers_builtin_http_chain(self) -> None:
-        chain = _resolve_fallback_chain("http-claude")
+        chain = resolve_fallback_chain("http-claude")
 
         self.assertGreaterEqual(len(chain), 1)
         self.assertEqual(chain[0], "http-claude")
@@ -192,7 +192,7 @@ class RouteRegistryTest(unittest.TestCase):
 
             try:
                 apply_route_fallbacks(tmp_path)
-                self.assertEqual(_resolve_fallback_chain("http-claude"), ("http-claude", "local-summary"))
+                self.assertEqual(resolve_fallback_chain("http-claude"), ("http-claude", "local-summary"))
             finally:
                 with tempfile.TemporaryDirectory() as reset_tmp:
                     apply_route_fallbacks(Path(reset_tmp))
