@@ -13,9 +13,9 @@
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
 - active_track: `Governance`
 - active_phase: `Phase 63`
-- active_slice: `revised-after-model-review + §S2 M0-dependent 双方案待定,待 Human Design Gate / M0 audit`
-- active_branch: `main`(尚未切换 feature 分支)
-- status: `phase63_S2_dual_scheme_pending_m0_audit`
+- active_slice: `M0 pre-implementation audit completed, waiting Claude / Human decision`
+- active_branch: `feat/phase63-governance-closure`
+- status: `phase63_m0_audit_completed_waiting_decision`
 
 ## 新差距(2026-04-29 Direction Gate 后输入,待 roadmap-updater 增补 §三/§四)
 
@@ -163,18 +163,12 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human]** Design Gate ⛔:阅读 phase63 三件套 + design_audit + model_review,决定通过 / 打回。本 phase 有几个特殊点需要 Human 显式审批:
-  - **§5 矩阵文字更新**:non-goals 已从"不修改 INVARIANTS 文字"收紧为"§5 矩阵 Orchestrator 行 stagedK 列允许更新一行"
-  - **6 slice / 5 milestone**:超出"≤5 slice"指引一个(M0 是 audit-only safety net)
-  - **2 条高风险 slice**(R3 Repository + R5_NEW SQLite transaction)
-  - **M0-dependent S5 实装路径**:Path A / B / C 由 M0 audit 后再敲定
-- **[Human]** Design Gate 通过后,切换 feature branch `feat/phase63-governance-closure`,通知 Codex 开始 M0 实装
-- **[Codex]** M0 完成后产出 `docs/plans/phase63/m0_audit_report.md`,等待 Claude / Human 决定是否继续 6-slice 或拆 Phase 63.5
+- **[Claude / Human]** 基于 `docs/plans/phase63/m0_audit_report.md` 决定 §S2 方案(A/D)、Phase 63 scope(维持 6-slice / 拆 Phase 63.5)、S5 实装路径。
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix
 
 当前阻塞项:
 
-- 等待 Human Design Gate 决议。
+- 等待 Claude / Human 基于 M0 audit 决定 §S2 方案(A/D)、后续 scope、S5 实装路径。
 
 ---
 
@@ -212,12 +206,11 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Claude]** 触发 `design-auditor` subagent,产出 `docs/plans/phase63/design_audit.md`
-2. **[Claude]** 根据 design_audit BLOCKER / CONCERN 决定:若有 BLOCKER 回到设计修订;若无,触发 Model Review Gate(已预判 required)
-3. **[Claude]** 通过 model-review skill(`mcp__gpt5__chat-with-gpt5_5`)产出 `docs/plans/phase63/model_review.md`,根据 verdict 消化反馈
-4. **[Human]** Design Gate ⛔:阅读 kickoff / design_decision / risk_assessment / design_audit / model_review,决定通过 / 打回
-5. **[Human]** 通过后切换 feature branch `feat/phase63-governance-closure`,通知 Codex
-6. **[Codex]** 按 design_decision M1 → M2 → M3 → M4 顺序实装
+1. **[Claude / Human]** 基于 `docs/plans/phase63/m0_audit_report.md` 决定:
+   - §S2 走方案 A(librarian_side_effect token + §5 矩阵更新)还是方案 D(下沉 Specialist 内部 + §5 不动)
+   - Phase 63 维持 6-slice 计划还是拆 Phase 63.5
+   - S5 SQLite transaction 实装走 Path A / B / C
+2. **[Codex]** 等待方案选择后,再按 design_decision 推进 M1 → M2 → M3 → M4。
 
 ```markdown
 model_review:
@@ -274,3 +267,6 @@ model_review:
 - `docs/plans/phase63/kickoff.md`(claude, 2026-04-29, revised-after-model-review + Human 反馈:G0 audit 第 3 项 + G2 双方案)
 - `docs/plans/phase63/design_decision.md`(claude, 2026-04-29, revised-after-model-review + Human 反馈:S0 audit 3 项 + S2 M0-dependent 方案 A/D 决策表)
 - `docs/plans/phase63/risk_assessment.md`(claude, 2026-04-29, revised-after-model-review + Human 反馈:R12 改 M0-dependent + 新增 R15 方案选择失误)
+- `tests/audit_no_skip_drift.py`(codex, 2026-04-29, Phase 63 M0 report-only NO_SKIP guard pre-scan)
+- `tests/audit_route_knowledge_to_staged.py`(codex, 2026-04-29, Phase 63 M0 `_route_knowledge_to_staged` trigger audit)
+- `docs/plans/phase63/m0_audit_report.md`(codex, 2026-04-29, Phase 63 M0 audit result:2 NO_SKIP red signals; 0 built-in blocked routes; S5 SQLite path mismatch)
