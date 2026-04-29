@@ -3,18 +3,23 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import sqlite3
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from .executor import run_prompt_executor
+from . import sqlite_store
+from .identity import local_actor
 from .models import AuditTriggerPolicy, EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED, TaskState
+from .models import utc_now
 from .paths import artifacts_dir, audit_policy_path
 from .router import route_by_name
-from .store import apply_atomic_text_updates, load_events, load_state, write_artifact
+from .store import load_events, load_state, write_artifact
 
 
 AUDIT_INPUT_CHAR_LIMIT = 12000
+AUDIT_TRIGGER_POLICY_ID = "audit_trigger:global"
 _VERDICT_PATTERN = re.compile(r"^\s*-\s*verdict:\s*(pass|fail|inconclusive)\b", re.IGNORECASE | re.MULTILINE)
 _FAIL_SIGNAL_PATTERNS = (
     re.compile(r"\binconsistent\b", re.IGNORECASE),
@@ -179,6 +184,19 @@ def parse_consistency_audit_verdict(raw_output: str) -> str:
 
 
 def load_audit_trigger_policy(base_dir: Path) -> AuditTriggerPolicy:
+    _bootstrap_audit_trigger_policy_from_legacy_json(base_dir)
+    connection = sqlite_store.get_connection(base_dir)
+    row = connection.execute(
+        "SELECT payload FROM policy_records WHERE policy_id = ?",
+        (AUDIT_TRIGGER_POLICY_ID,),
+    ).fetchone()
+    if row is not None:
+        try:
+            payload = json.loads(str(row["payload"]))
+        except json.JSONDecodeError:
+            payload = {}
+        if isinstance(payload, dict):
+            return AuditTriggerPolicy.from_dict(payload)
     path = audit_policy_path(base_dir)
     if not path.exists():
         return AuditTriggerPolicy()
@@ -193,8 +211,84 @@ def load_audit_trigger_policy(base_dir: Path) -> AuditTriggerPolicy:
 
 def save_audit_trigger_policy(base_dir: Path, policy: AuditTriggerPolicy) -> Path:
     path = audit_policy_path(base_dir)
-    apply_atomic_text_updates({path: json.dumps(policy.to_dict(), indent=2) + "\n"})
+    _bootstrap_audit_trigger_policy_from_legacy_json(base_dir)
+    _run_policy_write(
+        base_dir,
+        lambda connection: _upsert_audit_trigger_policy(connection, policy),
+    )
     return path
+
+
+def _run_policy_write(base_dir: Path, writer) -> None:
+    connection = sqlite_store.get_connection(base_dir)
+    if connection.in_transaction:
+        writer(connection)
+        return
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        writer(connection)
+        connection.execute("COMMIT")
+    except Exception:
+        connection.execute("ROLLBACK")
+        raise
+
+
+def _upsert_audit_trigger_policy(connection: sqlite3.Connection, policy: AuditTriggerPolicy) -> None:
+    connection.execute(
+        """
+        INSERT INTO policy_records (
+            policy_id, kind, scope, scope_value, payload, updated_at, updated_by
+        )
+        VALUES (?, ?, ?, NULL, ?, ?, ?)
+        ON CONFLICT(policy_id) DO UPDATE SET
+            kind = excluded.kind,
+            scope = excluded.scope,
+            scope_value = excluded.scope_value,
+            payload = excluded.payload,
+            updated_at = excluded.updated_at,
+            updated_by = excluded.updated_by
+        """,
+        (
+            AUDIT_TRIGGER_POLICY_ID,
+            "audit_trigger",
+            "global",
+            json.dumps(policy.to_dict(), sort_keys=True),
+            utc_now(),
+            local_actor(),
+        ),
+    )
+
+
+def _audit_trigger_policy_exists(connection: sqlite3.Connection) -> bool:
+    row = connection.execute(
+        "SELECT 1 FROM policy_records WHERE policy_id = ?",
+        (AUDIT_TRIGGER_POLICY_ID,),
+    ).fetchone()
+    return row is not None
+
+
+def _bootstrap_audit_trigger_policy_from_legacy_json(base_dir: Path) -> None:
+    connection = sqlite_store.get_connection(base_dir)
+    if _audit_trigger_policy_exists(connection):
+        return
+    path = audit_policy_path(base_dir)
+    if not path.exists():
+        return
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        if _audit_trigger_policy_exists(connection):
+            connection.execute("COMMIT")
+            return
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        policy = AuditTriggerPolicy.from_dict(payload if isinstance(payload, dict) else {})
+        _upsert_audit_trigger_policy(connection, policy)
+        connection.execute("COMMIT")
+    except Exception:
+        connection.execute("ROLLBACK")
+        raise
 
 
 def build_audit_trigger_policy_report(policy: AuditTriggerPolicy) -> str:

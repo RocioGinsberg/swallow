@@ -40,7 +40,13 @@ from swallow.paths import (
     route_capabilities_path,
     route_weights_path,
 )
-from swallow.router import apply_route_capability_profiles, apply_route_weights, route_by_name
+from swallow.router import (
+    apply_route_capability_profiles,
+    apply_route_weights,
+    load_route_capability_profiles,
+    load_route_weights,
+    route_by_name,
+)
 from swallow.store import load_state
 
 
@@ -267,12 +273,13 @@ class MetaOptimizerTest(unittest.TestCase):
                     route_weight_proposal.suggested_weight or 1.0,
                     places=2,
                 )
-                persisted_weights = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
+                persisted_weights = load_route_weights(base_dir)
                 self.assertAlmostEqual(
                     persisted_weights["local-codex"],
                     route_weight_proposal.suggested_weight or 1.0,
                     places=2,
                 )
+                self.assertFalse(route_weights_path(base_dir).exists())
 
                 replay_record, _replay_path = apply_reviewed_optimization_proposals(base_dir, review_path)
                 self.assertEqual(replay_record.applied_count, 0)
@@ -455,12 +462,13 @@ class MetaOptimizerTest(unittest.TestCase):
                     application_record.rollback_capability_profiles["local-http"]["unsupported_task_types"],
                     [],
                 )
-                persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
+                persisted_profiles = load_route_capability_profiles(base_dir)
                 self.assertAlmostEqual(
                     persisted_profiles["local-http"]["task_family_scores"]["review"],
                     proposal.suggested_task_family_score or 0.0,
                     places=2,
                 )
+                self.assertFalse(route_capabilities_path(base_dir).exists())
                 apply_route_capability_profiles(base_dir)
                 self.assertAlmostEqual(route.task_family_scores["review"], proposal.suggested_task_family_score or 0.0, places=2)
         finally:
@@ -538,8 +546,9 @@ class MetaOptimizerTest(unittest.TestCase):
                     application_record.rollback_capability_profiles["local-codex"]["unsupported_task_types"],
                     [],
                 )
-                persisted_profiles = json.loads(route_capabilities_path(base_dir).read_text(encoding="utf-8"))
+                persisted_profiles = load_route_capability_profiles(base_dir)
                 self.assertEqual(persisted_profiles["local-codex"]["unsupported_task_types"], ["review"])
+                self.assertFalse(route_capabilities_path(base_dir).exists())
                 apply_route_capability_profiles(base_dir)
                 self.assertEqual(route.unsupported_task_types, ["review"])
         finally:
@@ -1224,8 +1233,8 @@ class MetaOptimizerTest(unittest.TestCase):
                     ]
                 )
             self.assertEqual(exit_code, 0)
-            self.assertTrue(route_weights_path(base_dir).exists())
-            persisted = json.loads(route_weights_path(base_dir).read_text(encoding="utf-8"))
+            self.assertFalse(route_weights_path(base_dir).exists())
+            persisted = load_route_weights(base_dir)
             self.assertEqual(persisted["local-codex"], 0.33)
             self.assertIn("local-codex: 0.330000", stdout.getvalue())
 

@@ -312,6 +312,7 @@ def _apply_route_metadata(proposal: object, _operator_token: OperatorToken, *, p
         route_policy=proposal.route_policy,
         route_weights=proposal.route_weights,
         route_capability_profiles=proposal.route_capability_profiles,
+        proposal_id=proposal_id,
     )
 
     return ApplyResult(
@@ -556,6 +557,7 @@ def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_i
         base_dir=proposal.base_dir,
         route_weights=persisted_weights,
         route_capability_profiles=persisted_profiles,
+        proposal_id=proposal_id,
     )
 
     applied_at = utc_now()
@@ -590,6 +592,7 @@ def _apply_policy(proposal: object, _operator_token: OperatorToken, *, proposal_
             base_dir=proposal.base_dir,
             mps_kind=proposal.kind,
             mps_value=proposal.value,
+            proposal_id=proposal_id,
         )
         return ApplyResult(
             proposal_id=proposal_id,
@@ -606,6 +609,7 @@ def _apply_policy(proposal: object, _operator_token: OperatorToken, *, proposal_
     applied_write, policy_path = PolicyRepo()._apply_policy_change(
         base_dir=proposal.base_dir,
         audit_trigger_policy=proposal.audit_trigger_policy,
+        proposal_id=proposal_id,
     )
     return ApplyResult(
         proposal_id=proposal_id,

@@ -115,6 +115,7 @@ from .paths import (
 )
 from .staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate, update_staged_candidate
 from .synthesis import load_synthesis_config, run_synthesis
+from .sqlite_store import get_schema_status
 from .workspace import resolve_path
 from .router import (
     apply_route_capability_profiles,
@@ -1447,6 +1448,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Scan file-based task state and report migration candidates without writing SQLite records.",
     )
+    migrate_parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Print SQLite schema version status without running file backfill.",
+    )
     meta_optimize_parser = subparsers.add_parser(
         "meta-optimize",
         help="Scan recent task event logs and emit a read-only optimization proposal report.",
@@ -2344,11 +2350,16 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     base_dir = resolve_path(args.base_dir)
-    apply_route_registry(base_dir)
-    apply_route_policy(base_dir)
-    apply_route_weights(base_dir)
-    apply_route_fallbacks(base_dir)
-    apply_route_capability_profiles(base_dir)
+    route_bootstrap_writes_allowed = not (
+        (args.command == "migrate" and bool(args.dry_run) and not bool(args.status))
+        or (args.command == "knowledge" and args.knowledge_command == "migrate" and bool(args.dry_run))
+    )
+    if route_bootstrap_writes_allowed:
+        apply_route_registry(base_dir)
+        apply_route_policy(base_dir)
+        apply_route_weights(base_dir)
+        apply_route_fallbacks(base_dir)
+        apply_route_capability_profiles(base_dir)
 
     if args.command == "knowledge" and args.knowledge_command == "stage-list":
         candidates = load_staged_candidates(base_dir)
@@ -3775,6 +3786,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "migrate":
+        if bool(args.status):
+            status = get_schema_status(base_dir)
+            print(f"schema_version: {status['schema_version']}, pending: {status['pending']}")
+            return 0
         print(format_store_migration_summary(migrate_file_tasks_to_sqlite(base_dir, dry_run=args.dry_run)))
         return 0
 

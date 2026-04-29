@@ -12,6 +12,7 @@ from swallow.governance import (
     register_mps_policy_proposal,
     register_policy_proposal,
     register_route_metadata_proposal,
+    load_mps_policy,
 )
 from swallow.models import AuditTriggerPolicy
 from swallow.paths import (
@@ -27,6 +28,13 @@ from swallow.paths import (
     route_weights_path,
 )
 from swallow.router import apply_route_policy, apply_route_registry, current_route_policy, route_by_name
+from swallow.router import (
+    load_route_capability_profiles,
+    load_route_policy,
+    load_route_registry,
+    load_route_weights,
+)
+from swallow.consistency_audit import load_audit_trigger_policy
 
 
 def test_operator_token_rejects_invalid_source() -> None:
@@ -147,10 +155,12 @@ def test_apply_route_metadata_proposal_saves_and_refreshes_registry(tmp_path) ->
 
         assert result.success is True
         assert result.applied_writes == ("route_weights", "route_capability_profiles")
-        persisted_weights = json.loads(route_weights_path(tmp_path).read_text(encoding="utf-8"))
-        persisted_profiles = json.loads(route_capabilities_path(tmp_path).read_text(encoding="utf-8"))
+        persisted_weights = load_route_weights(tmp_path)
+        persisted_profiles = load_route_capability_profiles(tmp_path)
         assert persisted_weights["local-codex"] == 0.42
         assert persisted_profiles["local-codex"]["task_family_scores"]["execution"] == 0.81
+        assert not route_weights_path(tmp_path).exists()
+        assert not route_capabilities_path(tmp_path).exists()
         assert route.quality_weight == 0.42
         assert route.task_family_scores["execution"] == 0.81
         assert route.unsupported_task_types == ["review"]
@@ -181,8 +191,9 @@ def test_apply_route_metadata_proposal_saves_and_refreshes_route_registry(tmp_pa
 
         assert result.success is True
         assert result.applied_writes == ("route_registry",)
-        persisted_registry = json.loads(route_registry_path(tmp_path).read_text(encoding="utf-8"))
+        persisted_registry = load_route_registry(tmp_path)
         assert persisted_registry["local-summary"]["model_hint"] == "summary-governed"
+        assert not route_registry_path(tmp_path).exists()
         refreshed = route_by_name("local-summary")
         assert refreshed is not None
         assert refreshed.model_hint == "summary-governed"
@@ -210,7 +221,7 @@ def test_apply_route_metadata_proposal_saves_and_refreshes_route_policy(tmp_path
 
         assert result.success is True
         assert result.applied_writes == ("route_policy",)
-        persisted_policy = json.loads(route_policy_path(tmp_path).read_text(encoding="utf-8"))
+        persisted_policy = load_route_policy(tmp_path)
         assert persisted_policy == {
             "complexity_bias_routes": {"high": "local-summary"},
             "parallel_intent_hints": ["fanout"],
@@ -218,6 +229,7 @@ def test_apply_route_metadata_proposal_saves_and_refreshes_route_policy(tmp_path
             "strategy_complexity_hints": ["high"],
             "summary_fallback_route_name": "local-summary",
         }
+        assert not route_policy_path(tmp_path).exists()
         assert current_route_policy()["complexity_bias_routes"]["high"] == "local-summary"
         assert current_route_policy()["parallel_intent_hints"] == ["fanout"]
     finally:
@@ -241,13 +253,14 @@ def test_apply_policy_proposal_saves_audit_trigger_policy(tmp_path) -> None:
 
     assert result.success is True
     assert result.applied_writes == ("audit_trigger_policy",)
-    persisted = json.loads(audit_policy_path(tmp_path).read_text(encoding="utf-8"))
-    assert persisted == {
+    persisted = load_audit_trigger_policy(tmp_path)
+    assert persisted.to_dict() == {
         "enabled": True,
         "trigger_on_degraded": False,
         "trigger_on_cost_above": 0.75,
         "auditor_route": "http-qwen",
     }
+    assert not audit_policy_path(tmp_path).exists()
 
 
 def test_mps_rounds_within_hard_cap(tmp_path) -> None:
@@ -272,5 +285,5 @@ def test_apply_proposal_accepts_mps_policy_kind(tmp_path) -> None:
 
     assert result.success is True
     assert result.applied_writes == ("mps_policy",)
-    persisted = json.loads(mps_policy_path(tmp_path).read_text(encoding="utf-8"))
-    assert persisted == {"mps_participant_limit": 6}
+    assert load_mps_policy(tmp_path, "mps_participant_limit") == 6
+    assert not mps_policy_path(tmp_path).exists()
