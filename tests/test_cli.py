@@ -76,12 +76,13 @@ from swallow.paths import (
     mps_policy_path,
     remote_handoff_contract_path,
     route_capabilities_path,
+    route_registry_path,
     route_weights_path,
     swallow_db_path,
 )
 from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.retrieval_adapters import select_retrieval_adapter
-from swallow.router import route_by_name, select_route
+from swallow.router import apply_route_registry, route_by_name, select_route
 from swallow.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
 from swallow.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
 from swallow.store import (
@@ -5956,6 +5957,51 @@ class CliLifecycleTest(unittest.TestCase):
             self.assertIn("# Route Capability Profiles", show_stdout.getvalue())
             self.assertIn("local-http", show_stdout.getvalue())
             self.assertIn("task_family_scores: review=0.750000", show_stdout.getvalue())
+
+    def test_route_registry_apply_and_show_cli_flow(self) -> None:
+        route = route_by_name("local-summary")
+        self.assertIsNotNone(route)
+        assert route is not None
+        registry_payload = {
+            "local-summary": {
+                **route.to_dict(),
+                "model_hint": "summary-cli-governed",
+            }
+        }
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                base_dir = Path(tmp)
+                registry_file = base_dir / "routes.json"
+                registry_file.write_text(json.dumps(registry_payload), encoding="utf-8")
+
+                apply_stdout = StringIO()
+                with redirect_stdout(apply_stdout):
+                    exit_code = main(
+                        [
+                            "--base-dir",
+                            str(base_dir),
+                            "route",
+                            "registry",
+                            "apply",
+                            str(registry_file),
+                        ]
+                    )
+
+                self.assertEqual(exit_code, 0)
+                self.assertEqual(json.loads(route_registry_path(base_dir).read_text(encoding="utf-8")), registry_payload)
+                self.assertIn("# Route Registry", apply_stdout.getvalue())
+                self.assertIn("summary-cli-governed", apply_stdout.getvalue())
+
+                show_stdout = StringIO()
+                with redirect_stdout(show_stdout):
+                    exit_code = main(["--base-dir", str(base_dir), "route", "registry", "show"])
+
+                self.assertEqual(exit_code, 0)
+                self.assertIn("local-summary", show_stdout.getvalue())
+                self.assertIn("summary-cli-governed", show_stdout.getvalue())
+        finally:
+            with tempfile.TemporaryDirectory() as reset_tmp:
+                apply_route_registry(Path(reset_tmp))
 
     def test_task_help_includes_capability_commands(self) -> None:
         stdout = StringIO()

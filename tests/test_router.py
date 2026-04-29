@@ -11,21 +11,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from swallow.agent_llm import call_agent_llm
 from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
 from swallow.orchestrator import _resolve_fallback_chain
-from swallow.paths import route_capabilities_path, route_fallbacks_path
+from swallow.paths import route_capabilities_path, route_fallbacks_path, route_registry_path
 from swallow.router import (
     RouteRegistry,
     apply_route_fallbacks,
     apply_route_capability_profiles,
+    apply_route_registry,
     apply_route_weights,
     build_detached_route,
+    current_route_registry,
     current_route_capability_profiles,
     current_route_weights,
+    load_default_route_registry,
+    load_route_registry,
     lookup_route_by_name,
     normalize_route_name,
     route_by_name,
     route_for_executor,
     route_for_mode,
     save_route_capability_profiles,
+    save_route_registry,
     save_route_weights,
     select_route,
 )
@@ -186,6 +191,48 @@ class RouteRegistryTest(unittest.TestCase):
             finally:
                 with tempfile.TemporaryDirectory() as reset_tmp:
                     apply_route_fallbacks(Path(reset_tmp))
+
+    def test_default_route_registry_is_loaded_from_json_metadata(self) -> None:
+        default_registry = load_default_route_registry()
+
+        self.assertIn("http-claude", default_registry)
+        self.assertEqual(default_registry["http-claude"]["dialect_hint"], "claude_xml")
+        self.assertEqual(route_by_name("http-claude").to_dict(), default_registry["http-claude"])
+
+    def test_apply_route_registry_loads_workspace_route_metadata(self) -> None:
+        registry = RouteRegistry([_route(name="placeholder", executor_name="placeholder", backend_kind="mock")])
+        route_registry = {
+            "local-summary": _route(
+                name="local-summary",
+                executor_name="local",
+                backend_kind="local_summary",
+                model_hint="summary-custom",
+                fallback_route_name="",
+            ).to_dict(),
+            "custom-http": _route(
+                name="custom-http",
+                executor_name="http",
+                backend_kind="http_api",
+                model_hint="custom-model",
+                fallback_route_name="local-summary",
+                execution_site="local",
+                executor_family="api",
+            ).to_dict(),
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_route_registry(tmp_path, route_registry)
+
+            applied = apply_route_registry(tmp_path, registry)
+            loaded = load_route_registry(tmp_path)
+
+            self.assertEqual(route_registry_path(tmp_path).name, "routes.json")
+            self.assertEqual(loaded["custom-http"]["model_hint"], "custom-model")
+        self.assertEqual(applied["custom-http"]["fallback_route_name"], "local-summary")
+        self.assertEqual(registry.maybe_get("placeholder"), None)
+        self.assertEqual(registry.get("custom-http").model_hint, "custom-model")
+        self.assertEqual(current_route_registry(registry)["local-summary"]["model_hint"], "summary-custom")
 
     def test_build_detached_route_preserves_fallback_target(self) -> None:
         detached = build_detached_route(route_for_executor("aider"))

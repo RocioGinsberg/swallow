@@ -272,34 +272,37 @@ def run_audit() -> list[GuardAudit]:
         "test_canonical_write_only_via_apply_proposal": _find_protected_writer_uses(
             protected_names={"append_canonical_record", "persist_wiki_entry_from_record"},
             allowed_files={
-                "src/swallow/governance.py",
                 "src/swallow/store.py",
                 "src/swallow/knowledge_store.py",
+                "src/swallow/truth/knowledge.py",
             },
         ),
         "test_only_apply_proposal_calls_private_writers": _find_protected_writer_uses(
             protected_names={
                 "append_canonical_record",
                 "persist_wiki_entry_from_record",
+                "save_route_registry",
                 "save_route_weights",
                 "save_route_capability_profiles",
                 "save_audit_trigger_policy",
                 "save_mps_policy",
             },
             allowed_files={
-                "src/swallow/governance.py",
                 "src/swallow/store.py",
                 "src/swallow/knowledge_store.py",
                 "src/swallow/router.py",
                 "src/swallow/consistency_audit.py",
                 "src/swallow/mps_policy_store.py",
+                "src/swallow/truth/knowledge.py",
+                "src/swallow/truth/policy.py",
+                "src/swallow/truth/route.py",
             },
         ),
         "test_route_metadata_writes_only_via_apply_proposal": _find_protected_writer_uses(
-            protected_names={"save_route_weights", "save_route_capability_profiles"},
+            protected_names={"save_route_registry", "save_route_weights", "save_route_capability_profiles"},
             allowed_files={
-                "src/swallow/governance.py",
                 "src/swallow/router.py",
+                "src/swallow/truth/route.py",
             },
         ),
     }

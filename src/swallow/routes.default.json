@@ -1,0 +1,353 @@
+{
+  "http-claude": {
+    "backend_kind": "http_api",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "claude_xml",
+    "execution_site": "local",
+    "executor_family": "api",
+    "executor_name": "http",
+    "fallback_route_name": "http-qwen",
+    "model_hint": "claude-3-7-sonnet",
+    "name": "http-claude",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "http",
+    "unsupported_task_types": []
+  },
+  "http-deepseek": {
+    "backend_kind": "http_api",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "code_execution",
+      "filesystem_access": "workspace_read",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "fim",
+    "execution_site": "local",
+    "executor_family": "api",
+    "executor_name": "http",
+    "fallback_route_name": "http-qwen",
+    "model_hint": "deepseek-chat",
+    "name": "http-deepseek",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "http",
+    "unsupported_task_types": []
+  },
+  "http-gemini": {
+    "backend_kind": "http_api",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "api",
+    "executor_name": "http",
+    "fallback_route_name": "http-qwen",
+    "model_hint": "gemini-2.5-pro",
+    "name": "http-gemini",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "http",
+    "unsupported_task_types": []
+  },
+  "http-glm": {
+    "backend_kind": "http_api",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "api",
+    "executor_name": "http",
+    "fallback_route_name": "local-claude-code",
+    "model_hint": "glm-4.5-air",
+    "name": "http-glm",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "http",
+    "unsupported_task_types": []
+  },
+  "http-qwen": {
+    "backend_kind": "http_api",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "api",
+    "executor_name": "http",
+    "fallback_route_name": "http-glm",
+    "model_hint": "qwen2.5-coder-32b-instruct",
+    "name": "http-qwen",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "http",
+    "unsupported_task_types": []
+  },
+  "local-aider": {
+    "backend_kind": "local_cli",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "code_execution",
+      "filesystem_access": "workspace_write",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": true
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "cli",
+    "executor_name": "aider",
+    "fallback_route_name": "local-summary",
+    "model_hint": "aider",
+    "name": "local-aider",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "local_process",
+    "unsupported_task_types": []
+  },
+  "local-claude-code": {
+    "backend_kind": "local_cli",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "code_execution",
+      "filesystem_access": "workspace_write",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": true
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "cli",
+    "executor_name": "claude-code",
+    "fallback_route_name": "local-summary",
+    "model_hint": "claude-code",
+    "name": "local-claude-code",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "local_process",
+    "unsupported_task_types": []
+  },
+  "local-codex": {
+    "backend_kind": "local_cli",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "code_execution",
+      "filesystem_access": "workspace_write",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": true
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "cli",
+    "executor_name": "codex",
+    "fallback_route_name": "local-summary",
+    "model_hint": "codex",
+    "name": "local-codex",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "local_process",
+    "unsupported_task_types": []
+  },
+  "local-http": {
+    "backend_kind": "http_api",
+    "capabilities": {
+      "deterministic": false,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "optional",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "api",
+    "executor_name": "http",
+    "fallback_route_name": "local-claude-code",
+    "model_hint": "http-default",
+    "name": "local-http",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "http",
+    "unsupported_task_types": []
+  },
+  "local-mock": {
+    "backend_kind": "deterministic_test",
+    "capabilities": {
+      "deterministic": true,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "none",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "cli",
+    "executor_name": "mock",
+    "fallback_route_name": "",
+    "model_hint": "mock",
+    "name": "local-mock",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "local_process",
+    "unsupported_task_types": []
+  },
+  "local-note": {
+    "backend_kind": "local_fallback",
+    "capabilities": {
+      "deterministic": true,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "none",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "cli",
+    "executor_name": "note-only",
+    "fallback_route_name": "",
+    "model_hint": "aider",
+    "name": "local-note",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-memory",
+      "system_role": "specialist"
+    },
+    "transport_kind": "local_process",
+    "unsupported_task_types": []
+  },
+  "local-summary": {
+    "backend_kind": "local_summary",
+    "capabilities": {
+      "deterministic": true,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "none",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "local",
+    "executor_family": "cli",
+    "executor_name": "local",
+    "fallback_route_name": "",
+    "model_hint": "local",
+    "name": "local-summary",
+    "quality_weight": 1.0,
+    "remote_capable": false,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "local_process",
+    "unsupported_task_types": []
+  },
+  "mock-remote": {
+    "backend_kind": "mock_remote",
+    "capabilities": {
+      "deterministic": true,
+      "execution_kind": "artifact_generation",
+      "filesystem_access": "workspace_read",
+      "network_access": "none",
+      "resumable": true,
+      "supports_tool_loop": false
+    },
+    "dialect_hint": "plain_text",
+    "execution_site": "remote",
+    "executor_family": "cli",
+    "executor_name": "mock-remote",
+    "fallback_route_name": "",
+    "model_hint": "mock-remote",
+    "name": "mock-remote",
+    "quality_weight": 1.0,
+    "remote_capable": true,
+    "task_family_scores": {},
+    "taxonomy": {
+      "memory_authority": "task-state",
+      "system_role": "general-executor"
+    },
+    "transport_kind": "mock_remote_transport",
+    "unsupported_task_types": []
+  }
+}

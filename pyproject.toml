@@ -31,6 +31,9 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+swallow = ["routes.default.json"]
+
 [tool.pytest.ini_options]
 markers = [
     "eval: quality evaluation tests (deselected by default)",

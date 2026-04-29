@@ -207,7 +207,7 @@ def test_canonical_write_only_via_apply_proposal() -> None:
 
 def test_route_metadata_writes_only_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
-        protected_names={"save_route_weights", "save_route_capability_profiles"},
+        protected_names={"save_route_registry", "save_route_weights", "save_route_capability_profiles"},
         allowed_files={
             "src/swallow/truth/route.py",
             "src/swallow/router.py",
@@ -267,6 +267,7 @@ def test_only_apply_proposal_calls_private_writers() -> None:
         protected_names={
             "append_canonical_record",
             "persist_wiki_entry_from_record",
+            "save_route_registry",
             "save_route_weights",
             "save_route_capability_profiles",
             "save_audit_trigger_policy",
@@ -316,6 +317,7 @@ def test_no_module_outside_governance_imports_store_writes() -> None:
         "append_canonical_record",
         "persist_wiki_entry_from_record",
         "save_route_weights",
+        "save_route_registry",
         "save_route_capability_profiles",
         "save_audit_trigger_policy",
         "save_mps_policy",
