@@ -13,9 +13,9 @@
 - latest_completed_slice: `Multi-Perspective Synthesis M1+M2+M3 + Review 消化 + Merge`
 - active_track: `Governance`
 - active_phase: `Phase 63`
-- active_slice: `M1/S1 §7 centralized identity-workspace commit gate`
+- active_slice: `M2/S2+S3 dead-code removal and repository abstraction commit gate`
 - active_branch: `feat/phase63-governance-closure`
-- status: `phase63_m1_s1_pending_human_commit_gate`
+- status: `phase63_m2_s2_s3_pending_human_commit_gate`
 
 ## 当前状态说明
 
@@ -154,6 +154,8 @@ post-merge 决议(Human 已确认,2026-04-28):
 - **[Claude/format-validator]** final-after-m0 三件套全部 PASS(design_decision TL;DR 已压成 5 行)。
 - **[Human]** Phase 63 final-after-m0 Design Gate 已通过(2026-04-29):Codex 开始按 M1 → M2 → M3 实施,每个 milestone 保留 commit gate。
 - **[Codex]** M1/S1 已完成:新增 `identity.py` / `workspace.py`,生产路径绝对化改走 `resolve_path()`,新增 2 条 S1 invariant guard。验证:`tests/test_invariant_guards.py` 11 passed;S1 定向 38 passed;`tests/test_run_task_subtasks.py` 5 passed;全量 pytest 560 passed / 1 timing-sensitive failure / 8 deselected,失败用例 targeted rerun passed;`git diff --check` passed。
+- **[Human]** M1 commit gate 已通过并提交(2026-04-29):`e905eee feat(phase63): centralize actor and path resolution guards` + `de06fef docs(state): record Phase 63 M1 commit gate`。Codex 继续 M2(S2 → S3)实装。
+- **[Codex]** M2/S2+S3 已完成:S2 删除 `_route_knowledge_to_staged` Orchestrator stagedK dead code;S3 新增 `swallow.truth` Repository 骨架、duplicate proposal guard、2 条 Repository bypass 守卫,并保持 meta-optimizer review replay 语义。验证:`tests/test_governance.py` 8 passed;`tests/test_invariant_guards.py` 13 passed;M2 定向 48 passed;全量 pytest 564 passed / 8 deselected;`git diff --check` passed;`docs/design/INVARIANTS.md` 无改动。
 
 进行中:
 
@@ -161,13 +163,13 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 待执行:
 
-- **[Human]** M1 commit gate:审查 S1 diff 并决定是否执行 milestone commit。
-- **[Codex]** M1 commit gate 通过后继续 M2(S2 → S3);M2 内按设计保留 S2 单独 commit + S3 Repository 分步 commit 建议。
+- **[Human]** M2 commit gate:审查 S2/S3 diff 并决定是否执行 milestone commit(s)。
+- **[Codex]** M2 commit gate 通过后继续 M3/S4:§9 剩余 12 条守卫批量实装(NO_SKIP 6/8 启用,2 条 G.5 skip 占位)。
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix
 
 当前阻塞项:
 
-- 等待 Human M1 commit gate 决议。
+- 等待 Human M2 commit gate 决议。
 
 ---
 
@@ -205,9 +207,9 @@ post-merge 决议(Human 已确认,2026-04-28):
 
 ## 当前下一步
 
-1. **[Human]** M1 commit gate:审查 S1 diff 后决定是否提交。
-2. **[Human]** 若通过,建议先提交 M1 milestone,再通知 Codex 继续 M2(S2 → S3)。
-3. **[Codex]** M1 commit gate 通过后继续 M2,不在当前 gate 前推进 S2/S3。
+1. **[Human]** M2 commit gate:审查 S2/S3 diff 后决定是否提交。
+2. **[Human]** 若通过,建议按 S2 / S3 分步提交,再通知 Codex 继续 M3/S4。
+3. **[Codex]** M2 commit gate 通过后继续 M3;不在当前 gate 前推进 S4。
 
 ```markdown
 model_review:
@@ -278,3 +280,11 @@ model_review:
 - `src/swallow/orchestrator.py` / `src/swallow/cli.py` / `src/swallow/executor.py` / `src/swallow/ingestion/pipeline.py` / `src/swallow/literature_specialist.py` / `src/swallow/quality_reviewer.py` / `src/swallow/web/api.py`(codex, 2026-04-29, M1/S1 path resolution centralized via `resolve_path()`)
 - `tests/test_invariant_guards.py`(codex, 2026-04-29, M1/S1 `test_no_hardcoded_local_actor_outside_identity_module` + `test_no_absolute_path_in_truth_writes`)
 - `docs/active_context.md`(codex, 2026-04-29, M1/S1 completion state + commit gate)
+- `e905eee feat(phase63): centralize actor and path resolution guards`(human, 2026-04-29, M1 implementation commit)
+- `de06fef docs(state): record Phase 63 M1 commit gate`(human, 2026-04-29, M1 state commit)
+- `docs/active_context.md`(codex, 2026-04-29, M1 commit observed;M2 implementation started)
+- `src/swallow/orchestrator.py` / `tests/test_cli.py`(codex, 2026-04-29, M2/S2 removed `_route_knowledge_to_staged` dead code and adjusted stagedK side-effect test)
+- `src/swallow/truth/__init__.py` / `src/swallow/truth/knowledge.py` / `src/swallow/truth/route.py` / `src/swallow/truth/policy.py` / `src/swallow/truth/proposals.py`(codex, 2026-04-29, M2/S3 Repository abstraction skeleton + pending proposal repo)
+- `src/swallow/governance.py` / `src/swallow/meta_optimizer.py`(codex, 2026-04-29, M2/S3 governance dispatch through Repository + duplicate-safe meta-optimizer review apply)
+- `tests/test_governance.py` / `tests/test_invariant_guards.py`(codex, 2026-04-29, M2/S3 duplicate proposal test + Repository bypass guards)
+- `docs/active_context.md`(codex, 2026-04-29, M2/S2+S3 completion state + commit gate)
