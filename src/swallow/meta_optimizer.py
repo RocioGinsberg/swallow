@@ -415,7 +415,7 @@ def _slugify(value: str) -> str:
 
 
 def _timestamp_token(value: str) -> str:
-    return _slugify(value.replace(":", "-"))
+    return f"{_slugify(value.replace(':', '-'))}-{time.time_ns():x}"
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> Path:
@@ -1160,7 +1160,7 @@ def apply_reviewed_optimization_proposals(
     review_path: Path,
 ) -> tuple[OptimizationProposalApplicationRecord, Path]:
     review_record = load_optimization_proposal_review(review_path)
-    proposal_id = review_record.review_id or review_path.stem
+    proposal_id = f"{review_record.review_id or review_path.stem}-apply-{time.time_ns():x}"
     register_route_metadata_proposal(
         base_dir=base_dir,
         proposal_id=proposal_id,

@@ -105,7 +105,7 @@ def test_canonical_write_only_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"append_canonical_record", "persist_wiki_entry_from_record"},
         allowed_files={
-            "src/swallow/governance.py",
+            "src/swallow/truth/knowledge.py",
             "src/swallow/store.py",
             "src/swallow/knowledge_store.py",
         },
@@ -118,7 +118,7 @@ def test_route_metadata_writes_only_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"save_route_weights", "save_route_capability_profiles"},
         allowed_files={
-            "src/swallow/governance.py",
+            "src/swallow/truth/route.py",
             "src/swallow/router.py",
         },
     )
@@ -167,9 +167,9 @@ def test_no_absolute_path_in_truth_writes() -> None:
 def test_only_apply_proposal_calls_private_writers() -> None:
     """Aggregate Phase 61 guard for canonical / route / policy main writer calls.
 
-    DATA_MODEL §4.1 describes future Repository-private methods. Until that
-    abstraction exists, this test guards the current physical writer functions
-    selected by Phase 61 design_decision §E / §F.
+    The physical store writers are now reachable only from Repository modules.
+    Governance enters those repositories from `apply_proposal`; production code
+    outside the Repository layer must not import or call the physical writers.
     """
 
     violations = _find_protected_writer_uses(
@@ -182,12 +182,14 @@ def test_only_apply_proposal_calls_private_writers() -> None:
             "save_mps_policy",
         },
         allowed_files={
-            "src/swallow/governance.py",
             "src/swallow/store.py",
             "src/swallow/knowledge_store.py",
             "src/swallow/router.py",
             "src/swallow/consistency_audit.py",
             "src/swallow/mps_policy_store.py",
+            "src/swallow/truth/knowledge.py",
+            "src/swallow/truth/route.py",
+            "src/swallow/truth/policy.py",
         },
     )
 
@@ -198,8 +200,8 @@ def test_mps_policy_writes_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"save_mps_policy"},
         allowed_files={
-            "src/swallow/governance.py",
             "src/swallow/mps_policy_store.py",
+            "src/swallow/truth/policy.py",
         },
     )
 
@@ -207,6 +209,50 @@ def test_mps_policy_writes_via_apply_proposal() -> None:
     source = (SRC_ROOT / "mps_policy_store.py").read_text(encoding="utf-8")
     assert "mps_policy_path" in source
     assert '".swl"' not in source
+
+
+def test_only_governance_calls_repository_write_methods() -> None:
+    violations = _find_protected_writer_uses(
+        protected_names={"_promote_canonical", "_apply_metadata_change", "_apply_policy_change"},
+        allowed_files={"src/swallow/governance.py"},
+    )
+
+    assert violations == []
+
+
+def test_no_module_outside_governance_imports_store_writes() -> None:
+    protected_imports = {
+        "append_canonical_record",
+        "persist_wiki_entry_from_record",
+        "save_route_weights",
+        "save_route_capability_profiles",
+        "save_audit_trigger_policy",
+        "save_mps_policy",
+    }
+    allowed_files = {
+        "src/swallow/consistency_audit.py",
+        "src/swallow/knowledge_store.py",
+        "src/swallow/mps_policy_store.py",
+        "src/swallow/router.py",
+        "src/swallow/store.py",
+        "src/swallow/truth/knowledge.py",
+        "src/swallow/truth/policy.py",
+        "src/swallow/truth/route.py",
+    }
+    violations: list[str] = []
+    for path in _src_py_files():
+        rel_path = _relative(path)
+        if rel_path in allowed_files:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            for alias in node.names:
+                if alias.name in protected_imports:
+                    violations.append(f"{rel_path}:{node.lineno} imports {alias.name}")
+
+    assert violations == []
 
 
 def test_mps_no_chat_message_passing() -> None:
