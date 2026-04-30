@@ -117,6 +117,57 @@ class LibrarianExecutorIntegrationTest(unittest.TestCase):
                 original_knowledge,
             )
 
+    def test_librarian_executor_accepts_artifact_uri_evidence_ref(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-librarian-artifact-uri"
+            state = TaskState(
+                task_id=task_id,
+                title="Promote artifact URI evidence",
+                goal="Promote canonical-ready evidence referenced through artifact URI",
+                workspace_root=str(tmp_path),
+                executor_name="librarian",
+            )
+            state.knowledge_objects = [
+                {
+                    "object_id": "knowledge-artifact-uri",
+                    "text": "Promote   artifact   uri",
+                    "stage": "verified",
+                    "source_kind": "external_knowledge_capture",
+                    "source_ref": "chat://librarian-artifact-uri",
+                    "task_linked": True,
+                    "captured_at": "2026-04-16T00:00:00+00:00",
+                    "evidence_status": "artifact_backed",
+                    "artifact_ref": f"artifact://{task_id}/evidence.md",
+                    "retrieval_eligible": False,
+                    "knowledge_reuse_scope": "task_only",
+                    "canonicalization_intent": "promote",
+                }
+            ]
+            save_state(tmp_path, state)
+            save_knowledge_objects(tmp_path, task_id, state.knowledge_objects)
+            (tmp_path / ".swl" / "tasks" / task_id / "artifacts" / "evidence.md").write_text(
+                "artifact-backed evidence\n",
+                encoding="utf-8",
+            )
+            card = TaskCard(
+                card_id="card-librarian-artifact-uri",
+                goal="Promote canonical-ready evidence with artifact URI",
+                executor_type="librarian",
+                route_hint="librarian-local",
+                input_context={"promotion_ready_object_ids": ["knowledge-artifact-uri"]},
+                output_schema={"type": "object", "const": {"kind": LIBRARIAN_CHANGE_LOG_KIND}},
+            )
+
+            result = LibrarianExecutor().execute(tmp_path, state, card, [])
+            payload = json.loads(result.output)
+
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(payload["promoted_count"], 1)
+        self.assertEqual(payload["skipped_count"], 0)
+        self.assertEqual(payload["entries"][0]["artifact_ref"], f"artifact://{task_id}/evidence.md")
+        self.assertEqual(result.side_effects["updated_knowledge_objects"][0]["stage"], "canonical")
+
     def test_run_task_promotes_local_promotion_ready_evidence_with_librarian_executor(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
