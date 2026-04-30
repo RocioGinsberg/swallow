@@ -2,7 +2,7 @@
 author: codex
 phase: phase67
 slice: m1-small-hygiene-cleanup
-status: review
+status: final
 depends_on:
   - docs/plans/phase67/kickoff.md
   - docs/plans/phase67/design_decision.md
