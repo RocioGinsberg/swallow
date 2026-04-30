@@ -30,8 +30,8 @@
 - latest_main_checkpoint_phase: `Phase 66`
 - latest_executed_public_tag: `v1.4.0`
 - pending_release_tag: `none`
-- current_working_phase: `Phase 68 S3 Artifact Evidence Reference Normalization`
-- checkpoint_type: `phase68_s3_commit_gate`
+- current_working_phase: `Phase 68 Closeout / PR Merge Prep`
+- checkpoint_type: `phase68_complete_pending_phase67_then_phase68_merge`
 - active_branch: `feat/phase68-raw-material-store`
 - last_checked: `2026-04-30`
 
@@ -59,7 +59,11 @@
 - Phase 68 S2 已提交:
   - `2f04b63 refactor(phase68-s2): route ingestion through raw material store`
   - `d135001 docs(phase68-s2): record ingestion raw material gate`
-- Phase 68 S3 已完成 artifact evidence reference normalization / full pytest,等待 Human review / manual commit。
+- Phase 68 S3 已完成 artifact evidence reference normalization / full pytest。
+- Phase 68 S3 已提交:
+  - `550f3dc refactor(phase68-s3): normalize artifact raw material refs`
+  - `6c4545f docs(phase68-s3): record artifact raw material gate`
+- Phase 68 closeout 已完成:`docs/plans/phase68/closeout.md`;`pr.md` 已更新为 Phase 68 PR body。
 
 ---
 
@@ -70,14 +74,14 @@
 - active_branch: `feat/phase68-raw-material-store`
 - active_track: `Knowledge / Storage`
 - active_phase: `Phase 68`
-- active_slice: `S3 / Artifact Evidence Reference Normalization`
-- workflow_status: `phase68_s3_complete_pending_human_review`
+- active_slice: `Closeout / PR Merge Prep`
+- workflow_status: `phase68_complete_pending_phase67_then_phase68_merge`
 
 说明：
 
 - Phase 67 已完成实现和验证,当前默认动作是 Human push / PR / merge Phase 67。
-- Phase 68 已按 Human direction 启动 Candidate O,当前完成到 S3;不要越过 S3 commit gate 直接收口。
-- Phase 68 是 stacked branch;Phase 67 merge 后再决定是否 rebase / retarget Phase 68。
+- Phase 68 已完成实现、验证、closeout 和 PR body 更新。
+- Phase 68 是 stacked branch;必须先 merge Phase 67,再 rebase / retarget Phase 68 并合并。
 
 ---
 
@@ -99,9 +103,10 @@
 12. `docs/plans/phase68/codex_review_notes_s1.md`
 13. `docs/plans/phase68/codex_review_notes_s2.md`
 14. `docs/plans/phase68/codex_review_notes_s3.md`
-15. `docs/plans/phase67/review_comments_block_n.md`
-16. `docs/concerns_backlog.md`
-17. `docs/roadmap.md`
+15. `docs/plans/phase68/closeout.md`
+16. `docs/plans/phase67/review_comments_block_n.md`
+17. `docs/concerns_backlog.md`
+18. `docs/roadmap.md`
 
 仅在需要时再读取：
 
@@ -133,13 +138,13 @@ git log --oneline --decorate -8
 git tag --list 'v*' --sort=-creatordate | head -n 5
 ```
 
-当前 Phase 68 S3 commit-gate 状态验证命令：
+当前 Phase 68 merge-prep 状态验证命令：
 
 ```bash
 git diff --check
 git diff -- docs/design
 git status --short --branch
-.venv/bin/python -m pytest tests/test_librarian_executor.py tests/test_raw_material_store.py -q
+.venv/bin/python -m pytest -q
 ```
 
 Phase 68 S3 最近一次验证：
@@ -178,8 +183,8 @@ result: matched 6
 ## 当前已知边界
 
 - `v1.4.0` tag 已完成；不要删除或重打该 tag。
-- Phase 67 已完成实现与验证;Phase 68 已单独 stacked 启动,不要再把 Phase 68 diff 写回 Phase 67 分支。
-- Phase 68 当前只允许 Candidate O narrow scope: Raw Material Store interface / ingestion migration / artifact evidence normalization。
+- Phase 67 必须先 merge;Phase 68 在它之后 merge。
+- Phase 68 当前已完成 Candidate O narrow scope: Raw Material Store interface / ingestion migration / artifact evidence normalization。
 - Phase 67 review 建议不打新 release tag,除非 Human 另行要求并经过 Claude tag assessment。
 - `docs/design/INVARIANTS.md` / `docs/design/DATA_MODEL.md` / `docs/design/KNOWLEDGE.md` 在 Phase 67 中未修改。
 - Phase 66 / 67 carry-forward known gaps 仍以 `docs/concerns_backlog.md` 与 phase closeout 为权威来源。
