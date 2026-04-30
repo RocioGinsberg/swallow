@@ -106,6 +106,9 @@ R-entry design / implementation readiness has been checked against:
   - Codex now owns phase plan definition through `docs/plans/<phase>/plan.md`.
   - Claude no longer defaults to heavy plan decomposition; Claude main handles PR review / tag evaluation, while Claude subagents handle `context_brief.md`, `plan_audit.md`, factual roadmap updates, and optional consistency checks.
   - New phase plans default to `context_brief.md` + `plan.md` + `plan_audit.md` + `review_comments.md` + `closeout.md`; legacy `kickoff.md` / `design_decision.md` / `risk_assessment.md` / `breakdown.md` remain readable but are not default outputs.
+- **[Codex]** Concerns backlog hygiene pass completed:
+  - `docs/concerns_backlog.md` Open items are now split into Active Open vs Roadmap-Bound, preventing long-running mapped concerns from remaining in the active Open table.
+  - `docs/roadmap.md` candidates AA/AB/U/W/X/Y/Z now explicitly list the mapped concern groups they should consume.
 
 进行中:
 
@@ -118,7 +121,7 @@ R-entry design / implementation readiness has been checked against:
 
 当前阻塞项:
 
-- None for entering Candidate R. Remaining Open concerns are observation items / usage boundaries, not R-entry blockers.
+- None for entering Candidate R. Active Open concerns are R-observation quality edge cases only; roadmap-bound concerns are not R-entry blockers.
 
 ## Tag 状态
 
@@ -184,6 +187,7 @@ milestone_gate:
 - `docs/engineering/CODE_ORGANIZATION.md`(codex, 2026-05-01, long-term code organization convergence standard)
 - `docs/engineering/TEST_ARCHITECTURE.md`(codex, 2026-05-01, long-term test architecture and TDD harness standard)
 - `docs/roadmap.md`(codex, 2026-05-01, pruned roadmap + v1.5.0 post-start RAG, test architecture, interface boundary, and code-organization planning: Candidate R + S/T/U + AA/AB + V/W/X/Y/Z)
+- `docs/concerns_backlog.md`(codex, 2026-05-01, Open concerns grouped into Active Open vs Roadmap-Bound and mapped to roadmap candidates)
 - `CLAUDE.md`(codex, 2026-05-01, Claude role narrowed to plan audit / PR review / tag evaluation)
 - `.codex/session_bootstrap.md`(codex, 2026-05-01, Codex role expanded to plan definition via `plan.md`)
 - `.agents/workflows/feature.md`(codex, 2026-05-01, feature workflow rewritten around `context_brief.md` + `plan.md` + `plan_audit.md`)

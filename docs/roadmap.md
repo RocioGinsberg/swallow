@@ -4,8 +4,8 @@ status: living-document
 ---
 
 > **Document discipline**
-> Owner: Claude
-> Updater: Claude 主线(差距条目新增 / 推荐队列 / 优先级 / 风险批注 / 战略锚点)+ `roadmap-updater` subagent(phase 完成事实登记 / 已有差距条目状态同步)
+> Owner: Human
+> Updater: Codex 主线(差距条目新增 / 推荐队列 / 优先级 / 风险批注 / 战略锚点)+ `roadmap-updater` subagent(phase 完成事实登记 / 已有差距条目状态同步)+ Claude 主线(review / tag 相关轻量风险批注)
 > Trigger: phase 收口 OR 会话讨论中浮现新方向 OR phase 拆分 OR Human 请求方向建议
 > Anti-scope: 不维护已完成 phase 历史(→ git log + `docs/plans/<phase>/closeout.md`);不维护 tag / release docs 状态(→ `docs/concerns_backlog.md`);不存储设计原则(→ `INVARIANTS.md`);不维护 phase 高频状态(→ `docs/active_context.md`)
 > 长度上限:300 行;超过说明放进了不该放的东西
@@ -78,6 +78,7 @@ status: living-document
 - **R0 观察维度**:多 agent 协作、复杂任务编排、长期知识沉淀、Wiki / Canonical 检索质量、route 自动学习有效性、INVARIANTS P1 / P2 在生产负载下的稳定性。
 - **R1 RAG 运行模式记录**:每次 retrieval miss 记录是否命中 `knowledge`、是否为 `vector` / `text_fallback`、LLM rerank 是否生效、是否因 source policy 未覆盖、wiki 太薄、无 canonical/wiki、或 evidence pointer 未解析而失败。
 - **R2 后续分流规则**:wiki 缺解释 → 候选 S;命中 knowledge 但不能回溯 evidence → 候选 T;embedding/rerank 不可见或质量不可评估 → 候选 U;多任务依赖/Planner 真瓶颈 → 候选 D。
+- **Concern watchlist**:conversation primary path tie-break、false fail verdict keyword scan、`generic_chat_json` auto-detect 只在 R 阶段真实样本复现时开 bugfix 或并入候选 U/Y。
 - **使用边界**:默认使用 fresh v1.5 workspace 或现有 v1 backfill;不把 schema v2 migration runner、durable proposal artifact restore、真实 object-storage backend 当作 R 阶段入口条件。
 
 ### 候选 S:LLM Wiki Compiler / Wiki Refinement Workflow
@@ -97,14 +98,14 @@ status: living-document
 ### 候选 U:Neural Retrieval Observability / Eval / Index Hardening
 
 - **核心价值**:让 operator 能判断当前 RAG 是 vector、text fallback、relation expansion 还是 rerank 后结果,并用真实样本评估是否需要持久化 vector index / query rewrite / source policy refinement。
-- **可能 slice**:retrieval inspect 字段强化 / doctor stack embedding+sqlite-vec+routing summary / retrieval miss taxonomy fixture / eval golden set / persistent embedding index 设计评估。
+- **可能 slice**:retrieval inspect 字段强化 / doctor stack embedding+sqlite-vec+routing summary / retrieval miss taxonomy fixture / eval golden set / persistent embedding index 设计评估 / embedding dimension 延迟配置 / sqlite-vec warning guard / retrieval source policy ownership。
 - **边界**:向量索引仍是辅助召回,不反向定义 Knowledge Truth;query rewrite 不得绕过 source policy 与治理过滤。
 - **风险**:中;必须先用 R 阶段样本证明瓶颈,避免过早平台化。
 
 ### 候选 AA:Test Architecture / TDD Harness
 
 - **核心价值**:把测试从历史堆叠状态整理为支持 TDD 的分层体系,让后续重构和功能开发能快速写红灯、定位失败、审查覆盖面。
-- **可能 slice**:`tests/conftest.py` / `tests/helpers/{builders,workspace,cli_runner,assertions,ast_guards}.py` / `unit`、`integration`、`guards`、`eval` 分层 / 拆分 `test_cli.py` / phase 命名测试迁移到领域目录 / pytest markers。
+- **可能 slice**:`tests/conftest.py` / `tests/helpers/{builders,workspace,cli_runner,assertions,ast_guards}.py` / `unit`、`integration`、`guards`、`eval` 分层 / 拆分 `test_cli.py` / phase 命名测试迁移到领域目录 / pytest markers / chat-completion guard def-use 能力评估。
 - **边界**:先做无行为变化迁移;宪法 guard 独立显眼,不得弱化;eval 默认仍 deselect;不为“目录漂亮”搬动小而清晰的测试。
 - **长期标准参考**:`docs/engineering/TEST_ARCHITECTURE.md` 固定测试分层、TDD workflow、fixture/helper、CLI 测试、guard/eval 规则。
 - **风险**:中;主要风险是收集路径、共享 fixture 与 CLI snapshot 断言漂移,需要 collect-only + full pytest 验证。
@@ -112,7 +113,7 @@ status: living-document
 ### 候选 AB:Interface / Application Boundary Clarification
 
 - **核心价值**:把 CLI、FastAPI、Web Control Center、application commands/queries、Truth persistence 的边界显式化,降低“后端一团”的理解成本。
-- **可能 slice**:`application/queries/control_center.py` 抽出 read payload builders / `application/commands/{task,knowledge,proposal,route}.py` 统一 CLI 与 FastAPI 写入口 / `interfaces/http/{app,routes,schemas}` / `interfaces/cli/commands` / SQLite connection/schema/repository 拆包。
+- **可能 slice**:`application/queries/control_center.py` 抽出 read payload builders / `application/commands/{task,knowledge,proposal,route}.py` 统一 CLI 与 FastAPI 写入口 / `interfaces/http/{app,routes,schemas}` / `interfaces/cli/commands` / SQLite connection/schema/repository 拆包 / migration runner 与 event cutoff/backfill 策略。
 - **边界**:保持 local-first monolith;SQLite 仍是 workspace-local 单文件 truth,不拆成外部 DB service;FastAPI 只是 interface adapter,不成为第二个 Orchestrator,所有写操作仍走 governance / Orchestrator / `apply_proposal`。
 - **长期标准参考**:`docs/design/INTERACTION.md §4.2` 规定 Browser Web UI 与桌面应用走本地 FastAPI,CLI 普通命令不经 HTTP;`docs/engineering/CODE_ORGANIZATION.md` 固定 interface/application/persistence 收敛方向。
 - **风险**:中高;触及 CLI、FastAPI、store facade 与测试组织,应依赖候选 AA 的 TDD harness 降低回归风险。
@@ -128,7 +129,7 @@ status: living-document
 ### 候选 W:Provider Router API Split
 
 - **核心价值**:把 route registry、policy、metadata persistence、selection、completion invocation 从 `router.py` 内部拆清,为更多 Path A / Path C LLM 调用做准备。
-- **可能 slice**:`route_registry.py` / `route_policy.py` / `route_metadata_store.py` / `route_selection.py` / `completion_gateway.py` / `route_reports.py`,并保留 `router.py` 作为兼容 facade。
+- **可能 slice**:`route_registry.py` / `route_policy.py` / `route_metadata_store.py` / `route_selection.py` / `completion_gateway.py` / `route_reports.py` / runtime provider-executor defaults owner,并保留 `router.py` 作为兼容 facade。
 - **边界**:不改变 Provider Router 治理职责;Path B agent black-box 仍不穿透 router;品牌绑定仍只在 registry 文档与默认配置中出现。
 - **长期标准参考**:`docs/engineering/CODE_ORGANIZATION.md` Provider Router target boundary。
 - **风险**:中;涉及 route metadata 与 SQLite bootstrap,需要守住现有 CLI/API 兼容。
@@ -136,7 +137,7 @@ status: living-document
 ### 候选 X:Orchestration Facade Decomposition
 
 - **核心价值**:降低 `orchestrator.py` / `harness.py` / `executor.py` 的维护成本,让后续 Planner / DAG / Strategy Router 增强有清晰插入点。
-- **可能 slice**:`task_lifecycle.py` / `execution_attempts.py` / `subtask_flow.py` / `knowledge_flow.py` / `retrieval_flow.py` / `artifact_writer.py` / executor registry、prompt builder、fallback 模块拆分。
+- **可能 slice**:`task_lifecycle.py` / `execution_attempts.py` / `subtask_flow.py` / `knowledge_flow.py` / `retrieval_flow.py` / `artifact_writer.py` / executor registry、prompt builder、fallback 模块拆分 / event payload deprecated 字段 / artifact owner table / policy-result report-event helper / shared taxonomy-capability constants。
 - **边界**:Orchestrator 仍是唯一 Control Plane 实体;抽出的服务不拥有静默推进 task state 的权力。
 - **长期标准参考**:`docs/engineering/CODE_ORGANIZATION.md` Orchestration facade decomposition。
 - **风险**:高;触及主执行链路,应在候选 D 前作为维护性前置,并要求完整 guard + focused regression。
@@ -144,7 +145,7 @@ status: living-document
 ### 候选 Y:Surface Command / Meta Optimizer Module Split
 
 - **核心价值**:把 CLI 命令族与 Meta Optimizer proposal lifecycle 从大文件中拆出,提升日常回看和小改效率。
-- **可能 slice**:`surface_tools/commands/{task,knowledge,route,proposal,reports,doctor}.py` / meta optimizer model、snapshot、proposal builder、review、apply、agent 模块化。
+- **可能 slice**:`surface_tools/commands/{task,knowledge,route,proposal,reports,doctor}.py` / meta optimizer model、snapshot、proposal builder、review、apply、agent 模块化 / route weight proposal JSON artifact / durable proposal artifact lifecycle / parser-dispatch alignment。
 - **边界**:以无行为变化重组为主;不扩大 CLI 公共语义,不改变 proposal governance。
 - **长期标准参考**:`docs/engineering/CODE_ORGANIZATION.md` interface/application/surface_tools 收敛方向。
 - **风险**:中低;主要是 parser / snapshot / report 兼容性测试成本。
@@ -152,7 +153,7 @@ status: living-document
 ### 候选 Z:Governance Apply Handler Split
 
 - **核心价值**:在不动 `apply_proposal` 唯一入口的前提下,把 canonical / route metadata / policy 私有 apply 分支内聚到内部模块,降低 governance 文件局部复杂度。
-- **可能 slice**:`proposal_registry.py` / `apply_canonical.py` / `apply_route_metadata.py` / `apply_policy.py` / route review metadata reconciliation extraction。
+- **可能 slice**:`proposal_registry.py` / `apply_canonical.py` / `apply_route_metadata.py` / `apply_policy.py` / route review metadata reconciliation extraction / `librarian_side_effect` vs §5 矩阵评估 / transaction envelope helper / review artifact outbox or stale marker / audit snapshot size policy。
 - **边界**:`apply_proposal` 继续是 canonical knowledge / route metadata / policy 的唯一 public mutation entry;所有外部调用路径不变。
 - **长期标准参考**:`docs/engineering/CODE_ORGANIZATION.md` Governance handler extraction boundary。
 - **风险**:中高;这是宪法边界附近的重组,必须保持 `test_only_apply_proposal_calls_private_writers` 与 route/canonical guard 不弱化。
