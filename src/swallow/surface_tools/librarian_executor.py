@@ -6,6 +6,13 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from swallow._io_helpers import read_json_lines_strict_or_empty
+from swallow.knowledge_retrieval.raw_material import (
+    FilesystemRawMaterialStore,
+    InvalidRawMaterialRef,
+    artifact_source_ref_from_legacy_ref,
+    parse_source_ref_scheme,
+    source_ref_for_file,
+)
 from swallow.knowledge_retrieval.canonical_registry import (
     build_canonical_record,
     build_canonical_registry_index,
@@ -44,7 +51,19 @@ def _artifact_exists(base_dir: Path, artifact_ref: str) -> bool:
     normalized = artifact_ref.strip()
     if not normalized:
         return False
-    return (base_dir / normalized).exists()
+    try:
+        return FilesystemRawMaterialStore(base_dir).exists(_source_ref_for_artifact_evidence(normalized))
+    except (InvalidRawMaterialRef, OSError):
+        return False
+
+
+def _source_ref_for_artifact_evidence(artifact_ref: str) -> str:
+    scheme = parse_source_ref_scheme(artifact_ref)
+    if scheme in {"artifact", "file"}:
+        return artifact_ref
+    if Path(artifact_ref).is_absolute():
+        return source_ref_for_file(Path(artifact_ref))
+    return artifact_source_ref_from_legacy_ref(artifact_ref)
 
 
 def _normalize_text(text: str) -> str:
