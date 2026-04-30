@@ -27,22 +27,23 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `Phase 65`
+- latest_main_checkpoint_phase: `Phase 66`
 - latest_executed_public_tag: `v1.4.0`
 - pending_release_tag: `none`
-- current_working_phase: `Release v1.4.0`
-- checkpoint_type: `v1.4.0_tag_completed`
+- current_working_phase: `Post-Phase 66 roadmap update`
+- checkpoint_type: `phase66_merged`
 - active_branch: `main`
 - last_checked: `2026-04-30`
 
 说明：
 
-- `main` 已包含 Phase 65 merge(`64cbba7 merge: Truth Plane SQLite Transfer`)。
-- Phase 65 完成 Governance 三段闭合中的候选 H：route metadata / policy truth 迁入 SQLite,`apply_proposal` route/policy 写入由显式 `BEGIN IMMEDIATE` transaction 保护,并新增 `route_change_log` / `policy_change_log` append-only audit log。
-- `docs/roadmap.md` 已完成 Phase 65 post-merge factual update。
-- `v1.4.0` annotated tag 已完成,tag message:`v1.4.0: Governance boundary and SQLite truth closure`;tag 指向 release docs commit `5ec637f`。
-- 当前 `main` HEAD 为 `c95eb86 docs(state): uodate roadmap to framework closure era`,位于 `v1.4.0` tag 之后。
-- 当前默认动作是进入下一轮 Direction Gate / phase 决策,不要继续扩张 Phase 65。
+- `main` 已包含 Phase 66 merge:`596b54b merge: read-only code hygiene audit of project`。
+- Phase 66 完成 roadmap 候选 K:对 `src/swallow/` 的严格 read-only code hygiene audit。
+- Phase 66 audit 统计:75 Python files / 30954 LOC / 46 findings / 2 high / 36 med / 8 low。
+- Phase 66 产出 5 份 block report、`audit_index.md`、3 份 milestone review、`closeout.md` 与 backlog theme updates。
+- Phase 66 未修改 `src/`、`tests/`、`docs/design/`。
+- 最新公开 tag 仍为 `v1.4.0`;Phase 66 kickoff 明确 audit-only 默认不打 release tag。
+- 当前默认动作是 post-merge factual update:先由 Claude/roadmap-updater 更新 `docs/roadmap.md`,再进入下一轮 Direction Gate / phase 决策。
 
 ---
 
@@ -51,19 +52,17 @@
 当前推荐从以下状态继续：
 
 - active_branch: `main`
-- active_track: `Release`
-- active_phase: `v1.4.0`
-- active_slice: `Tag Completed`
-- workflow_status: `v1.4.0_tag_completed`
+- active_track: `Post-merge`
+- active_phase: `Phase 66`
+- active_slice: `Roadmap factual update pending`
+- workflow_status: `phase66_merged_pending_roadmap_update`
 
 说明：
 
-- Phase 63 + Phase 64 + Phase 65 合并后形成治理三段完整闭合：
-  - Phase 63:治理守卫收口、Repository 抽象层、§7 集中化函数、apply_proposal 写边界。
-  - Phase 64:NO_SKIP 红灯修复、Path B fallback selection 归位、Specialist Internal 调用穿透 Provider Router、route metadata/policy 外部化。
-  - Phase 65:route/policy truth SQLite 化、事务回滚与 append-only audit log。
-- `v1.4.0` 是 minor bump,主题为 Governance boundary + SQLite truth closure。
-- 当前应进入下一轮 Direction Gate。当前 roadmap 推荐候选包括代码卫生 audit(K)、真实使用反馈观察(R)、以及后置编排增强(D)。
+- Phase 66 已 merge,不应继续扩张该 phase 的 audit scope。
+- 后续清理不能把 46 个 finding 合并成一个大 refactor；应按 `audit_index.md` 的 quick-win 与 design-needed 分组进入后续 Direction Gate。
+- Phase 66 自身不构成 capability-bearing release 节点；若 Human 想打 tag,应先由 Claude 做 tag assessment。
+- `docs/roadmap.md` 仍需 post-merge factual update,将候选 K 标记为已完成/已消化并引用 Phase 66 closeout 与 audit index。
 
 ---
 
@@ -75,20 +74,24 @@
 2. `docs/active_context.md`
 3. `current_state.md`
 4. `.agents/shared/read_order.md`
-5. `.agents/workflows/tag_release.md`
-6. `.agents/workflows/feature.md`
-7. `docs/design/INVARIANTS.md`
-8. `docs/plans/phase65/closeout.md`
-9. `README.md`
-10. `docs/roadmap.md`
+5. `.agents/shared/state_sync_rules.md`
+6. `docs/design/INVARIANTS.md`
+7. `docs/plans/phase66/closeout.md`
+8. `docs/plans/phase66/audit_index.md`
+9. `docs/plans/phase66/review_comments_block2_index.md`
+10. `docs/concerns_backlog.md`
+11. `docs/roadmap.md`
 
 仅在需要时再读取：
 
 - `CLAUDE.md`
 - `.codex/session_bootstrap.md`
-- `docs/concerns_backlog.md`
-- `docs/plans/phase65/review_comments.md`
-- `docs/plans/phase64/closeout.md`
+- `.agents/workflows/feature.md`
+- `.agents/workflows/tag_release.md`
+- `docs/plans/phase66/kickoff.md`
+- `docs/plans/phase66/design_decision.md`
+- `docs/plans/phase66/risk_assessment.md`
+- Phase 66 block audit reports
 - 历史 phase closeout / review_comments / archive 文档
 
 ---
@@ -98,22 +101,32 @@
 恢复工作前，建议至少执行以下检查：
 
 ```bash
-git status --short
+git status --short --branch
 git branch --show-current
 git show --no-patch --decorate --oneline HEAD
 git log --oneline --decorate -8
 git tag --list 'v*' --sort=-creatordate | head -n 5
 ```
 
-当前 tag 后恢复验证命令：
+当前 post-merge 状态同步验证命令：
 
 ```bash
-.venv/bin/python -m pytest -q
 git diff --check
-git diff -- docs/design/INVARIANTS.md
+git diff -- src tests docs/design
+git status --short --branch
 ```
 
-Phase 65 最近一次完整验证：
+Phase 66 最近一次 closeout 验证：
+
+```bash
+git diff --check
+# passed
+
+git diff -- src tests docs/design
+# no output
+```
+
+最近一次完整 pytest baseline 仍来自 Phase 65 / v1.4.0 checkpoint：
 
 ```bash
 .venv/bin/python -m pytest -q
@@ -123,19 +136,21 @@ Phase 65 最近一次完整验证：
 # all 8 tracked guards green
 ```
 
+Phase 66 是 read-only audit phase,未新增或修改 runtime behavior,因此 closeout 未要求重新跑 pytest。
+
 ---
 
 ## 当前已知边界
 
 - `v1.4.0` tag 已完成；不要删除或重打该 tag。
-- 不删除、不重打历史 tag。
-- `docs/design/INVARIANTS.md` 在 Phase 65 中未修改。
-- `route_fallbacks.json` 仍是 operator-local config seam,不属于 SQLite truth 迁移范围。
-- Review record application artifact 写在 SQLite transaction 外；Phase 65 已将失败语义收敛为 warning-only,后续如需更强语义可设计 outbox / stale marker。
-- `route_change_log` / `policy_change_log` 目前存完整 JSON snapshot,无 size cap / truncation policy；超大 payload 写入失败时整体 rollback 是 intentional。
-- Phase 65 只建立 initial `schema_version=1` 与 `swl migrate --status`;真正 v1 -> v2 migration runner 留到首次 schema upgrade phase。
-- `events` / `event_log` 历史 backfill 仍为 Open concern,不属于 Phase 65。
-- durable proposal artifact lifecycle 仍未实现；`PendingProposalRepo` 仍为进程内 proposal registry。
+- Phase 66 已 merge 到 `main`;不要回头扩张 Phase 66 audit scope。
+- Phase 66 kickoff guidance:默认不打新 release tag,除非 Human 另行要求并经过 Claude tag assessment。
+- Phase 66 findings 是后续 phase 输入材料,不是当前 phase 内可顺手修复的待办。
+- `docs/roadmap.md` 尚需 post-merge factual update,由 Claude/roadmap-updater 负责。
+- `docs/design/INVARIANTS.md` / `docs/design/DATA_MODEL.md` 在 Phase 66 中未修改。
+- Phase 65 carry-forward known gaps 仍以 `docs/concerns_backlog.md` 与 `docs/plans/phase65/closeout.md` 为权威来源；Phase 66 audit 未消化这些实现债。
+- 不主动推进多租户、分布式 worker、云端 truth 镜像或无边界 UI 扩张。
+- 不绕过 `apply_proposal` 直接写 canonical / route / policy。
 - README 当前为单文件双语结构;不要再要求同步不存在的 `README.zh-CN.md`。
 
 ---

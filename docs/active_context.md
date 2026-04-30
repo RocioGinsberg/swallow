@@ -8,20 +8,25 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Governance`
-- latest_completed_phase: `Phase 65`
-- latest_completed_slice: `Truth Plane SQLite Transfer`
-- active_track: `Refactor / Hygiene`
+- latest_completed_track: `Refactor / Hygiene`
+- latest_completed_phase: `Phase 66`
+- latest_completed_slice: `Code Hygiene Audit`
+- active_track: `Post-merge`
 - active_phase: `Phase 66`
-- active_slice: `Closeout / Merge Gate prep`
-- active_branch: `feat/phase66-code-hygiene-audit`
-- status: `phase66_audit_complete_pending_merge_gate`
+- active_slice: `Roadmap factual update pending`
+- active_branch: `main`
+- status: `phase66_merged_pending_roadmap_update`
 
 ## 当前状态说明
 
-Phase 66 is roadmap candidate K: a strict read-only code hygiene audit of `src/swallow/`.
+Phase 66 has been merged into `main`.
 
-The audit is complete. It produced five block reports, an audit index, review files for all three milestone gates, closeout, backlog updates, and a PR body draft. It did not modify `src/`, `tests/`, or `docs/design/`.
+- merge commit: `596b54b merge: read-only code hygiene audit of project`
+- phase branch merged: `feat/phase66-code-hygiene-audit`
+- public tag remains: `v1.4.0`
+- pending release tag: `none`
+
+Phase 66 was roadmap candidate K: a strict read-only code hygiene audit of `src/swallow/`. It produced five block reports, an audit index, three milestone review files, closeout, backlog updates, and a PR body draft. It did not modify `src/`, `tests/`, or `docs/design/`.
 
 Final audit totals:
 
@@ -38,31 +43,28 @@ Review status:
 - M3/final review: `docs/plans/phase66/review_comments_block2_index.md`, verdict = `APPROVE`
 - No review blocker remains.
 
-Backlog status:
+Tag status:
 
-- `docs/concerns_backlog.md` now records Phase 66 follow-up themes at backlog level.
-- Detailed evidence remains in `docs/plans/phase66/audit_index.md` and block reports.
+- Phase 66 is audit-only and does not require a release tag by kickoff guidance.
+- If Human wants a tag anyway, Claude should first perform the tag assessment; Codex should not preempt that decision.
 
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
-2. `docs/plans/phase66/kickoff.md`
-3. `docs/plans/phase66/design_decision.md`
-4. `docs/plans/phase66/risk_assessment.md`
-5. `docs/plans/phase66/context_brief.md`
-6. `docs/plans/phase66/design_audit.md`
-7. `docs/plans/phase66/audit_block1_truth_governance.md`
-8. `docs/plans/phase66/audit_block2_orchestration.md`
-9. `docs/plans/phase66/audit_block3_provider_router.md`
-10. `docs/plans/phase66/audit_block4_knowledge_retrieval.md`
-11. `docs/plans/phase66/audit_block5_surface_tools.md`
-12. `docs/plans/phase66/audit_index.md`
-13. `docs/plans/phase66/review_comments_block1_3.md`
-14. `docs/plans/phase66/review_comments_block4_5.md`
-15. `docs/plans/phase66/review_comments_block2_index.md`
-16. `docs/plans/phase66/closeout.md`
-17. `docs/concerns_backlog.md`
-18. `pr.md`(local PR body draft)
+2. `current_state.md`
+3. `docs/plans/phase66/kickoff.md`
+4. `docs/plans/phase66/closeout.md`
+5. `docs/plans/phase66/audit_index.md`
+6. `docs/plans/phase66/audit_block1_truth_governance.md`
+7. `docs/plans/phase66/audit_block2_orchestration.md`
+8. `docs/plans/phase66/audit_block3_provider_router.md`
+9. `docs/plans/phase66/audit_block4_knowledge_retrieval.md`
+10. `docs/plans/phase66/audit_block5_surface_tools.md`
+11. `docs/plans/phase66/review_comments_block1_3.md`
+12. `docs/plans/phase66/review_comments_block4_5.md`
+13. `docs/plans/phase66/review_comments_block2_index.md`
+14. `docs/concerns_backlog.md`
+15. `docs/roadmap.md`
 
 ## 当前推进
 
@@ -76,35 +78,31 @@ Backlog status:
 - **[Claude]** M2 review 已产出,verdict = `APPROVE_WITH_CONDITIONS`。
 - **[Codex]** M3 audit reports + `audit_index.md` 已产出并由 Human 提交:`9fdebdd docs(phase66): add m3 audit review`。
 - **[Claude]** M3/final review 已产出,verdict = `APPROVE`。
-- **[Codex]** Closeout 已完成:
-  - `docs/plans/phase66/closeout.md`
-  - `docs/concerns_backlog.md`
+- **[Codex]** Phase 66 closeout 已完成并由 Human 提交:`a240d97 docs(phase66): close out code hygiene audit`。
+- **[Human]** Phase 66 已 merge 到 `main`:`596b54b merge: read-only code hygiene audit of project`。
+- **[Codex]** Post-merge state sync 已完成,等待 Human 审查与手动提交:
   - `docs/active_context.md`
-  - `pr.md`
-  - `audit_block2_orchestration.md` and `audit_index.md` status set to `final`
+  - `current_state.md`
 
 进行中:
 
-- 无。当前停在 Human closeout commit / PR / Merge Gate。
+- 无。当前停在 post-merge state sync review / roadmap update gate。
 
 待执行:
 
-- **[Human]** Review and manually commit closeout materials.
-- **[Human]** Push branch and create PR using `pr.md` if accepted.
-- **[Human]** Merge after PR review/decision.
-- **[Codex]** After merge, sync `current_state.md` and `docs/active_context.md`.
-- **[Claude/roadmap-updater]** After merge, update `docs/roadmap.md` for candidate K factual completion.
+- **[Claude/roadmap-updater]** Update `docs/roadmap.md` for candidate K factual completion.
+- **[Human]** Review and commit post-merge state sync if accepted.
+- **[Human]** Decide the next Direction Gate / Phase 67 candidate after roadmap update.
 
 当前阻塞项:
 
-- 等待人工审查与手动提交:Phase 66 closeout materials.
+- 等待人工审查与手动提交 post-merge state sync;随后由 Claude/roadmap-updater 完成 `docs/roadmap.md` factual update。
 
 ## 当前下一步
 
-1. **[Human]** Commit closeout materials if accepted.
-2. **[Human]** Push branch and create PR using `pr.md`.
-3. **[Human]** Merge when ready.
-4. **[Codex]** After merge, perform post-merge state sync.
+1. **[Human]** Review and manually commit this post-merge state sync.
+2. **[Claude/roadmap-updater]** Update `docs/roadmap.md` to mark Phase 66 / candidate K as completed.
+3. **[Human / Claude]** Decide next direction. Phase 66 itself defaults to no tag.
 
 ```markdown
 model_review:
@@ -115,10 +113,17 @@ model_review:
 
 ```markdown
 merge_gate:
-- status: pending_human
-- pr_body: pr.md
+- status: completed
+- merge_commit: 596b54b
 - closeout: docs/plans/phase66/closeout.md
 - note: Phase 66 is audit-only and does not require a release tag by kickoff guidance
+```
+
+```markdown
+roadmap_update:
+- status: pending_claude_roadmap_updater
+- target: docs/roadmap.md
+- note: candidate K factual completion should be recorded after merge
 ```
 
 ## 当前产出物
@@ -139,5 +144,6 @@ merge_gate:
 - `docs/plans/phase66/review_comments_block2_index.md`(claude, 2026-04-30, M3/final review, verdict = APPROVE)
 - `docs/plans/phase66/closeout.md`(codex, 2026-04-30, closeout)
 - `docs/concerns_backlog.md`(codex, 2026-04-30, Phase 66 follow-up themes)
-- `docs/active_context.md`(codex, 2026-04-30, Phase 66 merge gate state sync)
 - `pr.md`(codex, 2026-04-30, Phase 66 PR body draft)
+- `current_state.md`(codex, 2026-04-30, Phase 66 merged checkpoint sync)
+- `docs/active_context.md`(codex, 2026-04-30, Phase 66 post-merge state sync)
