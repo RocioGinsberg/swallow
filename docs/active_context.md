@@ -11,11 +11,11 @@
 - latest_completed_track: `Knowledge / Storage`
 - latest_completed_phase: `Phase 68`
 - latest_completed_slice: `Candidate O / Raw Material Store Boundary`
-- active_track: `Release`
-- active_phase: `v1.5.0 Tag Release`
-- active_slice: `Release Doc Sync / Tag Prep`
+- active_track: `Operations`
+- active_phase: `Candidate R / Real-use Feedback Observation`
+- active_slice: `R-entry Readiness Gate`
 - active_branch: `main`
-- status: `v1.5.0_release_docs_ready_for_human_review`
+- status: `r_entry_ready_after_v1.5.0_tag`
 
 ## 当前状态说明
 
@@ -25,18 +25,24 @@ Current main checkpoint:
 
 - `eb2c743 merge: code hygiene execute` — Phase 67 L+M+N cleanup + Candidate P module reorganization.
 - `5cb08af merge: update knowledge plane raw material store` — Phase 68 Candidate O Raw Material Store boundary.
+- `bc8abb1 docs(release): sync v1.5.0 release docs` — release snapshot and tag target.
 
-Latest executed public tag remains `v1.4.0`. The recommended pending release tag is `v1.5.0` because Phase 68 turns the roadmap Candidate O storage-backend-independence signal into implementation: `RawMaterialStore` interface, filesystem backend, stable `file://workspace/...` refs, and `artifact://...` evidence resolution.
+Latest executed public tag is `v1.5.0`(annotated tag, points to `bc8abb1`). Phase 68 turns the roadmap Candidate O storage-backend-independence signal into implementation: `RawMaterialStore` interface, filesystem backend, stable `file://workspace/...` refs, and `artifact://...` evidence resolution.
 
-Release-doc sync for `v1.5.0` is prepared in:
+R-entry design / implementation readiness has been checked against:
 
-- `README.md`
-- `current_state.md`
-- `docs/active_context.md`
-- `docs/concerns_backlog.md`
-- `docs/roadmap.md`
-
-No tag command has been executed yet.
+- `docs/design/INVARIANTS.md`
+- `docs/design/ARCHITECTURE.md`
+- `docs/design/DATA_MODEL.md`
+- `docs/design/STATE_AND_TRUTH.md`
+- `docs/design/KNOWLEDGE.md`
+- `docs/design/AGENT_TAXONOMY.md`
+- `docs/design/PROVIDER_ROUTER.md`
+- `docs/design/ORCHESTRATION.md`
+- `docs/design/HARNESS.md`
+- `docs/design/SELF_EVOLUTION.md`
+- `docs/design/INTERACTION.md`
+- `docs/design/EXECUTOR_REGISTRY.md`
 
 ## 当前关键文档
 
@@ -62,70 +68,73 @@ No tag command has been executed yet.
   - `git diff -- docs/design`: no output
   - `.venv/bin/python -m compileall -q src/swallow`: passed
   - `.venv/bin/python -m pytest -q`: `622 passed, 8 deselected, 10 subtests passed`
-- **[Codex]** `v1.5.0` release-doc sync prepared:
+- **[Codex]** `v1.5.0` release-doc sync completed:
   - `README.md` release snapshot updated from `v1.4.0` to `v1.5.0`
-  - `current_state.md` updated to Phase 68 main checkpoint with pending release tag
-  - `docs/active_context.md` updated to tag release gate state
+  - `current_state.md` updated to Phase 68 main checkpoint and later synced to executed tag state
+  - `docs/active_context.md` updated to tag release gate state and later synced to R-entry state
   - `docs/concerns_backlog.md` moved the old release-doc sync debt to Resolved
-  - `docs/roadmap.md` factually synced Candidate L/M/N/P/O completion and pending `v1.5.0`
+  - `docs/roadmap.md` factually synced Candidate L/M/N/P/O completion and `v1.5.0`
 - **[Codex]** Release preflight exposed the known subtask timeout wall-clock flake; stabilized
   `tests/test_run_task_subtasks.py` by removing the brittle elapsed-time assertion while keeping artifact/event behavior assertions.
+- **[Codex]** R-entry triage completed:
+  - `docs/concerns_backlog.md` now records no must-fix blocker before real-use testing
+  - `docs/roadmap.md` records R-entry gate guardrails and confirms Candidate R can start after release/tag closeout
+- **[Human]** `v1.5.0` annotated tag completed on `main`:
+  - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
+- **[Codex]** R-entry design / implementation cross-check completed:
+  - `docs/design/` remains unchanged
+  - focused readiness tests passed: `51 passed` + Phase 65 SQLite governance tests `21 passed`
+- **[Codex]** RAG / Retrieval follow-up planning refreshed in `docs/roadmap.md`:
+  - Candidate R now starts from `v1.5.0` real-use feedback and RAG gap triage.
+  - New follow-up candidates S/T/U cover LLM Wiki Compiler, EvidencePack / source resolution, and neural retrieval observability / eval / index hardening.
+  - Consumed gap history and completed candidate detail blocks were pruned from roadmap; historical detail remains in git log and phase closeout files.
 
 进行中:
 
-- **[Human]** Review release docs before release commit and annotated tag.
+- **[Human]** Begin Candidate R real-use feedback observation using the refreshed R0/R1/R2 gap triage in `docs/roadmap.md`.
 
 待执行:
 
-- **[Human]** Commit test stabilization separately from release docs.
-- **[Human]** Commit release docs on `main`.
-- **[Human]** Create annotated tag `v1.5.0`.
-- **[Human]** Push `main` and tags.
-- **[Codex]** After tag completion, update `docs/active_context.md` and `current_state.md` from pending tag to executed tag.
+- **[Human]** Review and commit this R-entry state sync if accepted.
+- **[Human/Codex]** During R, classify real-use observations into Candidate S/T/U/D using the refreshed roadmap split; do not start Candidate D until a real orchestration bottleneck appears.
 
 当前阻塞项:
 
-- Waiting for Human release-doc review, commit, and tag execution.
+- None for entering Candidate R. Remaining Open concerns are observation items / usage boundaries, not R-entry blockers.
 
-## Tag 建议
+## Tag 状态
 
-- 建议: 打 tag
-- 建议版本号: `v1.5.0`
-- 理由: Phase 67 是内部 hygiene / module reorganization,单独不需要 tag;Phase 68 实装 `RawMaterialStore` raw-material 边界后,构成从 `v1.4.0` 治理闭合进入 storage-abstracted knowledge plane 的稳定 checkpoint。
-- 等待条件: Human review release docs, commit, then create annotated tag.
+- 最新已执行 tag: `v1.5.0`
+- tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
+- tag message: `v1.5.0: raw material store boundary`
+- 结论: tag release gate 已关闭,可以进入 Candidate R 观察期。
 
 ## 当前下一步
 
-1. **[Human]** Review release docs:
-   - `README.md`
+1. **[Human]** Review this R-entry state sync:
    - `current_state.md`
    - `docs/active_context.md`
    - `docs/concerns_backlog.md`
    - `docs/roadmap.md`
-2. **[Human]** Commit test stabilization:
-   - `test(orchestration): stabilize subtask timeout isolation`
-3. **[Human]** Commit release docs:
-   - `docs(release): sync v1.5.0 release docs`
-4. **[Human]** Create annotated tag:
-   - `git tag -a v1.5.0 -m "v1.5.0: raw material store boundary"`
-5. **[Codex]** Sync tag result after Human confirms tag completed.
+2. **[Human]** Commit accepted R-entry sync.
+3. **[Human/Codex]** Start Candidate R real-use feedback observation on the `v1.5.0` checkpoint.
 
 ```markdown
 milestone_gate:
-- current: v1.5.0-release-doc-sync
-- previous_gate: Phase 67 and Phase 68 merged into main
-- next_gate: Human release-doc review / commit / annotated tag
-- proceed_to_tag_result_sync: after Human confirms tag completed
-- reason: tag commands are Human-owned; Codex only prepares release files
+- current: candidate-r-entry-readiness
+- previous_gate: v1.5.0 annotated tag completed on main
+- next_gate: Human R-entry state sync review / commit
+- proceed_to_r: allowed after state sync review
+- reason: design invariants and focused implementation guards are sufficient for observation-stage real-use testing
 ```
 
 ## 当前产出物
 
 - `README.md`(codex, 2026-04-30, v1.5.0 release snapshot)
-- `current_state.md`(codex, 2026-04-30, v1.5.0 pending release checkpoint)
-- `docs/active_context.md`(codex, 2026-04-30, tag release gate state)
-- `docs/concerns_backlog.md`(codex, 2026-04-30, release-doc debt resolved)
-- `docs/roadmap.md`(codex, 2026-04-30, post-merge factual sync)
+- `current_state.md`(codex, 2026-04-30, v1.5.0 executed tag + R-entry checkpoint)
+- `docs/active_context.md`(codex, 2026-04-30, R-entry readiness state)
+- `docs/concerns_backlog.md`(codex, 2026-04-30, release-doc debt resolved + R-entry blocker/design triage)
+- `docs/roadmap.md`(codex, 2026-05-01, pruned roadmap + v1.5.0 post-start RAG gap planning: Candidate R + S/T/U)
 - `tests/test_run_task_subtasks.py`(codex, 2026-04-30, release preflight flake stabilization)
 - `docs/plans/phase67/closeout.md`(codex, 2026-04-30, Phase 67 closeout)
 - `docs/plans/phase68/closeout.md`(codex, 2026-04-30, Phase 68 closeout)
