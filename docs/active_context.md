@@ -88,6 +88,20 @@ R-entry design / implementation readiness has been checked against:
   - Candidate R now starts from `v1.5.0` real-use feedback and RAG gap triage.
   - New follow-up candidates S/T/U cover LLM Wiki Compiler, EvidencePack / source resolution, and neural retrieval observability / eval / index hardening.
   - Consumed gap history and completed candidate detail blocks were pruned from roadmap; historical detail remains in git log and phase closeout files.
+- **[Codex]** Source organization follow-up planning added to `docs/roadmap.md`:
+  - New maintenance candidates V/W/X/Y/Z cover Knowledge Plane API simplification, Provider Router split, Orchestration facade decomposition, Surface command / Meta Optimizer split, and Governance apply handler split.
+  - Recommended ordering keeps Candidate V as the low-risk foundation before deeper S/T/U work, with W/X/Y/Z triggered by touch surface and maintenance friction.
+- **[Codex]** Test architecture and interface/application boundary planning added to `docs/roadmap.md`:
+  - New candidates AA/AB cover Test Architecture / TDD Harness and Interface / Application Boundary Clarification.
+  - Recommended ordering now treats AA as a TDD/restructuring prerequisite before V/W/X/AB-scale changes, while AB keeps FastAPI and CLI as adapters over shared application commands/queries and preserves local-first single-file SQLite truth.
+- **[Codex]** Local UI runtime standard fixed in `docs/design/INTERACTION.md`:
+  - Browser Web UI and future desktop apps use local loopback FastAPI over the same application commands/queries.
+  - CLI normal commands bypass HTTP and call the application layer in-process; `swl serve` only starts FastAPI / Control Center.
+  - `docs/roadmap.md` Candidate AB now references this design anchor.
+- **[Codex]** Engineering organization standards fixed under `docs/engineering/`:
+  - `CODE_ORGANIZATION.md` defines local-first clean monolith layering, facade-first migration, and V/W/X/Y/Z/AB convergence standards.
+  - `TEST_ARCHITECTURE.md` defines test layers, TDD workflow, helpers, CLI test split, guard rules, and eval rules.
+  - `AGENTS.md`, `.agents/shared/read_order.md`, and `docs/roadmap.md` now reference these long-term engineering standards.
 
 进行中:
 
@@ -96,7 +110,7 @@ R-entry design / implementation readiness has been checked against:
 待执行:
 
 - **[Human]** Review and commit this R-entry state sync if accepted.
-- **[Human/Codex]** During R, classify real-use observations into Candidate S/T/U/D using the refreshed roadmap split; do not start Candidate D until a real orchestration bottleneck appears.
+- **[Human/Codex]** During R, classify real-use observations into Candidate S/T/U/D, test/interface friction into Candidate AA/AB, and source-organization friction into Candidate V/W/X/Y/Z using the refreshed roadmap split; do not start Candidate D until a real orchestration bottleneck appears.
 
 当前阻塞项:
 
@@ -112,9 +126,14 @@ R-entry design / implementation readiness has been checked against:
 ## 当前下一步
 
 1. **[Human]** Review this R-entry state sync:
+   - `AGENTS.md`
+   - `.agents/shared/read_order.md`
    - `current_state.md`
    - `docs/active_context.md`
    - `docs/concerns_backlog.md`
+   - `docs/design/INTERACTION.md`
+   - `docs/engineering/CODE_ORGANIZATION.md`
+   - `docs/engineering/TEST_ARCHITECTURE.md`
    - `docs/roadmap.md`
 2. **[Human]** Commit accepted R-entry sync.
 3. **[Human/Codex]** Start Candidate R real-use feedback observation on the `v1.5.0` checkpoint.
@@ -132,9 +151,14 @@ milestone_gate:
 
 - `README.md`(codex, 2026-04-30, v1.5.0 release snapshot)
 - `current_state.md`(codex, 2026-04-30, v1.5.0 executed tag + R-entry checkpoint)
+- `AGENTS.md`(codex, 2026-05-01, docs/engineering layer indexed)
+- `.agents/shared/read_order.md`(codex, 2026-05-01, engineering docs added as contextual reads for refactor/TDD work)
 - `docs/active_context.md`(codex, 2026-04-30, R-entry readiness state)
 - `docs/concerns_backlog.md`(codex, 2026-04-30, release-doc debt resolved + R-entry blocker/design triage)
-- `docs/roadmap.md`(codex, 2026-05-01, pruned roadmap + v1.5.0 post-start RAG gap planning: Candidate R + S/T/U)
+- `docs/design/INTERACTION.md`(codex, 2026-05-01, local UI runtime standard: Browser/Desktop UI via local FastAPI, CLI direct application layer)
+- `docs/engineering/CODE_ORGANIZATION.md`(codex, 2026-05-01, long-term code organization convergence standard)
+- `docs/engineering/TEST_ARCHITECTURE.md`(codex, 2026-05-01, long-term test architecture and TDD harness standard)
+- `docs/roadmap.md`(codex, 2026-05-01, pruned roadmap + v1.5.0 post-start RAG, test architecture, interface boundary, and code-organization planning: Candidate R + S/T/U + AA/AB + V/W/X/Y/Z)
 - `tests/test_run_task_subtasks.py`(codex, 2026-04-30, release preflight flake stabilization)
 - `docs/plans/phase67/closeout.md`(codex, 2026-04-30, Phase 67 closeout)
 - `docs/plans/phase68/closeout.md`(codex, 2026-04-30, Phase 68 closeout)
