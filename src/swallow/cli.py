@@ -4,10 +4,11 @@ import argparse
 import json
 import subprocess
 import sys
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from ._io_helpers import read_json_lines_or_empty, read_json_list_or_empty, read_json_or_empty
+from ._io_helpers import read_json_lines_or_empty, read_json_list_or_empty, read_json_or_empty, read_json_strict
 from .canonical_reuse_eval import (
     build_canonical_reuse_evaluation_report,
     build_canonical_reuse_evaluation_summary,
@@ -614,6 +615,165 @@ def build_remote_handoff_attention(base_dir: Path, task_id: str) -> dict[str, ob
             else f"{contract_status}:{handoff_boundary}"
         ),
     }
+
+
+ArtifactPrinter = Callable[[Path, str | None], int]
+
+TEXT_ARTIFACT_PRINTERS: dict[str, str] = {
+    "summarize": "summary.md",
+    "semantics": "task_semantics_report.md",
+    "resume-note": "resume_note.md",
+    "validation": "validation_report.md",
+    "compatibility": "compatibility_report.md",
+    "grounding": "grounding_evidence_report.md",
+    "knowledge-objects": "knowledge_objects_report.md",
+    "knowledge-partition": "knowledge_partition_report.md",
+    "knowledge-index": "knowledge_index_report.md",
+    "knowledge-policy": "knowledge_policy_report.md",
+    "retrieval": "retrieval_report.md",
+    "topology": "topology_report.md",
+    "execution-site": "execution_site_report.md",
+    "handoff": "handoff_report.md",
+    "remote-handoff": "remote_handoff_contract_report.md",
+    "execution-fit": "execution_fit_report.md",
+    "retry-policy": "retry_policy_report.md",
+    "execution-budget-policy": "execution_budget_policy_report.md",
+    "stop-policy": "stop_policy_report.md",
+    "route": "route_report.md",
+}
+
+JSON_ARTIFACT_PRINTERS: dict[str, Callable[[Path, str], Path]] = {
+    "memory": memory_path,
+    "compatibility-json": compatibility_path,
+    "route-json": route_path,
+    "topology-json": topology_path,
+    "execution-site-json": execution_site_path,
+    "dispatch-json": dispatch_path,
+    "handoff-json": handoff_path,
+    "remote-handoff-json": remote_handoff_contract_path,
+    "execution-fit-json": execution_fit_path,
+    "retry-policy-json": retry_policy_path,
+    "execution-budget-policy-json": execution_budget_policy_path,
+    "stop-policy-json": stop_policy_path,
+    "checkpoint-json": checkpoint_snapshot_path,
+    "capabilities-json": capability_assembly_path,
+    "semantics-json": task_semantics_path,
+    "knowledge-partition-json": knowledge_partition_path,
+    "knowledge-index-json": knowledge_index_path,
+    "knowledge-policy-json": knowledge_policy_path,
+    "retrieval-json": retrieval_path,
+}
+
+
+def _require_artifact_task_id(task_id: str | None) -> str:
+    if not task_id:
+        raise ValueError("task_id is required for task artifact printer.")
+    return task_id
+
+
+def _print_text_artifact(path: Path) -> int:
+    print(path.read_text(encoding="utf-8"), end="")
+    return 0
+
+
+def _print_report(text: str) -> int:
+    print(text)
+    return 0
+
+
+def _print_json_payload(payload: object) -> int:
+    print(json.dumps(payload, indent=2))
+    return 0
+
+
+def _print_json_artifact(path: Path) -> int:
+    return _print_json_payload(read_json_strict(path))
+
+
+def _text_artifact_printer(artifact_name: str) -> ArtifactPrinter:
+    return lambda base_dir, task_id: _print_text_artifact(
+        artifacts_dir(base_dir, _require_artifact_task_id(task_id)) / artifact_name
+    )
+
+
+def _json_artifact_printer(path_builder: Callable[[Path, str], Path]) -> ArtifactPrinter:
+    return lambda base_dir, task_id: _print_json_artifact(
+        path_builder(base_dir, _require_artifact_task_id(task_id))
+    )
+
+
+def _print_canonical_reuse_regression(base_dir: Path, task_id: str | None) -> int:
+    required_task_id = _require_artifact_task_id(task_id)
+    baseline = read_json_or_empty(canonical_reuse_regression_path(base_dir, required_task_id))
+    records = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, required_task_id))
+    current = build_canonical_reuse_regression_current(
+        task_id=required_task_id,
+        summary=build_canonical_reuse_evaluation_summary(records),
+    )
+    comparison = compare_canonical_reuse_regression(baseline=baseline, current=current)
+    return _print_report(
+        build_canonical_reuse_regression_report(baseline=baseline, current=current, comparison=comparison)
+    )
+
+
+def _print_canonical_reuse_eval(base_dir: Path, task_id: str | None) -> int:
+    records = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, _require_artifact_task_id(task_id)))
+    return _print_report(
+        build_canonical_reuse_evaluation_report(records, build_canonical_reuse_evaluation_summary(records))
+    )
+
+
+ARTIFACT_PRINTER_DISPATCH: dict[str, ArtifactPrinter] = {
+    **{command: _text_artifact_printer(artifact_name) for command, artifact_name in TEXT_ARTIFACT_PRINTERS.items()},
+    **{command: _json_artifact_printer(path_builder) for command, path_builder in JSON_ARTIFACT_PRINTERS.items()},
+    "knowledge-objects-json": lambda base_dir, task_id: _print_json_payload(
+        load_knowledge_objects(base_dir, _require_artifact_task_id(task_id))
+    ),
+    "knowledge-decisions": lambda base_dir, task_id: _print_report(
+        build_knowledge_decisions_report(
+            read_json_lines_or_empty(knowledge_decisions_path(base_dir, _require_artifact_task_id(task_id)))
+        )
+    ),
+    "canonical-registry": lambda base_dir, _task_id: _print_report(
+        build_canonical_registry_report(read_json_lines_or_empty(canonical_registry_path(base_dir)))
+    ),
+    "canonical-registry-index": lambda base_dir, _task_id: _print_report(
+        build_canonical_registry_index_report(read_json_or_empty(canonical_registry_index_path(base_dir)))
+    ),
+    "canonical-reuse": lambda base_dir, _task_id: _print_report(
+        build_canonical_reuse_report(read_json_or_empty(canonical_reuse_policy_path(base_dir)))
+    ),
+    "canonical-reuse-regression": _print_canonical_reuse_regression,
+    "canonical-reuse-eval": _print_canonical_reuse_eval,
+    "knowledge-decisions-json": lambda base_dir, task_id: _print_json_payload(
+        read_json_lines_or_empty(knowledge_decisions_path(base_dir, _require_artifact_task_id(task_id)))
+    ),
+    "canonical-registry-json": lambda base_dir, _task_id: _print_json_payload(
+        read_json_lines_or_empty(canonical_registry_path(base_dir))
+    ),
+    "canonical-registry-index-json": lambda base_dir, _task_id: _print_json_payload(
+        read_json_or_empty(canonical_registry_index_path(base_dir))
+    ),
+    "canonical-reuse-json": lambda base_dir, _task_id: _print_json_payload(
+        read_json_or_empty(canonical_reuse_policy_path(base_dir))
+    ),
+    "canonical-reuse-eval-json": lambda base_dir, task_id: _print_json_payload(
+        read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, _require_artifact_task_id(task_id)))
+    ),
+    "canonical-reuse-regression-json": lambda base_dir, task_id: _print_json_payload(
+        read_json_or_empty(canonical_reuse_regression_path(base_dir, _require_artifact_task_id(task_id)))
+    ),
+}
+
+
+def _dispatch_artifact_printer(args: argparse.Namespace, base_dir: Path) -> int:
+    handler = ARTIFACT_PRINTER_DISPATCH.get(args.task_command)
+    if handler is None:
+        raise NotImplementedError(
+            f"Read-only printer dispatch table missing handler for {args.task_command!r}; "
+            "either add an entry or remove it from the Phase 67 M3 in-scope command set."
+        )
+    return handler(base_dir, getattr(args, "task_id", None))
 
 
 def _format_route_selection_value(value: object) -> str:
@@ -3573,201 +3733,15 @@ def main(argv: list[str] | None = None) -> int:
         print(build_grouped_artifact_index(state.artifact_paths), end="")
         return 0
 
-    if args.command == "task" and args.task_command in {
-        "summarize",
-        "semantics",
-        "resume-note",
-        "validation",
-        "compatibility",
-        "grounding",
-        "knowledge-objects",
-        "knowledge-partition",
-        "knowledge-index",
-        "knowledge-policy",
-        "retrieval",
-        "topology",
-        "execution-site",
-        "dispatch",
-        "handoff",
-        "remote-handoff",
-        "execution-fit",
-        "retry-policy",
-        "execution-budget-policy",
-        "stop-policy",
-        "route",
-    }:
-        artifact_name = {
-            "summarize": "summary.md",
-            "semantics": "task_semantics_report.md",
-            "resume-note": "resume_note.md",
-            "validation": "validation_report.md",
-            "compatibility": "compatibility_report.md",
-            "grounding": "grounding_evidence_report.md",
-            "knowledge-objects": "knowledge_objects_report.md",
-            "knowledge-partition": "knowledge_partition_report.md",
-            "knowledge-index": "knowledge_index_report.md",
-            "knowledge-policy": "knowledge_policy_report.md",
-            "retrieval": "retrieval_report.md",
-            "topology": "topology_report.md",
-            "execution-site": "execution_site_report.md",
-            "dispatch": "dispatch_report.md",
-            "handoff": "handoff_report.md",
-            "remote-handoff": "remote_handoff_contract_report.md",
-            "execution-fit": "execution_fit_report.md",
-            "retry-policy": "retry_policy_report.md",
-            "execution-budget-policy": "execution_budget_policy_report.md",
-            "stop-policy": "stop_policy_report.md",
-            "route": "route_report.md",
-        }[args.task_command]
-        artifact_output = (artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8")
-        if args.task_command == "dispatch":
-            state = load_state(base_dir, args.task_id)
-            topology = read_json_or_empty(topology_path(base_dir, args.task_id))
-            if is_mock_remote_task(state, topology):
-                print("[MOCK-REMOTE]")
-        print(artifact_output, end="")
-        return 0
+    if args.command == "task" and args.task_command == "dispatch":
+        state = load_state(base_dir, args.task_id)
+        topology = read_json_or_empty(topology_path(base_dir, args.task_id))
+        if is_mock_remote_task(state, topology):
+            print("[MOCK-REMOTE]")
+        return _print_text_artifact(artifacts_dir(base_dir, args.task_id) / "dispatch_report.md")
 
-    if args.command == "task" and args.task_command == "memory":
-        print(json.dumps(json.loads(memory_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "compatibility-json":
-        print(json.dumps(json.loads(compatibility_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "route-json":
-        print(json.dumps(json.loads(route_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "topology-json":
-        print(json.dumps(json.loads(topology_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "execution-site-json":
-        print(json.dumps(json.loads(execution_site_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "dispatch-json":
-        print(json.dumps(json.loads(dispatch_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "handoff-json":
-        print(json.dumps(json.loads(handoff_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "remote-handoff-json":
-        print(json.dumps(json.loads(remote_handoff_contract_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "execution-fit-json":
-        print(json.dumps(json.loads(execution_fit_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "retry-policy-json":
-        print(json.dumps(json.loads(retry_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "execution-budget-policy-json":
-        print(
-            json.dumps(
-                json.loads(execution_budget_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")),
-                indent=2,
-            )
-        )
-        return 0
-
-    if args.command == "task" and args.task_command == "stop-policy-json":
-        print(json.dumps(json.loads(stop_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "checkpoint-json":
-        print(json.dumps(json.loads(checkpoint_snapshot_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "capabilities-json":
-        print(json.dumps(json.loads(capability_assembly_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "semantics-json":
-        print(json.dumps(json.loads(task_semantics_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-objects-json":
-        print(json.dumps(load_knowledge_objects(base_dir, args.task_id), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-partition-json":
-        print(json.dumps(json.loads(knowledge_partition_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-index-json":
-        print(json.dumps(json.loads(knowledge_index_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-policy-json":
-        print(json.dumps(json.loads(knowledge_policy_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-decisions":
-        print(build_knowledge_decisions_report(read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id))))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-registry":
-        print(build_canonical_registry_report(read_json_lines_or_empty(canonical_registry_path(base_dir))))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-registry-index":
-        print(build_canonical_registry_index_report(read_json_or_empty(canonical_registry_index_path(base_dir))))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-reuse":
-        print(build_canonical_reuse_report(read_json_or_empty(canonical_reuse_policy_path(base_dir))))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-reuse-regression":
-        baseline = read_json_or_empty(canonical_reuse_regression_path(base_dir, args.task_id))
-        records = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, args.task_id))
-        current = build_canonical_reuse_regression_current(
-            task_id=args.task_id,
-            summary=build_canonical_reuse_evaluation_summary(records),
-        )
-        comparison = compare_canonical_reuse_regression(baseline=baseline, current=current)
-        print(build_canonical_reuse_regression_report(baseline=baseline, current=current, comparison=comparison))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-reuse-eval":
-        records = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, args.task_id))
-        print(build_canonical_reuse_evaluation_report(records, build_canonical_reuse_evaluation_summary(records)))
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-decisions-json":
-        print(json.dumps(read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id)), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-registry-json":
-        print(json.dumps(read_json_lines_or_empty(canonical_registry_path(base_dir)), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-registry-index-json":
-        print(json.dumps(read_json_or_empty(canonical_registry_index_path(base_dir)), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-reuse-json":
-        print(json.dumps(read_json_or_empty(canonical_reuse_policy_path(base_dir)), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-reuse-eval-json":
-        print(json.dumps(read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, args.task_id)), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-reuse-regression-json":
-        print(json.dumps(read_json_or_empty(canonical_reuse_regression_path(base_dir, args.task_id)), indent=2))
-        return 0
-
-    if args.command == "task" and args.task_command == "retrieval-json":
-        print(json.dumps(json.loads(retrieval_path(base_dir, args.task_id).read_text(encoding="utf-8")), indent=2))
-        return 0
+    if args.command == "task" and args.task_command in ARTIFACT_PRINTER_DISPATCH:
+        return _dispatch_artifact_printer(args, base_dir)
 
     if args.command == "migrate":
         if bool(args.status):
