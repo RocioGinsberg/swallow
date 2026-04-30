@@ -101,7 +101,7 @@
 说明：
 
 - 这里写的是当前 phase 的执行拆解，不是长期路线图
-- slice 名称应尽量和 Git commit / phase breakdown 对齐
+- slice 名称应尽量和 Git commit / `plan.md` milestone 对齐
 
 ---
 
@@ -111,8 +111,9 @@
 
 1. `AGENTS.md`
 2. `docs/system_tracks.md`
-3. `docs/plans/<active-phase>/kickoff.md`
-4. `docs/plans/<active-phase>/breakdown.md`
+3. `docs/plans/<active-phase>/context_brief.md`
+4. `docs/plans/<active-phase>/plan.md`
+5. `docs/plans/<active-phase>/plan_audit.md`（实现前 / plan gate 前）
 
 按需再读取：
 

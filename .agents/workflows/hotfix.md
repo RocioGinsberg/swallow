@@ -17,7 +17,7 @@
 ## 流程
 
 ```
-Claude: Quick Assessment + branch-advise
+Codex: Quick Assessment + branch suggestion
         ↓
  Human: Approve Fix Scope ⛔
         ↓
@@ -28,15 +28,15 @@ Claude: Quick Assessment + branch-advise
 
 ---
 
-## Step 1: Claude — Quick Assessment
+## Step 1: Codex — Quick Assessment
 
 **输入**：bug 描述 / 报错信息
 
 **产出**：
 - 口头（对话中）的修复范围评估 + 风险判断
-- branch-advise：建议 `fix/<topic>` 分支名
+- 建议 `fix/<topic>` 分支名
 
-**不产出正式 design_decision.md**（除非人工要求）。
+**不产出正式 `plan.md`**（除非人工要求）。
 
 ---
 

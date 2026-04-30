@@ -12,18 +12,22 @@
 
 {context_brief TL;DR}
 
-## Design Decision
-<!-- 来源: docs/plans/<phase>/design_decision.md 的 TL;DR + slice 列表 -->
-<!-- 由 Claude 产出 -->
+## Plan
+<!-- 来源: docs/plans/<phase>/plan.md 的 TL;DR + slice / milestone 列表 -->
+<!-- 由 Codex 产出 -->
 
-{design_decision TL;DR}
+{plan.md TL;DR}
 
 ### Slices
 {slice 列表及其完成状态}
 
 ### Risk
-<!-- 来源: docs/plans/<phase>/risk_assessment.md 的高风险项 -->
+<!-- 来源: docs/plans/<phase>/plan.md 的高风险项 -->
 {高风险 slice 列表，如无则写"无高风险项"}
+
+### Plan Audit
+<!-- 来源: docs/plans/<phase>/plan_audit.md 的 verdict / concern / blocker 摘要 -->
+{plan audit 要点，如全部 READY 则写"plan audit ready，无 blocker"}
 
 ## Implementation Notes
 <!-- 由 Codex 填写 -->

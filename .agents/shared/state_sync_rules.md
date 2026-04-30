@@ -33,10 +33,10 @@
 ```markdown
 ## 当前产出物
 - docs/plans/phase19/context_brief.md (claude, 2026-04-11)
-- docs/plans/phase19/design_decision.md (claude, 2026-04-11)
+- docs/plans/phase19/plan.md (codex, 2026-04-11)
 
 ## 当前下一步
-等待人工审批 design_decision.md，通过后由 codex 开始实现。
+等待 plan_audit.md 与人工审批 plan.md，通过后由 codex 开始实现。
 ```
 
 ---

@@ -1,5 +1,7 @@
 # Phase Breakdown
 
+> Legacy template. 新 phase 默认在 `docs/plans/<phase>/plan.md` 的 Plan 表中维护 slice / milestone;只有 Human 明确要求或 phase 复杂到单文件计划不可审查时,才单独产出 breakdown。
+
 ## 基本信息
 
 - phase: `<填写 phase 名称>`

@@ -15,7 +15,7 @@
 - active_phase: `Candidate R / Real-use Feedback Observation`
 - active_slice: `R-entry Readiness Gate`
 - active_branch: `main`
-- status: `r_entry_ready_after_v1.5.0_tag`
+- status: `r_entry_ready_agent_workflow_sync_pending_review`
 
 ## 当前状态说明
 
@@ -102,14 +102,18 @@ R-entry design / implementation readiness has been checked against:
   - `CODE_ORGANIZATION.md` defines local-first clean monolith layering, facade-first migration, and V/W/X/Y/Z/AB convergence standards.
   - `TEST_ARCHITECTURE.md` defines test layers, TDD workflow, helpers, CLI test split, guard rules, and eval rules.
   - `AGENTS.md`, `.agents/shared/read_order.md`, and `docs/roadmap.md` now reference these long-term engineering standards.
+- **[Codex]** Agent responsibility reweighting and plans artifact simplification documented:
+  - Codex now owns phase plan definition through `docs/plans/<phase>/plan.md`.
+  - Claude no longer defaults to heavy plan decomposition; Claude main handles PR review / tag evaluation, while Claude subagents handle `context_brief.md`, `plan_audit.md`, factual roadmap updates, and optional consistency checks.
+  - New phase plans default to `context_brief.md` + `plan.md` + `plan_audit.md` + `review_comments.md` + `closeout.md`; legacy `kickoff.md` / `design_decision.md` / `risk_assessment.md` / `breakdown.md` remain readable but are not default outputs.
 
 进行中:
 
-- **[Human]** Begin Candidate R real-use feedback observation using the refreshed R0/R1/R2 gap triage in `docs/roadmap.md`.
+- **[Human]** Review and commit R-entry engineering + agent workflow sync, then begin Candidate R real-use feedback observation using the refreshed R0/R1/R2 gap triage in `docs/roadmap.md`.
 
 待执行:
 
-- **[Human]** Review and commit this R-entry state sync if accepted.
+- **[Human]** Review and commit this R-entry engineering + agent workflow sync if accepted.
 - **[Human/Codex]** During R, classify real-use observations into Candidate S/T/U/D, test/interface friction into Candidate AA/AB, and source-organization friction into Candidate V/W/X/Y/Z using the refreshed roadmap split; do not start Candidate D until a real orchestration bottleneck appears.
 
 当前阻塞项:
@@ -125,7 +129,28 @@ R-entry design / implementation readiness has been checked against:
 
 ## 当前下一步
 
-1. **[Human]** Review this R-entry state sync:
+1. **[Human]** Review this R-entry state / workflow sync:
+   - `CLAUDE.md`
+   - `.codex/session_bootstrap.md`
+   - `.agents/claude/role.md`
+   - `.agents/claude/rules.md`
+   - `.agents/codex/role.md`
+   - `.agents/codex/rules.md`
+   - `.agents/shared/rules.md`
+   - `.agents/shared/state_sync_rules.md`
+   - `.agents/shared/document_discipline.md`
+   - `.agents/shared/reading_manifest_format.md`
+   - `.agents/workflows/feature.md`
+   - `.agents/workflows/model_review.md`
+   - `.agents/workflows/hotfix.md`
+   - `.agents/templates/pr_body.md`
+   - `.claude/agents/context-analyst.md`
+   - `.claude/agents/design-auditor.md`
+   - `.claude/agents/phase-guard.md`
+   - `.claude/agents/consistency-checker.md`
+   - `.claude/agents/roadmap-updater.md`
+   - `.claude/skills/model-review/SKILL.md`
+   - `.agents/codex/templates/plan_template.md`
    - `AGENTS.md`
    - `.agents/shared/read_order.md`
    - `current_state.md`
@@ -135,7 +160,7 @@ R-entry design / implementation readiness has been checked against:
    - `docs/engineering/CODE_ORGANIZATION.md`
    - `docs/engineering/TEST_ARCHITECTURE.md`
    - `docs/roadmap.md`
-2. **[Human]** Commit accepted R-entry sync.
+2. **[Human]** Commit accepted R-entry / workflow sync.
 3. **[Human/Codex]** Start Candidate R real-use feedback observation on the `v1.5.0` checkpoint.
 
 ```markdown
@@ -159,6 +184,15 @@ milestone_gate:
 - `docs/engineering/CODE_ORGANIZATION.md`(codex, 2026-05-01, long-term code organization convergence standard)
 - `docs/engineering/TEST_ARCHITECTURE.md`(codex, 2026-05-01, long-term test architecture and TDD harness standard)
 - `docs/roadmap.md`(codex, 2026-05-01, pruned roadmap + v1.5.0 post-start RAG, test architecture, interface boundary, and code-organization planning: Candidate R + S/T/U + AA/AB + V/W/X/Y/Z)
+- `CLAUDE.md`(codex, 2026-05-01, Claude role narrowed to plan audit / PR review / tag evaluation)
+- `.codex/session_bootstrap.md`(codex, 2026-05-01, Codex role expanded to plan definition via `plan.md`)
+- `.agents/workflows/feature.md`(codex, 2026-05-01, feature workflow rewritten around `context_brief.md` + `plan.md` + `plan_audit.md`)
+- `.agents/workflows/model_review.md`(codex, 2026-05-01, model review moved from legacy design artifacts to `plan.md` / `plan_audit.md`)
+- `.agents/claude/role.md` / `.agents/claude/rules.md`(codex, 2026-05-01, Claude planning responsibilities reduced; review/audit responsibilities clarified)
+- `.agents/codex/role.md` / `.agents/codex/rules.md`(codex, 2026-05-01, Codex planning + implementation ownership clarified)
+- `.agents/shared/*.md`(codex, 2026-05-01, shared plan artifact and state sync conventions updated)
+- `.claude/agents/*.md` + `.claude/skills/model-review/SKILL.md`(codex, 2026-05-01, subagent outputs and model review inputs updated for `plan.md`)
+- `.agents/codex/templates/plan_template.md`(codex, 2026-05-01, new default phase plan template)
 - `tests/test_run_task_subtasks.py`(codex, 2026-04-30, release preflight flake stabilization)
 - `docs/plans/phase67/closeout.md`(codex, 2026-04-30, Phase 67 closeout)
 - `docs/plans/phase68/closeout.md`(codex, 2026-04-30, Phase 68 closeout)

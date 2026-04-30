@@ -1,5 +1,7 @@
 # Phase Kickoff
 
+> Legacy template. 新 phase 默认使用 `.agents/codex/templates/plan_template.md` 产出 `docs/plans/<phase>/plan.md`;只有 Human 明确要求或 phase 复杂到单文件计划不可审查时,才单独产出 kickoff。
+
 ## 基本信息
 
 - phase: `<填写 phase 名称>`

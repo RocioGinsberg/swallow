@@ -51,17 +51,17 @@
 
 | 角色 | 职责 | 控制文件 |
 |------|------|----------|
-| **Claude** | 方案拆解、风险评估、PR 评审、分支建议、tag 评估、roadmap 优先级维护 | `CLAUDE.md` → `.agents/claude/` |
-| **Codex** | 代码实现、测试、状态同步、slice 验证记录、milestone 级 commit 建议、PR 文案整理 | `.codex/session_bootstrap.md` → `.agents/codex/` |
+| **Codex** | 方案定义、phase 计划拆解、代码实现、测试、状态同步、milestone 级 commit 建议、PR 文案整理 | `.codex/session_bootstrap.md` → `.agents/codex/` |
+| **Claude** | context 总结协调、方案审查、PR 评审、tag 评估、review concern 同步 | `CLAUDE.md` → `.agents/claude/` |
 | **Human** | 设计审批、git 提交执行、PR 创建、合并决策 | — |
 
 Claude subagent(`.claude/agents/`)承接的辅助职责:
 
 | Subagent | 模型 | 职责 |
 |----------|------|------|
-| `context-analyst` | Sonnet | phase 启动时产出 context_brief |
-| `roadmap-updater` | Sonnet | phase closeout 后增量更新 roadmap |
-| `design-auditor` | Sonnet | design gate 前从实现者视角审计设计产物 |
+| `context-analyst` | Sonnet | phase 启动时产出事实型 `context_brief.md` |
+| `roadmap-updater` | Sonnet | phase closeout / merge 后增量更新 roadmap 的事实状态 |
+| `design-auditor` | Sonnet | plan gate 前从实现者与审查者视角审计 Codex 产出的 `plan.md` |
 | `consistency-checker` | Sonnet | 实现后对比设计文档产出 consistency_report |
 
 协作流程定义见 `.agents/workflows/feature.md`。
@@ -73,7 +73,7 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 
 ## 文档结构(全仓库视角)
 
-仓库文档分五层。**第 1 / 2 / 5 层与 README 的"产品设计文档体系"对齐**;**第 3 / 4 层是开发协作专属**,不进 README 的设计文档章节。
+仓库文档分六层。**第 1 / 2 层与 README 的"产品设计文档体系"对齐**;**第 3 / 4 / 5 / 6 层是工程与开发协作专属**,不进 README 的设计文档章节。
 
 ### 1. 宪法层(产品设计 - 不变量)
 - `docs/design/INVARIANTS.md` — 项目宪法
@@ -95,27 +95,32 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 
 用途:描述系统设计的"为什么"与"如何思考"。具体 schema、品牌绑定、不变量都不持有,只引用宪法层。
 
-### 3. 当前执行层(开发协作)
+### 3. 工程规范层(开发协作 - 长期工程边界)
+- `docs/engineering/CODE_ORGANIZATION.md` — 代码组织、interface/application/domain/persistence 分层、facade-first 迁移纪律
+- `docs/engineering/TEST_ARCHITECTURE.md` — 测试分层、TDD harness、fixtures/helpers、guard/eval 边界
+
+用途:固定跨 phase 的工程收敛方向。它们不是产品设计文档,也不维护当前 phase 状态;当实现或测试重组方向发生长期变化时更新。
+
+### 4. 当前执行层(开发协作)
 - `AGENTS.md`(本文件) — 仓库入口控制面与协作约定
 - `docs/active_context.md` — 当前唯一高频状态入口
 - `docs/roadmap.md` — 跨 phase 蓝图对齐活文档
 - `current_state.md` — 恢复入口
 
-### 4. 阶段计划层(开发协作)
-- `docs/plans/<phase>/kickoff.md`
-- `docs/plans/<phase>/breakdown.md`(可选；多 milestone / 复杂 phase 时使用)
+### 5. 阶段计划层(开发协作)
+- `docs/plans/<phase>/context_brief.md`(context-analyst subagent 产出)
+- `docs/plans/<phase>/plan.md`(Codex 产出；新 phase 默认唯一计划入口)
+- `docs/plans/<phase>/plan_audit.md`(design-auditor subagent 产出)
+- `docs/plans/<phase>/model_review.md`(条件触发；高风险或 Human 要求时)
+- `docs/plans/<phase>/review_comments.md`(Claude 产出)
 - `docs/plans/<phase>/closeout.md`
 - `docs/plans/<phase>/commit_summary.md`(可选)
-- `docs/plans/<phase>/context_brief.md`(context-analyst subagent 产出)
-- `docs/plans/<phase>/design_decision.md`(Claude 产出)
-- `docs/plans/<phase>/risk_assessment.md`(Claude 产出)
-- `docs/plans/<phase>/design_audit.md`(design-auditor subagent 产出,可选)
-- `docs/plans/<phase>/review_comments.md`(Claude 产出)
 - `docs/plans/<phase>/consistency_report.md`(consistency-checker subagent 产出,可选)
+- `docs/plans/<phase>/kickoff.md` / `design_decision.md` / `risk_assessment.md` / `breakdown.md`(legacy 兼容；新 phase 默认不再拆成这些文件)
 
-用途:组织当前 phase 的目标、拆解、收口、多 agent 产出物。Phase 文档以目录为边界。
+用途:组织当前 phase 的目标、拆解、审查、实现记录和收口。Phase 文档以目录为边界；新 phase 优先用 `plan.md` 合并边界、方案、风险和 milestone 信息，避免 plans 中重复叙述。
 
-### 5. 多 Agent 控制层与工具入口
+### 6. 多 Agent 控制层与工具入口
 - `.agents/shared/` — 共享规则、读取顺序、状态同步规则
 - `.agents/codex/` — Codex 角色定义、专属规则、模板
 - `.agents/claude/` — Claude 角色定义、专属规则
@@ -207,13 +212,13 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 
 默认规则:
 
-1. `design_decision.md` 与 `risk_assessment.md` 通过人工审批后
+1. `plan.md` 与 `plan_audit.md` 通过人工审批后
 2. Human 先从 `main` 切出本轮 feature branch
 3. Codex 再在该 branch 上开始代码实现
 
 补充要求:
 
-- 设计文档产出完成但尚未通过人工 gate 时,不进入实现分支,不开始代码改动
+- phase plan 产出完成但尚未通过人工 gate 时,不进入实现分支,不开始代码改动
 - 一旦进入实现阶段,默认不继续把功能开发留在 `main`
 - 如当前工作只是纯文档修订且不属于实现阶段,可留在当前分支,由人工决定是否另开 `docs/<topic>`
 
@@ -234,18 +239,18 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 每个 phase 的人工提交分两类:
 
 1. **实现里程碑提交**:Codex 完成当前 milestone 的代码实现与测试后,人工审查并提交(包含功能代码 + 测试)
-2. **审查收口提交**:Claude 完成 PR review、closeout 文档后,人工提交收口材料(review_comments + closeout + 状态同步)
+2. **审查收口提交**:Claude 完成 PR review 后,Codex 同步 closeout / PR 文案 / 状态,人工提交收口材料(review_comments + closeout + 状态同步)
 
 实现里程碑提交与审查收口提交之间是 Claude 的评审环节。不要把实现和收口材料混在同一次提交中。
 
 补充要求:
 
-- design gate 通过后,应先完成 feature branch 切换,再开始第一个实现 slice
+- plan gate 通过后,应先完成 feature branch 切换,再开始第一个实现 slice
 - git 提交由人工执行,Codex 只在对话中给出建议命令
 - 默认 review gate 以 milestone 为单位;如未显式定义 milestone,则 `1 milestone = 1 slice`
 - Codex 对每个 slice 都要给出验证结果与建议提交范围;到达 milestone 边界时,再给出最终 commit 建议命令
 - 高风险 slice、schema 变更、公共 CLI/API surface 变化、跨模块重构应单独成为一个 milestone,不要与低风险改动混提
-- 低风险且边界清晰的相邻 slices 可在 design_decision / breakdown 中预先分组,在同一轮 human review 中一起提交
+- 低风险且边界清晰的相邻 slices 可在 `plan.md` 中预先分组,在同一轮 human review 中一起提交
 - 禁止把整个 phase 的实现、测试和状态同步压成一次大包 commit
 - 需要发起 PR 时,Codex 负责将 PR 文案整理到仓库根目录 `./pr.md`,Human 先 push branch,再据此创建 PR
 - PR 创建后如 review 结论或实现内容变化,Codex 应继续更新 `./pr.md`,Human 再决定是否同步到 PR 描述
@@ -301,7 +306,7 @@ Claude 评估 tag 时应考虑:
 
 ## 下一轮工作的默认边界判断
 
-如果某项改动不直接服务于当前 active phase 的 kickoff,应先判断:
+如果某项改动不直接服务于当前 active phase 的 `plan.md`,应先判断:
 
 - 它是否属于下一轮新 slice 的自然子任务
 - 它是否应推迟到下一 phase

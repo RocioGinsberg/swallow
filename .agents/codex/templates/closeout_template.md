@@ -23,7 +23,7 @@
 
 - 只写当前 phase 的收口背景
 - 不写完整项目编年史
-- 不重复 kickoff 的大段背景说明
+- 不重复 `plan.md` / `context_brief.md` 的大段背景说明
 
 ---
 
@@ -41,7 +41,7 @@
 
 - 写已落地的能力、命令、artifact、inspection path、规则同步
 - 不写尚未实现但“本来想做”的内容
-- 尽量和 breakdown 中的 slice 对齐
+- 尽量和 `plan.md` 中的 slice / milestone 对齐
 
 ---
 
@@ -80,7 +80,7 @@
 
 建议回答：
 
-- 下一轮是否需要新的 kickoff
+- 下一轮是否需要新的 `plan.md`
 - 下一轮应继续哪个 track
 - 下一轮是否应视为新的正式 phase，而不是继续追加当前 phase
 
@@ -92,11 +92,11 @@
 
 ---
 
-## 与 kickoff / breakdown 的对照
+## 与 plan.md 的对照
 
 ### 已完成的目标
 
-把 kickoff / breakdown 中已经完成的目标列出来。
+把 `plan.md` 中已经完成的目标列出来。
 
 - `<目标 1>`
 - `<目标 2>`
@@ -111,7 +111,7 @@
 
 要求：
 
-- 这里是对照检查，不是重新写一遍 breakdown
+- 这里是对照检查，不是重新写一遍 `plan.md`
 - 应帮助下一轮快速判断哪些是本 phase 已关闭事项，哪些应进入下一 phase
 
 ---
@@ -263,13 +263,13 @@ closeout 时应：
 - next_track: `<填写建议的下一 track>`
 - next_phase: `<填写建议的下一 phase>`
 - next_slice: `<填写建议的下一 slice>`
-- next_action: `<填写下一步应先写 kickoff / breakdown / 切 branch / 先做哪个最小闭环>`
+- next_action: `<填写下一步应先写 plan.md / 切 branch / 先做哪个最小闭环>`
 
 要求：
 
 - 必须可执行
 - 不要只写“后续继续优化”
-- 应直接帮助下一轮进入新的 kickoff
+- 应直接帮助下一轮进入新的 `plan.md`
 
 ---
 

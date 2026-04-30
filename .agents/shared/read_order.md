@@ -31,8 +31,10 @@
 ## 按需读取
 
 ### 当需要理解当前 phase 的具体任务时
-- `docs/plans/<active-phase>/kickoff.md`
-- `docs/plans/<active-phase>/breakdown.md`
+- `docs/plans/<active-phase>/context_brief.md`
+- `docs/plans/<active-phase>/plan.md`
+- `docs/plans/<active-phase>/plan_audit.md`(实现前 / plan gate 前按需)
+- legacy: `docs/plans/<active-phase>/kickoff.md` / `design_decision.md` / `risk_assessment.md` / `breakdown.md`(旧 phase 兼容)
 
 ### 当需要恢复到上次稳定状态时
 - `current_state.md`
@@ -46,6 +48,10 @@
 
 ### 当需要理解系统方向全局时
 - `docs/system_tracks.md`
+
+### 当需要进行代码重组、接口分层、测试重组或 TDD slice 时
+- `docs/engineering/CODE_ORGANIZATION.md`
+- `docs/engineering/TEST_ARCHITECTURE.md`
 
 ---
 

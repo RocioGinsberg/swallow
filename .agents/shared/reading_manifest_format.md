@@ -44,14 +44,14 @@ Reading manifest:
   ✓ .agents/shared/rules.md (5 rules acknowledged)
   ✓ .agents/shared/state_sync_rules.md (state sync section 1 ready)
   ✓ .agents/shared/document_discipline.md (5 disciplines acknowledged)
-  ✓ .agents/claude/role.md (role: planner / reviewer / risk assessor)
+  ✓ .agents/claude/role.md (role: plan auditor / PR reviewer / tag evaluator)
   ✓ .agents/claude/rules.md (no codegen / no commit / no PR)
   ✓ docs/design/INVARIANTS.md (constitution loaded; 4 inviolable rules)
   ✓ AGENTS.md (collaboration rules; 2-agent + human)
-  ✓ docs/active_context.md (current: Phase 60 design phase)
-  ✓ docs/plans/phase60/kickoff.md (retrieval policy slicing identified)
-  ⚠ docs/plans/phase60/design_decision.md (does not exist yet, will produce this session)
-Ready to: produce design_decision.md and risk_assessment.md for Phase 60
+  ✓ docs/active_context.md (current: Phase 60 plan audit pending)
+  ✓ docs/plans/phase60/plan.md (retrieval policy slices identified)
+  ⚠ docs/plans/phase60/plan_audit.md (does not exist yet, will coordinate subagent)
+Ready to: audit plan.md and prepare PR/review gates for Phase 60
 ```
 
 ---
@@ -64,15 +64,15 @@ Reading manifest:
   ✓ .agents/shared/rules.md
   ✓ .agents/shared/state_sync_rules.md
   ✓ .agents/shared/document_discipline.md
-  ✓ .agents/codex/role.md (role: implement / test / commit suggestions)
+  ✓ .agents/codex/role.md (role: plan / implement / test / commit suggestions)
   ✓ .agents/codex/rules.md
   ✓ docs/design/INVARIANTS.md (constitution loaded)
   ✓ AGENTS.md (collaboration rules)
   ✓ docs/active_context.md (current: Phase 60 S2 implementation pending)
-  ✓ docs/plans/phase60/design_decision.md (approved; retrieval source policy)
-  ✓ docs/plans/phase60/breakdown.md (S2: HTTP path default sources)
+  ✓ docs/plans/phase60/plan.md (approved; retrieval source policy)
+  ✓ docs/plans/phase60/plan_audit.md (ready; no blockers)
   ✗ docs/plans/phase59/closeout.md (skipped; Phase 59 already merged, no relevance)
-Ready to: implement S2 (HTTP path default retrieval sources tightening) per breakdown
+Ready to: implement S2 (HTTP path default retrieval sources tightening) per plan
 ```
 
 ---
@@ -84,10 +84,10 @@ Subagent 的 manifest 更短,只列与其职责相关的输入/输出文件:
 ```
 Reading manifest (consistency-checker):
   ✓ docs/design/INVARIANTS.md
-  ✓ docs/plans/phase60/design_decision.md
+  ✓ docs/plans/phase60/plan.md
   ✓ swallow/retrieval/__init__.py (latest commit on feat/phase-60-s2)
   ⚠ docs/plans/phase60/consistency_report.md (will produce, output_path)
-Ready to: compare implementation against design_decision and produce consistency_report.md
+Ready to: compare implementation against plan.md and produce consistency_report.md
 ```
 
 ---

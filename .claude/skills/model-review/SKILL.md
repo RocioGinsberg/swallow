@@ -1,11 +1,11 @@
 ---
 name: model-review
-description: Run Swallow's conditional second-model design review gate after design_auditor and before Human Design Gate. Use only when the project workflow requires or the human explicitly requests a GPT/OpenAI/second-model review of roadmap, kickoff, design_decision, or risk_assessment.
+description: Run Swallow's conditional second-model plan review gate after plan_audit and before Human Plan Gate. Use only when the project workflow requires or the human explicitly requests a GPT/OpenAI/second-model review of roadmap or Codex-authored plan.md.
 argument-hint: "[phase-dir optional, e.g. docs/plans/phase61]"
 ---
 
 TL;DR:
-Run this after design_audit and before Human Design Gate when second-model review is required.
+Run this after plan_audit and before Human Plan Gate when second-model review is required.
 It writes or skips `docs/plans/<phase>/model_review.md` and updates `docs/active_context.md`.
 It never implements code or embeds Codex inside Claude Code.
 
@@ -17,7 +17,7 @@ It is a gate protocol, not an implementation tool. Do not edit source code, test
 
 ## Invocation
 
-Run `/model-review` after `design-auditor` has produced `docs/plans/<phase>/design_audit.md` and before Human Design Gate.
+Run `/model-review` after `design-auditor` has produced `docs/plans/<phase>/plan_audit.md` and before Human Plan Gate.
 
 If `$ARGUMENTS` is empty, infer the active phase from `docs/active_context.md`. If `$ARGUMENTS` points to a phase directory, use that directory.
 
@@ -29,11 +29,10 @@ Read only these files unless a referenced design doc is clearly needed:
 
 1. `.agents/workflows/model_review.md`
 2. `docs/active_context.md`
-3. `docs/plans/<phase>/kickoff.md`
-4. `docs/plans/<phase>/design_decision.md`
-5. `docs/plans/<phase>/risk_assessment.md`
-6. `docs/plans/<phase>/design_audit.md`
-7. `docs/design/INVARIANTS.md`
+3. `docs/plans/<phase>/context_brief.md`
+4. `docs/plans/<phase>/plan.md`
+5. `docs/plans/<phase>/plan_audit.md`
+6. `docs/design/INVARIANTS.md`
 
 ## Trigger Decision
 
@@ -41,7 +40,7 @@ Set model review to `required` if any condition is true:
 
 - Roadmap direction, phase boundary, or phase priority is uncertain.
 - The plan touches `INVARIANTS.md`, `DATA_MODEL.md`, `SELF_EVOLUTION.md`, schema, CLI/API surface, state transition, truth write path, or provider routing policy.
-- `design_audit.md` contains `[BLOCKER]` or multiple `[CONCERN]`.
+- `plan_audit.md` contains `[BLOCKER]` or multiple `[CONCERN]`.
 - Human explicitly requested second-model review.
 
 If none apply, update `docs/active_context.md` with:
@@ -65,7 +64,7 @@ If no such channel is available:
 - If model review was optional, record `skipped`.
 - If model review was required, record `blocked` and ask Human to either provide an external result, configure a channel, or explicitly skip.
 
-Do not invoke Codex as an implementation plugin inside Claude Code. Codex remains the separate implementation agent after Human Design Gate.
+Do not invoke Codex as an implementation plugin inside Claude Code. Codex remains the separate plan / implementation agent after Human Plan Gate.
 
 ## Review Packet
 
@@ -73,14 +72,14 @@ When required, prepare a compact packet with:
 
 - Phase goal and non-goals.
 - Slice/milestone plan.
-- Risk assessment summary.
-- Design audit findings.
+- Material risk summary from `plan.md`.
+- Plan audit findings.
 - Specific questions for the external reviewer.
 - Relevant invariant anchors, especially any touched truth/control/write-path rules.
 
 Ask the external reviewer for:
 
-- `[BLOCK]` items that must be fixed before Design Gate.
+- `[BLOCK]` items that must be fixed before Plan Gate.
 - `[CONCERN]` items that can be accepted with explicit tradeoff.
 - Missing tests or acceptance criteria.
 - Scope creep or invariant conflicts.
@@ -102,10 +101,9 @@ phase: <phase-number>
 slice: design-gate
 status: review
 depends_on:
-  - docs/plans/<phase>/kickoff.md
-  - docs/plans/<phase>/design_decision.md
-  - docs/plans/<phase>/risk_assessment.md
-  - docs/plans/<phase>/design_audit.md
+  - docs/plans/<phase>/context_brief.md
+  - docs/plans/<phase>/plan.md
+  - docs/plans/<phase>/plan_audit.md
 reviewer: external-model | manual-external | unavailable
 verdict: PASS | CONCERN | BLOCK | SKIPPED
 ---
@@ -127,10 +125,10 @@ PASS | CONCERN | BLOCK | SKIPPED
 - [BLOCK] ...
 
 ## Claude Follow-Up
-<whether design_decision.md / risk_assessment.md must be revised>
+<whether Codex must revise plan.md>
 
 ## Human Gate Note
-<what Human must check before approving design>
+<what Human must check before approving the plan>
 ```
 
 After writing or skipping, update `docs/active_context.md` with model review status, artifact path, reason, and next workflow step.

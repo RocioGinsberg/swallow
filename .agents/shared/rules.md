@@ -19,8 +19,8 @@
 
 1. `AGENTS.md`
 2. `docs/active_context.md`
-3. `docs/plans/<active-phase>/kickoff.md`
-4. `docs/plans/<active-phase>/breakdown.md`
+3. `docs/plans/<active-phase>/plan.md`
+4. legacy: `docs/plans/<active-phase>/kickoff.md` / `breakdown.md`（旧 phase 兼容）
 
 **边界不清楚时，不要开始工作。先与人工确认。**
 
@@ -70,27 +70,37 @@
 
 ### `docs/plans/<phase>/` 是 phase 的正式文档层
 
-每个 phase 默认文档：`kickoff.md`、`design_decision.md`、`risk_assessment.md`、`closeout.md`。
+每个新 phase 默认文档：
+
+- `context_brief.md` — factual context,由 `context-analyst` subagent 产出
+- `plan.md` — phase 计划唯一入口,由 Codex 产出
+- `plan_audit.md` — 方案审查,由 `design-auditor` subagent 产出
+- `review_comments.md` — 实现后 review,由 Claude 主线产出
+- `closeout.md` — phase 收口
 
 条件文档：
 
-- `breakdown.md`：当 phase 拆分为多个 review milestones、slice > 3、或需要独立的可执行推进表时再单独产出
+- `model_review.md`：高风险或 Human 要求第二模型审查时产出
+- `consistency_report.md`：高风险 / 跨模块实现后,由 `consistency-checker` subagent 产出
 - `commit_summary.md`：可选
+- legacy: `kickoff.md` / `design_decision.md` / `risk_assessment.md` / `breakdown.md` 只为旧 phase 或 Human 明确要求保留;新 phase 默认不再拆这些文件
 
 ---
 
 ## 四、规划规则
 
-### kickoff 必须写清楚边界
+### `plan.md` 必须写清楚边界
 
-必须显式写出：当前 phase、track、slice、目标、非目标、设计边界、完成条件。
-如果不明确，不要直接进入 design_decision 或 breakdown。
+必须显式写出：当前 phase、track、目标、非目标、设计 / 工程锚点、slice / milestone、验证方式、完成条件。
+如果不明确，不要直接进入实现。
 
-### breakdown 必须可执行
+### `plan.md` 必须可执行
 
-`breakdown.md` 默认不是每个 phase 都必需；当它存在时，必须承担“可执行推进表”的职责。
+每个 slice 至少包含：目标、范围、验收条件、验证方式、风险等级、默认 commit / review gate。
 
-至少包含：slice 列表、顺序、每个 slice 的目标、验收条件、默认不做的工作、stop/go 信号。
+### 额外计划文件必须有增量价值
+
+如果拆出 `kickoff.md` / `breakdown.md` / `risk_assessment.md` 等 legacy 产物，必须说明为什么 `plan.md` 容纳不了该信息，并且不得复制 `plan.md` 的大段内容。
 
 ### 不再新增 `post-phase-*`
 
@@ -196,7 +206,7 @@ frontmatter 之后、正文之前，必须有 ≤3 行的 TL;DR 摘要。
 
 ### 各 agent 的 eval 职责
 
-- **Claude**：kickoff 中为适用的 slice 定义 eval 验收条件（如 precision ≥ 0.8 / recall ≥ 0.7），标注哪些 slice 需要 eval 覆盖
+- **Codex**：`plan.md` 中为适用的 slice 定义 eval 验收条件（如 precision ≥ 0.8 / recall ≥ 0.7），标注哪些 slice 需要 eval 覆盖
 - **Codex**：实现 `tests/eval/` 下的 eval 测试，准备 golden dataset fixture
 - **context-analyst subagent**：context_brief 中识别哪些模块的体验质量需要 eval 覆盖
 

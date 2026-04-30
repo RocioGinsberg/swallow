@@ -18,7 +18,7 @@
 - 一个 phase = 一个主要 feature branch
 - 一个 slice = 一个或多个小步提交
 - phase 完成后再合并回 `main`
-- design gate 通过后，Human 应先切换到该 feature branch，Codex 再开始实现
+- plan gate 通过后，Human 应先切换到该 feature branch，Codex 再开始实现
 
 ---
 
@@ -49,19 +49,52 @@
 
 ---
 
-## 三、实现规则
+## 三、方案定义规则
+
+### `plan.md` 是新 phase 的默认计划入口
+
+Codex 在 Human 选定方向、`context_brief.md` 已产出后，默认产出：
+
+- `docs/plans/<phase>/plan.md`
+
+它合并旧流程中的 kickoff / design_decision / risk_assessment / breakdown 的必要信息，但不复制冗余背景。
+
+### `plan.md` 必须包含
+
+- 目标与非目标：只写当前 phase 可交付的边界，不回顾项目编年史
+- 设计 / 工程锚点：列出必须遵守的 `docs/design/*` / `docs/engineering/*` 文件路径
+- slice / milestone 表：每个 slice 的目标、影响范围、验收方式、风险等级、commit gate
+- 风险与降级：只记录会影响实现、测试、review 或 merge 的实质风险
+- 验证计划：pytest / guard / eval / smoke 的最低命令或检查项
+- 分支与 PR 建议：推荐 branch、PR 范围、是否需要单独 milestone gate
+- 完成条件：可检查、可审计、能支撑 closeout
+
+### 压缩原则
+
+- 默认不再拆出 `kickoff.md`、`design_decision.md`、`risk_assessment.md`、`breakdown.md`
+- 只有当 Human 明确要求、phase 极复杂、或单文件计划超过可审查长度时，才拆出额外文档
+- 额外文档只能承载增量信息，不得复制 `plan.md` 的目标、非目标和背景段落
+- plan 中的风险评级服务于 milestone gate，不写形式化风险矩阵
+
+### 审查前置
+
+完成 `plan.md` 后，Codex 必须更新 `docs/active_context.md`，将下一步设为 `design-auditor` 产出 `plan_audit.md` 或 Human Plan Gate。
+
+---
+
+## 四、实现规则
 
 ### 进入实现前的 gate 校验
 
 Codex 开始代码改动前必须确认:
 
-- Human Design Gate 已通过
-- `design_decision.md` 与 `risk_assessment.md` 存在
-- `design_audit.md` 不存在未解决 `[BLOCKER]`
+- Human Plan Gate 已通过
+- `plan.md` 存在；旧 phase 可兼容使用已批准的 `design_decision.md`
+- `plan_audit.md` 不存在未解决 `[BLOCKER]`；旧 phase 可兼容读取 `design_audit.md`
 - 如 `docs/active_context.md` 记录了 `model_review.status: required` 或 `blocked`,必须等待 Claude/Human 将其更新为 `completed` 或明确 `skipped`
 - 当前分支与 `docs/active_context.md` 的 `active_branch` 一致
 
-Codex 可以报告实现层 blocker,但不重新裁剪 roadmap、不重写 kickoff、不替代 Claude 做复杂设计推理。
+Codex 可以报告实现层 blocker。若 blocker 暴露的是计划缺口，优先修订 `plan.md` 并重新进入 plan audit / Human gate；若 blocker 暴露的是 roadmap 级方向问题，先同步给 Human 决策。
 
 ### 先做最小闭环，再做边界 tightening
 
@@ -99,7 +132,7 @@ Codex 可以报告实现层 blocker,但不重新裁剪 roadmap、不重写 kicko
 
 ---
 
-## 四、PR 规则
+## 五、PR 规则
 
 ### 创建 PR 前
 

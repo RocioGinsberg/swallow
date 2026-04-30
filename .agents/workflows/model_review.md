@@ -11,33 +11,33 @@ depends_on:
 ---
 
 TL;DR:
-Model Review 是 design_audit 之后、Human Design Gate 之前的条件 gate。
+Model Review 是 plan_audit 之后、Human Plan Gate 之前的条件 gate。
 它只提供第二模型的设计审查意见,不写代码、不改设计正文、不替代 Human 审批。
-Codex 只检查该 gate 已完成或已明确跳过,然后按设计实现。
+Codex 只检查该 gate 已完成或已明确跳过,然后按 `plan.md` 实现。
 
 # Workflow: Model Review Gate
 
 > **Document discipline**
 > Owner: Human
 > Updater: Claude / Codex（workflow 规则变更时）
-> Trigger: 需要固定第二模型设计审查流程、调整 design gate 前置条件、或变更 Claude/Codex 分工
+> Trigger: 需要固定第二模型方案审查流程、调整 plan gate 前置条件、或变更 Claude/Codex 分工
 > Anti-scope: 不保存具体 phase 的审查正文、不配置真实 provider key、不把 Codex executor 嵌入 Claude Code
 
 ---
 
 ## 目的
 
-Model Review Gate 用于在高风险 roadmap / kickoff / design_decision 进入 Human Design Gate 前,引入一个只读、 advisory 的第二模型审查面。
+Model Review Gate 用于在高风险 roadmap / `plan.md` 进入 Human Plan Gate 前,引入一个只读、 advisory 的第二模型审查面。
 
-本流程解决的是"设计方向是否需要独立模型复核",不是"谁来实现"。实现仍由 Codex 在 design gate 通过后承担。
+本流程解决的是"方案方向是否需要独立模型复核",不是"谁来实现"。方案定义与实现仍由 Codex 承担。
 
 ---
 
 ## 权限边界
 
-- **Claude 主线负责**判断是否需要 model review、准备输入包、吸收审查意见并修订 phase 文档。
+- **Claude 主线负责**判断是否需要 model review、准备输入包、归档审查意见并要求 Codex / Human 消化。
 - **外部模型/GPT/OpenAI reviewer 只负责**输出建议、风险与问题清单。
-- **Human 负责**最终 Design Gate 决策。
+- **Human 负责**最终 Plan Gate 决策。
 - **Codex 负责**在实现前检查 model review gate 是否已完成或已明确跳过。
 
 禁止事项:
@@ -51,14 +51,14 @@ Model Review Gate 用于在高风险 roadmap / kickoff / design_decision 进入 
 
 ## 触发条件
 
-Claude 在 `design-auditor` 完成后、Human Design Gate 之前做一次判断。
+Claude 在 `design-auditor` 完成 `plan_audit.md` 后、Human Plan Gate 之前做一次判断。
 
 默认跳过,仅在以下任一条件满足时设为 required:
 
-- Roadmap 方向、phase 边界或优先级存在明显不确定性。
+- Roadmap 方向、phase 边界或 `plan.md` 优先级存在明显不确定性。
 - 方案触及 `INVARIANTS.md`、`DATA_MODEL.md`、`SELF_EVOLUTION.md` 或其他宪法/设计层核心边界。
 - 方案涉及 schema、CLI/API surface、state transition、truth write path、provider routing policy 等高风险改动。
-- `design_audit.md` 包含 `[BLOCKER]` 或多个 `[CONCERN]`。
+- `plan_audit.md` 包含 `[BLOCKER]` 或多个 `[CONCERN]`。
 - Human 显式要求第二模型审查。
 
 如果没有触发条件,Claude 在 `docs/active_context.md` 记录:
@@ -77,10 +77,9 @@ model_review:
 Claude 准备 review packet 时只读取必要文件:
 
 - `docs/active_context.md`
-- `docs/plans/<phase>/kickoff.md`
-- `docs/plans/<phase>/design_decision.md`
-- `docs/plans/<phase>/risk_assessment.md`
-- `docs/plans/<phase>/design_audit.md`
+- `docs/plans/<phase>/context_brief.md`
+- `docs/plans/<phase>/plan.md`
+- `docs/plans/<phase>/plan_audit.md`
 - `docs/design/INVARIANTS.md`
 - 仅当 phase 文档显式引用时,读取相关 `docs/design/*.md`
 
@@ -101,10 +100,9 @@ phase: <phase-number>
 slice: design-gate
 status: review
 depends_on:
-  - docs/plans/<phase>/kickoff.md
-  - docs/plans/<phase>/design_decision.md
-  - docs/plans/<phase>/risk_assessment.md
-  - docs/plans/<phase>/design_audit.md
+  - docs/plans/<phase>/context_brief.md
+  - docs/plans/<phase>/plan.md
+  - docs/plans/<phase>/plan_audit.md
 reviewer: external-model | manual-external | unavailable
 verdict: PASS | CONCERN | BLOCK | SKIPPED
 ---
@@ -115,8 +113,8 @@ verdict: PASS | CONCERN | BLOCK | SKIPPED
 - 审查范围
 - 关键结论
 - `[PASS]` / `[CONCERN]` / `[BLOCK]` findings
-- Claude follow-up 是否需要修改 `design_decision.md` / `risk_assessment.md`
-- Human Design Gate 前是否仍有阻塞项
+- Claude follow-up 是否需要 Codex 修订 `plan.md`
+- Human Plan Gate 前是否仍有阻塞项
 
 完成后 Claude 更新 `docs/active_context.md`:
 
@@ -160,19 +158,19 @@ Step 2.5 design-auditor
         ↓
 Step 2.6 model review gate
         ↓
-Step 3 Human Design Gate
+Step 3 Human Plan Gate
 ```
 
-Human Design Gate 的前置条件:
+Human Plan Gate 的前置条件:
 
-- `kickoff.md`、`design_decision.md`、`risk_assessment.md`、`design_audit.md` 已产出。
+- `plan.md`、`plan_audit.md` 已产出。
 - 若 model review required,`model_review.md` 已产出且无未处理 `[BLOCK]`。
 - 若 model review skipped,`docs/active_context.md` 已记录 skipped reason。
 
 Codex Implementation 的前置条件:
 
-- Human Design Gate 已通过。
-- `design_audit.md` 无 unresolved `[BLOCKER]`。
+- Human Plan Gate 已通过。
+- `plan_audit.md` 无 unresolved `[BLOCKER]`。
 - `model_review.status` 不是 `required` / `blocked` 的未解决状态。
 
 ---
@@ -181,5 +179,5 @@ Codex Implementation 的前置条件:
 
 - 默认不跑 model review,只在高风险触发条件或 Human 要求时使用。
 - 输出只写一个 `model_review.md`,不新增长期状态文档。
-- 不让 Codex 参与 roadmap/kickoff 推理,避免实现 agent 被复杂规划上下文污染。
+- 不把 model review 扩展成第二套方案文档;需要改计划时回到 Codex 修订 `plan.md`。
 - 不新增 repo-local Codex plugin 或自动加载 skill,避免维护两套 agent 能力系统。
