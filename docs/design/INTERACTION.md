@@ -69,6 +69,21 @@
 
 `swl serve` 启动的 operator-facing UI 入口。提供**与 CLI 能力对等**的 operator 操作面。
 
+**本地 UI runtime 标准**:
+
+- Browser Web UI 与未来打包桌面应用(`.dmg` / `.exe` / `.deb`)都通过本机 loopback HTTP 调用同一个 FastAPI adapter。
+- FastAPI 默认只绑定 `127.0.0.1` 与本地 workspace,不是 SaaS 后端,不是远程 control plane,也不是第二个 Orchestrator。
+- 桌面应用的推荐形态是 WebView / desktop shell 启动或连接本地 FastAPI,加载与 Browser Web UI 相同的 Control Center 前端;除非另有 phase-level 设计,不新增一套 native IPC 业务 API。
+- CLI 普通业务命令不经 HTTP,而是在同一 Python 进程内直接调用 shared application commands / queries;`swl serve` 是例外,它只负责启动 FastAPI / Control Center。
+- CLI 与 UI 的行为一致性来自共享 application layer,不是来自 CLI 也去请求 HTTP。目标路径是:
+
+```
+CLI command -> application command/query -> governance/orchestrator/domain -> repositories -> SQLite/filesystem
+Web/Desktop UI -> local FastAPI route -> same application command/query -> same downstream path
+```
+
+- SQLite 仍是 workspace-local single-file truth(`.swl/swallow.db`);UI / FastAPI / desktop shell 都不得直接理解或操作 SQLite schema。
+
 #### 4.2.1 实现纪律
 
 UI 后端是**对 governance 函数的薄 HTTP 包装**,不是独立的业务层。具体约束:
