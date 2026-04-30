@@ -13,9 +13,9 @@
 - latest_completed_slice: `L+M+N Cleanup + Candidate P Module Reorganization + CLI Reference Sync`
 - active_track: `Knowledge / Storage`
 - active_phase: `Phase 68`
-- active_slice: `S1 / Raw Material Store Interface`
+- active_slice: `S2 / Ingestion Raw Material Store Migration`
 - active_branch: `feat/phase68-raw-material-store`
-- status: `phase68_s1_complete_pending_human_review`
+- status: `phase68_s2_complete_pending_human_review`
 
 ## 当前状态说明
 
@@ -32,7 +32,7 @@ Phase 68 starts as a stacked branch from the current Phase 67 HEAD because Phase
 Phase 68 implements Candidate O from `docs/roadmap.md` as a narrow Raw Material Store boundary:
 
 - S1: raw material interface, URI parser, filesystem backend, focused tests.
-- S2: ingestion migration to stable source refs.
+- S2: ingestion migration to stable source refs. Completed and waiting for Human review / manual commit.
 - S3: artifact evidence reference normalization.
 
 Phase 68 must not modify:
@@ -71,33 +71,46 @@ Phase 68 must not modify:
   - `git diff --check`: passed
   - `git diff -- docs/design`: no output
   - full pytest: `620 passed, 8 deselected, 10 subtests passed`
+- **[Human]** Phase 68 S1 commits completed:
+  - `97ab87d feat(phase68-s1): add raw material store interface`
+  - `c5affe7 docs(phase68-s1): record raw material store gate`
+- **[Codex]** Phase 68 S2 implementation completed:
+  - routed local/session ingestion reads through `FilesystemRawMaterialStore`
+  - changed new in-workspace ingestion refs to `file://workspace/<relative-path>`
+  - preserved out-of-workspace source refs as absolute file URIs
+  - kept clipboard and operator-note ingestion refs unchanged
+  - wrote `docs/plans/phase68/codex_review_notes_s2.md`
+  - focused verification: `20 passed`
+  - invariant-adjacent verification: `21 passed`
+  - CLI verification: `241 passed, 10 subtests passed`
+  - full pytest: `621 passed, 8 deselected, 10 subtests passed`
 
 进行中:
 
-- **[Human]** Review Phase 68 S1 and manually commit if accepted.
+- **[Human]** Review Phase 68 S2 and manually commit if accepted.
 
 待执行:
 
-- **[Human]** Review S1 and manually commit if accepted.
-- **[Codex]** Start S2 only after the S1 commit gate is accepted.
+- **[Human]** Review S2 and manually commit if accepted.
+- **[Codex]** Start S3 only after the S2 commit gate is accepted.
 
 当前阻塞项:
 
-- Waiting for Human review / manual commit gate for S1.
+- Waiting for Human review / manual commit gate for S2.
 - Phase 68 is stacked on Phase 67 until Human merges Phase 67.
 
 ## 当前下一步
 
-1. **[Human]** Review S1 diff.
-2. **[Human]** Commit S1 if accepted.
-3. **[Codex]** Continue to S2 after Human confirms commit.
+1. **[Human]** Review S2 diff.
+2. **[Human]** Commit S2 if accepted.
+3. **[Codex]** Continue to S3 after Human confirms commit.
 
 ```markdown
 milestone_gate:
-- current: phase68-s1-raw-material-interface
+- current: phase68-s2-ingestion-raw-material-store
 - next_gate: Human review / manual commit
-- proceed_to_s2: after Human accepts and commits S1
-- reason: raw material URI semantics become a shared boundary for ingestion and artifact evidence checks
+- proceed_to_s3: after Human accepts and commits S2
+- reason: ingestion source_ref semantics are now a persisted raw material boundary
 ```
 
 ## 当前产出物
@@ -105,7 +118,9 @@ milestone_gate:
 - `docs/plans/phase68/kickoff.md`(codex, 2026-04-30, Phase 68 kickoff)
 - `docs/plans/phase68/breakdown.md`(codex, 2026-04-30, Phase 68 slice breakdown)
 - `docs/plans/phase68/codex_review_notes_s1.md`(codex, 2026-04-30, S1 review notes)
+- `docs/plans/phase68/codex_review_notes_s2.md`(codex, 2026-04-30, S2 review notes)
 - `src/swallow/knowledge_retrieval/raw_material.py`(codex, 2026-04-30, S1 implementation)
 - `tests/test_raw_material_store.py`(codex, 2026-04-30, S1 tests)
+- `src/swallow/knowledge_retrieval/ingestion/pipeline.py`(codex, 2026-04-30, S2 implementation)
 - `pr.md`(codex, ignored PR body draft for Phase 67)
-- `docs/active_context.md`(codex, 2026-04-30, Phase 68 S1 commit-gate state)
+- `docs/active_context.md`(codex, 2026-04-30, Phase 68 S2 commit-gate state)
