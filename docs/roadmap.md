@@ -22,9 +22,9 @@ status: living-document
 
 | 维度 | 现状摘要 |
 |------|---------|
-| **知识治理** | truth-first 双层架构完整,relation-aware retrieval 与 LLM 增强已落地 |
+| **知识治理** | storage-abstracted, evidence-backed wiki retrieval 三层架构(Raw Material / Knowledge Truth / Retrieval & Serving),Wiki / Canonical 默认主入口,relation-aware retrieval 与 LLM 增强已落地 |
 | **知识捕获** | 低摩擦入口已落地(`swl note` / clipboard / `generic_chat_json`) |
-| **检索基础设施** | 神经 API embedding + LLM rerank + canonical/verified 路径对齐 |
+| **检索基础设施** | 神经 API embedding + LLM rerank + canonical/verified 路径对齐;向量与全文索引仅作辅助召回与 fallback,不是知识真值(P3) |
 | **Agent 体系** | 4 个 Specialist(Librarian / Ingestion / Literature / Meta-Optimizer)+ 2 个 Validator(Quality / Consistency)独立生命周期 |
 | **CLI 生态** | aider + claude-code + codex 三足鼎立(详见 EXECUTOR_REGISTRY) |
 | **执行编排** | fan-out + timeout + subtask summary 已落地;独立 Planner / DAG / Strategy Router 仍未一等化 |
@@ -54,10 +54,12 @@ status: living-document
 | **治理守卫收口** | INVARIANTS / DATA_MODEL / SELF_EVOLUTION | [已消化] Phase 63 + Phase 64 完成:§7 集中化函数 + Repository 抽象层 + §9 17 条守卫全 active(0 skip);route metadata / policy 三层外部化(fallback override config + route registry + route selection policy);剩余事务回滚(JSON 存储架构不支持)拆出候选 H | **Phase 63+64 完成**:详见 `docs/plans/phase63/closeout.md` + `docs/plans/phase64/closeout.md` |
 | **NO_SKIP 守卫红灯修复** | INVARIANTS §0 / §4 | [已消化] Phase 64 完成:Path B fallback chain plan 前移 Orchestrator,Executor 通过只读 `lookup_route_by_name` 消费;Specialist internal chat-completion 穿透 `router.invoke_completion()`,§9 两条红灯对应守卫全启用;详见 `docs/plans/phase64/closeout.md` | **Phase 64 完成**:治理边界澄清 — fallback route 选择责任归位 + agent_llm 改走 Provider Router |
 | **Truth Plane SQLite 一致性** | INVARIANTS P2 / DATA_MODEL §3 / SELF_EVOLUTION | route metadata / policy 当前以 JSON 文件 + 进程内 dict 存储,违背 P2 "SQLite-primary truth"。`apply_proposal` 4 步序列(`save_route_weights → apply → save_capability_profiles → apply`)缺事务保证,中途失败导致 in-memory 不一致;长期亦阻碍对象存储后端兼容(S3 / MinIO / OSS 没有文件系统原子 rename) | [已消化]:Phase 65 completed(2026-04-30,commit `64cbba7`);route metadata / policy 迁入 SQLite,`apply_proposal` 用 `BEGIN IMMEDIATE` transaction,引入 `route_change_log` / `policy_change_log` 审计表;履行 INVARIANTS P2 在治理状态上的代码层承诺。详见 `docs/plans/phase65/closeout.md` |
-| **代码卫生(dead code / 硬编码 / 复用)** | 跨模块 | Phase 64 router 三层外部化清理硬编码后,Human 观察到"还有很多类似问题散落在现有实现"——dead code、可外部化的字面量、可抽出的重复 helper、可复用的逻辑分支均未做系统盘点 | **候选 K**(Phase 65 完成后启动):read-only audit phase,Codex 扫 dead code / 硬编码 / 重复 helper / 复用机会,产出分类 report → backlog;真实修复在后续清理 phase 按重要性排队 |
+| **代码卫生(dead code / 硬编码 / 复用)** | 跨模块 | [已消化] Phase 66 完成:75 个 .py 文件 / 30954 LOC 全 read-only audit;46 finding(2 high / 36 med / 8 low)+ 5 跨块共识主题 + 7 quick-win + 9 design-needed;`docs/concerns_backlog.md` 增量已沉淀 | **Phase 66 完成**(2026-04-30,commit `596b54b`)详见 `docs/plans/phase66/audit_index.md` + `closeout.md` |
+| **代码卫生债清理(Phase 66 audit 衍生)** | concerns_backlog | Phase 66 audit_index 推荐 3 类后续 phase:(i) small hygiene cleanup(quick-win 7 项)/(ii) IO + artifact ownership design / (iii) CLI dispatch tightening。**不应合并到一个 phase**(audit_index 明确警告) | **候选 L / M / N**(由 Human 在新 Direction Gate 选择起步顺序;3 个候选独立 scope 互不阻塞) |
+| **知识层 storage-abstracted raw material** | KNOWLEDGE / DATA_MODEL | KNOWLEDGE.md 已升级为三层架构 + Storage Backend Independence(2026-04-30,commit `7d25c26`),`RawMaterialStore` 接口边界与 `Replaceable Components` 分类已固化;**实装层未跟进** — `know_evidence.source_pointer` JSON 字段语义已能承载 source_ref / content_hash / parser_version / span / heading_path,但缺 `RawMaterialStore` 抽象 + URI scheme 解析 + future MinIO/OSS/S3 适配桩 | **候选 O**(优先级低-中):引入 `RawMaterialStore` 接口 + filesystem 后端实装 + URI scheme 解析,为未来 object storage 后端清除技术债;不引入对象存储后端本身 |
 | **能力画像自动学习** | PROVIDER_ROUTER / SELF_EVOLUTION | 已被路由消费;自动学习质量与 guard 可观测性仍需提升 | **后续方向** |
 | **Runtime v1** | HARNESS | harness bridge 为 v0 约束 | 低优先级 |
-| **远期方向** | 多处 | — | 跨设备同步(基于 git / 同步盘)、团队协作扩展(基于 INVARIANTS §7 埋点)、IDE 集成、Remote Worker、Hosted Control Plane |
+| **远期方向** | 多处 | — | 跨设备同步(基于 git / 同步盘)、团队协作扩展(基于 INVARIANTS §7 埋点)、IDE 集成、Remote Worker、Hosted Control Plane、object storage backend(MinIO / OSS / S3-compatible,依赖候选 O) |
 
 ---
 
@@ -72,8 +74,13 @@ status: living-document
 | ~~推荐次序 1~~ | ~~候选 E~~ | ~~完整 Multi-Perspective Synthesis~~ | ~~Orchestration~~ | ~~✅ Phase 62 已完成~~ |
 | ~~当前 active~~ | ~~候选 G.5 / Phase 64~~ | ~~NO_SKIP 守卫红灯修复~~ | ~~Governance~~ | ~~Direction = 候选 G.5(Phase 64);2 条红灯由 Phase 63 M0 audit 精确定位;fallback_route 边界澄清 + agent_llm 改走 Provider Router~~ → 已 merge(Phase 64,2026-04-29,详见 `docs/plans/phase64/closeout.md`) |
 | 推荐次序 2 | 候选 H | Truth Plane SQLite 一致性 | Truth / Storage | ✅ Phase 65 已完成(2026-04-30,commit `64cbba7`;closeout: `docs/plans/phase65/closeout.md`) |
-| 推荐次序 3 | 候选 K | 代码卫生 audit(dead code / 硬编码 / 复用) | Refactor / Hygiene | read-only audit phase,产出分类 report → backlog;Phase 65 完成后启动 |
-| 推荐次序 4 | 候选 D | 编排增强(Planner / DAG / Strategy Router) | Orchestration | 无真实瓶颈推动 |
+| ~~推荐次序 3~~ | ~~候选 K~~ | ~~代码卫生 audit(dead code / 硬编码 / 复用)~~ | ~~Refactor / Hygiene~~ | ✅ Phase 66 已完成(2026-04-30,commit `596b54b`;46 finding;closeout: `docs/plans/phase66/closeout.md`) |
+| 推荐次序 4 | 候选 L | Small hygiene cleanup(audit quick-win 7 项消化) | Refactor / Hygiene | low risk;实装 quick-win;~1-2 milestone |
+| 推荐次序 4 | 候选 M | IO + artifact ownership design | Design / Refactor | medium risk;JSON/JSONL helper 行为变体 + task artifact-name ownership |
+| 推荐次序 4 | 候选 N | CLI dispatch tightening | Refactor / Surface | medium risk;table-driven dispatch 起步 read-only artifact/report 命令族 |
+| 推荐次序 5 | 候选 O | Storage Backend Independence(`RawMaterialStore` 接口 + filesystem 后端) | Knowledge / Storage | KNOWLEDGE.md 三层架构衍生;清除对象存储后端技术债;不引入对象存储后端本身 |
+| 推荐次序 6 | 候选 R | 真实使用反馈观察期 | Operations | 治理三段闭合 + 代码债盘点 + 文档强化后,观察 P1 / P2 在生产负载下的有效性 |
+| 推荐次序 7 | 候选 D | 编排增强(Planner / DAG / Strategy Router) | Orchestration | 无真实瓶颈推动 |
 
 ### 候选 G:治理守卫收口(Governance Closure)— ✅ Phase 63 完成
 
@@ -109,20 +116,72 @@ status: living-document
 - **治理三段闭合**:Phase 63(G) + Phase 64(G.5) + Phase 65(H)完整实现 = 事务回滚、NO_SKIP 红灯、SQLite 一致性三维度兑现,INVARIANTS P2 代码层履行
 - **详见**:`docs/plans/phase65/closeout.md`
 
-### 候选 K:代码卫生 audit(dead code / 硬编码 / 复用)— 推荐次序 3
+### ~~候选 K:代码卫生 audit(dead code / 硬编码 / 复用)~~ — Phase 66 已完成
 
-- **核心价值**:Phase 64 router 三层外部化清理硬编码后,Human 观察到"还有很多类似问题散落在现有实现"。Phase 60-64 连续 5 个实装 phase,代码卫生(dead code / 硬编码字面量 / 重复 helper / 抽象机会)未做系统盘点
-- **scope(audit-only,read-only)**:
-  - Codex 扫描 `src/swallow/` 全文件,产出 `docs/plans/<phase>/audit_report.md`,分类列出:
-    - **dead code**:未被任何调用方引用的函数 / 未被读的字段 / 未触发的分支
-    - **硬编码字面量**:类似 router 那种应当外部化的 magic string / magic number / route name 列表 / dialect 常量
-    - **重复 helper**:跨模块逻辑重复(如多处 manual JSON read + 错误处理 = 可抽 helper)
-    - **抽象机会**:类似分支结构出现 N 次 = 可抽公共抽象;违反 §7 集中化原则的字面量
-  - Claude 据 report 分类:(a) 关键问题进 concerns_backlog → 后续清理 phase 排队;(b) 安全可立即修的小项进 closeout / 顺手处理 phase
-- **不在 audit phase 内修复**:盘点 + 修复混合会让 review 变难,先盘点再决策
-- **风险**:低 —— 无代码改动,只 read-only + report
-- **优先级理由**:不是 INVARIANTS 兑现,但 Phase 60-64 累积的代码债已到值得盘点的程度;长期不处理"倒垃圾"状态会逐渐变差但不快速决堤
-- **依赖**:Phase 65 完成(避免与正在进行的 SQLite 迁移混合 audit;Phase 65 完成后代码状态稳定,audit 信号干净)
+✅ **Phase 66 merge 完成**(2026-04-30,commit `596b54b`)
+
+- **完成内容**:75 个 .py 文件 / 30954 LOC 全 read-only audit;5 块拆扫 + audit_index 汇总;46 finding(2 high / 36 med / 8 low)→ 4 类(dead code 3 / hardcoded-literal 25 / duplicate-helper 7 / abstraction-opportunity 11);5 跨块共识主题(JSON/JSONL loader / SQLite 事务包络 / executor brand 字面量 / artifact 名 ownership / taxonomy authority);7 quick-win + 9 design-needed;`docs/concerns_backlog.md` 增量已沉淀
+- **read-only 边界**:全程 `git diff main -- src/ tests/ docs/design/` = 0
+- **后续 phase 推荐**(audit_index §Recommended Next Phase Seeds,authoritative):**3 类独立 phase 不应合并** — 候选 L(small hygiene cleanup)/ 候选 M(IO + artifact ownership design)/ 候选 N(CLI dispatch tightening)
+- **详见**:`docs/plans/phase66/audit_index.md` + `closeout.md`
+
+### 候选 L:Small Hygiene Cleanup(quick-win 7 项)— 推荐次序 4
+
+- **核心价值**:消化 Phase 66 audit_index 列出的 7 项 quick-win,把"局部、低风险、已有 behavior 测试覆盖"的清理一次做完
+- **scope(authoritative,从 audit_index §Quick-Win Candidates 直接搬)**:
+  - 删除或显式 wire `run_consensus_review(...)`(Block 2 finding 1,无 src / tests callsite)
+  - 删除模块级 `_pricing_for(...)` 或让 `StaticCostEstimator` delegate(Block 3 finding 1)
+  - `rank_documents_by_local_embedding(...)` 移到 eval/test support 或接入 production(Block 4 finding 2)
+  - 命名 SQLite timeout / busy-timeout 常量(Block 1 finding 2)
+  - CLI 消费 `MPS_POLICY_KINDS`(Block 5 finding 12)
+  - 命名 retrieval preview / scoring limits(Block 4 finding 6)
+  - 文档化或集中化 orchestration timeout / card defaults(Block 2 finding 9)
+- **风险**:低——无跨模块影响,均有 behavior 测试覆盖
+- **优先级理由**:scope 最清晰、回滚成本最低,适合作为 Phase 66 后第一个清理 phase 起步
+- **依赖**:Phase 66 完成✅
+
+### 候选 M:IO + Artifact Ownership Design — 推荐次序 4
+
+- **核心价值**:audit_index 5 跨块共识主题的两个 — JSON/JSONL loader ownership(高) + artifact name registry ownership(中)
+- **可能 slice**:
+  - S1 — 设计 IO helper variants(strict / missing-is-empty / malformed-is-empty)+ 各 callsite 错误策略明确
+  - S2 — 设计 task artifact-name registry / owner table;决定哪些 artifact 是稳定 public surface、哪些可 retrieval、哪些 intentionally 私有
+- **风险**:中——跨块影响清理 + 触动 public artifact surface;需要 design phase 决定 ownership boundary 后才能动 callsite
+- **优先级理由**:Block 4 finding 1(`_load_json_lines` cross-block dup)是 audit 唯一 [high] finding;artifact name ownership 跨 orchestrator / harness / CLI / retrieval 4 处,长期不收口会随每次新报告类型加重
+- **依赖**:Phase 66 完成✅;无强阻塞但建议在候选 L 之后(避免 quick-win 与 design 决策混合 review)
+
+### 候选 N:CLI Dispatch Tightening — 推荐次序 4
+
+- **核心价值**:audit_block5 finding 3 + audit_index §CLI Dead Subcommand Negative Finding;cli.py 3832 行的 80+ `add_parser` 与 `if args.command` 并行命令树可 table-driven 化
+- **可能 slice**:
+  - S1 — 起步 read-only artifact / report command(无 governance write 风险)
+  - S2 — 评估是否扩展到 governance write commands(`proposal apply` / route policy apply / migrate);**保持 explicit 是合理选项**
+- **风险**:中——cli.py 是 public CLI surface,改 dispatch 必须保留 golden-output 行为;但起步 read-only 子集风险可控
+- **优先级理由**:Phase 66 audit 确认 cli.py 无 dead subcommand(历史 review 把关质量好);剩下的债务是 dispatch 重复,table-driven 后未来加新 subcommand 成本下降
+- **依赖**:Phase 66 完成✅;建议候选 M 后启动(IO/artifact ownership 决议会影响 artifact printer 命令族的 dispatch 表设计)
+
+### 候选 O:Storage Backend Independence(`RawMaterialStore` 接口)— 推荐次序 5
+
+- **核心价值**:KNOWLEDGE.md 2026-04-30 升级为三层架构 + Storage Backend Independence 后,文档已固化但实装未跟进;此 phase 引入 `RawMaterialStore` 接口 + filesystem 后端,为未来 object storage(MinIO / OSS / S3-compatible)清除技术债
+- **可能 slice**:
+  - S1 — 引入 `RawMaterialStore` 接口(`resolve` / `exists` / `content_hash`)+ URI scheme 解析(`file://` / `artifact://`)
+  - S2 — `FilesystemRawMaterialStore` 实装 + Knowledge / Retrieval 代码切到接口,不再假设具体后端
+  - S3 — 预留 `MinioRawMaterialStore` / `OssRawMaterialStore` / `S3RawMaterialStore` 适配桩(空实现,只验证接口分离)
+- **不在 scope 内**:
+  - **不引入对象存储后端本身**(那是更后续 phase;O 只清除"绑定 filesystem 假设"这一技术债)
+  - 不动 Knowledge Truth schema(`know_evidence.source_pointer` JSON 字段语义已能承载 source_ref / content_hash / parser_version / span / heading_path)
+- **风险**:中——跨多模块抽象边界引入;但 KNOWLEDGE.md `Replaceable Components` 表已固化语义边界,实装层只需对位
+- **优先级理由**:不是紧迫瓶颈,但 KNOWLEDGE.md 三层架构升级已发出"对象存储后端就绪"信号;长期不实装等于让"future MinIO/OSS 后端"持续作为 vaporware 信号
+- **依赖**:Phase 66 完成✅;建议候选 L / M 之后(此 phase 触动 IO 抽象,与候选 M IO ownership design 决议有耦合)
+
+### 候选 R:真实使用反馈观察期 — 推荐次序 6
+
+- **核心价值**:治理三段(G + G.5 + H)闭合 + 代码债盘点(Phase 66)+ 文档强化(KNOWLEDGE 三层)三个稳定锚点都已就位后,**不再追加 capability-bearing phase**,而是观察一轮真实使用反馈
+- **观察维度**:多 agent 协作、复杂任务编排、长期知识沉淀、Wiki / Canonical 检索质量、route 自动学习有效性、INVARIANTS P1 / P2 在生产负载下的稳定性
+- **可能产出**:基于真实反馈生成新差距条目,或确认稳定状态进入更后续方向(候选 D / 远期方向)
+- **风险**:零(不写代码)
+- **优先级理由**:架构债务已基本清空;无紧迫真实需求拉动新 phase;此时观察期价值高于继续推进 capability
+- **依赖**:无
 
 ### 候选 D:编排增强(Planner / DAG / Strategy Router 显式化)
 
@@ -136,16 +195,21 @@ status: living-document
 
 ## 五、Claude 推荐顺序
 
-**G ✓ → G.5 ✓ → H ✓ → K(推荐) / R(观察) / D(后置)**(2026-04-30,Phase 65 merge 后确认;治理三段 G + G.5 + H 完整闭合;候选 K 推荐次序 3,Phase 65 完成后启动)
+**G ✓ → G.5 ✓ → H ✓ → K ✓ → {L / M / N / O 三选一} → R(观察) → D(后置)**(2026-04-30,Phase 66 merge + KNOWLEDGE 三层架构升级后确认)
 
 理由:
 
 1. **候选 G 已完成✅(治理守卫收口,Phase 63)** —— Phase 61 / 62 引入两次"承认现状、登记 Open"模式,已通过 Phase 63 收口让 INVARIANTS 重获威慑力。§7 集中化 + Repository 抽象层骨架 + §9 守卫批量(15 active + 2 G.5 skip)已落地,为后续 G.5 / H / D 准备好前置
 2. **候选 G.5 紧随已完成✅(NO_SKIP 红灯修复,Phase 64)** —— Phase 63 完成后 §9 守卫只启用 6/8 条会留治理尾巴;G.5 是 G 的自然延续,2 条红灯已被 M0 audit 精确定位(`executor.py:510` + `agent_llm.py:57`),scope 可控,完成后宪法守卫真正全启用
-3. **候选 H 已完成✅(Truth Plane SQLite 一致性,Phase 65)** —— P2 "SQLite-primary truth" 是 INVARIANTS 已写但代码未兑现的不变量。Phase 65 通过迁入 SQLite + `BEGIN IMMEDIATE` transaction + audit log 完整闭合;从 Phase 61 留下的"事务回滚"Open 视角,H 是这条 Open 的**唯一正确实装路径**。治理三段(G + G.5 + H)合璧后,INVARIANTS 宪法在治理维度实现完整兑现
-4. **候选 K 推荐次序 3(代码卫生 audit)** —— Phase 60-64 连续 5 个实装 phase,代码债积累(dead code / 硬编码 / 重复 helper / 抽象机会)未盘点。Phase 65 完成且代码状态稳定后,启动 read-only audit 产出分类 report,为后续清理 phase 排队;低风险、高整理价值
-5. **候选 R 观察期(真实使用反馈)** —— 治理三段完成后,建议观察一轮真实使用反馈(多 agent 协作、复杂任务编排、长期知识沉淀),验证 P1 / P2 代码承诺在生产负载下的有效性,推动后续优先级排序
-6. **候选 D 后置(Planner / DAG / Strategy Router)** —— 编排能力实际可用,无真实瓶颈推动。orchestrator 主链路重构回滚成本高,等到真实需求(MPS 真实使用反馈 / 多 task 复杂依赖场景 / H 的 SQL-backed state 形成稳定基础)出现后再做
+3. **候选 H 已完成✅(Truth Plane SQLite 一致性,Phase 65)** —— P2 "SQLite-primary truth" 是 INVARIANTS 已写但代码未兑现的不变量。Phase 65 通过迁入 SQLite + `BEGIN IMMEDIATE` transaction + audit log 完整闭合;治理三段(G + G.5 + H)合璧后 INVARIANTS 宪法在治理维度实现完整兑现
+4. **候选 K 已完成✅(代码卫生 audit,Phase 66)** —— 75 个 .py 文件 / 30954 LOC 全 read-only audit;46 finding + 5 跨块共识主题 + 7 quick-win + 9 design-needed 已沉淀 backlog,为后续清理 phase 提供精确弹药
+5. **下一步 = {L / M / N / O} 由 Human 在新 Direction Gate 选择**(audit_index 明确警告"不应合并到一个 phase"):
+   - **候选 L(small hygiene cleanup)**:scope 最清晰、回滚最低,适合作为 audit 后第一个清理 phase 起步
+   - **候选 M(IO + artifact ownership design)**:消化 audit 唯一 [high] finding(`_load_json_lines` cross-block dup),触动较深的设计决策
+   - **候选 N(CLI dispatch tightening)**:public CLI surface 重构,起步 read-only 子集风险可控
+   - **候选 O(Storage Backend Independence)**:KNOWLEDGE 三层架构衍生的实装路径;不引入对象存储后端本身,只清除"绑定 filesystem 假设"技术债;长期不实装等于让"future object storage 后端"持续作为 vaporware 信号
+6. **候选 R 观察期(真实使用反馈)** —— 治理三段 + 代码债盘点 + 文档强化三大稳定锚点完成后,建议观察一轮真实使用反馈,验证 P1 / P2 代码承诺在生产负载下的有效性
+7. **候选 D 后置(Planner / DAG / Strategy Router)** —— 编排能力实际可用,无真实瓶颈推动。orchestrator 主链路重构回滚成本高,等到真实需求(MPS 真实使用反馈 / 多 task 复杂依赖场景)出现后再做
 
 ---
 
@@ -153,14 +217,16 @@ status: living-document
 
 | 维度 | 蓝图愿景 | 当前现状 | 下一步候选 |
 |------|---------|----------|-----------|
-| 知识治理 | truth-first 多阶段检索 + neural retrieval | 全部实现 | 稳定期 |
+| 知识治理 | storage-abstracted, evidence-backed wiki retrieval 三层架构 + neural retrieval | ✅ **2026-04-30 KNOWLEDGE.md 升级**:三层架构(Raw Material / Knowledge Truth / Retrieval & Serving)+ Wiki / Canonical 默认主入口 + EvidencePack 正式定义 + Storage Backend Independence(`Replaceable Components` 表 + "Indexes are rebuildable. Knowledge truth is not." 工程原则)| **稳定期**(文档层);实装层 `RawMaterialStore` 抽象 = 候选 O |
 | 知识捕获 | 低摩擦入口 + 外部讨论回收 + staged review | A-lite 已落地 | 稳定期 |
 | CLI 生态 | aider + claude-code + codex 三足鼎立 | 三者均为独立 route | 稳定期 |
 | 检索分流 | retrieval policy 感知 execution family + task intent | ✅ 已按 path / executor family / task_family 分流 | **稳定期**;后续可评估 operator-facing override CLI / 更细粒度 task-family 专用化 |
 | Agent 体系 | 4 个 Specialist + 2 个 Validator 独立生命周期 | 全部落地 | 稳定期 |
 | 写入治理 | INVARIANTS §0.4 canonical / route / policy 唯一入口 + §9 守卫测试 | ✅ **Phase 61+63+64+65 完成**:apply_proposal() 三类主写入收敛;§7 集中化 + Repository 抽象层 + §9 17 条守卫全 active;route metadata 三层外部化(fallback override + registry + policy);事务回滚通过 Phase 65 SQLite `BEGIN IMMEDIATE` transaction 完整实装 | **完整闭合**;观察稳定后进后续编排增强 |
 | 治理边界 LLM 路径 | INVARIANTS §0.3 + §4 三条 LLM 路径(A 受控 HTTP / B agent 黑盒 / C Specialist 内部穿透 Provider Router) | ✅ **Phase 64 + 65 完成**:Path B fallback chain plan 前移 Orchestrator(不再违反 control plane 边界),Specialist internal chat-completion 穿透 `router.invoke_completion()`(履行 Path C),§9 17 条守卫全 active | **稳定期**;观察真实使用反馈后推进多 agent 协作扩展 |
-| Truth 物理存储 | INVARIANTS P2 SQLite-primary truth + 对象存储后端兼容性 | ✅ **Phase 65 完成**:task / event / knowledge / evidence / relations / route metadata / policy 全迁 SQLite,事务保证 + 对象存储后端兼容性基础已就位 | **稳定期**;观察 multi-actor 扩展真实需求后推进 |
+| Truth 物理存储 | INVARIANTS P2 SQLite-primary truth + 对象存储后端兼容性 | ✅ **Phase 65 完成**:task / event / knowledge / evidence / relations / route metadata / policy 全迁 SQLite,事务保证 + 对象存储后端兼容性基础已就位 | **稳定期**;Raw material 物理后端通过候选 O `RawMaterialStore` 接口实装清除"绑定 filesystem"技术债 |
+| Raw material storage | filesystem 当前唯一后端,future object storage(MinIO / OSS / S3-compatible)留接口适配 | ✅ **2026-04-30 文档层就绪**:KNOWLEDGE.md §3.3 `RawMaterialStore` 接口 contract + URI scheme 示例(`file://` / `artifact://` / `s3://` / `minio://` / `oss://`)固化;实装层未跟进 | **候选 O**(推荐次序 5):接口实装 + filesystem 后端;不引入对象存储后端本身 |
+| 代码卫生 | dead code / 硬编码字面量 / 重复 helper / 抽象机会系统盘点 | ✅ **Phase 66 完成**:75 个 .py 文件全 read-only audit;46 finding + 5 跨块共识主题 + 7 quick-win + 9 design-needed 沉淀 backlog | **盘点期完成**;后续清理 = 候选 L / M / N(三个独立 phase 不应合并) |
 | 执行编排 | 高并发多路 + DAG | fan-out 已落地 | **候选 D**(后置) |
 | 思考-讨论-沉淀(完整) | 受控多视角综合 + multi-route synthesis | MPS 受控多视角综合 + 仲裁已落地(Phase 62) | **稳定期** |
 | 自我进化 | Librarian + Meta-Optimizer 提案应用闭环 | 已基本完成 | 远期 |
@@ -172,7 +238,9 @@ status: living-document
 | Release | Trigger Phase(s) | 决议 | 决议日期 |
 |---------|-----------------|------|---------|
 | v1.3.1 | Phase 62 | Phase 62(Multi-Perspective Synthesis)merge 后,单独打 tag 标记检索 / 编排稳定基线 | 2026-04-29 |
-| v1.4.0 | Phase 63 + Phase 64 + Phase 65 | Phase 64 merge 后决议(2026-04-29):等 Phase 65 完成后整体打 tag。Phase 65 merge 完成(2026-04-30,commit `64cbba7`);治理三段完整闭合(G 治理守卫收口 + G.5 NO_SKIP 红灯修复 + H Truth Plane SQLite 一致性)。**待 Human 在新会话单独决定打 tag 时机**(不替 Human 代决) | 2026-04-29 / 2026-04-30 |
+| v1.4.0 | Phase 63 + Phase 64 + Phase 65 | ✅ Tag 已发(2026-04-30,annotated tag,points to commit `5ec637f`)。治理三段(G + G.5 + H)完整闭合 — INVARIANTS P2 代码层兑现 | 2026-04-29(决议)/ 2026-04-30(打 tag)|
+| (待定) | Phase 66 | Phase 66 是 read-only audit-only phase,**default 不打 tag**(audit 不构成 release 节点);若 Human 需要单独标记 audit 完成里程碑可临时决定 | — |
+| (待定) | 候选 L / M / N / O | 取决于具体实装 phase 的能力变化幅度;若候选 O 实装 `RawMaterialStore` 接口构成"对象存储后端就绪"信号,可考虑标 v1.5.0;Human 在新会话决定 | — |
 
 ---
 
