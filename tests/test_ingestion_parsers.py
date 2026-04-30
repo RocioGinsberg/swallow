@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.ingestion.parsers import (
+from swallow.knowledge_retrieval.ingestion.parsers import (
     IngestionParseError,
     detect_ingestion_format,
     parse_chatgpt_export,

@@ -7,8 +7,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan
-from swallow.retrieval_adapters import RetrievalSearchDocument, rank_documents_by_local_embedding
+from swallow.knowledge_retrieval.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan
+from swallow.knowledge_retrieval.retrieval_adapters import RetrievalSearchDocument, rank_documents_by_local_embedding
 
 
 pytestmark = pytest.mark.eval

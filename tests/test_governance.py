@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from swallow.governance import (
+from swallow.truth_governance.governance import (
     ApplyResult,
     DuplicateProposalError,
     OperatorToken,
@@ -14,8 +14,8 @@ from swallow.governance import (
     register_route_metadata_proposal,
     load_mps_policy,
 )
-from swallow.models import AuditTriggerPolicy
-from swallow.paths import (
+from swallow.orchestration.models import AuditTriggerPolicy
+from swallow.surface_tools.paths import (
     audit_policy_path,
     canonical_registry_index_path,
     canonical_registry_path,
@@ -27,14 +27,14 @@ from swallow.paths import (
     route_registry_path,
     route_weights_path,
 )
-from swallow.router import apply_route_policy, apply_route_registry, current_route_policy, route_by_name
-from swallow.router import (
+from swallow.provider_router.router import apply_route_policy, apply_route_registry, current_route_policy, route_by_name
+from swallow.provider_router.router import (
     load_route_capability_profiles,
     load_route_policy,
     load_route_registry,
     load_route_weights,
 )
-from swallow.consistency_audit import load_audit_trigger_policy
+from swallow.surface_tools.consistency_audit import load_audit_trigger_policy
 
 
 def test_operator_token_rejects_invalid_source() -> None:

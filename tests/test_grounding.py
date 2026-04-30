@@ -8,9 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.grounding import build_grounding_evidence, build_grounding_evidence_report, extract_grounding_entries
-from swallow.harness import write_task_artifacts
-from swallow.models import ExecutorResult, RetrievalItem, TaskState
+from swallow.knowledge_retrieval.grounding import build_grounding_evidence, build_grounding_evidence_report, extract_grounding_entries
+from swallow.orchestration.harness import write_task_artifacts
+from swallow.orchestration.models import ExecutorResult, RetrievalItem, TaskState
 
 
 def _build_task_state(

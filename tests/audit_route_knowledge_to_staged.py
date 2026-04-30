@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from swallow.router import ROUTE_REGISTRY
+from swallow.provider_router.router import ROUTE_REGISTRY
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]

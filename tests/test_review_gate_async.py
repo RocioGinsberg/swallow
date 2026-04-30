@@ -9,8 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from unittest.mock import patch
 
-from swallow.models import ExecutorResult, TaskCard, TaskState
-from swallow.review_gate import run_review_gate_async
+from swallow.orchestration.models import ExecutorResult, TaskCard, TaskState
+from swallow.orchestration.review_gate import run_review_gate_async
 
 
 def _review_state() -> TaskState:
@@ -54,7 +54,7 @@ class AsyncReviewGateTest(unittest.IsolatedAsyncioTestCase):
                 output='{"status":"passed","message":"approved","checks":[{"name":"goal_alignment","passed":true,"detail":"goal met"}]}',
             )
 
-        with patch("swallow.review_gate.run_prompt_executor_async", side_effect=fake_run_prompt_executor_async):
+        with patch("swallow.orchestration.review_gate.run_prompt_executor_async", side_effect=fake_run_prompt_executor_async):
             result = await asyncio.wait_for(
                 run_review_gate_async(
                     state,
@@ -93,7 +93,7 @@ class AsyncReviewGateTest(unittest.IsolatedAsyncioTestCase):
                 output='{"status":"passed","message":"approved","checks":[{"name":"goal_alignment","passed":true,"detail":"goal met"}]}',
             )
 
-        with patch("swallow.review_gate.run_prompt_executor_async", side_effect=fake_run_prompt_executor_async):
+        with patch("swallow.orchestration.review_gate.run_prompt_executor_async", side_effect=fake_run_prompt_executor_async):
             result = await run_review_gate_async(
                 state,
                 ExecutorResult(

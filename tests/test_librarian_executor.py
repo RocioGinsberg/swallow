@@ -10,15 +10,15 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.canonical_registry import build_canonical_registry_index
-from swallow.canonical_reuse import build_canonical_reuse_summary
-from swallow.knowledge_index import build_knowledge_index
-from swallow.knowledge_partition import build_knowledge_partition
-from swallow.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianAgent, LibrarianExecutor
-from swallow.models import TaskCard, TaskState, ValidationResult
-from swallow.orchestrator import _apply_librarian_side_effects, create_task, run_task
-from swallow.paths import canonical_registry_index_path, canonical_reuse_policy_path, knowledge_index_path, knowledge_partition_path
-from swallow.store import (
+from swallow.knowledge_retrieval.canonical_registry import build_canonical_registry_index
+from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_summary
+from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index
+from swallow.knowledge_retrieval.knowledge_partition import build_knowledge_partition
+from swallow.surface_tools.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianAgent, LibrarianExecutor
+from swallow.orchestration.models import TaskCard, TaskState, ValidationResult
+from swallow.orchestration.orchestrator import _apply_librarian_side_effects, create_task, run_task
+from swallow.surface_tools.paths import canonical_registry_index_path, canonical_reuse_policy_path, knowledge_index_path, knowledge_partition_path
+from swallow.truth_governance.store import (
     append_canonical_record,
     load_state,
     save_canonical_registry_index,
@@ -161,8 +161,8 @@ class LibrarianExecutorIntegrationTest(unittest.TestCase):
                 ValidationResult(status="warning", message="Stop policy warning."),
             )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.write_task_artifacts", return_value=validation_tuple):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=validation_tuple):
                     final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             change_log_path = tmp_path / ".swl" / "tasks" / created.task_id / "artifacts" / "librarian_change_log.json"
@@ -268,7 +268,7 @@ class LibrarianExecutorIntegrationTest(unittest.TestCase):
                     raise OSError("simulated replace failure")
                 real_replace(src, dst)
 
-            with patch("swallow.store.os.replace", side_effect=flaky_replace):
+            with patch("swallow.truth_governance.store.os.replace", side_effect=flaky_replace):
                 with self.assertRaises(OSError):
                     _apply_librarian_side_effects(tmp_path, state, executor_result)
 

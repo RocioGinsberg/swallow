@@ -6,8 +6,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import TaskCard, TaskState
-from swallow.planner import plan
+from swallow.orchestration.models import TaskCard, TaskState
+from swallow.orchestration.planner import plan
 
 
 class PlannerTest(unittest.TestCase):

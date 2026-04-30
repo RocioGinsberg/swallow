@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import Event, ExecutorResult, ValidationResult
-from swallow.orchestrator import create_task, run_task, run_task_async
-from swallow.store import append_event
+from swallow.orchestration.models import Event, ExecutorResult, ValidationResult
+from swallow.orchestration.orchestrator import create_task, run_task, run_task_async
+from swallow.truth_governance.store import append_event
 
 
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
@@ -70,9 +70,9 @@ class DebateLoopTest(unittest.TestCase):
                     dialect="plain_text",
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
-                    with patch("swallow.executor.run_local_executor", side_effect=run_local):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch("swallow.orchestration.executor.run_local_executor", side_effect=run_local):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             events = _load_json_lines(task_dir / "events.jsonl")
@@ -119,9 +119,9 @@ class DebateLoopTest(unittest.TestCase):
                     dialect="plain_text",
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
-                    with patch("swallow.executor.run_local_executor", side_effect=run_local):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch("swallow.orchestration.executor.run_local_executor", side_effect=run_local):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             events = _load_json_lines(task_dir / "events.jsonl")
@@ -175,10 +175,10 @@ class DebateLoopTest(unittest.TestCase):
                 ),
             ]
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
                     with patch(
-                        "swallow.executor.run_local_executor",
+                        "swallow.orchestration.executor.run_local_executor",
                         return_value=ExecutorResult(
                             executor_name="local",
                             status="completed",
@@ -188,7 +188,7 @@ class DebateLoopTest(unittest.TestCase):
                             dialect="plain_text",
                         ),
                     ):
-                        with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
+                        with patch("swallow.orchestration.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
                             final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             events = _load_json_lines(task_dir / "events.jsonl")
@@ -233,10 +233,10 @@ class DebateLoopTest(unittest.TestCase):
                 ),
             )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
                     with patch(
-                        "swallow.executor.run_local_executor",
+                        "swallow.orchestration.executor.run_local_executor",
                         side_effect=AssertionError("executor should not run when budget is exhausted"),
                     ):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
@@ -289,9 +289,9 @@ class DebateLoopAsyncTest(unittest.IsolatedAsyncioTestCase):
                     dialect="plain_text",
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
-                    with patch("swallow.executor.run_local_executor", side_effect=run_local):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch("swallow.orchestration.executor.run_local_executor", side_effect=run_local):
                         final_state = await run_task_async(tmp_path, created.task_id, executor_name="local")
 
             events = _load_json_lines(task_dir / "events.jsonl")

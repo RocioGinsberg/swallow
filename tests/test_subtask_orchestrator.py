@@ -11,9 +11,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import ExecutorResult, TaskCard, TaskState
-from swallow.review_gate import ReviewGateResult
-from swallow.subtask_orchestrator import AsyncSubtaskOrchestrator, SubtaskOrchestrator, build_subtask_levels
+from swallow.orchestration.models import ExecutorResult, TaskCard, TaskState
+from swallow.orchestration.review_gate import ReviewGateResult
+from swallow.orchestration.subtask_orchestrator import AsyncSubtaskOrchestrator, SubtaskOrchestrator, build_subtask_levels
 
 
 def _build_card(goal: str, *, subtask_index: int, depends_on: list[str] | None = None) -> TaskCard:

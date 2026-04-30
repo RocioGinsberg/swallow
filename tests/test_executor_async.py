@@ -10,9 +10,9 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.executor import HTTPExecutor, run_http_executor_async
-from swallow.models import ExecutorResult, TaskCard, TaskState
-from swallow.router import resolve_fallback_chain
+from swallow.orchestration.executor import HTTPExecutor, run_http_executor_async
+from swallow.orchestration.models import ExecutorResult, TaskCard, TaskState
+from swallow.provider_router.router import resolve_fallback_chain
 
 
 class _FakeHTTPResponse:
@@ -95,7 +95,7 @@ class ExecutorAsyncProtocolTest(unittest.IsolatedAsyncioTestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            with patch("swallow.harness.run_execution", return_value=expected) as execution_mock:
+            with patch("swallow.orchestration.harness.run_execution", return_value=expected) as execution_mock:
                 result = await HTTPExecutor().execute_async(tmp_path, state, card, [])
 
         execution_mock.assert_called_once_with(tmp_path, state, [])
@@ -120,7 +120,7 @@ class ExecutorAsyncProtocolTest(unittest.IsolatedAsyncioTestCase):
         )
         client = _FakeAsyncClient([response])
 
-        with patch("swallow.executor.httpx.AsyncClient", return_value=client):
+        with patch("swallow.orchestration.executor.httpx.AsyncClient", return_value=client):
             result = await run_http_executor_async(state, [])
 
         self.assertEqual(result.status, "completed")
@@ -145,7 +145,7 @@ class ExecutorAsyncProtocolTest(unittest.IsolatedAsyncioTestCase):
             ]
         )
 
-        with patch("swallow.executor.httpx.AsyncClient", return_value=client):
+        with patch("swallow.orchestration.executor.httpx.AsyncClient", return_value=client):
             result = await run_http_executor_async(state, [])
 
         self.assertEqual(result.estimated_input_tokens, 210)
@@ -162,7 +162,7 @@ class ExecutorAsyncProtocolTest(unittest.IsolatedAsyncioTestCase):
             [_FakeHTTPResponse(payload={"choices": [{"message": {"content": "async qwen fallback ok"}}]})]
         )
 
-        with patch("swallow.executor.httpx.AsyncClient", side_effect=[primary_client, fallback_client]):
+        with patch("swallow.orchestration.executor.httpx.AsyncClient", side_effect=[primary_client, fallback_client]):
             result = await run_http_executor_async(state, [])
 
         self.assertEqual(result.status, "completed")

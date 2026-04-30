@@ -12,8 +12,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.cli import main
-from swallow.meta_optimizer import (
+from swallow.surface_tools.cli import main
+from swallow.surface_tools.meta_optimizer import (
     MetaOptimizerAgent,
     MetaOptimizerExecutor,
     apply_reviewed_optimization_proposals,
@@ -22,7 +22,7 @@ from swallow.meta_optimizer import (
     review_optimization_proposals,
     run_meta_optimizer,
 )
-from swallow.models import (
+from swallow.orchestration.models import (
     EVENT_EXECUTOR_COMPLETED,
     EVENT_EXECUTOR_FAILED,
     EVENT_TASK_EXECUTION_FALLBACK,
@@ -33,21 +33,21 @@ from swallow.models import (
     TaxonomyProfile,
     ValidationResult,
 )
-from swallow.orchestrator import create_task, run_task
-from swallow.paths import (
+from swallow.orchestration.orchestrator import create_task, run_task
+from swallow.surface_tools.paths import (
     latest_optimization_proposal_bundle_path,
     optimization_proposals_path,
     route_capabilities_path,
     route_weights_path,
 )
-from swallow.router import (
+from swallow.provider_router.router import (
     apply_route_capability_profiles,
     apply_route_weights,
     load_route_capability_profiles,
     load_route_weights,
     route_by_name,
 )
-from swallow.store import load_state
+from swallow.truth_governance.store import load_state
 
 
 def _write_events(task_dir: Path, records: list[dict[str, object]]) -> None:
@@ -725,9 +725,9 @@ class MetaOptimizerTest(unittest.TestCase):
                 policy_inputs={},
             )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.select_route", return_value=route_selection):
-                    with patch("swallow.orchestrator.write_task_artifacts", return_value=validation_tuple):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.select_route", return_value=route_selection):
+                    with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=validation_tuple):
                         final_state = run_task(base_dir, created.task_id, executor_name="meta-optimizer")
 
             self.assertEqual(final_state.status, "completed")

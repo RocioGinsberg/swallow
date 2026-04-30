@@ -11,16 +11,16 @@ from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.cli import main
-from swallow.consistency_audit import (
+from swallow.surface_tools.cli import main
+from swallow.surface_tools.consistency_audit import (
     evaluate_audit_trigger,
     load_audit_trigger_policy,
     run_consistency_audit,
     save_audit_trigger_policy,
 )
-from swallow.models import AuditTriggerPolicy, ExecutorResult, ValidationResult
-from swallow.orchestrator import create_task, run_task
-from swallow.store import write_artifact
+from swallow.orchestration.models import AuditTriggerPolicy, ExecutorResult, ValidationResult
+from swallow.orchestration.orchestrator import create_task, run_task
+from swallow.truth_governance.store import write_artifact
 
 
 def _passing_validation_tuple() -> tuple[ValidationResult, ...]:
@@ -68,7 +68,7 @@ class ConsistencyAuditTest(unittest.TestCase):
             write_artifact(tmp_path, created.task_id, "executor_output.md", "candidate output for audit")
 
             with patch(
-                "swallow.consistency_audit.run_prompt_executor",
+                "swallow.surface_tools.consistency_audit.run_prompt_executor",
                 return_value=ExecutorResult(
                     executor_name="http",
                     status="completed",
@@ -137,7 +137,7 @@ class ConsistencyAuditTest(unittest.TestCase):
             stdout = io.StringIO()
 
             with patch(
-                "swallow.consistency_audit.run_prompt_executor",
+                "swallow.surface_tools.consistency_audit.run_prompt_executor",
                 return_value=ExecutorResult(
                     executor_name="http",
                     status="completed",
@@ -315,11 +315,11 @@ class ConsistencyAuditTest(unittest.TestCase):
                     degraded=True,
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
-                    with patch("swallow.executor.run_local_executor", side_effect=run_local):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch("swallow.orchestration.executor.run_local_executor", side_effect=run_local):
                         with patch(
-                            "swallow.orchestrator.schedule_consistency_audit",
+                            "swallow.orchestration.orchestrator.schedule_consistency_audit",
                             new_callable=AsyncMock,
                             return_value="audit-thread",
                         ) as schedule:
@@ -365,11 +365,11 @@ class ConsistencyAuditTest(unittest.TestCase):
                     degraded=False,
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
-                    with patch("swallow.executor.run_local_executor", side_effect=run_local):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+                    with patch("swallow.orchestration.executor.run_local_executor", side_effect=run_local):
                         with patch(
-                            "swallow.orchestrator.schedule_consistency_audit",
+                            "swallow.orchestration.orchestrator.schedule_consistency_audit",
                             new_callable=AsyncMock,
                             return_value="audit-thread",
                         ) as schedule:

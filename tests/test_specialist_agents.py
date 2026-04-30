@@ -9,24 +9,24 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.consistency_audit import ConsistencyAuditResult
-from swallow.agent_llm import AgentLLMResponse, AgentLLMUnavailable, resolve_agent_llm_model
-from swallow.consistency_reviewer import (
+from swallow.surface_tools.consistency_audit import ConsistencyAuditResult
+from swallow.provider_router.agent_llm import AgentLLMResponse, AgentLLMUnavailable, resolve_agent_llm_model
+from swallow.surface_tools.consistency_reviewer import (
     CONSISTENCY_REVIEWER_MEMORY_AUTHORITY,
     CONSISTENCY_REVIEWER_SYSTEM_ROLE,
     ConsistencyReviewerAgent,
 )
-from swallow.ingestion_specialist import (
+from swallow.surface_tools.ingestion_specialist import (
     INGESTION_SPECIALIST_MEMORY_AUTHORITY,
     INGESTION_SPECIALIST_SYSTEM_ROLE,
     IngestionSpecialistAgent,
 )
-from swallow.literature_specialist import (
+from swallow.surface_tools.literature_specialist import (
     LITERATURE_SPECIALIST_MEMORY_AUTHORITY,
     LITERATURE_SPECIALIST_SYSTEM_ROLE,
     LiteratureSpecialistAgent,
 )
-from swallow.models import (
+from swallow.orchestration.models import (
     ExecutorResult,
     RetrievalItem,
     RouteCapabilities,
@@ -37,14 +37,14 @@ from swallow.models import (
     TaxonomyProfile,
     ValidationResult,
 )
-from swallow.orchestrator import create_task, run_task
-from swallow.quality_reviewer import (
+from swallow.orchestration.orchestrator import create_task, run_task
+from swallow.surface_tools.quality_reviewer import (
     QUALITY_REVIEWER_MEMORY_AUTHORITY,
     QUALITY_REVIEWER_SYSTEM_ROLE,
     QualityReviewerAgent,
 )
-from swallow.runtime_config import resolve_swl_chat_model
-from swallow.validator_agent import VALIDATOR_MEMORY_AUTHORITY, VALIDATOR_SYSTEM_ROLE, ValidatorAgent
+from swallow.orchestration.runtime_config import resolve_swl_chat_model
+from swallow.orchestration.validator_agent import VALIDATOR_MEMORY_AUTHORITY, VALIDATOR_SYSTEM_ROLE, ValidatorAgent
 
 
 def _passing_validation_tuple() -> tuple[ValidationResult, ...]:
@@ -129,7 +129,7 @@ class SpecialistAgentTest(unittest.TestCase):
                 audit_artifact=".swl/tasks/review-task/artifacts/consistency_audit_test.md",
                 raw_output="# Consistency Audit\n- verdict: pass\n",
             )
-            with patch("swallow.consistency_reviewer.run_consistency_audit", return_value=expected) as audit_mock:
+            with patch("swallow.surface_tools.consistency_reviewer.run_consistency_audit", return_value=expected) as audit_mock:
                 result = ConsistencyReviewerAgent().execute(tmp_path, state, card, [])
 
         self.assertEqual(ConsistencyReviewerAgent.system_role, CONSISTENCY_REVIEWER_SYSTEM_ROLE)
@@ -269,7 +269,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.literature_specialist.call_agent_llm",
+                "swallow.surface_tools.literature_specialist.call_agent_llm",
                 return_value=AgentLLMResponse(
                     content=json.dumps(
                         {
@@ -352,7 +352,7 @@ class SpecialistAgentTest(unittest.TestCase):
             ]
 
             with patch(
-                "swallow.literature_specialist.call_agent_llm",
+                "swallow.surface_tools.literature_specialist.call_agent_llm",
                 return_value=AgentLLMResponse(
                     content=json.dumps(
                         {
@@ -401,7 +401,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.literature_specialist.call_agent_llm",
+                "swallow.surface_tools.literature_specialist.call_agent_llm",
                 side_effect=AgentLLMUnavailable("timeout"),
             ):
                 result = LiteratureSpecialistAgent().execute(tmp_path, state, card, [])
@@ -471,7 +471,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.quality_reviewer.call_agent_llm",
+                "swallow.surface_tools.quality_reviewer.call_agent_llm",
                 return_value=AgentLLMResponse(
                     content=json.dumps(
                         {
@@ -523,7 +523,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.quality_reviewer.call_agent_llm",
+                "swallow.surface_tools.quality_reviewer.call_agent_llm",
                 side_effect=AgentLLMUnavailable("timeout"),
             ):
                 result = QualityReviewerAgent().execute(tmp_path, state, card, [])
@@ -601,10 +601,10 @@ class SpecialistAgentTest(unittest.TestCase):
                 input_context={"document_paths": [str(doc_a), str(doc_b)]},
             )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.select_route", return_value=route_selection):
-                    with patch("swallow.orchestrator.plan", return_value=[literature_card]):
-                        with patch("swallow.orchestrator.write_task_artifacts", return_value=validation_tuple):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.select_route", return_value=route_selection):
+                    with patch("swallow.orchestration.orchestrator.plan", return_value=[literature_card]):
+                        with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=validation_tuple):
                             final_state = run_task(tmp_path, created.task_id, executor_name="literature-specialist")
 
             events = _load_events(tmp_path, created.task_id)
@@ -658,10 +658,10 @@ class SpecialistAgentTest(unittest.TestCase):
                 input_context={"artifact_ref": str(artifact), "quality_criteria": ["non_empty", "has_structure"]},
             )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator.select_route", return_value=route_selection):
-                    with patch("swallow.orchestrator.plan", return_value=[review_card]):
-                        with patch("swallow.orchestrator.write_task_artifacts", return_value=validation_tuple):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator.select_route", return_value=route_selection):
+                    with patch("swallow.orchestration.orchestrator.plan", return_value=[review_card]):
+                        with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=validation_tuple):
                             final_state = run_task(tmp_path, created.task_id, executor_name="quality-reviewer")
 
             events = _load_events(tmp_path, created.task_id)

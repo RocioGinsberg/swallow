@@ -9,10 +9,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from swallow.models import Event, ExecutorResult, TaskCard, TaskState, ValidationResult
-from swallow.orchestrator import create_task, run_task
-from swallow.review_gate import run_review_gate
-from swallow.store import append_event
+from swallow.orchestration.models import Event, ExecutorResult, TaskCard, TaskState, ValidationResult
+from swallow.orchestration.orchestrator import create_task, run_task
+from swallow.orchestration.review_gate import run_review_gate
+from swallow.truth_governance.store import append_event
 
 
 pytestmark = pytest.mark.eval
@@ -76,7 +76,7 @@ def test_phase47_eval_majority_consensus_requires_actual_majority() -> None:
         ),
     ]
 
-    with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
+    with patch("swallow.orchestration.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
         result = run_review_gate(
             state,
             ExecutorResult(
@@ -120,7 +120,7 @@ def test_phase47_eval_veto_consensus_respects_primary_reviewer_rejection() -> No
         ),
     ]
 
-    with patch("swallow.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
+    with patch("swallow.orchestration.review_gate.run_prompt_executor_async", new=AsyncMock(side_effect=reviewer_outputs)):
         result = run_review_gate(
             state,
             ExecutorResult(
@@ -162,10 +162,10 @@ def test_phase47_eval_budget_guard_moves_task_to_waiting_human() -> None:
             ),
         )
 
-        with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-            with patch("swallow.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
+        with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.write_task_artifacts", return_value=_passing_validation_tuple()):
                 with patch(
-                    "swallow.executor.run_local_executor",
+                    "swallow.orchestration.executor.run_local_executor",
                     side_effect=AssertionError("executor should not run once the budget is exhausted"),
                 ):
                     final_state = run_task(tmp_path, created.task_id, executor_name="local")

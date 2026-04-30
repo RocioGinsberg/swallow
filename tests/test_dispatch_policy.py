@@ -9,10 +9,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
-from swallow.models import RouteCapabilities, RouteSelection, RouteSpec, TaxonomyProfile
-from swallow.orchestrator import create_task, run_task
-from swallow.store import load_state, save_state
+from swallow.orchestration.dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
+from swallow.orchestration.models import RouteCapabilities, RouteSelection, RouteSpec, TaxonomyProfile
+from swallow.orchestration.orchestrator import create_task, run_task
+from swallow.truth_governance.store import load_state, save_state
 
 
 class DispatchPolicyTest(unittest.TestCase):
@@ -205,7 +205,7 @@ class DispatchPolicyTest(unittest.TestCase):
                 policy_inputs={},
             )
 
-            with patch("swallow.orchestrator.select_route", return_value=validator_route):
+            with patch("swallow.orchestration.orchestrator.select_route", return_value=validator_route):
                 final_state = run_task(tmp_path, state.task_id, executor_name="local")
 
             task_dir = tmp_path / ".swl" / "tasks" / state.task_id

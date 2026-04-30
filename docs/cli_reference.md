@@ -14,6 +14,7 @@ swl [--base-dir <path>] <command> ...
 Top-level commands:
 
 - `audit` — consistency audit policy commands
+- `synthesis` — multi-perspective synthesis policy, run, and staging commands
 - `route` — route registry, weight, and capability commands
 - `task` — task lifecycle, inspection, recovery, and artifact access
 - `knowledge` — staged knowledge review, file ingest, and explicit relation management
@@ -21,6 +22,7 @@ Top-level commands:
 - `migrate` — file task state backfill into SQLite
 - `meta-optimize` — read-only telemetry scan and proposal generation
 - `proposal` — operator review/apply for structured proposals
+- `note` — capture one operator note directly into staged knowledge
 - `ingest` — external session ingestion into staged knowledge
 - `serve` — read-only control center API server
 
@@ -45,13 +47,26 @@ swl knowledge stage-promote <candidate-id>
 swl knowledge ingest-file docs/notes.md --task-id <task-id>
 
 # Manage explicit knowledge relations
-swl knowledge link <source-object-id> <target-object-id> --relation-type related_to
+swl knowledge link <source-object-id> <target-object-id> --type related_to
 swl knowledge links <object-id>
 
 # Inspect routing and policy surfaces
+swl route registry show
+swl route policy show
 swl route weights show
 swl route capabilities show
 swl audit policy show
+
+# Review and apply structured proposals
+swl proposal review <proposal-bundle> --decision approved
+swl proposal apply <review-record>
+
+# Run multi-perspective synthesis
+swl synthesis run --task <task-id> --config <config.json>
+swl synthesis stage --task <task-id>
+
+# Capture one operator note into staged knowledge
+swl note "Remember to keep route overrides explicit" --tag routing
 
 # Run diagnostics
 swl doctor
@@ -172,6 +187,7 @@ Global staged knowledge and graph-management commands.
 - `swl knowledge link`
 - `swl knowledge unlink`
 - `swl knowledge links`
+- `swl knowledge apply-suggestions`
 - `swl knowledge migrate`
 
 Typical uses:
@@ -179,12 +195,31 @@ Typical uses:
 - review staged candidates outside a task run
 - ingest markdown/text files into staged knowledge
 - create and inspect explicit graph relations
+- apply relation suggestions recorded by a completed task
 - backfill file-based knowledge into SQLite
+
+## `swl synthesis`
+
+Multi-perspective synthesis policy, execution, and staging commands.
+
+- `swl synthesis policy set`
+- `swl synthesis run`
+- `swl synthesis stage`
+
+Typical uses:
+
+- update MPS policy values through `apply_proposal`
+- run multi-perspective synthesis for an existing task
+- stage a synthesis arbitration artifact as a knowledge candidate
 
 ## `swl route`
 
 Route policy and dry-run routing tools.
 
+- `swl route registry show`
+- `swl route registry apply`
+- `swl route policy show`
+- `swl route policy apply`
 - `swl route weights show`
 - `swl route weights apply`
 - `swl route capabilities show`
@@ -193,6 +228,8 @@ Route policy and dry-run routing tools.
 
 Typical uses:
 
+- inspect or apply full route registry metadata
+- inspect or apply route selection policy metadata
 - inspect current route quality weights
 - apply approved route-weight proposals
 - inspect or patch capability profiles
@@ -238,6 +275,7 @@ Typical usage:
 
 ```bash
 swl migrate --dry-run
+swl migrate --status
 swl migrate
 ```
 
@@ -266,7 +304,8 @@ Structured proposal review/apply flow.
 Typical usage:
 
 ```bash
-swl proposal review <proposal-bundle>
+swl proposal review <proposal-bundle> --decision approved
+swl proposal review <proposal-bundle> --decision rejected --proposal-id <proposal-id> --note "Needs more evidence"
 swl proposal apply <review-record>
 ```
 
@@ -280,10 +319,24 @@ Typical usage:
 
 ```bash
 swl ingest <export-file>
+swl ingest <export-file> --format markdown --dry-run
 swl ingest <export-file> --summary
+swl ingest --from-clipboard --format chatgpt_json
 ```
 
 Supported pipelines include ChatGPT, Claude, Open WebUI, and Markdown ingestion surfaces already wired in the repo.
+
+## `swl note`
+
+Capture one operator note directly into staged knowledge.
+
+Typical usage:
+
+```bash
+swl note "Keep provider-router defaults owned by provider_router." --tag routing
+```
+
+Use this for small operator-authored facts or reminders that should enter the staged knowledge review flow.
 
 ## `swl serve`
 
@@ -305,3 +358,4 @@ This document is a command map, not a replacement for built-in help. When CLI st
 1. update this file in the same slice as the CLI change
 2. verify `swl --help`
 3. verify the affected `swl <command> --help` output
+4. keep argument-level detail in built-in help unless a workflow example benefits from showing the option

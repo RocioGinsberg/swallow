@@ -8,12 +8,12 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-import swallow.retrieval as retrieval_module
-from swallow.agent_llm import AgentLLMResponse, AgentLLMUnavailable
-from swallow.canonical_reuse import build_canonical_reuse_summary
-from swallow.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, rerank_retrieval_items, retrieve_context
-from swallow.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RetrievalRerankConfig
-from swallow.retrieval_adapters import (
+import swallow.knowledge_retrieval.retrieval as retrieval_module
+from swallow.provider_router.agent_llm import AgentLLMResponse, AgentLLMUnavailable
+from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_summary
+from swallow.knowledge_retrieval.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, rerank_retrieval_items, retrieve_context
+from swallow.knowledge_retrieval.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RetrievalRerankConfig
+from swallow.knowledge_retrieval.retrieval_adapters import (
     EmbeddingAPIUnavailable,
     build_markdown_chunks,
     build_repo_chunks,
@@ -24,10 +24,10 @@ from swallow.retrieval_adapters import (
     VectorRetrievalUnavailable,
     build_api_embedding,
 )
-from swallow.knowledge_relations import create_knowledge_relation
-from swallow.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, persist_wiki_entry_from_record
-from swallow.models import RetrievalRequest
-from swallow.store import append_canonical_record, save_canonical_reuse_policy, save_knowledge_objects
+from swallow.knowledge_retrieval.knowledge_relations import create_knowledge_relation
+from swallow.knowledge_retrieval.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, persist_wiki_entry_from_record
+from swallow.orchestration.models import RetrievalRequest
+from swallow.truth_governance.store import append_canonical_record, save_canonical_reuse_policy, save_knowledge_objects
 
 
 class RetrievalAdaptersTest(unittest.TestCase):
@@ -168,7 +168,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
         ]
 
         with patch(
-            "swallow.agent_llm.call_agent_llm",
+            "swallow.provider_router.agent_llm.call_agent_llm",
             return_value=AgentLLMResponse(
                 content='{"ordered_indexes":[1,0]}',
                 input_tokens=50,
@@ -214,7 +214,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
             ),
         ]
 
-        with patch("swallow.agent_llm.call_agent_llm", side_effect=AgentLLMUnavailable("timeout")):
+        with patch("swallow.provider_router.agent_llm.call_agent_llm", side_effect=AgentLLMUnavailable("timeout")):
             reranked = rerank_retrieval_items(
                 items,
                 query="knowledge truth",
@@ -231,7 +231,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
             def json(self) -> dict[str, object]:
                 return {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
 
-        with patch("swallow.retrieval_adapters.httpx.post", return_value=_FakeResponse()) as http_post:
+        with patch("swallow.knowledge_retrieval.retrieval_adapters.httpx.post", return_value=_FakeResponse()) as http_post:
             embedding = build_api_embedding(
                 "semantic retrieval",
                 model="text-embedding-3-small",
@@ -246,9 +246,9 @@ class RetrievalAdaptersTest(unittest.TestCase):
     def test_vector_adapter_raises_when_embedding_api_is_unavailable(self) -> None:
         adapter = VectorRetrievalAdapter(embedding_dimensions=3)
 
-        with patch("swallow.retrieval_adapters.VectorRetrievalAdapter._connect") as connect_mock:
+        with patch("swallow.knowledge_retrieval.retrieval_adapters.VectorRetrievalAdapter._connect") as connect_mock:
             with patch(
-                "swallow.retrieval_adapters.build_api_embedding",
+                "swallow.knowledge_retrieval.retrieval_adapters.build_api_embedding",
                 side_effect=EmbeddingAPIUnavailable("embedding gateway unavailable"),
             ):
                 with self.assertRaises(EmbeddingAPIUnavailable):
@@ -304,8 +304,8 @@ class RetrievalAdaptersTest(unittest.TestCase):
     def test_vector_adapter_raises_when_sqlite_vec_is_missing(self) -> None:
         adapter = VectorRetrievalAdapter()
 
-        with patch("swallow.retrieval_adapters.build_api_embedding", return_value=[0.1, 0.2, 0.3]):
-            with patch("swallow.retrieval_adapters.importlib.import_module", side_effect=ImportError("sqlite_vec missing")):
+        with patch("swallow.knowledge_retrieval.retrieval_adapters.build_api_embedding", return_value=[0.1, 0.2, 0.3]):
+            with patch("swallow.knowledge_retrieval.retrieval_adapters.importlib.import_module", side_effect=ImportError("sqlite_vec missing")):
                 with self.assertRaises(VectorRetrievalUnavailable):
                     adapter.search(
                         [
@@ -356,9 +356,9 @@ class RetrievalAdaptersTest(unittest.TestCase):
             )
 
             retrieval_module._sqlite_vec_warning_emitted = False
-            with self.assertLogs("swallow.retrieval", level="WARNING") as logs:
+            with self.assertLogs("swallow.knowledge_retrieval.retrieval", level="WARNING") as logs:
                 with patch(
-                    "swallow.retrieval.VectorRetrievalAdapter.search",
+                    "swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search",
                     side_effect=VectorRetrievalUnavailable("sqlite_vec missing"),
                 ):
                     items = retrieve_context(
@@ -395,9 +395,9 @@ class RetrievalAdaptersTest(unittest.TestCase):
             )
 
             retrieval_module._embedding_api_warning_emitted = False
-            with self.assertLogs("swallow.retrieval", level="WARNING") as logs:
+            with self.assertLogs("swallow.knowledge_retrieval.retrieval", level="WARNING") as logs:
                 with patch(
-                    "swallow.retrieval.VectorRetrievalAdapter.search",
+                    "swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search",
                     side_effect=EmbeddingAPIUnavailable("SWL_API_KEY is not configured."),
                 ):
                     items = retrieve_context(
@@ -447,7 +447,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
                     )
                 ]
 
-            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+            with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
                 items = retrieve_context(
                     tmp_path,
                     query="vector retrieval verified knowledge",
@@ -491,8 +491,8 @@ class RetrievalAdaptersTest(unittest.TestCase):
                 ]
 
             with patch.dict("os.environ", {"SWL_RETRIEVAL_RERANK_ENABLED": "false"}, clear=False):
-                with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
-                    with patch("swallow.agent_llm.call_agent_llm") as rerank_mock:
+                with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                    with patch("swallow.provider_router.agent_llm.call_agent_llm") as rerank_mock:
                         items = retrieve_context(
                             tmp_path,
                             query="vector retrieval verified knowledge",
@@ -556,7 +556,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
                     )
                 ]
 
-            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+            with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
                 items = retrieve_context(
                     tmp_path,
                     query="retrieval graph expansion",
@@ -610,7 +610,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
                     )
                 ]
 
-            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+            with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
                 items = retrieve_context(
                     tmp_path,
                     request=RetrievalRequest(
@@ -704,7 +704,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
                     )
                 ]
 
-            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+            with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
                 items = retrieve_context(
                     tmp_path,
                     query="truth layer retrieval architecture",
@@ -755,7 +755,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
                     )
                 ]
 
-            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+            with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
                 items = retrieve_context(
                     tmp_path,
                     query="truth layer retrieval architecture",
@@ -795,9 +795,9 @@ class RetrievalAdaptersTest(unittest.TestCase):
             save_canonical_reuse_policy(tmp_path, build_canonical_reuse_summary([canonical_record]))
 
             retrieval_module._embedding_api_warning_emitted = False
-            with self.assertLogs("swallow.retrieval", level="WARNING") as logs:
+            with self.assertLogs("swallow.knowledge_retrieval.retrieval", level="WARNING") as logs:
                 with patch(
-                    "swallow.retrieval.VectorRetrievalAdapter.search",
+                    "swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search",
                     side_effect=EmbeddingAPIUnavailable("SWL_API_KEY is not configured."),
                 ):
                     items = retrieve_context(
@@ -857,7 +857,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
                     ),
                 ]
 
-            with patch("swallow.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+            with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
                 items = retrieve_context(
                     tmp_path,
                     query="seed linked retrieval knowledge",
