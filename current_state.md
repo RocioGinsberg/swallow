@@ -30,8 +30,8 @@
 - latest_main_checkpoint_phase: `Phase 66`
 - latest_executed_public_tag: `v1.4.0`
 - pending_release_tag: `none`
-- current_working_phase: `Phase 68 S2 Ingestion Raw Material Store Migration`
-- checkpoint_type: `phase68_s2_commit_gate`
+- current_working_phase: `Phase 68 S3 Artifact Evidence Reference Normalization`
+- checkpoint_type: `phase68_s3_commit_gate`
 - active_branch: `feat/phase68-raw-material-store`
 - last_checked: `2026-04-30`
 
@@ -55,7 +55,11 @@
 - Phase 68 S1 已提交:
   - `97ab87d feat(phase68-s1): add raw material store interface`
   - `c5affe7 docs(phase68-s1): record raw material store gate`
-- Phase 68 S2 已完成 ingestion migration / stable source_ref update / full pytest,等待 Human review / manual commit。
+- Phase 68 S2 已完成 ingestion migration / stable source_ref update / full pytest。
+- Phase 68 S2 已提交:
+  - `2f04b63 refactor(phase68-s2): route ingestion through raw material store`
+  - `d135001 docs(phase68-s2): record ingestion raw material gate`
+- Phase 68 S3 已完成 artifact evidence reference normalization / full pytest,等待 Human review / manual commit。
 
 ---
 
@@ -66,13 +70,13 @@
 - active_branch: `feat/phase68-raw-material-store`
 - active_track: `Knowledge / Storage`
 - active_phase: `Phase 68`
-- active_slice: `S2 / Ingestion Raw Material Store Migration`
-- workflow_status: `phase68_s2_complete_pending_human_review`
+- active_slice: `S3 / Artifact Evidence Reference Normalization`
+- workflow_status: `phase68_s3_complete_pending_human_review`
 
 说明：
 
 - Phase 67 已完成实现和验证,当前默认动作是 Human push / PR / merge Phase 67。
-- Phase 68 已按 Human direction 启动 Candidate O,当前完成到 S2;不要越过 S2 commit gate 直接进入 S3。
+- Phase 68 已按 Human direction 启动 Candidate O,当前完成到 S3;不要越过 S3 commit gate 直接收口。
 - Phase 68 是 stacked branch;Phase 67 merge 后再决定是否 rebase / retarget Phase 68。
 
 ---
@@ -94,9 +98,10 @@
 11. `docs/plans/phase68/breakdown.md`
 12. `docs/plans/phase68/codex_review_notes_s1.md`
 13. `docs/plans/phase68/codex_review_notes_s2.md`
-14. `docs/plans/phase67/review_comments_block_n.md`
-15. `docs/concerns_backlog.md`
-16. `docs/roadmap.md`
+14. `docs/plans/phase68/codex_review_notes_s3.md`
+15. `docs/plans/phase67/review_comments_block_n.md`
+16. `docs/concerns_backlog.md`
+17. `docs/roadmap.md`
 
 仅在需要时再读取：
 
@@ -128,16 +133,16 @@ git log --oneline --decorate -8
 git tag --list 'v*' --sort=-creatordate | head -n 5
 ```
 
-当前 Phase 68 S2 commit-gate 状态验证命令：
+当前 Phase 68 S3 commit-gate 状态验证命令：
 
 ```bash
 git diff --check
 git diff -- docs/design
 git status --short --branch
-.venv/bin/python -m pytest tests/test_raw_material_store.py tests/test_ingestion_pipeline.py tests/test_cli.py -q
+.venv/bin/python -m pytest tests/test_librarian_executor.py tests/test_raw_material_store.py -q
 ```
 
-Phase 68 S2 最近一次验证：
+Phase 68 S3 最近一次验证：
 
 ```bash
 git diff --check
@@ -146,17 +151,17 @@ git diff --check
 git diff -- docs/design
 # no output
 
-.venv/bin/python -m pytest tests/test_ingestion_pipeline.py tests/test_raw_material_store.py -q
-# 20 passed
+.venv/bin/python -m pytest tests/test_librarian_executor.py tests/test_raw_material_store.py -q
+# 16 passed
 
-.venv/bin/python -m pytest tests/test_cli.py -q
-# 241 passed, 10 subtests passed
+.venv/bin/python -m pytest tests/test_invariant_guards.py::test_no_absolute_path_in_truth_writes -q
+# 1 passed
 
 .venv/bin/python -m compileall -q src/swallow
 # passed
 
 .venv/bin/python -m pytest -q
-# 621 passed, 8 deselected, 10 subtests passed
+# 622 passed, 8 deselected, 10 subtests passed
 ```
 
 M3 manual verification:

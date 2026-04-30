@@ -13,9 +13,9 @@
 - latest_completed_slice: `L+M+N Cleanup + Candidate P Module Reorganization + CLI Reference Sync`
 - active_track: `Knowledge / Storage`
 - active_phase: `Phase 68`
-- active_slice: `S2 / Ingestion Raw Material Store Migration`
+- active_slice: `S3 / Artifact Evidence Reference Normalization`
 - active_branch: `feat/phase68-raw-material-store`
-- status: `phase68_s2_complete_pending_human_review`
+- status: `phase68_s3_complete_pending_human_review`
 
 ## 当前状态说明
 
@@ -32,8 +32,8 @@ Phase 68 starts as a stacked branch from the current Phase 67 HEAD because Phase
 Phase 68 implements Candidate O from `docs/roadmap.md` as a narrow Raw Material Store boundary:
 
 - S1: raw material interface, URI parser, filesystem backend, focused tests.
-- S2: ingestion migration to stable source refs. Completed and waiting for Human review / manual commit.
-- S3: artifact evidence reference normalization.
+- S2: ingestion migration to stable source refs.
+- S3: artifact evidence reference normalization. Completed and waiting for Human review / manual commit.
 
 Phase 68 must not modify:
 
@@ -84,33 +84,45 @@ Phase 68 must not modify:
   - invariant-adjacent verification: `21 passed`
   - CLI verification: `241 passed, 10 subtests passed`
   - full pytest: `621 passed, 8 deselected, 10 subtests passed`
+- **[Human]** Phase 68 S2 commits completed:
+  - `2f04b63 refactor(phase68-s2): route ingestion through raw material store`
+  - `d135001 docs(phase68-s2): record ingestion raw material gate`
+- **[Codex]** Phase 68 S3 implementation completed:
+  - routed librarian artifact evidence existence checks through `FilesystemRawMaterialStore`
+  - normalized legacy `.swl/tasks/<task_id>/artifacts/<path>` refs internally to `artifact://...`
+  - accepted already-normalized `artifact://...` refs
+  - preserved persisted `artifact_ref` values and Knowledge Truth schema
+  - wrote `docs/plans/phase68/codex_review_notes_s3.md`
+  - focused verification: `16 passed`
+  - invariant guard verification: `1 passed`
+  - full pytest: `622 passed, 8 deselected, 10 subtests passed`
 
 进行中:
 
-- **[Human]** Review Phase 68 S2 and manually commit if accepted.
+- **[Human]** Review Phase 68 S3 and manually commit if accepted.
 
 待执行:
 
-- **[Human]** Review S2 and manually commit if accepted.
-- **[Codex]** Start S3 only after the S2 commit gate is accepted.
+- **[Human]** Review S3 and manually commit if accepted.
+- **[Codex]** Prepare Phase 68 closeout after S3 commit is confirmed.
 
 当前阻塞项:
 
-- Waiting for Human review / manual commit gate for S2.
+- Waiting for Human review / manual commit gate for S3.
 - Phase 68 is stacked on Phase 67 until Human merges Phase 67.
 
 ## 当前下一步
 
-1. **[Human]** Review S2 diff.
-2. **[Human]** Commit S2 if accepted.
-3. **[Codex]** Continue to S3 after Human confirms commit.
+1. **[Human]** Review S3 diff.
+2. **[Human]** Commit S3 if accepted.
+3. **[Codex]** Prepare Phase 68 closeout after Human confirms commit.
 
 ```markdown
 milestone_gate:
-- current: phase68-s2-ingestion-raw-material-store
+- current: phase68-s3-artifact-evidence-normalization
 - next_gate: Human review / manual commit
-- proceed_to_s3: after Human accepts and commits S2
-- reason: ingestion source_ref semantics are now a persisted raw material boundary
+- proceed_to_closeout: after Human accepts and commits S3
+- reason: artifact evidence validation now crosses the raw material storage boundary
 ```
 
 ## 当前产出物
@@ -119,8 +131,10 @@ milestone_gate:
 - `docs/plans/phase68/breakdown.md`(codex, 2026-04-30, Phase 68 slice breakdown)
 - `docs/plans/phase68/codex_review_notes_s1.md`(codex, 2026-04-30, S1 review notes)
 - `docs/plans/phase68/codex_review_notes_s2.md`(codex, 2026-04-30, S2 review notes)
+- `docs/plans/phase68/codex_review_notes_s3.md`(codex, 2026-04-30, S3 review notes)
 - `src/swallow/knowledge_retrieval/raw_material.py`(codex, 2026-04-30, S1 implementation)
 - `tests/test_raw_material_store.py`(codex, 2026-04-30, S1 tests)
 - `src/swallow/knowledge_retrieval/ingestion/pipeline.py`(codex, 2026-04-30, S2 implementation)
+- `src/swallow/surface_tools/librarian_executor.py`(codex, 2026-04-30, S3 implementation)
 - `pr.md`(codex, ignored PR body draft for Phase 67)
-- `docs/active_context.md`(codex, 2026-04-30, Phase 68 S2 commit-gate state)
+- `docs/active_context.md`(codex, 2026-04-30, Phase 68 S3 commit-gate state)
