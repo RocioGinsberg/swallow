@@ -8,10 +8,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.agent_llm import call_agent_llm
-from swallow.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
-from swallow.paths import route_capabilities_path, route_fallbacks_path, route_policy_path, route_registry_path
-from swallow.router import (
+from swallow.provider_router.agent_llm import call_agent_llm
+from swallow.orchestration.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
+from swallow.surface_tools.paths import route_capabilities_path, route_fallbacks_path, route_policy_path, route_registry_path
+from swallow.provider_router.router import (
     RouteRegistry,
     apply_route_policy,
     apply_route_fallbacks,
@@ -154,7 +154,7 @@ class RouteRegistryTest(unittest.TestCase):
             },
             clear=False,
         ):
-            with patch("swallow.router.httpx.post", return_value=_FakeCompletionResponse()) as http_post:
+            with patch("swallow.provider_router.router.httpx.post", return_value=_FakeCompletionResponse()) as http_post:
                 response = call_agent_llm("hello", system="be terse", model="explicit-model")
 
         self.assertEqual(response.content, "routed completion")
@@ -319,7 +319,7 @@ class RouteRegistryTest(unittest.TestCase):
             route_execution_site="local",
         )
 
-        with patch("swallow.router.ROUTE_REGISTRY", registry):
+        with patch("swallow.provider_router.router.ROUTE_REGISTRY", registry):
             selection = select_route(state)
 
         self.assertEqual(selection.route.name, "family-local")
@@ -362,7 +362,7 @@ class RouteRegistryTest(unittest.TestCase):
             },
         )
 
-        with patch("swallow.router.ROUTE_REGISTRY", registry):
+        with patch("swallow.provider_router.router.ROUTE_REGISTRY", registry):
             selection = select_route(state)
 
         self.assertEqual(selection.route.name, "capability-match")
@@ -396,7 +396,7 @@ class RouteRegistryTest(unittest.TestCase):
             route_capabilities={"execution_kind": "code_execution"},
         )
 
-        with patch("swallow.router.ROUTE_REGISTRY", registry):
+        with patch("swallow.provider_router.router.ROUTE_REGISTRY", registry):
             selection = select_route(state)
 
         self.assertEqual(selection.route.name, "local-summary")
@@ -453,7 +453,7 @@ class RouteRegistryTest(unittest.TestCase):
             route_model_hint="deepseek",
         )
 
-        with patch("swallow.router.ROUTE_REGISTRY", registry):
+        with patch("swallow.provider_router.router.ROUTE_REGISTRY", registry):
             selection = select_route(state)
 
         self.assertEqual(selection.route.name, "http-deepseek")
@@ -657,7 +657,7 @@ class RouteRegistryTest(unittest.TestCase):
             task_semantics={"source_kind": "review"},
         )
 
-        with patch("swallow.router.ROUTE_REGISTRY", registry):
+        with patch("swallow.provider_router.router.ROUTE_REGISTRY", registry):
             selection = select_route(state)
 
         self.assertEqual(selection.route.name, "http-review-ok")

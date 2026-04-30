@@ -6,8 +6,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.checkpoint_snapshot import evaluate_checkpoint_snapshot
-from swallow.models import TaskState
+from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
+from swallow.orchestration.models import TaskState
 
 
 class CheckpointSnapshotTest(unittest.TestCase):

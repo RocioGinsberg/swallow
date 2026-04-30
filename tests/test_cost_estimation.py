@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.cost_estimation import CostEstimator, StaticCostEstimator, estimate_cost, estimate_tokens
-from swallow.harness import run_execution
-from swallow.models import ExecutorResult, TaskState
+from swallow.provider_router.cost_estimation import CostEstimator, StaticCostEstimator, estimate_cost, estimate_tokens
+from swallow.orchestration.harness import run_execution
+from swallow.orchestration.models import ExecutorResult, TaskState
 
 
 class CostEstimationTest(unittest.TestCase):
@@ -58,7 +58,7 @@ class CostEstimationTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.harness.run_executor",
+                "swallow.orchestration.harness.run_executor",
                 return_value=ExecutorResult(
                     executor_name="local",
                     status="completed",

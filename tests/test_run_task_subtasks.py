@@ -11,10 +11,10 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import Event, ExecutorResult, ValidationResult
-from swallow.orchestrator import create_task, run_task
-from swallow.store import write_artifact
-from swallow.store import append_event
+from swallow.orchestration.models import Event, ExecutorResult, ValidationResult
+from swallow.orchestration.orchestrator import create_task, run_task
+from swallow.truth_governance.store import write_artifact
+from swallow.truth_governance.store import append_event
 
 
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
@@ -90,10 +90,10 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
                     dialect="plain_text",
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator._execute_task_card", side_effect=execute_card):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", side_effect=execute_card):
                     with patch(
-                        "swallow.orchestrator.write_task_artifacts",
+                        "swallow.orchestration.orchestrator.write_task_artifacts",
                         return_value=_passing_validation_tuple(),
                     ):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
@@ -202,10 +202,10 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
                     dialect="plain_text",
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator._execute_task_card", side_effect=execute_card):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", side_effect=execute_card):
                     with patch(
-                        "swallow.orchestrator.write_task_artifacts",
+                        "swallow.orchestration.orchestrator.write_task_artifacts",
                         return_value=_passing_validation_tuple(),
                     ):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
@@ -299,10 +299,10 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
                     dialect="plain_text",
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator._execute_task_card", side_effect=execute_card):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", side_effect=execute_card):
                     with patch(
-                        "swallow.orchestrator.write_task_artifacts",
+                        "swallow.orchestration.orchestrator.write_task_artifacts",
                         return_value=_passing_validation_tuple(),
                     ):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
@@ -348,13 +348,13 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
                 ),
             )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator._execute_task_card",
+                    "swallow.orchestration.orchestrator._execute_task_card",
                     side_effect=AssertionError("subtask executor should not run when budget is exhausted"),
                 ):
                     with patch(
-                        "swallow.orchestrator.write_task_artifacts",
+                        "swallow.orchestration.orchestrator.write_task_artifacts",
                         return_value=_passing_validation_tuple(),
                     ):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
@@ -430,10 +430,10 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
                 )
 
             started_at = time.perf_counter()
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                with patch("swallow.orchestrator._execute_task_card", side_effect=execute_card):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", side_effect=execute_card):
                     with patch(
-                        "swallow.orchestrator.write_task_artifacts",
+                        "swallow.orchestration.orchestrator.write_task_artifacts",
                         return_value=_passing_validation_tuple(),
                     ):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")

@@ -7,13 +7,13 @@ from pathlib import Path
 
 import pytest
 
-import swallow.router as router
-from swallow.identity import local_actor
-from swallow.paths import artifacts_dir
-from swallow.router import route_by_name
-from swallow.sqlite_store import APPEND_ONLY_TABLES, SqliteTaskStore
-from swallow.store import write_artifact
-from swallow.synthesis import _MPS_DEFAULT_HTTP_ROUTE, _route_is_path_a
+import swallow.provider_router.router as router
+from swallow.surface_tools.identity import local_actor
+from swallow.surface_tools.paths import artifacts_dir
+from swallow.provider_router.router import route_by_name
+from swallow.truth_governance.sqlite_store import APPEND_ONLY_TABLES, SqliteTaskStore
+from swallow.truth_governance.store import write_artifact
+from swallow.orchestration.synthesis import _MPS_DEFAULT_HTTP_ROUTE, _route_is_path_a
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -55,15 +55,15 @@ ACTOR_SEMANTIC_KWARGS = frozenset(
 )
 LOCAL_EXECUTOR_IDENTITY_CALLS = {"ExecutorResult", "RouteSpec"}
 EXECUTION_PLANE_FILES = {
-    "src/swallow/executor.py",
-    "src/swallow/validator.py",
-    "src/swallow/validator_agent.py",
-    "src/swallow/librarian_executor.py",
-    "src/swallow/literature_specialist.py",
-    "src/swallow/quality_reviewer.py",
-    "src/swallow/consistency_reviewer.py",
-    "src/swallow/meta_optimizer.py",
-    "src/swallow/ingestion/pipeline.py",
+    "src/swallow/orchestration/executor.py",
+    "src/swallow/orchestration/validator.py",
+    "src/swallow/orchestration/validator_agent.py",
+    "src/swallow/surface_tools/librarian_executor.py",
+    "src/swallow/surface_tools/literature_specialist.py",
+    "src/swallow/surface_tools/quality_reviewer.py",
+    "src/swallow/surface_tools/consistency_reviewer.py",
+    "src/swallow/surface_tools/meta_optimizer.py",
+    "src/swallow/knowledge_retrieval/ingestion/pipeline.py",
 }
 TASK_STATE_WRITE_CALLS = {"save_state"}
 TASK_SQL_WRITE_RE = re.compile(r"\b(INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO\s+)?(?:tasks|task_records)\b", re.IGNORECASE)
@@ -166,7 +166,7 @@ def _find_protected_writer_uses(*, protected_names: set[str], allowed_files: set
     Phase 61 guards canonical knowledge / route metadata / policy main writes.
     Tests are not scanned because fixture setup may call low-level store helpers
     directly. The bottom-layer definition files are whitelisted; all other
-    production callers must go through `swallow.governance.apply_proposal`.
+    production callers must go through `swallow.truth_governance.governance.apply_proposal`.
     """
 
     violations: list[str] = []
@@ -196,9 +196,9 @@ def test_canonical_write_only_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"append_canonical_record", "persist_wiki_entry_from_record"},
         allowed_files={
-            "src/swallow/truth/knowledge.py",
-            "src/swallow/store.py",
-            "src/swallow/knowledge_store.py",
+            "src/swallow/truth_governance/truth/knowledge.py",
+            "src/swallow/truth_governance/store.py",
+            "src/swallow/knowledge_retrieval/knowledge_store.py",
         },
     )
 
@@ -214,8 +214,8 @@ def test_route_metadata_writes_only_via_apply_proposal() -> None:
             "save_route_capability_profiles",
         },
         allowed_files={
-            "src/swallow/truth/route.py",
-            "src/swallow/router.py",
+            "src/swallow/truth_governance/truth/route.py",
+            "src/swallow/provider_router/router.py",
         },
     )
 
@@ -226,7 +226,7 @@ def test_no_hardcoded_local_actor_outside_identity_module() -> None:
     violations: list[str] = []
     for path in _src_py_files():
         rel_path = _relative(path)
-        if rel_path == "src/swallow/identity.py":
+        if rel_path == "src/swallow/surface_tools/identity.py":
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
         for node in ast.walk(tree):
@@ -248,7 +248,7 @@ def test_no_absolute_path_in_truth_writes() -> None:
     violations: list[str] = []
     for path in _src_py_files():
         rel_path = _relative(path)
-        if rel_path == "src/swallow/workspace.py":
+        if rel_path == "src/swallow/surface_tools/workspace.py":
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
         for node in ast.walk(tree):
@@ -280,14 +280,14 @@ def test_only_apply_proposal_calls_private_writers() -> None:
             "save_mps_policy",
         },
         allowed_files={
-            "src/swallow/store.py",
-            "src/swallow/knowledge_store.py",
-            "src/swallow/router.py",
-            "src/swallow/consistency_audit.py",
-            "src/swallow/mps_policy_store.py",
-            "src/swallow/truth/knowledge.py",
-            "src/swallow/truth/route.py",
-            "src/swallow/truth/policy.py",
+            "src/swallow/truth_governance/store.py",
+            "src/swallow/knowledge_retrieval/knowledge_store.py",
+            "src/swallow/provider_router/router.py",
+            "src/swallow/surface_tools/consistency_audit.py",
+            "src/swallow/surface_tools/mps_policy_store.py",
+            "src/swallow/truth_governance/truth/knowledge.py",
+            "src/swallow/truth_governance/truth/route.py",
+            "src/swallow/truth_governance/truth/policy.py",
         },
     )
 
@@ -298,13 +298,13 @@ def test_mps_policy_writes_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"save_mps_policy"},
         allowed_files={
-            "src/swallow/mps_policy_store.py",
-            "src/swallow/truth/policy.py",
+            "src/swallow/surface_tools/mps_policy_store.py",
+            "src/swallow/truth_governance/truth/policy.py",
         },
     )
 
     assert violations == []
-    source = (SRC_ROOT / "mps_policy_store.py").read_text(encoding="utf-8")
+    source = (SRC_ROOT / "surface_tools" / "mps_policy_store.py").read_text(encoding="utf-8")
     assert "mps_policy_path" in source
     assert '".swl"' not in source
 
@@ -312,7 +312,7 @@ def test_mps_policy_writes_via_apply_proposal() -> None:
 def test_only_governance_calls_repository_write_methods() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"_promote_canonical", "_apply_metadata_change", "_apply_policy_change"},
-        allowed_files={"src/swallow/governance.py"},
+        allowed_files={"src/swallow/truth_governance/governance.py"},
     )
 
     assert violations == []
@@ -330,14 +330,14 @@ def test_no_module_outside_governance_imports_store_writes() -> None:
         "save_mps_policy",
     }
     allowed_files = {
-        "src/swallow/consistency_audit.py",
-        "src/swallow/knowledge_store.py",
-        "src/swallow/mps_policy_store.py",
-        "src/swallow/router.py",
-        "src/swallow/store.py",
-        "src/swallow/truth/knowledge.py",
-        "src/swallow/truth/policy.py",
-        "src/swallow/truth/route.py",
+        "src/swallow/surface_tools/consistency_audit.py",
+        "src/swallow/knowledge_retrieval/knowledge_store.py",
+        "src/swallow/surface_tools/mps_policy_store.py",
+        "src/swallow/provider_router/router.py",
+        "src/swallow/truth_governance/store.py",
+        "src/swallow/truth_governance/truth/knowledge.py",
+        "src/swallow/truth_governance/truth/policy.py",
+        "src/swallow/truth_governance/truth/route.py",
     }
     violations: list[str] = []
     for path in _src_py_files():
@@ -381,9 +381,9 @@ def test_state_transitions_only_via_orchestrator() -> None:
     """Task state persistence is limited to the store layer and Orchestrator."""
 
     allowed_files = {
-        "src/swallow/orchestrator.py",
-        "src/swallow/sqlite_store.py",
-        "src/swallow/store.py",
+        "src/swallow/orchestration/orchestrator.py",
+        "src/swallow/truth_governance/sqlite_store.py",
+        "src/swallow/truth_governance/store.py",
     }
     violations: list[str] = []
     for path in _src_py_files():
@@ -406,9 +406,9 @@ def test_validator_returns_verdict_only() -> None:
     """Validator code may construct verdicts but must not write Truth directly."""
 
     validator_files = {
-        "src/swallow/validator.py",
-        "src/swallow/validator_agent.py",
-        "src/swallow/consistency_reviewer.py",
+        "src/swallow/orchestration/validator.py",
+        "src/swallow/orchestration/validator_agent.py",
+        "src/swallow/surface_tools/consistency_reviewer.py",
     }
     violations: list[str] = []
     verdict_returns: list[str] = []
@@ -444,21 +444,21 @@ def test_route_override_only_set_by_operator() -> None:
             if isinstance(node, ast.Assign | ast.AnnAssign):
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 for target in targets:
-                    if "route_override_hint" in _target_names(target) and rel_path != "src/swallow/cli.py":
+                    if "route_override_hint" in _target_names(target) and rel_path != "src/swallow/surface_tools/cli.py":
                         violations.append(f"{rel_path}:{node.lineno} writes route_override_hint")
             elif isinstance(node, ast.Call):
                 for keyword in node.keywords:
-                    if keyword.arg == "executor_override" and rel_path not in {
-                        "src/swallow/cli.py",
-                        "src/swallow/router.py",
-                    }:
-                        violations.append(f"{rel_path}:{keyword.lineno} sets executor_override")
-                    if keyword.arg == "route_mode_override" and rel_path not in {
-                        "src/swallow/cli.py",
-                        "src/swallow/orchestrator.py",
-                        "src/swallow/router.py",
-                    }:
-                        violations.append(f"{rel_path}:{keyword.lineno} sets route_mode_override")
+                        if keyword.arg == "executor_override" and rel_path not in {
+                            "src/swallow/surface_tools/cli.py",
+                            "src/swallow/provider_router/router.py",
+                        }:
+                            violations.append(f"{rel_path}:{keyword.lineno} sets executor_override")
+                        if keyword.arg == "route_mode_override" and rel_path not in {
+                            "src/swallow/surface_tools/cli.py",
+                            "src/swallow/orchestration/orchestrator.py",
+                            "src/swallow/provider_router/router.py",
+                        }:
+                            violations.append(f"{rel_path}:{keyword.lineno} sets route_mode_override")
 
     assert violations == []
 
@@ -468,14 +468,14 @@ def test_path_b_does_not_call_provider_router() -> None:
 
     assert hasattr(router, "fallback_route_for")
     selection_calls = {"select_route", "route_by_name", "fallback_route_for", "route_for_mode"}
-    path = SRC_ROOT / "executor.py"
+    path = SRC_ROOT / "orchestration" / "executor.py"
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=_relative(path))
     violations: list[str] = []
 
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             imported = {alias.name for alias in node.names}
-            if node.module == "router" and imported & selection_calls:
+            if node.module in {"router", "swallow.provider_router.router"} and imported & selection_calls:
                 for name in sorted(imported & selection_calls):
                     violations.append(f"{_relative(path)}:{node.lineno} imports Provider Router selection function {name}")
         elif isinstance(node, ast.Call) and _call_name(node) in selection_calls:
@@ -545,7 +545,7 @@ def test_specialist_internal_llm_calls_go_through_router() -> None:
 
     for path in _src_py_files():
         rel_path = _relative(path)
-        if rel_path == "src/swallow/_http_helpers.py":
+        if rel_path == "src/swallow/provider_router/_http_helpers.py":
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
         httpx_client_names = _collect_httpx_client_names(tree)
@@ -567,7 +567,7 @@ def test_specialist_internal_llm_calls_go_through_router() -> None:
                     url_arg = _post_call_url_arg(node)
                     if url_arg is not None and _chat_completion_url_expression(url_arg):
                         current_function = function_stack[-1] if function_stack else ""
-                        if rel_path != "src/swallow/router.py" or current_function != "invoke_completion":
+                        if rel_path != "src/swallow/provider_router/router.py" or current_function != "invoke_completion":
                             violations.append(f"{rel_path}:{node.lineno} calls chat-completion HTTP directly")
                 self.generic_visit(node)
 
@@ -720,7 +720,7 @@ def test_artifact_path_resolved_from_id_only(tmp_path: Path) -> None:
 
 def test_ui_backend_only_calls_governance_functions() -> None:
     violations: list[str] = []
-    for path in sorted((SRC_ROOT / "web").rglob("*.py")):
+    for path in sorted((SRC_ROOT / "surface_tools" / "web").rglob("*.py")):
         rel_path = _relative(path)
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
         for node in ast.walk(tree):
@@ -735,7 +735,7 @@ def test_ui_backend_only_calls_governance_functions() -> None:
 
 
 def test_mps_no_chat_message_passing() -> None:
-    tree = ast.parse((SRC_ROOT / "synthesis.py").read_text(encoding="utf-8"))
+    tree = ast.parse((SRC_ROOT / "orchestration" / "synthesis.py").read_text(encoding="utf-8"))
     violations: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.keyword) and node.arg == "messages":
@@ -747,11 +747,11 @@ def test_mps_no_chat_message_passing() -> None:
 
 
 def test_synthesis_uses_provider_router() -> None:
-    tree = ast.parse((SRC_ROOT / "synthesis.py").read_text(encoding="utf-8"))
+    tree = ast.parse((SRC_ROOT / "orchestration" / "synthesis.py").read_text(encoding="utf-8"))
     imported_names: set[str] = set()
     direct_route_spec_calls: list[str] = []
     for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module == "router":
+        if isinstance(node, ast.ImportFrom) and node.module in {"router", "swallow.provider_router.router"}:
             imported_names.update(alias.name for alias in node.names)
         if isinstance(node, ast.Call):
             func = node.func
@@ -770,7 +770,7 @@ def test_mps_default_route_is_path_a() -> None:
 
 
 def test_synthesis_clones_state_per_call() -> None:
-    source = (SRC_ROOT / "synthesis.py").read_text(encoding="utf-8")
+    source = (SRC_ROOT / "orchestration" / "synthesis.py").read_text(encoding="utf-8")
 
     assert "_participant_state_for_call" in source
     assert "replace(" in source
@@ -779,7 +779,7 @@ def test_synthesis_clones_state_per_call() -> None:
 
 
 def test_synthesis_module_does_not_call_submit_staged_candidate() -> None:
-    tree = ast.parse((SRC_ROOT / "synthesis.py").read_text(encoding="utf-8"))
+    tree = ast.parse((SRC_ROOT / "orchestration" / "synthesis.py").read_text(encoding="utf-8"))
     violations: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):

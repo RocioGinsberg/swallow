@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.ingestion.pipeline import (
+from swallow.knowledge_retrieval.ingestion.pipeline import (
     EXTERNAL_SESSION_SOURCE_KIND,
     build_ingestion_report,
     build_ingestion_summary,
@@ -16,7 +16,7 @@ from swallow.ingestion.pipeline import (
     run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
-from swallow.staged_knowledge import load_staged_candidates
+from swallow.knowledge_retrieval.staged_knowledge import load_staged_candidates
 
 
 class IngestionPipelineTest(unittest.TestCase):

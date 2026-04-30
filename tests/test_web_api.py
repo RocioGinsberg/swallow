@@ -8,11 +8,11 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.orchestrator import create_task, run_task
-from swallow.models import Event
-from swallow.paths import task_root
-from swallow.store import append_event, load_state, save_state
-from swallow.web.api import (
+from swallow.orchestration.orchestrator import create_task, run_task
+from swallow.orchestration.models import Event
+from swallow.surface_tools.paths import task_root
+from swallow.truth_governance.store import append_event, load_state, save_state
+from swallow.surface_tools.web.api import (
     build_task_artifact_diff_payload,
     build_task_artifact_payload,
     build_task_artifacts_payload,
@@ -39,7 +39,15 @@ def _tree_checksum(path: Path) -> str:
 
 class WebApiPayloadsTest(unittest.TestCase):
     def test_control_center_static_index_contains_dashboard_sections(self) -> None:
-        index_path = Path(__file__).resolve().parents[1] / "src" / "swallow" / "web" / "static" / "index.html"
+        index_path = (
+            Path(__file__).resolve().parents[1]
+            / "src"
+            / "swallow"
+            / "surface_tools"
+            / "web"
+            / "static"
+            / "index.html"
+        )
         payload = index_path.read_text(encoding="utf-8")
 
         self.assertIn("Swallow Control Center", payload)

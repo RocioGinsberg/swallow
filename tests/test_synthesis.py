@@ -4,12 +4,12 @@ import json
 
 import pytest
 
-from swallow.governance import OperatorToken, ProposalTarget, apply_proposal, register_mps_policy_proposal
-from swallow.models import ExecutorResult, SynthesisConfig, SynthesisParticipant, TaskState
-from swallow.router import resolve_fallback_chain
-from swallow.paths import artifacts_dir
-from swallow.store import load_events, load_state, save_state
-from swallow.synthesis import (
+from swallow.truth_governance.governance import OperatorToken, ProposalTarget, apply_proposal, register_mps_policy_proposal
+from swallow.orchestration.models import ExecutorResult, SynthesisConfig, SynthesisParticipant, TaskState
+from swallow.provider_router.router import resolve_fallback_chain
+from swallow.surface_tools.paths import artifacts_dir
+from swallow.truth_governance.store import load_events, load_state, save_state
+from swallow.orchestration.synthesis import (
     _participant_state_for_call,
     _resolve_participant_route,
     run_synthesis,
@@ -67,7 +67,7 @@ def test_mps_participants_within_policy_cap(tmp_path, monkeypatch) -> None:
         value=1,
     )
     apply_proposal("mps-limit", OperatorToken(source="cli"), ProposalTarget.POLICY)
-    monkeypatch.setattr("swallow.synthesis.run_http_executor", _mock_http_executor)
+    monkeypatch.setattr("swallow.orchestration.synthesis.run_http_executor", _mock_http_executor)
 
     with pytest.raises(ValueError, match="exceed mps_participant_limit 1"):
         run_synthesis(tmp_path, state, _config(participant_count=2))
@@ -92,7 +92,7 @@ def test_mps_participant_state_gets_route_specific_fallback_chain() -> None:
 def test_mps_arbiter_artifact_required(tmp_path, monkeypatch) -> None:
     state = _state()
     save_state(tmp_path, state)
-    monkeypatch.setattr("swallow.synthesis.run_http_executor", _mock_http_executor)
+    monkeypatch.setattr("swallow.orchestration.synthesis.run_http_executor", _mock_http_executor)
 
     result = run_synthesis(tmp_path, state, _config(participant_count=2, rounds=2))
 
@@ -121,7 +121,7 @@ def test_mps_arbiter_artifact_required(tmp_path, monkeypatch) -> None:
 def test_synthesis_run_rejects_if_arbitration_exists(tmp_path, monkeypatch) -> None:
     state = _state()
     save_state(tmp_path, state)
-    monkeypatch.setattr("swallow.synthesis.run_http_executor", _mock_http_executor)
+    monkeypatch.setattr("swallow.orchestration.synthesis.run_http_executor", _mock_http_executor)
     config = _config()
     run_synthesis(tmp_path, state, config)
 
@@ -133,13 +133,14 @@ def test_synthesis_does_not_mutate_main_task_state(tmp_path, monkeypatch) -> Non
     state = _state()
     save_state(tmp_path, state)
     before = state.to_dict()
-    monkeypatch.setattr("swallow.synthesis.run_http_executor", _mock_http_executor)
+    persisted_before = load_state(tmp_path, state.task_id).to_dict()
+    monkeypatch.setattr("swallow.orchestration.synthesis.run_http_executor", _mock_http_executor)
 
     run_synthesis(tmp_path, state, _config())
 
     assert state.to_dict() == before
     persisted = load_state(tmp_path, state.task_id)
-    assert persisted.to_dict() == before
+    assert persisted.to_dict() == persisted_before
 
 
 def test_mps_aborts_on_participant_failure(tmp_path, monkeypatch) -> None:
@@ -154,7 +155,7 @@ def test_mps_aborts_on_participant_failure(tmp_path, monkeypatch) -> None:
             message="upstream unavailable",
         )
 
-    monkeypatch.setattr("swallow.synthesis.run_http_executor", failing_http_executor)
+    monkeypatch.setattr("swallow.orchestration.synthesis.run_http_executor", failing_http_executor)
 
     with pytest.raises(RuntimeError, match="participant participant-1 round 1"):
         run_synthesis(tmp_path, state, _config())

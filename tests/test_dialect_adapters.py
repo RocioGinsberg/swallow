@@ -8,10 +8,10 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.dialect_data import collect_prompt_data
-from swallow.executor import build_formatted_executor_prompt, resolve_dialect_name
-from swallow.knowledge_objects import build_knowledge_objects
-from swallow.models import RetrievalItem, TaskState
+from swallow.knowledge_retrieval.dialect_data import collect_prompt_data
+from swallow.orchestration.executor import build_formatted_executor_prompt, resolve_dialect_name
+from swallow.knowledge_retrieval.knowledge_objects import build_knowledge_objects
+from swallow.orchestration.models import RetrievalItem, TaskState
 
 
 class DialectAdaptersTest(unittest.TestCase):

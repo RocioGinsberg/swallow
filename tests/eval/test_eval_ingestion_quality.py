@@ -8,8 +8,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from swallow.ingestion.filters import filter_conversation_turns
-from swallow.ingestion.parsers import parse_ingestion_bytes
+from swallow.knowledge_retrieval.ingestion.filters import filter_conversation_turns
+from swallow.knowledge_retrieval.ingestion.parsers import parse_ingestion_bytes
 
 
 pytestmark = pytest.mark.eval

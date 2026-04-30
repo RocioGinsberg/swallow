@@ -30,21 +30,25 @@
 - latest_main_checkpoint_phase: `Phase 66`
 - latest_executed_public_tag: `v1.4.0`
 - pending_release_tag: `none`
-- current_working_phase: `Phase 67 closeout pending merge`
-- checkpoint_type: `phase67_feature_branch_merge_gate`
+- current_working_phase: `Phase 67 Candidate P pending review`
+- checkpoint_type: `phase67_candidate_p_review_gate`
 - active_branch: `feat/phase67-hygiene-io-cli-cleanup`
 - last_checked: `2026-04-30`
 
 说明：
 
 - `main` 最新稳定 checkpoint 仍是 Phase 66 merge:`596b54b merge: read-only code hygiene audit of project`。
-- 当前工作分支为 `feat/phase67-hygiene-io-cli-cleanup`,Phase 67 实现与 closeout 已完成,等待 Human merge gate。
+- 当前工作分支为 `feat/phase67-hygiene-io-cli-cleanup`,Phase 67 L/M/N closeout 已完成;Human 追加要求在 merge 前实现 Candidate P module reorganization,当前等待 Human review / manual commit。
 - Phase 67 完成 Phase 66 audit 衍生的 L+M+N consolidated cleanup:
   - M1:7 项 hygiene quick-win。
   - M2:`_io_helpers.py` + JSON / JSONL helper ownership。
   - M3:read-only CLI artifact/report printer dispatch table。
+- Candidate P module reorganization 已完成:
+  - `src/swallow/` root Python files reduced to `__init__.py` + `_io_helpers.py`。
+  - runtime code moved into `truth_governance/`, `orchestration/`, `provider_router/`, `knowledge_retrieval/`, `surface_tools/`。
+  - `swl` entry point now targets `swallow.surface_tools.cli:main`。
 - Phase 67 final review verdict:`APPROVE`(`docs/plans/phase67/review_comments_block_n.md`)。
-- Phase 67 final verification:`.venv/bin/python -m pytest -q` → `610 passed, 8 deselected, 10 subtests passed`。
+- Candidate P final verification:`.venv/bin/python -m pytest -q` → `610 passed, 8 deselected, 10 subtests passed`。
 - Phase 67 未修改 `docs/design/`。
 - 最新公开 tag 仍为 `v1.4.0`;Phase 67 review 建议 cleanup phase 不打 release tag。
 
@@ -57,14 +61,13 @@
 - active_branch: `feat/phase67-hygiene-io-cli-cleanup`
 - active_track: `Refactor / Hygiene + Design / Refactor + Refactor / Surface`
 - active_phase: `Phase 67`
-- active_slice: `Closeout`
-- workflow_status: `phase67_implementation_complete_pending_merge_gate`
+- active_slice: `Candidate P / Module Reorganization`
+- workflow_status: `phase67_candidate_p_complete_pending_human_review`
 
 说明：
 
-- Phase 67 已完成实现与 closeout,不应继续扩张 L/M/N cleanup scope。
-- 当前默认动作是 Human review closeout diff,提交 closeout materials,然后进入 PR / merge gate。
-- `docs/roadmap.md` 当前存在 Claude-owned uncommitted roadmap-updater changes;Codex closeout 未修改该文件。
+- Candidate P 已完成实现和验证,不应继续扩大到 Candidate O / R 或其他 roadmap 项。
+- 当前默认动作是 Human review Candidate P diff,提交 module reorganization milestone,然后进入 PR / merge gate。
 - merge 后再进行 post-merge state sync / roadmap factual update。
 
 ---
@@ -81,9 +84,10 @@
 6. `docs/design/INVARIANTS.md`
 7. `docs/plans/phase66/closeout.md`
 8. `docs/plans/phase67/closeout.md`
-9. `docs/plans/phase67/review_comments_block_n.md`
-10. `docs/concerns_backlog.md`
-11. `docs/roadmap.md`
+9. `docs/plans/phase67/codex_review_notes_candidate_p.md`
+10. `docs/plans/phase67/review_comments_block_n.md`
+11. `docs/concerns_backlog.md`
+12. `docs/roadmap.md`
 
 仅在需要时再读取：
 
@@ -124,7 +128,7 @@ git status --short --branch
 .venv/bin/python -m pytest -q
 ```
 
-Phase 67 最近一次 closeout 验证：
+Phase 67 Candidate P 最近一次验证：
 
 ```bash
 git diff --check
@@ -135,6 +139,9 @@ git diff -- docs/design
 
 .venv/bin/python -m pytest -q
 # 610 passed, 8 deselected, 10 subtests passed
+
+.venv/bin/python -m swallow.surface_tools.cli --help
+# passed
 ```
 
 M3 manual verification:
@@ -151,11 +158,10 @@ result: matched 6
 ## 当前已知边界
 
 - `v1.4.0` tag 已完成；不要删除或重打该 tag。
-- Phase 67 已完成实现与 closeout;不要回头扩张 Phase 67 cleanup scope。
+- Phase 67 Candidate P 已完成实现与验证;不要继续扩大到 Candidate O / R 或其他 roadmap 项。
 - Phase 67 review 建议不打新 release tag,除非 Human 另行要求并经过 Claude tag assessment。
 - `docs/design/INVARIANTS.md` / `docs/design/DATA_MODEL.md` / `docs/design/KNOWLEDGE.md` 在 Phase 67 中未修改。
 - Phase 66 / 67 carry-forward known gaps 仍以 `docs/concerns_backlog.md` 与 phase closeout 为权威来源。
-- `docs/roadmap.md` 当前有 Claude-owned uncommitted roadmap-updater changes;不要在 Codex closeout commit 中混入未确认 roadmap edits,除非 Human 明确要求。
 - 不主动推进多租户、分布式 worker、云端 truth 镜像或无边界 UI 扩张。
 - 不绕过 `apply_proposal` 直接写 canonical / route / policy。
 - README 当前为单文件双语结构;不要再要求同步不存在的 `README.zh-CN.md`。

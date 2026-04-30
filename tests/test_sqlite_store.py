@@ -11,15 +11,15 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.execution_budget_policy import calculate_task_token_cost
-from swallow.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
-from swallow.meta_optimizer import build_meta_optimizer_snapshot
-from swallow.models import Event, TaskState
-from swallow.orchestrator import create_task, run_task
-from swallow.paths import swallow_db_path
-from swallow.sqlite_store import SqliteTaskStore
-import swallow.store as store_module
-from swallow.store import (
+from swallow.orchestration.execution_budget_policy import calculate_task_token_cost
+from swallow.knowledge_retrieval.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
+from swallow.surface_tools.meta_optimizer import build_meta_optimizer_snapshot
+from swallow.orchestration.models import Event, TaskState
+from swallow.orchestration.orchestrator import create_task, run_task
+from swallow.surface_tools.paths import swallow_db_path
+from swallow.truth_governance.sqlite_store import SqliteTaskStore
+import swallow.truth_governance.store as store_module
+from swallow.truth_governance.store import (
     append_event,
     iter_recent_task_events,
     iter_task_states,
@@ -31,7 +31,7 @@ from swallow.store import (
     save_knowledge_objects,
     save_state,
 )
-from swallow.web.api import build_task_events_payload, build_tasks_payload
+from swallow.surface_tools.web.api import build_task_events_payload, build_tasks_payload
 
 
 def _sqlite_state(task_id: str = "sqlite-task") -> TaskState:
@@ -506,7 +506,7 @@ class SqliteTaskStoreTest(unittest.TestCase):
                 loaded_paths.append(path.parent.name)
                 return original_load_json_lines(path)
 
-            with patch("swallow.store._load_json_lines", side_effect=_spy_load_json_lines):
+            with patch("swallow.truth_governance.store._load_json_lines", side_effect=_spy_load_json_lines):
                 recent = iter_recent_task_events(base_dir, 2)
 
         self.assertEqual([task_id for task_id, _events in recent], ["file-only-task", "sqlite-task-2"])

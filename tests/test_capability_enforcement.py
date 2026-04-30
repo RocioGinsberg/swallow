@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.capability_enforcement import enforce_capability_constraints
+from swallow.provider_router.capability_enforcement import enforce_capability_constraints
 
 
 class CapabilityEnforcementTest(unittest.TestCase):

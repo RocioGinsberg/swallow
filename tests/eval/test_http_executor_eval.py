@@ -9,9 +9,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from swallow.executor import build_formatted_executor_prompt, run_executor_inline
-from swallow.models import TaskState
-from swallow.router import select_route
+from swallow.orchestration.executor import build_formatted_executor_prompt, run_executor_inline
+from swallow.orchestration.models import TaskState
+from swallow.provider_router.router import select_route
 
 
 pytestmark = pytest.mark.eval
@@ -104,8 +104,8 @@ def test_http_executor_eval_route_and_dialect_alignment_matrix() -> None:
 def test_http_executor_eval_fallback_matrix_reaches_local_summary_when_live_backends_are_unavailable() -> None:
     selected_state = _selected_http_state("glm")
 
-    with patch("swallow.executor.httpx.post", return_value=_EvalHTTPResponse(status_code=503, text="gateway down")):
-        with patch("swallow.executor.shutil.which", return_value=None):
+    with patch("swallow.orchestration.executor.httpx.post", return_value=_EvalHTTPResponse(status_code=503, text="gateway down")):
+        with patch("swallow.orchestration.executor.shutil.which", return_value=None):
             result = run_executor_inline(selected_state, [])
 
     assert result.status == "completed"

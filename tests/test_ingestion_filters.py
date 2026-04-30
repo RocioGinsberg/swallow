@@ -6,8 +6,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.ingestion.filters import filter_conversation_turns, merge_conversation_turns
-from swallow.ingestion.parsers import ConversationTurn
+from swallow.knowledge_retrieval.ingestion.filters import filter_conversation_turns, merge_conversation_turns
+from swallow.knowledge_retrieval.ingestion.parsers import ConversationTurn
 
 
 class IngestionFiltersTest(unittest.TestCase):

@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 
-from swallow.cli import main
-from swallow.consistency_audit import load_audit_trigger_policy
-from swallow.governance import (
+from swallow.surface_tools.cli import main
+from swallow.surface_tools.consistency_audit import load_audit_trigger_policy
+from swallow.truth_governance.governance import (
     OperatorToken,
     ProposalTarget,
     apply_proposal,
@@ -17,9 +17,9 @@ from swallow.governance import (
     register_policy_proposal,
     register_route_metadata_proposal,
 )
-from swallow.models import AuditTriggerPolicy, RouteCapabilities, RouteSpec, TaxonomyProfile
-from swallow.paths import route_registry_path, swallow_db_path
-from swallow.router import (
+from swallow.orchestration.models import AuditTriggerPolicy, RouteCapabilities, RouteSpec, TaxonomyProfile
+from swallow.surface_tools.paths import route_registry_path, swallow_db_path
+from swallow.provider_router.router import (
     apply_route_registry,
     load_default_route_policy,
     load_default_route_registry,
@@ -30,8 +30,8 @@ from swallow.router import (
     route_by_name,
     save_route_registry,
 )
-from swallow.sqlite_store import get_connection
-from swallow.mps_policy_store import MPS_ROUND_LIMIT_KIND
+from swallow.truth_governance.sqlite_store import get_connection
+from swallow.surface_tools.mps_policy_store import MPS_ROUND_LIMIT_KIND
 
 
 def _custom_route(
@@ -279,7 +279,7 @@ def test_route_metadata_transaction_rolls_back_sqlite_audit_and_in_memory(tmp_pa
         },
     )
 
-    with patch("swallow.truth.route.save_route_capability_profiles", side_effect=RuntimeError("injected")):
+    with patch("swallow.truth_governance.truth.route.save_route_capability_profiles", side_effect=RuntimeError("injected")):
         with pytest.raises(RuntimeError, match="injected"):
             apply_proposal("route-rollback", OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
 
@@ -297,7 +297,7 @@ def test_route_metadata_transaction_rolls_back_when_registry_save_fails_before_u
         route_registry=_modified_default_registry(),
     )
 
-    with patch("swallow.truth.route.save_route_registry", side_effect=RuntimeError("registry failed")):
+    with patch("swallow.truth_governance.truth.route.save_route_registry", side_effect=RuntimeError("registry failed")):
         with pytest.raises(RuntimeError, match="registry failed"):
             apply_proposal("route-registry-before-upsert", OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
 
@@ -314,7 +314,7 @@ def test_route_metadata_transaction_rolls_back_when_policy_save_fails_after_regi
         route_policy=_modified_default_route_policy(),
     )
 
-    with patch("swallow.truth.route.save_route_policy", side_effect=RuntimeError("policy failed")):
+    with patch("swallow.truth_governance.truth.route.save_route_policy", side_effect=RuntimeError("policy failed")):
         with pytest.raises(RuntimeError, match="policy failed"):
             apply_proposal("route-policy-after-registry", OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
 
@@ -331,7 +331,7 @@ def test_route_metadata_transaction_rolls_back_when_weights_save_fails_after_pol
         route_weights={"local-codex": 0.22},
     )
 
-    with patch("swallow.truth.route.save_route_weights", side_effect=RuntimeError("weights failed")):
+    with patch("swallow.truth_governance.truth.route.save_route_weights", side_effect=RuntimeError("weights failed")):
         with pytest.raises(RuntimeError, match="weights failed"):
             apply_proposal("route-weights-after-policy", OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
 
@@ -343,7 +343,7 @@ def test_route_metadata_transaction_rolls_back_when_capability_apply_fails_after
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import swallow.truth.route as route_truth
+    import swallow.truth_governance.truth.route as route_truth
 
     apply_route_registry(tmp_path)
     monkeypatch.setattr(
@@ -373,7 +373,7 @@ def test_route_metadata_transaction_rolls_back_when_in_memory_weight_apply_fails
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import swallow.truth.route as route_truth
+    import swallow.truth_governance.truth.route as route_truth
 
     apply_route_registry(tmp_path)
     monkeypatch.setattr(
@@ -398,7 +398,7 @@ def test_route_metadata_transaction_rolls_back_when_audit_insert_fails_after_ins
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import swallow.truth.route as route_truth
+    import swallow.truth_governance.truth.route as route_truth
 
     apply_route_registry(tmp_path)
     monkeypatch.setattr(
@@ -426,7 +426,7 @@ def test_route_metadata_commit_survives_caller_exception_after_commit(tmp_path: 
         route_weights={"local-codex": 0.31},
     )
 
-    with patch("swallow.governance._emit_event", side_effect=RuntimeError("caller failed")):
+    with patch("swallow.truth_governance.governance._emit_event", side_effect=RuntimeError("caller failed")):
         with pytest.raises(RuntimeError, match="caller failed"):
             apply_proposal("route-caller-after-commit", OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
 
@@ -446,8 +446,8 @@ def test_route_review_artifact_write_failure_logs_warning_after_sqlite_commit(
         review_path=review_path,
     )
 
-    with patch("swallow.meta_optimizer._write_json", side_effect=OSError("disk full")):
-        with caplog.at_level("WARNING", logger="swallow.governance"):
+    with patch("swallow.surface_tools.meta_optimizer._write_json", side_effect=OSError("disk full")):
+        with caplog.at_level("WARNING", logger="swallow.truth_governance.governance"):
             result = apply_proposal(
                 "route-review-artifact-failure",
                 OperatorToken(source="cli"),
@@ -490,7 +490,7 @@ def test_policy_transaction_rolls_back_policy_record_and_audit(tmp_path: Path) -
         audit_trigger_policy=policy,
     )
 
-    with patch("swallow.truth.policy._write_policy_change_log", side_effect=RuntimeError("audit failed")):
+    with patch("swallow.truth_governance.truth.policy._write_policy_change_log", side_effect=RuntimeError("audit failed")):
         with pytest.raises(RuntimeError, match="audit failed"):
             apply_proposal("policy-rollback", OperatorToken(source="cli"), ProposalTarget.POLICY)
 
@@ -502,7 +502,7 @@ def test_policy_transaction_rolls_back_when_audit_trigger_save_fails_after_upser
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import swallow.truth.policy as policy_truth
+    import swallow.truth_governance.truth.policy as policy_truth
 
     policy = AuditTriggerPolicy(enabled=True, trigger_on_degraded=False, auditor_route="http-qwen")
     monkeypatch.setattr(
@@ -527,7 +527,7 @@ def test_policy_transaction_rolls_back_when_mps_save_fails_after_upsert(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import swallow.truth.policy as policy_truth
+    import swallow.truth_governance.truth.policy as policy_truth
 
     monkeypatch.setattr(
         policy_truth,
@@ -552,7 +552,7 @@ def test_policy_transaction_rolls_back_when_after_payload_capture_fails_after_up
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import swallow.truth.policy as policy_truth
+    import swallow.truth_governance.truth.policy as policy_truth
 
     state = {"calls": 0}
     original_payload_reader = policy_truth._policy_record_payload
@@ -583,7 +583,7 @@ def test_policy_transaction_rolls_back_when_audit_insert_fails_after_insert(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import swallow.truth.policy as policy_truth
+    import swallow.truth_governance.truth.policy as policy_truth
 
     policy = AuditTriggerPolicy(enabled=True, trigger_on_degraded=False, auditor_route="http-qwen")
     monkeypatch.setattr(

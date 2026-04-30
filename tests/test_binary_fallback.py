@@ -9,15 +9,15 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import (
+from swallow.orchestration.models import (
     EVENT_EXECUTOR_COMPLETED,
     EVENT_EXECUTOR_FAILED,
     EVENT_TASK_EXECUTION_FALLBACK,
     ExecutorResult,
     ValidationResult,
 )
-from swallow.models import RetrievalItem, TaskCard, TaskState
-from swallow.orchestrator import _run_binary_fallback, create_task, run_task
+from swallow.orchestration.models import RetrievalItem, TaskCard, TaskState
+from swallow.orchestration.orchestrator import _run_binary_fallback, create_task, run_task
 
 
 def _load_json_lines(path: Path) -> list[dict[str, object]]:
@@ -93,13 +93,13 @@ class BinaryFallbackTest(unittest.TestCase):
                     dialect="plain_text",
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator.write_task_artifacts",
+                    "swallow.orchestration.orchestrator.write_task_artifacts",
                     return_value=_passing_validation_tuple(),
                 ):
-                    with patch("swallow.executor.run_cli_agent_executor", side_effect=fail_aider):
-                        with patch("swallow.executor.run_local_executor", side_effect=complete_local):
+                    with patch("swallow.orchestration.executor.run_cli_agent_executor", side_effect=fail_aider):
+                        with patch("swallow.orchestration.executor.run_local_executor", side_effect=complete_local):
                             final_state = run_task(tmp_path, created.task_id)
 
             events = _load_json_lines(task_dir / "events.jsonl")
@@ -183,13 +183,13 @@ class BinaryFallbackTest(unittest.TestCase):
                     stderr="fallback route still failed",
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator.write_task_artifacts",
+                    "swallow.orchestration.orchestrator.write_task_artifacts",
                     return_value=_passing_validation_tuple(),
                 ):
-                    with patch("swallow.executor.run_cli_agent_executor", side_effect=fail_aider):
-                        with patch("swallow.executor.run_local_executor", side_effect=fail_local):
+                    with patch("swallow.orchestration.executor.run_cli_agent_executor", side_effect=fail_aider):
+                        with patch("swallow.orchestration.executor.run_local_executor", side_effect=fail_local):
                             final_state = run_task(tmp_path, created.task_id)
 
             events = _load_json_lines(task_dir / "events.jsonl")

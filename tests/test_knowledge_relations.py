@@ -7,14 +7,14 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.canonical_registry import build_canonical_record
-from swallow.knowledge_relations import (
+from swallow.knowledge_retrieval.canonical_registry import build_canonical_record
+from swallow.knowledge_retrieval.knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
     create_knowledge_relation,
     delete_knowledge_relation,
     list_knowledge_relations,
 )
-from swallow.store import append_canonical_record, save_knowledge_objects
+from swallow.truth_governance.store import append_canonical_record, save_knowledge_objects
 
 
 class KnowledgeRelationsTest(unittest.TestCase):

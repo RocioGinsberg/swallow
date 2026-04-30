@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import httpx
 
-from swallow.executor import (
+from swallow.orchestration.executor import (
     AIDER_CONFIG,
     AsyncCLIAgentExecutor,
     CLAUDE_CODE_CONFIG,
@@ -30,15 +30,15 @@ from swallow.executor import (
     run_executor_inline,
     run_http_executor,
 )
-from swallow.consistency_reviewer import ConsistencyReviewerAgent, ConsistencyReviewerExecutor
-from swallow.ingestion_specialist import IngestionSpecialistAgent, IngestionSpecialistExecutor
-from swallow.librarian_executor import LibrarianAgent, LibrarianExecutor
-from swallow.literature_specialist import LiteratureSpecialistAgent, LiteratureSpecialistExecutor
-from swallow.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
-from swallow.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
-from swallow.router import resolve_fallback_chain
-from swallow.quality_reviewer import QualityReviewerAgent, QualityReviewerExecutor
-from swallow.validator_agent import ValidatorAgent, ValidatorExecutor
+from swallow.surface_tools.consistency_reviewer import ConsistencyReviewerAgent, ConsistencyReviewerExecutor
+from swallow.surface_tools.ingestion_specialist import IngestionSpecialistAgent, IngestionSpecialistExecutor
+from swallow.surface_tools.librarian_executor import LibrarianAgent, LibrarianExecutor
+from swallow.surface_tools.literature_specialist import LiteratureSpecialistAgent, LiteratureSpecialistExecutor
+from swallow.surface_tools.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
+from swallow.orchestration.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
+from swallow.provider_router.router import resolve_fallback_chain
+from swallow.surface_tools.quality_reviewer import QualityReviewerAgent, QualityReviewerExecutor
+from swallow.orchestration.validator_agent import ValidatorAgent, ValidatorExecutor
 
 
 class _FakeHTTPResponse:
@@ -128,7 +128,7 @@ class ExecutorProtocolTest(unittest.TestCase):
             output="done",
         )
 
-        with patch("swallow.executor.run_cli_agent_executor", return_value=expected) as cli_mock:
+        with patch("swallow.orchestration.executor.run_cli_agent_executor", return_value=expected) as cli_mock:
             result = run_prompt_executor(state, [], "prompt")
 
         cli_mock.assert_called_once()
@@ -151,7 +151,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         )
 
         async def _run() -> ExecutorResult:
-            with patch("swallow.executor.run_cli_agent_executor_async", return_value=expected) as cli_mock:
+            with patch("swallow.orchestration.executor.run_cli_agent_executor_async", return_value=expected) as cli_mock:
                 result = await run_prompt_executor_async(state, [], "prompt")
             cli_mock.assert_called_once()
             self.assertIs(cli_mock.call_args.args[0], CODEX_CONFIG)
@@ -218,7 +218,7 @@ class ExecutorProtocolTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            with patch("swallow.harness.run_execution", return_value=expected) as execution_mock:
+            with patch("swallow.orchestration.harness.run_execution", return_value=expected) as execution_mock:
                 result = LocalCLIExecutor().execute(tmp_path, state, card, retrieval_items)
 
         execution_mock.assert_called_once_with(tmp_path, state, retrieval_items)
@@ -242,7 +242,7 @@ class ExecutorProtocolTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            with patch("swallow.harness.run_execution", return_value=expected) as execution_mock:
+            with patch("swallow.orchestration.harness.run_execution", return_value=expected) as execution_mock:
                 result = HTTPExecutor().execute(tmp_path, state, card, [])
 
         execution_mock.assert_called_once_with(tmp_path, state, [])
@@ -266,7 +266,7 @@ class ExecutorProtocolTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            with patch("swallow.harness.run_execution", return_value=expected) as execution_mock:
+            with patch("swallow.orchestration.harness.run_execution", return_value=expected) as execution_mock:
                 result = AsyncCLIAgentExecutor(AIDER_CONFIG).execute(tmp_path, state, card, [])
 
         execution_mock.assert_called_once_with(tmp_path, state, [])
@@ -289,7 +289,7 @@ class ExecutorProtocolTest(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            with patch("swallow.harness.run_execution", return_value=expected) as execution_mock:
+            with patch("swallow.orchestration.harness.run_execution", return_value=expected) as execution_mock:
                 result = MockExecutor().execute(tmp_path, state, card, [])
 
         execution_mock.assert_called_once_with(tmp_path, state, [])
@@ -318,7 +318,7 @@ class ExecutorProtocolTest(unittest.TestCase):
             }
         )
 
-        with patch("swallow.executor.httpx.post", return_value=response) as http_post:
+        with patch("swallow.orchestration.executor.httpx.post", return_value=response) as http_post:
             result = run_http_executor(state, [])
 
         self.assertEqual(result.status, "completed")
@@ -340,7 +340,7 @@ class ExecutorProtocolTest(unittest.TestCase):
             }
         )
 
-        with patch("swallow.executor.httpx.post", return_value=response):
+        with patch("swallow.orchestration.executor.httpx.post", return_value=response):
             result = run_http_executor(state, [])
 
         self.assertEqual(result.estimated_input_tokens, 123)
@@ -392,7 +392,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         )
 
         with patch.dict("os.environ", {"SWL_API_KEY": "phase56-test-token"}, clear=False):
-            with patch("swallow.executor.httpx.post", return_value=response) as http_post:
+            with patch("swallow.orchestration.executor.httpx.post", return_value=response) as http_post:
                 run_http_executor(state, [])
 
         self.assertEqual(http_post.call_args.kwargs["headers"]["Authorization"], "Bearer phase56-test-token")
@@ -408,7 +408,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         )
 
         with patch.dict("os.environ", {"SWL_CHAT_MODEL": "google/gemma-4-26b-a4b-it"}, clear=False):
-            with patch("swallow.executor.httpx.post", return_value=response) as http_post:
+            with patch("swallow.orchestration.executor.httpx.post", return_value=response) as http_post:
                 result = run_http_executor(state, [])
 
         self.assertEqual(result.status, "completed")
@@ -423,7 +423,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         response = _FakeHTTPResponse(payload={"choices": [{"message": {"content": "ok"}}]})
 
         with patch.dict("os.environ", {"SWL_CHAT_MODEL": ""}, clear=False):
-            with patch("swallow.executor.httpx.post", return_value=response) as http_post:
+            with patch("swallow.orchestration.executor.httpx.post", return_value=response) as http_post:
                 result = run_http_executor(state, [])
 
         self.assertEqual(result.status, "completed")
@@ -446,7 +446,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         )
 
         with patch(
-            "swallow.executor.httpx.post",
+            "swallow.orchestration.executor.httpx.post",
             side_effect=[httpx.TimeoutException("slow gateway"), qwen_response],
         ) as http_post:
             result = run_http_executor(state, [])
@@ -470,7 +470,7 @@ class ExecutorProtocolTest(unittest.TestCase):
         )
         rate_limited = _FakeHTTPResponse(status_code=429, text="rate limited")
 
-        with patch("swallow.executor.httpx.post", return_value=rate_limited) as http_post:
+        with patch("swallow.orchestration.executor.httpx.post", return_value=rate_limited) as http_post:
             result = run_http_executor(state, [])
 
         self.assertEqual(result.status, "failed")
@@ -487,8 +487,8 @@ class ExecutorProtocolTest(unittest.TestCase):
         )
         http_failure = _FakeHTTPResponse(status_code=503, text="gateway unavailable")
 
-        with patch("swallow.executor.httpx.post", return_value=http_failure):
-            with patch("swallow.executor.shutil.which", return_value=None):
+        with patch("swallow.orchestration.executor.httpx.post", return_value=http_failure):
+            with patch("swallow.orchestration.executor.shutil.which", return_value=None):
                 result = run_executor_inline(state, [])
 
         self.assertEqual(result.status, "completed")

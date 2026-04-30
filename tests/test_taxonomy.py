@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import (
+from swallow.orchestration.models import (
     LIBRARIAN_MEMORY_AUTHORITY,
     LIBRARIAN_SYSTEM_ROLE,
     MEMORY_AUTHORITY_SEMANTICS,

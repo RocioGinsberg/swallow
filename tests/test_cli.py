@@ -13,16 +13,16 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.cli import build_stage_promote_preflight_notices, main
-from swallow.compatibility import build_compatibility_report, evaluate_route_compatibility
-from swallow.capabilities import (
+from swallow.surface_tools.cli import build_stage_promote_preflight_notices, main
+from swallow.orchestration.compatibility import build_compatibility_report, evaluate_route_compatibility
+from swallow.surface_tools.capabilities import (
     DEFAULT_CAPABILITY_MANIFEST,
     build_capability_assembly,
     parse_capability_refs,
     validate_capability_manifest,
 )
-from swallow.execution_fit import build_execution_fit_report, evaluate_execution_fit
-from swallow.executor import (
+from swallow.orchestration.execution_fit import build_execution_fit_report, evaluate_execution_fit
+from swallow.orchestration.executor import (
     AIDER_CONFIG,
     build_formatted_executor_prompt,
     build_fallback_output,
@@ -32,15 +32,15 @@ from swallow.executor import (
     resolve_executor_name,
     run_cli_agent_executor,
 )
-from swallow.harness import (
+from swallow.orchestration.harness import (
     build_remote_handoff_contract_record,
     build_resume_note,
     build_retrieval_report,
     build_source_grounding,
 )
-from swallow.knowledge_policy import evaluate_knowledge_policy
-from swallow.meta_optimizer import load_optimization_proposal_bundle
-from swallow.models import (
+from swallow.knowledge_retrieval.knowledge_policy import evaluate_knowledge_policy
+from swallow.surface_tools.meta_optimizer import load_optimization_proposal_bundle
+from swallow.orchestration.models import (
     DispatchVerdict,
     Event,
     EVENT_EXECUTOR_FAILED,
@@ -58,7 +58,7 @@ from swallow.models import (
     evaluate_dispatch_verdict,
     validate_remote_handoff_contract_payload,
 )
-from swallow.orchestrator import (
+from swallow.orchestration.orchestrator import (
     acknowledge_task,
     build_task_retrieval_request,
     create_task,
@@ -66,7 +66,7 @@ from swallow.orchestrator import (
     run_task,
     update_task_planning_handoff,
 )
-from swallow.paths import (
+from swallow.surface_tools.paths import (
     artifacts_dir,
     canonical_registry_path,
     canonical_reuse_policy_path,
@@ -81,10 +81,10 @@ from swallow.paths import (
     route_weights_path,
     swallow_db_path,
 )
-from swallow.mps_policy_store import read_mps_policy
-from swallow.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
-from swallow.retrieval_adapters import select_retrieval_adapter
-from swallow.router import (
+from swallow.surface_tools.mps_policy_store import read_mps_policy
+from swallow.knowledge_retrieval.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
+from swallow.knowledge_retrieval.retrieval_adapters import select_retrieval_adapter
+from swallow.provider_router.router import (
     apply_route_policy,
     apply_route_registry,
     load_route_capability_profiles,
@@ -94,9 +94,9 @@ from swallow.router import (
     route_by_name,
     select_route,
 )
-from swallow.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
-from swallow.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
-from swallow.store import (
+from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
+from swallow.knowledge_retrieval.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
+from swallow.truth_governance.store import (
     append_event,
     append_canonical_record,
     load_knowledge_objects,
@@ -106,8 +106,8 @@ from swallow.store import (
     save_retrieval,
     save_state,
 )
-from swallow.planner import plan
-from swallow.validator import build_validation_report, validate_run_outputs
+from swallow.orchestration.planner import plan
+from swallow.orchestration.validator import build_validation_report, validate_run_outputs
 
 
 class CliLifecycleTest(unittest.TestCase):
@@ -3049,10 +3049,10 @@ class CliLifecycleTest(unittest.TestCase):
                 output="done",
             )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=retrieval_items):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
                     with patch(
-                        "swallow.orchestrator.write_task_artifacts",
+                        "swallow.orchestration.orchestrator.write_task_artifacts",
                         return_value=(
                             ValidationResult(status="passed", message="Compatibility passed."),
                             ValidationResult(status="passed", message="Execution fit passed."),
@@ -3142,9 +3142,9 @@ class CliLifecycleTest(unittest.TestCase):
                     ValidationResult(status="warning", message="Stop policy warning."),
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
-                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=retrieval_items):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
+                    with patch("swallow.orchestration.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         final_state = run_task(tmp_path, state.task_id, executor_name="mock")
 
             events = [
@@ -3231,19 +3231,19 @@ class CliLifecycleTest(unittest.TestCase):
                     ValidationResult(status="warning", message="Stop policy warning."),
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=first_retrieval):
-                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
-                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=first_retrieval):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
+                    with patch("swallow.orchestration.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         first_state = run_task(tmp_path, state.task_id, executor_name="mock")
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=second_retrieval):
-                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
-                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=second_retrieval):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
+                    with patch("swallow.orchestration.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         resumed_state = run_task(tmp_path, state.task_id, executor_name="mock")
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=second_retrieval):
-                with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
-                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=second_retrieval):
+                with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
+                    with patch("swallow.orchestration.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         rerun_state = run_task(tmp_path, state.task_id, executor_name="mock", reset_grounding=True)
 
             events = [
@@ -3429,11 +3429,11 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.orchestrator.select_route",
+                "swallow.orchestration.orchestrator.select_route",
                 return_value=remote_route,
             ):
-                with patch("swallow.orchestrator.run_retrieval") as retrieval_mock:
-                    with patch("swallow.orchestrator._execute_task_card") as execution_mock:
+                with patch("swallow.orchestration.orchestrator.run_retrieval") as retrieval_mock:
+                    with patch("swallow.orchestration.orchestrator._execute_task_card") as execution_mock:
                         final_state = run_task(tmp_path, state.task_id, executor_name="mock")
 
             task_dir = tmp_path / ".swl" / "tasks" / state.task_id
@@ -4769,7 +4769,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             stdout = StringIO()
-            with patch("swallow.cli.run_task") as run_task_mock:
+            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
                 run_task_mock.return_value = TaskState(
                     task_id=task_id,
                     title="Retry allowed",
@@ -4811,7 +4811,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             stdout = StringIO()
-            with patch("swallow.cli.run_task") as run_task_mock:
+            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
                 with redirect_stdout(stdout):
                     self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retry", task_id]), 1)
 
@@ -4851,7 +4851,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             stdout = StringIO()
-            with patch("swallow.cli.run_task") as run_task_mock:
+            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
                 run_task_mock.return_value = TaskState(
                     task_id=task_id,
                     title="Resume allowed",
@@ -4898,7 +4898,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             stdout = StringIO()
-            with patch("swallow.cli.run_task") as run_task_mock:
+            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
                 with redirect_stdout(stdout):
                     self.assertEqual(main(["--base-dir", str(tmp_path), "task", "resume", task_id]), 1)
 
@@ -4999,7 +4999,7 @@ class CliLifecycleTest(unittest.TestCase):
                 policy_inputs={},
             )
 
-            with patch("swallow.orchestrator.select_route", return_value=enforced_route):
+            with patch("swallow.orchestration.orchestrator.select_route", return_value=enforced_route):
                 acknowledged = acknowledge_task(tmp_path, blocked_state.task_id)
 
         self.assertEqual(acknowledged.route_capabilities["filesystem_access"], "none")
@@ -5070,7 +5070,7 @@ class CliLifecycleTest(unittest.TestCase):
             (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
 
             stdout = StringIO()
-            with patch("swallow.cli.run_task") as run_task_mock:
+            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
                 run_task_mock.return_value = TaskState(
                     task_id=task_id,
                     title="Rerun task",
@@ -5330,10 +5330,10 @@ class CliLifecycleTest(unittest.TestCase):
                 policy_inputs={},
             )
 
-            with patch("swallow.orchestrator.select_route", return_value=validator_route):
-                with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.select_route", return_value=validator_route):
+                with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                     with patch(
-                        "swallow.orchestrator._execute_task_card",
+                        "swallow.orchestration.orchestrator._execute_task_card",
                         return_value=ExecutorResult(
                             executor_name="local",
                             status="completed",
@@ -5361,9 +5361,9 @@ class CliLifecycleTest(unittest.TestCase):
                 workspace_root=tmp_path,
                 executor_name="codex",
             )
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator._execute_task_card",
+                    "swallow.orchestration.orchestrator._execute_task_card",
                     return_value=ExecutorResult(
                         executor_name="codex",
                         status="completed",
@@ -6260,7 +6260,7 @@ class CliLifecycleTest(unittest.TestCase):
             stdout = StringIO()
 
             with patch(
-                "swallow.cli._read_clipboard_bytes",
+                "swallow.surface_tools.cli._read_clipboard_bytes",
                 return_value=json.dumps([{"role": "user", "content": "Decision: keep it simple."}]).encode("utf-8"),
             ):
                 with redirect_stdout(stdout):
@@ -6292,7 +6292,7 @@ class CliLifecycleTest(unittest.TestCase):
             stdout = StringIO()
 
             with patch(
-                "swallow.cli._read_clipboard_bytes",
+                "swallow.surface_tools.cli._read_clipboard_bytes",
                 return_value=b"# Constraints\nConstraint: clipboard path is supplemental.",
             ):
                 with redirect_stdout(stdout):
@@ -7264,8 +7264,8 @@ class CliLifecycleTest(unittest.TestCase):
             stderr="partial stderr",
         )
 
-        with patch("swallow.executor.shutil.which", return_value="/usr/bin/aider"):
-            with patch("swallow.executor.subprocess.run", side_effect=timeout_exc):
+        with patch("swallow.orchestration.executor.shutil.which", return_value="/usr/bin/aider"):
+            with patch("swallow.orchestration.executor.subprocess.run", side_effect=timeout_exc):
                 result = run_cli_agent_executor(AIDER_CONFIG, state, [])
 
         self.assertEqual(result.status, "failed")
@@ -7301,8 +7301,8 @@ class CliLifecycleTest(unittest.TestCase):
             workspace_root="/tmp",
         )
         with patch.dict("os.environ", {"AIWF_EXECUTOR_MODE": "note-only"}, clear=False):
-            with patch("swallow.executor.subprocess.run") as mocked_run:
-                from swallow.executor import run_executor
+            with patch("swallow.orchestration.executor.subprocess.run") as mocked_run:
+                from swallow.orchestration.executor import run_executor
 
                 result = run_executor(state, [])
 
@@ -7333,8 +7333,8 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_executor_missing_binary_returns_nonzero(self) -> None:
         stdout = StringIO()
-        with patch("swallow.doctor.shutil.which", return_value=None):
-            with patch("swallow.cli.diagnose_cli_agents", return_value=(1, [])):
+        with patch("swallow.surface_tools.doctor.shutil.which", return_value=None):
+            with patch("swallow.surface_tools.cli.diagnose_cli_agents", return_value=(1, [])):
                 with redirect_stdout(stdout):
                     exit_code = main(["doctor", "executor"])
         self.assertNotEqual(exit_code, 0)
@@ -7351,9 +7351,9 @@ class CliLifecycleTest(unittest.TestCase):
             stdout="aider 1.2.3",
             stderr="",
         )
-        with patch("swallow.doctor.shutil.which", return_value="/usr/bin/aider"):
-            with patch("swallow.doctor.subprocess.run", return_value=completed):
-                with patch("swallow.cli.diagnose_cli_agents", return_value=(0, [])):
+        with patch("swallow.surface_tools.doctor.shutil.which", return_value="/usr/bin/aider"):
+            with patch("swallow.surface_tools.doctor.subprocess.run", return_value=completed):
+                with patch("swallow.surface_tools.cli.diagnose_cli_agents", return_value=(0, [])):
                     with redirect_stdout(stdout):
                         exit_code = main(["doctor", "executor"])
         self.assertEqual(exit_code, 0)
@@ -7364,9 +7364,9 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_executor_includes_cli_agent_probe_results(self) -> None:
         stdout = StringIO()
-        with patch("swallow.cli.diagnose_executor", return_value=(0, object())):
+        with patch("swallow.surface_tools.cli.diagnose_executor", return_value=(0, object())):
             with patch(
-                "swallow.cli.diagnose_cli_agents",
+                "swallow.surface_tools.cli.diagnose_cli_agents",
                 return_value=(
                     0,
                     [
@@ -7387,7 +7387,7 @@ class CliLifecycleTest(unittest.TestCase):
                     ],
                 ),
             ):
-                with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok\ncli_agents:\n- codex: ok"):
+                with patch("swallow.surface_tools.cli.format_executor_doctor_result", return_value="executor-ok\ncli_agents:\n- codex: ok"):
                     with redirect_stdout(stdout):
                         exit_code = main(["doctor", "executor"])
 
@@ -7396,13 +7396,13 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_without_subcommand_runs_executor_and_stack_checks(self) -> None:
         stdout = StringIO()
-        with patch("swallow.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
-            with patch("swallow.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
-                with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok"):
-                    with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
-                        with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
-                            with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
-                                with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
+        with patch("swallow.surface_tools.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
+            with patch("swallow.surface_tools.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
+                with patch("swallow.surface_tools.cli.format_executor_doctor_result", return_value="executor-ok"):
+                    with patch("swallow.surface_tools.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
+                        with patch("swallow.surface_tools.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
+                            with patch("swallow.surface_tools.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
+                                with patch("swallow.surface_tools.cli.format_local_stack_doctor_result", return_value="stack-ok"):
                                     with redirect_stdout(stdout):
                                         exit_code = main(["doctor"])
         self.assertEqual(exit_code, 0)
@@ -7414,12 +7414,12 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_skip_stack_only_runs_executor_check(self) -> None:
         stdout = StringIO()
-        with patch("swallow.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
-            with patch("swallow.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
-                with patch("swallow.cli.format_executor_doctor_result", return_value="executor-ok"):
-                    with patch("swallow.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
-                        with patch("swallow.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
-                            with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
+        with patch("swallow.surface_tools.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
+            with patch("swallow.surface_tools.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
+                with patch("swallow.surface_tools.cli.format_executor_doctor_result", return_value="executor-ok"):
+                    with patch("swallow.surface_tools.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
+                        with patch("swallow.surface_tools.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
+                            with patch("swallow.surface_tools.cli.diagnose_local_stack") as mocked_stack:
                                 with redirect_stdout(stdout):
                                     exit_code = main(["doctor", "--skip-stack"])
         self.assertEqual(exit_code, 0)
@@ -7432,8 +7432,8 @@ class CliLifecycleTest(unittest.TestCase):
     def test_doctor_sqlite_subcommand_runs_sqlite_check_only(self) -> None:
         stdout = StringIO()
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("swallow.cli.diagnose_executor") as mocked_executor:
-                with patch("swallow.cli.diagnose_local_stack") as mocked_stack:
+            with patch("swallow.surface_tools.cli.diagnose_executor") as mocked_executor:
+                with patch("swallow.surface_tools.cli.diagnose_local_stack") as mocked_stack:
                     with redirect_stdout(stdout):
                         exit_code = main(["--base-dir", tmp, "doctor", "sqlite"])
         self.assertEqual(exit_code, 0)
@@ -7445,9 +7445,9 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_stack_subcommand_runs_stack_check_only(self) -> None:
         stdout = StringIO()
-        with patch("swallow.cli.diagnose_executor") as mocked_executor:
-            with patch("swallow.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
-                with patch("swallow.cli.format_local_stack_doctor_result", return_value="stack-ok"):
+        with patch("swallow.surface_tools.cli.diagnose_executor") as mocked_executor:
+            with patch("swallow.surface_tools.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
+                with patch("swallow.surface_tools.cli.format_local_stack_doctor_result", return_value="stack-ok"):
                     with redirect_stdout(stdout):
                         exit_code = main(["doctor", "stack"])
         self.assertEqual(exit_code, 0)
@@ -8470,13 +8470,13 @@ class CliLifecycleTest(unittest.TestCase):
                 captured_request["request"] = request
                 return retrieval_items
 
-            with patch("swallow.orchestrator.load_state", return_value=created):
-                with patch("swallow.orchestrator.save_state"):
-                    with patch("swallow.orchestrator.append_event"):
-                        with patch("swallow.orchestrator.run_retrieval", side_effect=run_retrieval_spy):
-                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
+            with patch("swallow.orchestration.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestration.orchestrator.save_state"):
+                    with patch("swallow.orchestration.orchestrator.append_event"):
+                        with patch("swallow.orchestration.orchestrator.run_retrieval", side_effect=run_retrieval_spy):
+                            with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
                                 with patch(
-                                    "swallow.orchestrator.write_task_artifacts",
+                                    "swallow.orchestration.orchestrator.write_task_artifacts",
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
                                         ValidationResult(status="passed", message="Execution fit passed."),
@@ -8544,12 +8544,12 @@ class CliLifecycleTest(unittest.TestCase):
                     ValidationResult(status="warning", message="Stop policy warning."),
                 )
 
-            with patch("swallow.orchestrator.load_state", return_value=created):
-                with patch("swallow.orchestrator.save_state", side_effect=save_state_spy):
-                    with patch("swallow.orchestrator.append_event", side_effect=append_event_spy):
-                        with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
-                                with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_spy):
+            with patch("swallow.orchestration.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestration.orchestrator.save_state", side_effect=save_state_spy):
+                    with patch("swallow.orchestration.orchestrator.append_event", side_effect=append_event_spy):
+                        with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=retrieval_items):
+                            with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
+                                with patch("swallow.orchestration.orchestrator.write_task_artifacts", side_effect=write_artifacts_spy):
                                     final_state = run_task(base_dir, created.task_id)
 
         self.assertEqual(
@@ -8641,14 +8641,14 @@ class CliLifecycleTest(unittest.TestCase):
                     output="done",
                 )
 
-            with patch("swallow.orchestrator.load_state", return_value=created):
-                with patch("swallow.orchestrator.select_route", return_value=validator_route):
-                    with patch("swallow.orchestrator.save_state"):
-                        with patch("swallow.orchestrator.append_event"):
-                            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                                with patch("swallow.orchestrator._execute_task_card", side_effect=execute_task_card_spy):
+            with patch("swallow.orchestration.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestration.orchestrator.select_route", return_value=validator_route):
+                    with patch("swallow.orchestration.orchestrator.save_state"):
+                        with patch("swallow.orchestration.orchestrator.append_event"):
+                            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                                with patch("swallow.orchestration.orchestrator._execute_task_card", side_effect=execute_task_card_spy):
                                     with patch(
-                                        "swallow.orchestrator.write_task_artifacts",
+                                        "swallow.orchestration.orchestrator.write_task_artifacts",
                                         return_value=(
                                             ValidationResult(status="passed", message="Compatibility passed."),
                                             ValidationResult(status="passed", message="Execution fit passed."),
@@ -8703,10 +8703,10 @@ class CliLifecycleTest(unittest.TestCase):
                 policy_inputs={},
             )
 
-            with patch("swallow.orchestrator.select_route", return_value=validator_route):
-                with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.select_route", return_value=validator_route):
+                with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                     with patch(
-                        "swallow.orchestrator._execute_task_card",
+                        "swallow.orchestration.orchestrator._execute_task_card",
                         return_value=ExecutorResult(
                             executor_name="local",
                             status="completed",
@@ -8715,7 +8715,7 @@ class CliLifecycleTest(unittest.TestCase):
                         ),
                     ):
                         with patch(
-                            "swallow.orchestrator.write_task_artifacts",
+                            "swallow.orchestration.orchestrator.write_task_artifacts",
                             return_value=(
                                 ValidationResult(status="passed", message="Compatibility passed."),
                                 ValidationResult(status="passed", message="Execution fit passed."),
@@ -8766,13 +8766,13 @@ class CliLifecycleTest(unittest.TestCase):
                     output="done",
                 )
 
-            with patch("swallow.orchestrator.load_state", return_value=created):
-                with patch("swallow.orchestrator.save_state"):
-                    with patch("swallow.orchestrator.append_event"):
-                        with patch("swallow.orchestrator.run_retrieval", return_value=[]):
-                            with patch("swallow.orchestrator._execute_task_card", side_effect=execute_task_card_spy):
+            with patch("swallow.orchestration.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestration.orchestrator.save_state"):
+                    with patch("swallow.orchestration.orchestrator.append_event"):
+                        with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
+                            with patch("swallow.orchestration.orchestrator._execute_task_card", side_effect=execute_task_card_spy):
                                 with patch(
-                                    "swallow.orchestrator.write_task_artifacts",
+                                    "swallow.orchestration.orchestrator.write_task_artifacts",
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
                                         ValidationResult(status="passed", message="Execution fit passed."),
@@ -8802,9 +8802,9 @@ class CliLifecycleTest(unittest.TestCase):
                 executor_name="codex",
             )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator._execute_task_card",
+                    "swallow.orchestration.orchestrator._execute_task_card",
                     return_value=ExecutorResult(
                         executor_name="codex",
                         status="completed",
@@ -8813,7 +8813,7 @@ class CliLifecycleTest(unittest.TestCase):
                     ),
                 ):
                     with patch(
-                        "swallow.orchestrator.write_task_artifacts",
+                        "swallow.orchestration.orchestrator.write_task_artifacts",
                         return_value=(
                             ValidationResult(status="passed", message="Compatibility passed."),
                             ValidationResult(status="passed", message="Execution fit passed."),
@@ -8883,12 +8883,12 @@ class CliLifecycleTest(unittest.TestCase):
                     ValidationResult(status="warning", message="Stop policy warning."),
                 )
 
-            with patch("swallow.orchestrator.load_state", return_value=created):
-                with patch("swallow.orchestrator.save_state", side_effect=save_state_spy):
-                    with patch("swallow.orchestrator.append_event", side_effect=append_event_spy):
-                        with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
-                                with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_spy):
+            with patch("swallow.orchestration.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestration.orchestrator.save_state", side_effect=save_state_spy):
+                    with patch("swallow.orchestration.orchestrator.append_event", side_effect=append_event_spy):
+                        with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=retrieval_items):
+                            with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
+                                with patch("swallow.orchestration.orchestrator.write_task_artifacts", side_effect=write_artifacts_spy):
                                     final_state = run_task(base_dir, created.task_id)
 
         self.assertEqual(
@@ -9005,10 +9005,10 @@ class CliLifecycleTest(unittest.TestCase):
                     ValidationResult(status="warning", message="Stop policy warning."),
                 )
 
-            with patch("swallow.orchestrator.select_route", return_value=restricted_route):
-                with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.select_route", return_value=restricted_route):
+                with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                     with patch(
-                        "swallow.orchestrator._execute_task_card",
+                        "swallow.orchestration.orchestrator._execute_task_card",
                         return_value=ExecutorResult(
                             executor_name="note-only",
                             status="completed",
@@ -9016,7 +9016,7 @@ class CliLifecycleTest(unittest.TestCase):
                             output="done",
                         ),
                     ):
-                        with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                        with patch("swallow.orchestration.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                             final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             staged_records = load_staged_candidates(tmp_path)
@@ -9084,9 +9084,9 @@ class CliLifecycleTest(unittest.TestCase):
                     ValidationResult(status="warning", message="Stop policy warning."),
                 )
 
-            with patch("swallow.orchestrator.run_retrieval", return_value=[]):
+            with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                 with patch(
-                    "swallow.orchestrator._execute_task_card",
+                    "swallow.orchestration.orchestrator._execute_task_card",
                     return_value=ExecutorResult(
                         executor_name="local",
                         status="completed",
@@ -9094,7 +9094,7 @@ class CliLifecycleTest(unittest.TestCase):
                         output="done",
                     ),
                 ):
-                    with patch("swallow.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
+                    with patch("swallow.orchestration.orchestrator.write_task_artifacts", side_effect=write_artifacts_side_effect):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
 
             staged_registry = tmp_path / ".swl" / "staged_knowledge" / "registry.jsonl"
@@ -9736,8 +9736,8 @@ class CliLifecycleTest(unittest.TestCase):
                 prompt="rerun prompt",
                 dialect="plain_text",
             )
-            with patch("swallow.harness.retrieve_context", side_effect=AssertionError("retrieval should be skipped")):
-                with patch("swallow.harness.run_executor", return_value=executor_result) as run_executor_mock:
+            with patch("swallow.orchestration.harness.retrieve_context", side_effect=AssertionError("retrieval should be skipped")):
+                with patch("swallow.orchestration.harness.run_executor", return_value=executor_result) as run_executor_mock:
                     self.assertEqual(
                         main(
                             [
@@ -9799,8 +9799,8 @@ class CliLifecycleTest(unittest.TestCase):
                 task_id = next(entry.name for entry in (tmp_path / ".swl" / "tasks").iterdir() if entry.is_dir())
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
 
-            with patch("swallow.harness.retrieve_context", side_effect=AssertionError("retrieval should be skipped")):
-                with patch("swallow.harness.run_executor", side_effect=AssertionError("execution should be skipped")):
+            with patch("swallow.orchestration.harness.retrieve_context", side_effect=AssertionError("retrieval should be skipped")):
+                with patch("swallow.orchestration.harness.run_executor", side_effect=AssertionError("execution should be skipped")):
                     self.assertEqual(
                         main(
                             [
@@ -9943,7 +9943,7 @@ class CliLifecycleTest(unittest.TestCase):
     def test_cli_serve_dispatches_to_control_center_server(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            with patch("swallow.web.server.serve_control_center") as serve_mock:
+            with patch("swallow.surface_tools.web.server.serve_control_center") as serve_mock:
                 self.assertEqual(main(["--base-dir", str(tmp_path), "serve", "--host", "127.0.0.1", "--port", "8123"]), 0)
 
         serve_mock.assert_called_once_with(tmp_path.resolve(), host="127.0.0.1", port=8123)
@@ -9954,7 +9954,7 @@ class CliLifecycleTest(unittest.TestCase):
             stdout = StringIO()
 
             with patch(
-                "swallow.web.server.serve_control_center",
+                "swallow.surface_tools.web.server.serve_control_center",
                 side_effect=RuntimeError("FastAPI is required for `swl serve`."),
             ):
                 with redirect_stdout(stdout):
@@ -10628,13 +10628,13 @@ class CliLifecycleTest(unittest.TestCase):
                 output="done",
             )
 
-            with patch("swallow.orchestrator.load_state", return_value=created):
-                with patch("swallow.orchestrator.save_state", side_effect=save_state_spy):
-                    with patch("swallow.orchestrator.append_event"):
-                        with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
+            with patch("swallow.orchestration.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestration.orchestrator.save_state", side_effect=save_state_spy):
+                    with patch("swallow.orchestration.orchestrator.append_event"):
+                        with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=retrieval_items):
+                            with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
                                 with patch(
-                                    "swallow.orchestrator.write_task_artifacts",
+                                    "swallow.orchestration.orchestrator.write_task_artifacts",
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
                                         ValidationResult(status="passed", message="Execution fit passed."),
@@ -10787,13 +10787,13 @@ class CliLifecycleTest(unittest.TestCase):
                 failure_kind="unreachable_backend",
             )
 
-            with patch("swallow.orchestrator.load_state", return_value=created):
-                with patch("swallow.orchestrator.save_state"):
-                    with patch("swallow.orchestrator.append_event"):
-                        with patch("swallow.orchestrator.run_retrieval", return_value=retrieval_items):
-                            with patch("swallow.orchestrator._execute_task_card", return_value=executor_result):
+            with patch("swallow.orchestration.orchestrator.load_state", return_value=created):
+                with patch("swallow.orchestration.orchestrator.save_state"):
+                    with patch("swallow.orchestration.orchestrator.append_event"):
+                        with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=retrieval_items):
+                            with patch("swallow.orchestration.orchestrator._execute_task_card", return_value=executor_result):
                                 with patch(
-                                    "swallow.orchestrator.write_task_artifacts",
+                                    "swallow.orchestration.orchestrator.write_task_artifacts",
                                     return_value=(
                                         ValidationResult(status="passed", message="Compatibility passed."),
                                         ValidationResult(status="passed", message="Execution fit passed."),
@@ -10966,7 +10966,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
         ]
 
-            with patch("swallow.harness.retrieve_context", return_value=knowledge_retrieval_items):
+            with patch("swallow.orchestration.harness.retrieve_context", return_value=knowledge_retrieval_items):
                 self.assertEqual(main(["--base-dir", str(tmp_path), "task", "run", task_id]), 0)
 
             task_dir = tmp_path / ".swl" / "tasks" / task_id

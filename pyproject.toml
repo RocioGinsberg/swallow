@@ -23,7 +23,7 @@ vec = [
 ]
 
 [project.scripts]
-swl = "swallow.cli:main"
+swl = "swallow.surface_tools.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -32,7 +32,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-swallow = ["route_policy.default.json", "routes.default.json"]
+"swallow.provider_router" = ["route_policy.default.json", "routes.default.json"]
 
 [tool.pytest.ini_options]
 markers = [

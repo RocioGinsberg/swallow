@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.models import (
+from swallow.orchestration.models import (
     CompatibilityResult,
     ExecutionFitResult,
     ExecutorResult,
@@ -14,7 +14,7 @@ from swallow.models import (
     TaskState,
     ValidationResult,
 )
-from swallow.retry_policy import evaluate_retry_policy
+from swallow.orchestration.retry_policy import evaluate_retry_policy
 
 
 def _passing_policy_inputs() -> tuple[CompatibilityResult, ExecutionFitResult, KnowledgePolicyResult, ValidationResult]:

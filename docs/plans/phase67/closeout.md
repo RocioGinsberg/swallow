@@ -16,11 +16,12 @@ depends_on:
   - docs/plans/phase67/review_comments_block_m.md
   - docs/plans/phase67/codex_review_notes_block_n.md
   - docs/plans/phase67/review_comments_block_n.md
+  - docs/plans/phase67/codex_review_notes_candidate_p.md
   - docs/plans/phase66/audit_index.md
   - docs/concerns_backlog.md
 ---
 
-TL;DR: Phase 67 is implementation-complete and ready for PR / Human Merge Gate. It consumed Phase 66 audit candidates L+M+N through strict milestone gates: M1 handled seven quick wins, M2 centralized JSON / JSONL IO helper ownership, and M3 tightened read-only CLI artifact printer dispatch. Final review verdict is `APPROVE`; full pytest passed with `610 passed, 8 deselected, 10 subtests passed`.
+TL;DR: Phase 67 is implementation-complete and ready for Human review / PR gate. It consumed Phase 66 audit candidates L+M+N through strict milestone gates, then Human requested Candidate P before merge; Candidate P reorganized `src/swallow/` into five semantic packages. Final verification passes with `610 passed, 8 deselected, 10 subtests passed`.
 
 # Phase 67 Closeout
 
@@ -33,6 +34,8 @@ Phase 67 completed the consolidated L+M+N cleanup phase accepted by Human with s
 - M3: CLI Read-Only Dispatch Tightening.
 
 The phase made no `docs/design/` changes and did not alter governance write paths, `task inspect`, or `task review`.
+
+Post-closeout addendum: before final merge, Human requested Candidate P from `docs/roadmap.md` as a pragmatic module reorganization add-on. Candidate P is now complete and documented in `docs/plans/phase67/codex_review_notes_candidate_p.md`.
 
 ## Milestone Review
 
@@ -126,6 +129,14 @@ Whole phase:
 - [x] `docs/active_context.md` synchronized.
 - [x] `current_state.md` synchronized.
 
+Candidate P add-on:
+
+- [x] Root package Python surface reduced to `__init__.py` + `_io_helpers.py`.
+- [x] Runtime modules moved into five semantic packages aligned with Phase 66 audit blocks.
+- [x] `swl` console entry remains available through `swallow.surface_tools.cli:main`.
+- [x] Invariant guard tests updated to enforce the same rules on the new paths.
+- [x] Full pytest passes after module reorganization.
+
 ## Backlog Updates
 
 Resolved in Phase 67:
@@ -147,6 +158,7 @@ Still open:
 - Taxonomy / authority / capability constants.
 - Retrieval source policy ownership.
 - Policy-result report/event pipeline.
+- Candidate O raw-material / storage-backend split remains open; Candidate P only prepared package boundaries.
 
 ## Design vs Implementation Drift
 
@@ -218,6 +230,22 @@ git diff -- docs/design
 # 610 passed, 8 deselected, 10 subtests passed
 ```
 
+Candidate P verification:
+
+```bash
+.venv/bin/python -m compileall -q src/swallow
+# passed
+
+git diff --check
+# passed
+
+.venv/bin/python -m swallow.surface_tools.cli --help
+# passed
+
+.venv/bin/python -m pytest -q
+# 610 passed, 8 deselected, 10 subtests passed
+```
+
 M3 manual output comparison:
 
 ```text
@@ -238,15 +266,15 @@ pytest -q
 
 ### Stop
 
-Phase 67 implementation should stop here. Do not expand the cleanup to additional Phase 66 findings inside this branch.
+Phase 67 implementation should stop here. Do not expand the cleanup to Candidate O / R or additional Phase 66 findings inside this branch.
 
 ### Go
 
-Go to PR / Human Merge Gate:
+Go to Human review / PR Gate:
 
 - M1/M2/M3 review gates are complete.
 - Final review verdict is `APPROVE`.
-- Closeout documentation is complete.
+- Closeout documentation and Candidate P addendum are complete.
 - `docs/design/` is unchanged.
 - Full pytest passes.
 
