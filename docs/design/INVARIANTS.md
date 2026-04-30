@@ -24,7 +24,7 @@
 |---|---|---|
 | P1 | **Local-first** | Truth 在本地。跨设备同步、远程访问通过外部工具(git / Syncthing / Tailscale),不引入云端 truth 镜像。 |
 | P2 | **SQLite-primary truth** | 任务状态与知识治理状态以 SQLite 为权威存储。文件镜像与索引视图是辅助产物。 |
-| P3 | **Truth before retrieval** | 先定义知识真值对象,再提供检索与召回。向量索引是召回手段,不是知识真值本身。 |
+| P3 | **Truth before retrieval** | 先定义知识真值对象,再提供检索与召回。Wiki / Canonical 是默认语义检索入口,Evidence 提供 source-anchored support;向量索引与全文检索是辅助召回手段,不是知识真值本身,不反向定义知识架构。Raw material 的物理后端(filesystem / 未来 MinIO / OSS / S3-compatible)是可替换的存储抽象,不通过 schema 或 retrieval source type 泄漏。详见 KNOWLEDGE.md。 |
 | P4 | **Taxonomy before brand** | 先定义系统角色,再绑定具体执行器或模型品牌。品牌只在 EXECUTOR_REGISTRY.md 中出现。 |
 | P5 | **Explicit state over implicit memory** | 任务推进依赖外部可验证状态,不依赖模型对话记忆或上下文缓存。 |
 | P6 | **Controlled vs black-box path** | 受控 HTTP 调用路径与黑盒 agent 调用路径必须显式区分,不混用治理手段。 |

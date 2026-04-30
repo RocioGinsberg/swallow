@@ -150,12 +150,14 @@ CREATE TABLE event_telemetry (
 
 ### 3.3 Knowledge 命名空间
 
+> **Storage backend independence**:Knowledge 命名空间只持有受治理对象与 reference 语义,不持有 raw material 字节。`source_pointer` 字段使用稳定的后端无关 reference(`source_ref` / `content_hash` / `parser_version` / `span` / `heading_path`);具体物理后端(filesystem / 未来 MinIO / OSS / S3-compatible)由 `RawMaterialStore` 接口承担,不通过 schema 表达。详见 KNOWLEDGE.md §2.1 与 §3.3。
+
 ```sql
--- Evidence:带来源的原始证据
+-- Evidence:source-anchored support(不是 RAG chunk store,不是默认主检索目标)
 CREATE TABLE know_evidence (
     evidence_id      TEXT PRIMARY KEY,           -- ULID
     content          TEXT NOT NULL,
-    source_pointer   JSON,                       -- {kind, ref, locator}
+    source_pointer   JSON,                       -- {kind, source_ref, content_hash, parser_version, span, heading_path};后端无关 reference
     created_at       TEXT NOT NULL,
     created_by       TEXT NOT NULL DEFAULT 'local'
 );

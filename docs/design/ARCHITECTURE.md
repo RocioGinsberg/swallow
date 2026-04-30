@@ -91,7 +91,7 @@ Path A、Path B、Path C 是不同维度的设计对象,不应互相替代:
 | **HTTP Executor (Path A)** | 受控模型认知层 | brainstorm、review、synthesis、classification、结构化抽取、多模型 fan-out | 默认代码库阅读、代码修改、命令验证 |
 | **Autonomous CLI Agent (Path B)** | workspace 行动层 | 读 repo、改文件、跑测试、追踪调用链、验证实现 | 知识晋升、固定 ingestion pipeline、无边界 brainstorm |
 | **Specialist Agent (Path C)** | 固定专精流程封装 | ingestion、librarian、literature parsing、meta-optimizer、quality / consistency validation | 开放式施工、隐藏编排、替代通用 executor |
-| **Knowledge Layer** | 长期知识治理层 | verified / canonical knowledge、staged review、relation-aware retrieval | 原始聊天记忆池或纯 RAG chunk store |
+| **Knowledge Layer** | 三层结构(Raw Material / Knowledge Truth / Retrieval & Serving)的 storage-abstracted, evidence-backed wiki retrieval | Wiki / Canonical 默认主入口、Evidence source-anchored support、relation-aware retrieval、向量与文本仅作辅助召回与 fallback | 原始聊天记忆池或纯 RAG chunk store;raw material 物理后端不绑定 truth 语义 |
 
 默认上下文原则:
 
@@ -105,7 +105,7 @@ Path A、Path B、Path C 是不同维度的设计对象,不应互相替代:
 
 | 状态 | 内容 |
 |---|---|
-| **已成立** | local-first task runtime · SQLite-primary truth · Librarian-governed knowledge · optional vector retrieval + fallback · route / topology / policy visibility · Path A + Path B + Path C 三条调用路径 · taxonomy-first executor · 受控 vs 黑盒路径显式区分 |
+| **已成立** | local-first task runtime · SQLite-primary truth · Librarian-governed knowledge with storage-abstracted raw material(filesystem 当前唯一后端,object storage 适配为远期可替换后端)· wiki-first / evidence-backed retrieval(向量与文本仅作辅助召回与 fallback)· route / topology / policy visibility · Path A + Path B + Path C 三条调用路径 · taxonomy-first executor · 受控 vs 黑盒路径显式区分 |
 | **远期方向** | 跨设备同步(基于 git / 同步盘,非云端 truth) · 团队协作扩展(基于 §INVARIANTS §7 埋点) · 真实远程执行 / 跨机器 transport · 对象存储 blob 扩展 · 更高级的 provider negotiation · agentic retrieval(动态工具选择 / 多跳推理 / 召回质量反思,服务于已治理知识对象) |
 
 非目标见 → `INVARIANTS.md §8`。
