@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from ._io_helpers import read_json_or_empty
 from .canonical_registry import resolve_knowledge_object_id
 from .knowledge_relations import create_knowledge_relation, list_knowledge_relations
 from .paths import artifacts_dir
@@ -21,13 +22,10 @@ def persist_executor_side_effects(base_dir: Path, task_id: str, side_effects: di
 
 def load_executor_side_effects(base_dir: Path, task_id: str) -> dict[str, object]:
     path = artifacts_dir(base_dir, task_id) / EXECUTOR_SIDE_EFFECTS_ARTIFACT
-    if not path.exists():
-        return {}
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        return read_json_or_empty(path)
     except (OSError, json.JSONDecodeError):
         return {}
-    return payload if isinstance(payload, dict) else {}
 
 
 def _normalize_relation_suggestions(payload: object) -> list[dict[str, object]]:

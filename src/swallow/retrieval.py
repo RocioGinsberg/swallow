@@ -8,6 +8,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+from ._io_helpers import read_json_or_empty
 from .canonical_reuse import is_canonical_reuse_visible
 from .knowledge_store import iter_file_knowledge_task_ids, load_task_knowledge_view
 from .knowledge_objects import is_retrieval_reuse_ready
@@ -596,7 +597,7 @@ def iter_canonical_reuse_items(
     if not policy_path.exists():
         return []
     try:
-        payload = json.loads(policy_path.read_text(encoding="utf-8"))
+        payload = read_json_or_empty(policy_path)
     except (OSError, json.JSONDecodeError):
         return []
     visible_records = payload.get("visible_records", [])
@@ -683,7 +684,7 @@ def _build_retrieval_ready_knowledge_lookup(
     if not policy_path.exists():
         return lookup
     try:
-        payload = json.loads(policy_path.read_text(encoding="utf-8"))
+        payload = read_json_or_empty(policy_path)
     except (OSError, json.JSONDecodeError):
         return lookup
     visible_records = payload.get("visible_records", [])

@@ -5,6 +5,7 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from ._io_helpers import read_json_or_empty
 from .knowledge_objects import (
     summarize_canonicalization,
     summarize_knowledge_evidence,
@@ -146,7 +147,7 @@ def load_prior_retrieval_snapshot(state: TaskState) -> PriorRetrievalPromptData 
     if not task_memory_path:
         return None
     try:
-        payload = json.loads(Path(task_memory_path).read_text(encoding="utf-8"))
+        payload = read_json_or_empty(Path(task_memory_path))
     except (OSError, json.JSONDecodeError):
         return None
 

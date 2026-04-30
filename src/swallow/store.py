@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 from typing import Iterable, Protocol
 
+from ._io_helpers import read_json_lines_strict_or_empty
 from .knowledge_store import load_task_knowledge_view, persist_task_knowledge_view
 from .models import (
     Event,
@@ -133,21 +134,6 @@ def ensure_task_layout(base_dir: Path, task_id: str) -> None:
     knowledge_wiki_root(base_dir).mkdir(parents=True, exist_ok=True)
 
 
-def _load_json_lines(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-
-    records: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        payload = json.loads(stripped)
-        if isinstance(payload, dict):
-            records.append(payload)
-    return records
-
-
 def iter_file_task_ids(base_dir: Path) -> list[str]:
     root = tasks_root(base_dir)
     if not root.exists():
@@ -211,6 +197,10 @@ def _append_event_file(base_dir: Path, event: Event) -> None:
     ensure_task_layout(base_dir, event.task_id)
     with events_path(base_dir, event.task_id).open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(event.to_dict()) + "\n")
+
+
+def _load_json_lines(path: Path) -> list[dict[str, object]]:
+    return read_json_lines_strict_or_empty(path)
 
 
 def _load_events_file(base_dir: Path, task_id: str) -> list[dict[str, object]]:
@@ -546,11 +536,7 @@ def append_canonical_record(base_dir: Path, payload: dict[str, object]) -> None:
     promoted_at = str(payload.get("promoted_at", "")).strip()
     replaced = False
     if registry_file.exists():
-        for line in registry_file.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if not stripped:
-                continue
-            record = json.loads(stripped)
+        for record in read_json_lines_strict_or_empty(registry_file):
             if canonical_id and str(record.get("canonical_id", "")).strip() == canonical_id:
                 records.append(payload)
                 replaced = True

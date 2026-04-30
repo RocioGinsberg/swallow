@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Awaitable, Callable
 from uuid import uuid4
 
+from ._io_helpers import read_json_lines_strict_or_empty, read_json_or_empty, read_json_strict
 from .capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
 from .canonical_registry import (
     build_canonical_record,
@@ -386,28 +387,6 @@ def _append_canonical_write_guard_warning(base_dir: Path, state: TaskState, card
     )
 
 
-def _load_json_lines(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-
-    records: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        payload = json.loads(stripped)
-        if isinstance(payload, dict):
-            records.append(payload)
-    return records
-
-
-def _load_json(path: Path) -> dict[str, object]:
-    if not path.exists():
-        return {}
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return dict(payload) if isinstance(payload, dict) else {}
-
-
 def _build_knowledge_store_write_plan(
     base_dir: Path,
     task_id: str,
@@ -454,7 +433,7 @@ def _persist_librarian_atomic_updates(
 
     knowledge_partition = build_knowledge_partition(state.knowledge_objects)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
-    all_canonical_records = _load_json_lines(canonical_registry_path(base_dir))
+    all_canonical_records = read_json_lines_strict_or_empty(canonical_registry_path(base_dir))
     canonical_index = build_canonical_registry_index(all_canonical_records)
     canonical_reuse_summary = build_canonical_reuse_summary(all_canonical_records)
 
@@ -522,10 +501,10 @@ def _apply_librarian_side_effects(
         state,
     )
 
-    all_decisions = _load_json_lines(knowledge_decisions_path(base_dir, state.task_id))
-    all_canonical_records = _load_json_lines(canonical_registry_path(base_dir))
-    canonical_index = _load_json(canonical_registry_index_path(base_dir))
-    canonical_reuse_summary = _load_json(canonical_reuse_policy_path(base_dir))
+    all_decisions = read_json_lines_strict_or_empty(knowledge_decisions_path(base_dir, state.task_id))
+    all_canonical_records = read_json_lines_strict_or_empty(canonical_registry_path(base_dir))
+    canonical_index = read_json_or_empty(canonical_registry_index_path(base_dir))
+    canonical_reuse_summary = read_json_or_empty(canonical_reuse_policy_path(base_dir))
 
     output = executor_result.output or json.dumps(change_log_payload, indent=2)
     write_artifact(base_dir, state.task_id, "librarian_change_log.json", output)
@@ -2681,7 +2660,7 @@ def create_task(
     write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
     write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
     write_artifact(base_dir, task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report([]))
-    canonical_records = _load_json_lines(canonical_registry_path(base_dir))
+    canonical_records = read_json_lines_strict_or_empty(canonical_registry_path(base_dir))
     write_artifact(base_dir, task_id, "canonical_registry_report.md", build_canonical_registry_report(canonical_records))
     canonical_index = build_canonical_registry_index(canonical_records)
     save_canonical_registry_index(base_dir, canonical_index)
@@ -2960,10 +2939,7 @@ def decide_task_knowledge(
     append_knowledge_decision(base_dir, task_id, decision_record)
     decision_records = []
     if knowledge_decisions_path(base_dir, task_id).exists():
-        for line in knowledge_decisions_path(base_dir, task_id).read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped:
-                decision_records.append(json.loads(stripped))
+        decision_records = read_json_lines_strict_or_empty(knowledge_decisions_path(base_dir, task_id))
     write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
     write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
     write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
@@ -2986,10 +2962,7 @@ def decide_task_knowledge(
         )
         apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
     if canonical_registry_path(base_dir).exists():
-        for line in canonical_registry_path(base_dir).read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped:
-                canonical_records.append(json.loads(stripped))
+        canonical_records = read_json_lines_strict_or_empty(canonical_registry_path(base_dir))
     canonical_index = build_canonical_registry_index(canonical_records)
     save_canonical_registry_index(base_dir, canonical_index)
     canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
@@ -3101,7 +3074,7 @@ def _load_previous_retrieval_items(base_dir: Path, task_id: str) -> list[Retriev
     if not retrieval_file.exists():
         return None
     try:
-        payload = json.loads(retrieval_file.read_text(encoding="utf-8"))
+        payload = read_json_strict(retrieval_file)
     except (OSError, json.JSONDecodeError):
         return None
     if not isinstance(payload, list):
@@ -3127,7 +3100,7 @@ def _load_previous_executor_result(base_dir: Path, state: TaskState) -> Executor
     handoff_record: dict[str, object] = {}
     if handoff_path(base_dir, state.task_id).exists():
         try:
-            loaded_handoff = json.loads(handoff_path(base_dir, state.task_id).read_text(encoding="utf-8"))
+            loaded_handoff = read_json_or_empty(handoff_path(base_dir, state.task_id))
         except (OSError, json.JSONDecodeError):
             loaded_handoff = {}
         if isinstance(loaded_handoff, dict):
@@ -3208,9 +3181,9 @@ def evaluate_task_canonical_reuse(
     reuse_policy: dict[str, object] = {}
     retrieval_items: list[dict[str, object]] = []
     if canonical_reuse_policy_path(base_dir).exists():
-        reuse_policy = json.loads(canonical_reuse_policy_path(base_dir).read_text(encoding="utf-8"))
+        reuse_policy = read_json_or_empty(canonical_reuse_policy_path(base_dir))
     if retrieval_path(base_dir, task_id).exists():
-        loaded_retrieval = json.loads(retrieval_path(base_dir, task_id).read_text(encoding="utf-8"))
+        loaded_retrieval = read_json_strict(retrieval_path(base_dir, task_id))
         if isinstance(loaded_retrieval, list):
             retrieval_items = loaded_retrieval
     visible_records = reuse_policy.get("visible_records", []) if isinstance(reuse_policy, dict) else []
@@ -3238,10 +3211,7 @@ def evaluate_task_canonical_reuse(
     append_canonical_reuse_evaluation(base_dir, task_id, record)
     records: list[dict[str, object]] = []
     if canonical_reuse_eval_path(base_dir, task_id).exists():
-        for line in canonical_reuse_eval_path(base_dir, task_id).read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if stripped:
-                records.append(json.loads(stripped))
+        records = read_json_lines_strict_or_empty(canonical_reuse_eval_path(base_dir, task_id))
     summary = build_canonical_reuse_evaluation_summary(records)
     regression_baseline = build_canonical_reuse_regression_baseline(task_id=task_id, summary=summary)
     save_canonical_reuse_regression(base_dir, task_id, regression_baseline)

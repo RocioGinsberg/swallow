@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 
+from ._io_helpers import read_json_strict
 from .models import utc_now
 from .paths import (
     knowledge_objects_path,
@@ -126,7 +127,7 @@ def _load_store_entries(store_root: Path) -> list[dict[str, object]]:
 
     entries: list[dict[str, object]] = []
     for path in sorted(store_root.glob("*.json")):
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = read_json_strict(path)
         if isinstance(payload, dict):
             entries.append(payload)
     return entries
@@ -136,7 +137,7 @@ def _load_legacy_knowledge_objects(base_dir: Path, task_id: str) -> list[dict[st
     payload_path = knowledge_objects_path(base_dir, task_id)
     if not payload_path.exists():
         return []
-    payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    payload = read_json_strict(payload_path)
     if not isinstance(payload, list):
         return []
     return [dict(item) for item in payload if isinstance(item, dict)]

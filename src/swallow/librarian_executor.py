@@ -5,6 +5,7 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from ._io_helpers import read_json_lines_strict_or_empty
 from .canonical_registry import (
     build_canonical_record,
     build_canonical_registry_index,
@@ -52,21 +53,6 @@ def _normalize_text(text: str) -> str:
 
 def _text_hash(text: str) -> str:
     return _normalize_text(text).casefold()
-
-
-def _load_json_lines(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-
-    records: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        payload = json.loads(stripped)
-        if isinstance(payload, dict):
-            records.append(payload)
-    return records
 
 
 def _build_change_log_ref(task_id: str, object_id: str) -> str:
@@ -232,7 +218,7 @@ class LibrarianAgent:
     def _load_active_canonical_records(self, base_dir: Path) -> list[dict[str, object]]:
         return [
             record
-            for record in _load_json_lines(canonical_registry_path(base_dir))
+            for record in read_json_lines_strict_or_empty(canonical_registry_path(base_dir))
             if str(record.get("canonical_status", "active")).strip() != "superseded"
         ]
 

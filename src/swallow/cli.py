@@ -7,6 +7,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from ._io_helpers import read_json_lines_or_empty, read_json_list_or_empty, read_json_or_empty
 from .canonical_reuse_eval import (
     build_canonical_reuse_evaluation_report,
     build_canonical_reuse_evaluation_summary,
@@ -376,7 +377,7 @@ def format_knowledge_migration_summary(summary: dict[str, object]) -> str:
 
 def build_intake_snapshot(base_dir: Path, task_id: str) -> list[str]:
     state = load_state(base_dir, task_id)
-    task_semantics = load_json_if_exists(task_semantics_path(base_dir, task_id))
+    task_semantics = read_json_or_empty(task_semantics_path(base_dir, task_id))
     knowledge_objects = load_knowledge_objects(base_dir, task_id)
     knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
     knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
@@ -451,7 +452,7 @@ def build_knowledge_review_snapshot(
 
 def summarize_knowledge_attention(base_dir: Path, task_id: str) -> dict[str, str]:
     knowledge_objects = load_knowledge_objects(base_dir, task_id)
-    decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, task_id))
+    decisions = read_json_lines_or_empty(knowledge_decisions_path(base_dir, task_id))
     queue = build_review_queue(knowledge_objects, decisions)
     state_counts = dict(queue.get("state_counts", {}))
     needs_attention = any(
@@ -562,8 +563,8 @@ def build_canonical_reuse_regression_snapshot(baseline: dict[str, object]) -> li
 
 
 def build_canonical_reuse_regression_attention(base_dir: Path, task_id: str) -> dict[str, str]:
-    baseline = load_json_if_exists(canonical_reuse_regression_path(base_dir, task_id))
-    records = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, task_id))
+    baseline = read_json_or_empty(canonical_reuse_regression_path(base_dir, task_id))
+    records = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, task_id))
     current = build_canonical_reuse_regression_current(
         task_id=task_id,
         summary=build_canonical_reuse_evaluation_summary(records),
@@ -588,7 +589,7 @@ def build_canonical_reuse_regression_attention(base_dir: Path, task_id: str) -> 
 
 
 def build_remote_handoff_attention(base_dir: Path, task_id: str) -> dict[str, object]:
-    contract = load_json_if_exists(remote_handoff_contract_path(base_dir, task_id))
+    contract = read_json_or_empty(remote_handoff_contract_path(base_dir, task_id))
     contract_kind = str(contract.get("contract_kind", "not_available") or "not_available")
     contract_status = str(contract.get("contract_status", "not_available") or "not_available")
     handoff_boundary = str(contract.get("handoff_boundary", "unknown") or "unknown")
@@ -613,24 +614,6 @@ def build_remote_handoff_attention(base_dir: Path, task_id: str) -> dict[str, ob
             else f"{contract_status}:{handoff_boundary}"
         ),
     }
-
-
-def load_json_if_exists(path: Path) -> dict[str, object]:
-    if not path.exists():
-        return {}
-    return json.loads(path.read_text(encoding="utf-8"))
-
-
-def load_json_lines_if_exists(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-    items: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        items.append(json.loads(stripped))
-    return items
 
 
 def _format_route_selection_value(value: object) -> str:
@@ -898,9 +881,9 @@ def filter_task_states(states: list[object], focus: str) -> list[object]:
 
 
 def build_task_queue_entry(base_dir: Path, state: object) -> dict[str, str] | None:
-    handoff = load_json_if_exists(handoff_path(base_dir, state.task_id))
-    retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
-    stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
+    handoff = read_json_or_empty(handoff_path(base_dir, state.task_id))
+    retry_policy = read_json_or_empty(retry_policy_path(base_dir, state.task_id))
+    stop_policy = read_json_or_empty(stop_policy_path(base_dir, state.task_id))
     checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
     knowledge_attention = summarize_knowledge_attention(base_dir, state.task_id)
     regression_attention = build_canonical_reuse_regression_attention(base_dir, state.task_id)
@@ -1025,21 +1008,21 @@ def build_control_boundaries(
 
 
 def load_checkpoint_snapshot(base_dir: Path, state: object) -> dict[str, object]:
-    checkpoint_snapshot = load_json_if_exists(checkpoint_snapshot_path(base_dir, state.task_id))
+    checkpoint_snapshot = read_json_or_empty(checkpoint_snapshot_path(base_dir, state.task_id))
     if checkpoint_snapshot:
         return checkpoint_snapshot
-    handoff = load_json_if_exists(handoff_path(base_dir, state.task_id))
-    retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
-    stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
-    execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, state.task_id))
+    handoff = read_json_or_empty(handoff_path(base_dir, state.task_id))
+    retry_policy = read_json_or_empty(retry_policy_path(base_dir, state.task_id))
+    stop_policy = read_json_or_empty(stop_policy_path(base_dir, state.task_id))
+    execution_budget_policy = read_json_or_empty(execution_budget_policy_path(base_dir, state.task_id))
     return evaluate_checkpoint_snapshot(state, handoff, retry_policy, stop_policy, execution_budget_policy).to_dict()
 
 
 def build_task_control_snapshot(base_dir: Path, state: object) -> list[str]:
-    handoff = load_json_if_exists(handoff_path(base_dir, state.task_id))
-    retry_policy = load_json_if_exists(retry_policy_path(base_dir, state.task_id))
-    execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, state.task_id))
-    stop_policy = load_json_if_exists(stop_policy_path(base_dir, state.task_id))
+    handoff = read_json_or_empty(handoff_path(base_dir, state.task_id))
+    retry_policy = read_json_or_empty(retry_policy_path(base_dir, state.task_id))
+    execution_budget_policy = read_json_or_empty(execution_budget_policy_path(base_dir, state.task_id))
+    stop_policy = read_json_or_empty(stop_policy_path(base_dir, state.task_id))
     checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
     queue_entry = build_task_queue_entry(base_dir, state)
     knowledge_attention = summarize_knowledge_attention(base_dir, state.task_id)
@@ -1177,7 +1160,7 @@ def build_attempt_summaries(base_dir: Path, task_id: str) -> list[dict[str, str]
             summary["retry_policy_status"] = str(payload.get("retry_policy_status", summary["retry_policy_status"]))
             summary["stop_policy_status"] = str(payload.get("stop_policy_status", summary["stop_policy_status"]))
 
-    handoff = load_json_if_exists(handoff_path(base_dir, task_id))
+    handoff = read_json_or_empty(handoff_path(base_dir, task_id))
     latest_handoff_attempt = str(handoff.get("attempt_id", "")).strip()
     if latest_handoff_attempt in attempts:
         attempts[latest_handoff_attempt]["handoff_status"] = str(handoff.get("status", "pending"))
@@ -2398,7 +2381,7 @@ def main(argv: list[str] | None = None) -> int:
         candidate = resolve_stage_candidate(base_dir, args.candidate_id)
         if candidate.status != "pending":
             raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
-        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        canonical_records = read_json_lines_or_empty(canonical_registry_path(base_dir))
         preflight_notices = build_stage_promote_preflight_notices(canonical_records, candidate)
         for notice in preflight_notices:
             print(format_stage_promote_preflight_notice(notice))
@@ -2441,7 +2424,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "knowledge" and args.knowledge_command == "canonical-audit":
-        canonical_records = load_json_lines_if_exists(canonical_registry_path(base_dir))
+        canonical_records = read_json_lines_or_empty(canonical_registry_path(base_dir))
         print(build_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
         return 0
 
@@ -2984,8 +2967,8 @@ def main(argv: list[str] | None = None) -> int:
                 args.route_mode,
                 skip_to_phase=args.from_phase,
             )
-        retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
-        stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        retry_policy = read_json_or_empty(retry_policy_path(base_dir, args.task_id))
+        stop_policy = read_json_or_empty(stop_policy_path(base_dir, args.task_id))
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
         if not (retry_policy.get("retryable", False) and stop_policy.get("checkpoint_kind", "") in {"retry_review", "detached_retry_review"}):
             print(
@@ -3167,7 +3150,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "task" and args.task_command == "knowledge-review-queue":
         knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
-        decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
+        decisions = read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id))
         print(build_review_queue_report(build_review_queue(knowledge_objects, decisions)))
         return 0
 
@@ -3200,28 +3183,28 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "inspect":
         state = load_state(base_dir, args.task_id)
 
-        compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
-        topology = load_json_if_exists(topology_path(base_dir, args.task_id))
-        execution_site = load_json_if_exists(execution_site_path(base_dir, args.task_id))
-        dispatch = load_json_if_exists(dispatch_path(base_dir, args.task_id))
-        handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
-        execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
-        retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
-        execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))
-        stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        compatibility = read_json_or_empty(compatibility_path(base_dir, args.task_id))
+        topology = read_json_or_empty(topology_path(base_dir, args.task_id))
+        execution_site = read_json_or_empty(execution_site_path(base_dir, args.task_id))
+        dispatch = read_json_or_empty(dispatch_path(base_dir, args.task_id))
+        handoff = read_json_or_empty(handoff_path(base_dir, args.task_id))
+        execution_fit = read_json_or_empty(execution_fit_path(base_dir, args.task_id))
+        retry_policy = read_json_or_empty(retry_policy_path(base_dir, args.task_id))
+        execution_budget_policy = read_json_or_empty(execution_budget_policy_path(base_dir, args.task_id))
+        stop_policy = read_json_or_empty(stop_policy_path(base_dir, args.task_id))
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
-        knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
-        knowledge_partition = load_json_if_exists(knowledge_partition_path(base_dir, args.task_id))
-        knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
-        knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
-        canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
-        canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
+        knowledge_policy = read_json_or_empty(knowledge_policy_path(base_dir, args.task_id))
+        knowledge_partition = read_json_or_empty(knowledge_partition_path(base_dir, args.task_id))
+        knowledge_index = read_json_or_empty(knowledge_index_path(base_dir, args.task_id))
+        knowledge_decisions = read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id))
+        canonical_reuse_eval = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, args.task_id))
+        canonical_reuse_regression = read_json_or_empty(canonical_reuse_regression_path(base_dir, args.task_id))
         regression_attention = build_canonical_reuse_regression_attention(base_dir, args.task_id)
         remote_handoff_attention = build_remote_handoff_attention(base_dir, args.task_id)
-        canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
-        canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
-        retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
-        task_semantics = load_json_if_exists(task_semantics_path(base_dir, args.task_id))
+        canonical_registry_index = read_json_or_empty(canonical_registry_index_path(base_dir))
+        canonical_reuse_policy = read_json_or_empty(canonical_reuse_policy_path(base_dir))
+        retrieval = read_json_list_or_empty(retrieval_path(base_dir, args.task_id))
+        task_semantics = read_json_or_empty(task_semantics_path(base_dir, args.task_id))
         knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
         if not isinstance(retrieval, list):
             retrieval = []
@@ -3303,7 +3286,7 @@ def main(argv: list[str] | None = None) -> int:
             f"compatibility_status: {compatibility.get('status', 'pending')}",
             f"execution_fit_status: {execution_fit.get('status', 'pending')}",
             f"knowledge_policy_status: {knowledge_policy.get('status', 'pending')}",
-            f"validation_status: {load_json_if_exists(Path(state.artifact_paths.get('validation_json', ''))).get('status', 'pending') if state.artifact_paths.get('validation_json') else 'pending'}",
+            f"validation_status: {read_json_or_empty(Path(state.artifact_paths.get('validation_json', ''))).get('status', 'pending') if state.artifact_paths.get('validation_json') else 'pending'}",
             "",
             *build_knowledge_review_snapshot(knowledge_objects, knowledge_decisions),
             "",
@@ -3413,25 +3396,25 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "review":
         state = load_state(base_dir, args.task_id)
 
-        handoff = load_json_if_exists(handoff_path(base_dir, args.task_id))
-        compatibility = load_json_if_exists(compatibility_path(base_dir, args.task_id))
-        execution_fit = load_json_if_exists(execution_fit_path(base_dir, args.task_id))
-        retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
-        execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))
-        stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        handoff = read_json_or_empty(handoff_path(base_dir, args.task_id))
+        compatibility = read_json_or_empty(compatibility_path(base_dir, args.task_id))
+        execution_fit = read_json_or_empty(execution_fit_path(base_dir, args.task_id))
+        retry_policy = read_json_or_empty(retry_policy_path(base_dir, args.task_id))
+        execution_budget_policy = read_json_or_empty(execution_budget_policy_path(base_dir, args.task_id))
+        stop_policy = read_json_or_empty(stop_policy_path(base_dir, args.task_id))
         checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
-        knowledge_policy = load_json_if_exists(knowledge_policy_path(base_dir, args.task_id))
-        knowledge_index = load_json_if_exists(knowledge_index_path(base_dir, args.task_id))
+        knowledge_policy = read_json_or_empty(knowledge_policy_path(base_dir, args.task_id))
+        knowledge_index = read_json_or_empty(knowledge_index_path(base_dir, args.task_id))
         knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
-        knowledge_decisions = load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))
-        canonical_reuse_eval = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
-        canonical_reuse_regression = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
+        knowledge_decisions = read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id))
+        canonical_reuse_eval = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, args.task_id))
+        canonical_reuse_regression = read_json_or_empty(canonical_reuse_regression_path(base_dir, args.task_id))
         regression_attention = build_canonical_reuse_regression_attention(base_dir, args.task_id)
         remote_handoff_attention = build_remote_handoff_attention(base_dir, args.task_id)
-        canonical_registry_index = load_json_if_exists(canonical_registry_index_path(base_dir))
-        canonical_reuse_policy = load_json_if_exists(canonical_reuse_policy_path(base_dir))
+        canonical_registry_index = read_json_or_empty(canonical_registry_index_path(base_dir))
+        canonical_reuse_policy = read_json_or_empty(canonical_reuse_policy_path(base_dir))
         canonicalization_counts = summarize_canonicalization(knowledge_objects if isinstance(knowledge_objects, list) else [])
-        retrieval = load_json_if_exists(retrieval_path(base_dir, args.task_id))
+        retrieval = read_json_list_or_empty(retrieval_path(base_dir, args.task_id))
         reused_knowledge_references = []
         if isinstance(retrieval, list):
             for item in retrieval:
@@ -3447,7 +3430,7 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(retrieval, list)
             else 0
         )
-        validation = load_json_if_exists(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
+        validation = read_json_or_empty(Path(state.artifact_paths.get("validation_json", ""))) if state.artifact_paths.get("validation_json") else {}
         mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state) else ""
         taxonomy_label = format_taxonomy_label(state)
         grounding_locked, grounding_refs_count, grounding_refs = format_grounding_summary(state)
@@ -3568,9 +3551,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "policy":
         state = load_state(base_dir, args.task_id)
 
-        retry_policy = load_json_if_exists(retry_policy_path(base_dir, args.task_id))
-        execution_budget_policy = load_json_if_exists(execution_budget_policy_path(base_dir, args.task_id))
-        stop_policy = load_json_if_exists(stop_policy_path(base_dir, args.task_id))
+        retry_policy = read_json_or_empty(retry_policy_path(base_dir, args.task_id))
+        execution_budget_policy = read_json_or_empty(execution_budget_policy_path(base_dir, args.task_id))
+        stop_policy = read_json_or_empty(stop_policy_path(base_dir, args.task_id))
         lines = [f"Task Policy: {state.task_id}", f"title: {state.title}", ""]
         lines.extend(build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy))
         lines.extend(
@@ -3639,7 +3622,7 @@ def main(argv: list[str] | None = None) -> int:
         artifact_output = (artifacts_dir(base_dir, args.task_id) / artifact_name).read_text(encoding="utf-8")
         if args.task_command == "dispatch":
             state = load_state(base_dir, args.task_id)
-            topology = load_json_if_exists(topology_path(base_dir, args.task_id))
+            topology = read_json_or_empty(topology_path(base_dir, args.task_id))
             if is_mock_remote_task(state, topology):
                 print("[MOCK-REMOTE]")
         print(artifact_output, end="")
@@ -3727,24 +3710,24 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-decisions":
-        print(build_knowledge_decisions_report(load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id))))
+        print(build_knowledge_decisions_report(read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id))))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-registry":
-        print(build_canonical_registry_report(load_json_lines_if_exists(canonical_registry_path(base_dir))))
+        print(build_canonical_registry_report(read_json_lines_or_empty(canonical_registry_path(base_dir))))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-registry-index":
-        print(build_canonical_registry_index_report(load_json_if_exists(canonical_registry_index_path(base_dir))))
+        print(build_canonical_registry_index_report(read_json_or_empty(canonical_registry_index_path(base_dir))))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-reuse":
-        print(build_canonical_reuse_report(load_json_if_exists(canonical_reuse_policy_path(base_dir))))
+        print(build_canonical_reuse_report(read_json_or_empty(canonical_reuse_policy_path(base_dir))))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-reuse-regression":
-        baseline = load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id))
-        records = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
+        baseline = read_json_or_empty(canonical_reuse_regression_path(base_dir, args.task_id))
+        records = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, args.task_id))
         current = build_canonical_reuse_regression_current(
             task_id=args.task_id,
             summary=build_canonical_reuse_evaluation_summary(records),
@@ -3754,32 +3737,32 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "task" and args.task_command == "canonical-reuse-eval":
-        records = load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id))
+        records = read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, args.task_id))
         print(build_canonical_reuse_evaluation_report(records, build_canonical_reuse_evaluation_summary(records)))
         return 0
 
     if args.command == "task" and args.task_command == "knowledge-decisions-json":
-        print(json.dumps(load_json_lines_if_exists(knowledge_decisions_path(base_dir, args.task_id)), indent=2))
+        print(json.dumps(read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-registry-json":
-        print(json.dumps(load_json_lines_if_exists(canonical_registry_path(base_dir)), indent=2))
+        print(json.dumps(read_json_lines_or_empty(canonical_registry_path(base_dir)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-registry-index-json":
-        print(json.dumps(load_json_if_exists(canonical_registry_index_path(base_dir)), indent=2))
+        print(json.dumps(read_json_or_empty(canonical_registry_index_path(base_dir)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-reuse-json":
-        print(json.dumps(load_json_if_exists(canonical_reuse_policy_path(base_dir)), indent=2))
+        print(json.dumps(read_json_or_empty(canonical_reuse_policy_path(base_dir)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-reuse-eval-json":
-        print(json.dumps(load_json_lines_if_exists(canonical_reuse_eval_path(base_dir, args.task_id)), indent=2))
+        print(json.dumps(read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, args.task_id)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "canonical-reuse-regression-json":
-        print(json.dumps(load_json_if_exists(canonical_reuse_regression_path(base_dir, args.task_id)), indent=2))
+        print(json.dumps(read_json_or_empty(canonical_reuse_regression_path(base_dir, args.task_id)), indent=2))
         return 0
 
     if args.command == "task" and args.task_command == "retrieval-json":

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from urllib.parse import urlparse
 
+from ._io_helpers import read_json_lines_or_empty
 from .models import utc_now
 from .paths import canonical_registry_path
 from .sqlite_store import SqliteTaskStore
@@ -76,16 +76,7 @@ def resolve_knowledge_object_id(base_dir: Path, object_id: str, *, store: Sqlite
         raise ValueError(f"Unknown knowledge object: {normalized_id}")
 
     alias_matches: list[str] = []
-    for line in registry_file.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        try:
-            payload = json.loads(stripped)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(payload, dict):
-            continue
+    for payload in read_json_lines_or_empty(registry_file):
         source_object_id = str(payload.get("source_object_id", "")).strip()
         if not source_object_id or not resolved_store.knowledge_object_exists(base_dir, source_object_id):
             continue

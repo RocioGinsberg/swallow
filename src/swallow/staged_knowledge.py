@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from uuid import uuid4
 
+from ._io_helpers import read_json_lines_strict_or_empty
 from .models import utc_now
 from .paths import staged_knowledge_registry_path, staged_knowledge_root
 
@@ -94,13 +95,7 @@ def load_staged_candidates(base_dir: Path) -> list[StagedCandidate]:
     if not registry_file.exists():
         return []
 
-    candidates: list[StagedCandidate] = []
-    for line in registry_file.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        candidates.append(StagedCandidate.from_dict(json.loads(stripped)))
-    return candidates
+    return [StagedCandidate.from_dict(record) for record in read_json_lines_strict_or_empty(registry_file)]
 
 
 def submit_staged_candidate(base_dir: Path, candidate: StagedCandidate) -> StagedCandidate:

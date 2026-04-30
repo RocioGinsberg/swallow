@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
+from .._io_helpers import read_json_lines_strict_or_empty
 from ..canonical_registry import build_canonical_registry_index
 from ..canonical_reuse import build_canonical_reuse_summary
 from ..knowledge_store import persist_wiki_entry_from_record
@@ -51,17 +51,6 @@ class KnowledgeRepo:
         return tuple(applied_writes)
 
     def _refresh_canonical_derivatives(self, base_dir: Path) -> None:
-        canonical_records = _load_json_lines(canonical_registry_path(base_dir))
+        canonical_records = read_json_lines_strict_or_empty(canonical_registry_path(base_dir))
         save_canonical_registry_index(base_dir, build_canonical_registry_index(canonical_records))
         save_canonical_reuse_policy(base_dir, build_canonical_reuse_summary(canonical_records))
-
-
-def _load_json_lines(path: Path) -> list[dict[str, object]]:
-    if not path.exists():
-        return []
-    records: list[dict[str, object]] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
-        stripped = line.strip()
-        if stripped:
-            records.append(json.loads(stripped))
-    return records
