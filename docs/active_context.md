@@ -13,14 +13,14 @@
 - latest_completed_slice: `Truth Plane SQLite Transfer`
 - active_track: `Release`
 - active_phase: `v1.4.0`
-- active_slice: `Release docs prepared — pending Human tag`
+- active_slice: `Tag Completed`
 - active_branch: `main`
-- status: `v1.4.0_release_docs_prepared_pending_human_tag`
+- status: `v1.4.0_tag_completed`
 
 ## 当前状态说明
 
 Phase 65 has been merged to `main` (`64cbba7 merge: Truth Plane SQLite Transfer`) and roadmap factual update is complete.
-Codex has prepared `v1.4.0` release docs for Human review, release-doc commit, and tag execution.
+Human has completed the `v1.4.0` release-doc commit and annotated tag. The tag points to `5ec637f docs(release): prepare v1.4.0`; current `main` HEAD is `c95eb86 docs(state): uodate roadmap to framework closure era`.
 
 Implemented scope:
 
@@ -54,18 +54,20 @@ Merge-prep outputs:
 - `pr.md` rewritten for Phase 65 PR creation.
 - `review_comments.md` verdict is `APPROVE` after Claude follow-up review.
 
-Tag-prep outputs:
+Release/tag outputs:
 
 - `README.md` synced to release snapshot `v1.4.0`.
-- `current_state.md` synced to `v1.4.0_release_docs_prepared_pending_tag`.
-- Target tag: `v1.4.0`.
-- Suggested tag message: `v1.4.0: Governance boundary and SQLite truth closure`.
+- `current_state.md` synced to `v1.4.0_tag_completed`.
+- Completed tag: `v1.4.0`.
+- Tag message: `v1.4.0: Governance boundary and SQLite truth closure`.
+- Tag object: `49a82bc`; target commit: `5ec637f`.
+- Remote tag verification: `origin` has `refs/tags/v1.4.0`.
 - Tag preflight rerun: `.venv/bin/python -m pytest -q` -> `610 passed, 8 deselected, 10 subtests passed`; `git diff --check` passed; `git diff -- docs/design/INVARIANTS.md` no output.
 
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
-2. `current_state.md`(`v1.4.0` release-doc checkpoint)
+2. `current_state.md`(`v1.4.0` tag-completed checkpoint)
 3. `README.md`(`v1.4.0` release snapshot)
 4. `docs/roadmap.md`(Phase 65 post-merge factual update)
 5. `docs/plans/phase65/closeout.md`(codex closeout)
@@ -123,6 +125,8 @@ Tag-prep outputs:
 - **[Human]** Phase 65 已 merge 到 `main`(`64cbba7 merge: Truth Plane SQLite Transfer`)。
 - **[Claude/roadmap-updater]** Phase 65 post-merge roadmap factual update 已完成:候选 H 标 [已消化],推荐顺序更新为 G ✓ → G.5 ✓ → H ✓ → K/R/D,Tag/Release 决策追踪更新到 v1.4.0 待 Human tag gate。
 - **[Codex]** `v1.4.0` release doc sync 已完成:`README.md` release snapshot 与 `current_state.md` checkpoint 已对齐到 pending tag 状态。
+- **[Human]** `v1.4.0` release docs commit 与 annotated tag 已完成并 push 到 `origin`。
+- **[Codex]** tag completed 状态同步已完成:`docs/active_context.md` 与 `current_state.md` 已从 pending tag 更新为 `v1.4.0_tag_completed`。
 
 进行中:
 
@@ -130,8 +134,8 @@ Tag-prep outputs:
 
 待执行:
 
-- **[Human]** Review release-doc diff and roadmap diff, then commit `README.md` / `current_state.md` / `docs/active_context.md` plus existing roadmap update as release-prep docs.
-- **[Human]** Execute `v1.4.0` annotated tag after release-doc commit.
+- **[Human]** Commit tag-completed state sync if accepted.
+- **[Human / Claude / Codex]** 进入下一轮 Direction Gate / phase selection,不要继续扩张 Phase 65。
 - **[Codex / 低优先]** `docs/plans/phase61/closeout.md` 第 81 行 cosmetic doc fix。
 
 当前阻塞项:
@@ -142,11 +146,9 @@ Tag-prep outputs:
 
 ## 当前下一步
 
-1. **[Human]** Review and commit release docs on `main`.
-2. **[Human]** Run tag preflight if desired:`.venv/bin/python -m pytest -q && git diff --check`.
-3. **[Human]** Execute annotated tag:`git tag -a v1.4.0 -m "v1.4.0: Governance boundary and SQLite truth closure"`.
-4. **[Human]** Push `main` and tags.
-5. **[Codex]** After tag completion, sync `docs/active_context.md` to `tag completed`.
+1. **[Human]** Review and commit tag-completed state sync.
+2. **[Human / Claude / Codex]** Start next Direction Gate from roadmap recommendations(K / R / D).
+3. **[Codex]** After the next phase is selected, update `docs/active_context.md` to the new active track / phase / slice.
 
 ```markdown
 design_audit:
@@ -200,7 +202,7 @@ model_review:
 - `docs/concerns_backlog.md`(codex, 2026-04-30, Phase 65 closeout updates)
 - `pr.md`(codex, 2026-04-30, Phase 65 PR body draft)
 - `README.md`(codex, 2026-04-30, v1.4.0 release snapshot prep)
-- `current_state.md`(codex, 2026-04-30, v1.4.0 release-doc checkpoint prep)
+- `current_state.md`(codex, 2026-04-30, v1.4.0 tag-completed checkpoint sync)
 - `docs/roadmap.md`(claude/roadmap-updater, 2026-04-30, Phase 65 post-merge factual update)
 - `docs/design/DATA_MODEL.md`(codex, Phase 65 schema sync + review NOTE-1 fix; `INVARIANTS.md` unchanged)
 - `src/swallow/sqlite_store.py` / `src/swallow/router.py` / `src/swallow/truth/route.py` / `src/swallow/truth/policy.py` / `src/swallow/consistency_audit.py` / `src/swallow/mps_policy_store.py` / `src/swallow/governance.py` / `src/swallow/cli.py`(codex, Phase 65 implementation)
