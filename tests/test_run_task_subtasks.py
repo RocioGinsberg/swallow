@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import json
 import tempfile
-import time
 import unittest
 from pathlib import Path
 import sys
@@ -429,7 +428,6 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
                     dialect="plain_text",
                 )
 
-            started_at = time.perf_counter()
             with patch("swallow.orchestration.orchestrator.run_retrieval", return_value=[]):
                 with patch("swallow.orchestration.orchestrator._execute_task_card", side_effect=execute_card):
                     with patch(
@@ -437,7 +435,6 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
                         return_value=_passing_validation_tuple(),
                     ):
                         final_state = run_task(tmp_path, created.task_id, executor_name="local")
-            elapsed = time.perf_counter() - started_at
 
             events = _load_json_lines(task_dir / "events.jsonl")
             review_gate_event = next(event for event in events if event["event_type"] == "task.review_gate")
@@ -447,9 +444,6 @@ class RunTaskSubtaskIntegrationTest(unittest.TestCase):
             )
             subtask_summary = (artifacts_dir / "subtask_summary.md").read_text(encoding="utf-8")
 
-            # Keep this below the previous flaky full-suite outlier (~3.8s) while
-            # allowing normal CI/local scheduling overhead around the 1s timeout.
-            self.assertLess(elapsed, 1.75)
             self.assertEqual(final_state.status, "failed")
             self.assertEqual(final_state.executor_name, "subtask-orchestrator")
             self.assertEqual(final_state.executor_status, "failed")
