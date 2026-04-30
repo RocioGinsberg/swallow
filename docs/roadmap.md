@@ -56,6 +56,7 @@ status: living-document
 | **Truth Plane SQLite 一致性** | INVARIANTS P2 / DATA_MODEL §3 / SELF_EVOLUTION | route metadata / policy 当前以 JSON 文件 + 进程内 dict 存储,违背 P2 "SQLite-primary truth"。`apply_proposal` 4 步序列(`save_route_weights → apply → save_capability_profiles → apply`)缺事务保证,中途失败导致 in-memory 不一致;长期亦阻碍对象存储后端兼容(S3 / MinIO / OSS 没有文件系统原子 rename) | [已消化]:Phase 65 completed(2026-04-30,commit `64cbba7`);route metadata / policy 迁入 SQLite,`apply_proposal` 用 `BEGIN IMMEDIATE` transaction,引入 `route_change_log` / `policy_change_log` 审计表;履行 INVARIANTS P2 在治理状态上的代码层承诺。详见 `docs/plans/phase65/closeout.md` |
 | **代码卫生(dead code / 硬编码 / 复用)** | 跨模块 | [已消化] Phase 66 完成:75 个 .py 文件 / 30954 LOC 全 read-only audit;46 finding(2 high / 36 med / 8 low)+ 5 跨块共识主题 + 7 quick-win + 9 design-needed;`docs/concerns_backlog.md` 增量已沉淀 | **Phase 66 完成**(2026-04-30,commit `596b54b`)详见 `docs/plans/phase66/audit_index.md` + `closeout.md` |
 | **代码卫生债清理(Phase 66 audit 衍生)** | concerns_backlog | Phase 66 audit_index 推荐 3 类后续 phase:(i) small hygiene cleanup(quick-win 7 项)/(ii) IO + artifact ownership design / (iii) CLI dispatch tightening。**不应合并到一个 phase**(audit_index 明确警告) | **候选 L / M / N**(由 Human 在新 Direction Gate 选择起步顺序;3 个候选独立 scope 互不阻塞) |
+| **模块组织 / 文件聚类** | 跨模块 | `src/swallow/` 75 个 .py 文件中 61 个挤在根目录扁平结构,仅 14 个在 4 个子目录(`truth/` / `web/` / `ingestion/` / `dialect_adapters/`)。Phase 66 audit 已天然识别 5 个语义聚类(块 1-5),但代码层未体现;新人 onboarding / R 阶段 debug 时找代码摩擦大 | **候选 P**(优先级中):按 Phase 66 audit 5 块 + KNOWLEDGE 三层架构对齐到 5 主目录;Phase 67 完成后启动,优先于 R 与 O,为 R 阶段的 debug + O 阶段的 raw_material 分层准备清晰边界 |
 | **知识层 storage-abstracted raw material** | KNOWLEDGE / DATA_MODEL | KNOWLEDGE.md 已升级为三层架构 + Storage Backend Independence(2026-04-30,commit `7d25c26`),`RawMaterialStore` 接口边界与 `Replaceable Components` 分类已固化;**实装层未跟进** — `know_evidence.source_pointer` JSON 字段语义已能承载 source_ref / content_hash / parser_version / span / heading_path,但缺 `RawMaterialStore` 抽象 + URI scheme 解析 + future MinIO/OSS/S3 适配桩 | **候选 O**(优先级低-中):引入 `RawMaterialStore` 接口 + filesystem 后端实装 + URI scheme 解析,为未来 object storage 后端清除技术债;不引入对象存储后端本身 |
 | **能力画像自动学习** | PROVIDER_ROUTER / SELF_EVOLUTION | 已被路由消费;自动学习质量与 guard 可观测性仍需提升 | **后续方向** |
 | **Runtime v1** | HARNESS | harness bridge 为 v0 约束 | 低优先级 |
@@ -78,9 +79,10 @@ status: living-document
 | 推荐次序 4 | 候选 L | Small hygiene cleanup(audit quick-win 7 项消化) | Refactor / Hygiene | low risk;实装 quick-win;~1-2 milestone |
 | 推荐次序 4 | 候选 M | IO + artifact ownership design | Design / Refactor | medium risk;JSON/JSONL helper 行为变体 + task artifact-name ownership |
 | 推荐次序 4 | 候选 N | CLI dispatch tightening | Refactor / Surface | medium risk;table-driven dispatch 起步 read-only artifact/report 命令族 |
-| 推荐次序 5 | 候选 O | Storage Backend Independence(`RawMaterialStore` 接口 + filesystem 后端) | Knowledge / Storage | KNOWLEDGE.md 三层架构衍生;清除对象存储后端技术债;不引入对象存储后端本身 |
-| 推荐次序 6 | 候选 R | 真实使用反馈观察期 | Operations | 治理三段闭合 + 代码债盘点 + 文档强化后,观察 P1 / P2 在生产负载下的有效性 |
-| 推荐次序 7 | 候选 D | 编排增强(Planner / DAG / Strategy Router) | Orchestration | 无真实瓶颈推动 |
+| 推荐次序 5 | 候选 P | 模块重组(5 主目录对齐 audit 块 + KNOWLEDGE 三层) | Refactor / Architecture | medium risk;75 文件 import path 大改 + 全量 pytest 验证;为 R + O 准备清晰边界 |
+| 推荐次序 6 | 候选 O | Storage Backend Independence(`RawMaterialStore` 接口 + filesystem 后端) | Knowledge / Storage | KNOWLEDGE.md 三层架构衍生;清除对象存储后端技术债;不引入对象存储后端本身 |
+| 推荐次序 7 | 候选 R | 真实使用反馈观察期 | Operations | 治理三段闭合 + 代码债盘点 + 模块重组 + 文档强化后,观察 P1 / P2 在生产负载下的有效性 |
+| 推荐次序 8 | 候选 D | 编排增强(Planner / DAG / Strategy Router) | Orchestration | 无真实瓶颈推动 |
 
 ### 候选 G:治理守卫收口(Governance Closure)— ✅ Phase 63 完成
 
@@ -160,7 +162,29 @@ status: living-document
 - **优先级理由**:Phase 66 audit 确认 cli.py 无 dead subcommand(历史 review 把关质量好);剩下的债务是 dispatch 重复,table-driven 后未来加新 subcommand 成本下降
 - **依赖**:Phase 66 完成✅;建议候选 M 后启动(IO/artifact ownership 决议会影响 artifact printer 命令族的 dispatch 表设计)
 
-### 候选 O:Storage Backend Independence(`RawMaterialStore` 接口)— 推荐次序 5
+### 候选 P:Module Reorganization(5 主目录对齐 audit 块 + KNOWLEDGE 三层)— 推荐次序 5
+
+- **核心价值**:`src/swallow/` 当前 75 个 .py 文件中 61 个挤在根目录扁平结构;Phase 66 audit 已天然识别 5 个语义聚类但代码层未体现。重组让目录结构匹配 audit 块边界,**为 R 阶段 debug 提供清晰起点 + 为候选 O 的 raw_material 分层准备前置**
+- **scope**:按 5 主目录拆,基于 Phase 66 audit 块边界:
+  - `src/swallow/truth_governance/`:governance / truth/* / sqlite_store / store(audit 块 1)
+  - `src/swallow/orchestration/`:orchestrator / executor / synthesis / harness / planner / review_gate / validator / dispatch_policy / 等(audit 块 2)
+  - `src/swallow/provider_router/`:router / agent_llm / _http_helpers / cost_estimation / capability_enforcement(audit 块 3)
+  - `src/swallow/knowledge_retrieval/`:retrieval / retrieval_adapters / retrieval_config / knowledge_* / staged_knowledge / canonical_* / ingestion/ / dialect_adapters/(audit 块 4)
+  - `src/swallow/surface_tools/`:cli / paths / identity / workspace / web/ / meta_optimizer / consistency_audit / mps_policy_store / doctor / Specialist executors(audit 块 5)
+  - `src/swallow/_io_helpers.py` 留在根(私有 helper 跨多目录用)
+- **不在 scope 内**:
+  - 不重写代码逻辑,只 mv + import path replace
+  - 不解决 KNOWLEDGE 三层架构内部细分(raw_material / knowledge_truth / retrieval_serving 三子目录留给候选 O 启动时再考虑)
+  - 不动 `tests/` 目录结构(测试框架按文件名定位,不依赖 src/ 路径)
+- **风险**:中——75 文件 import path 大改;Codex 实装时机械 mv + grep replace 但需要全量 pytest + manual 抽样验证;git blame 历史可能受影响(Phase 65 / 66 / 67 测试套件全量绿灯是验收硬约束)
+- **缓解**:
+  - 单 commit 完成("commit-by-commit migration"反而碎片化 review)
+  - 利用 git rename 检测保留 blame 历史(`git mv` 触发 rename detection)
+  - Phase 67 完成是天然窗口(代码债已清,无新 phase scope 漂移)
+- **优先级理由**:Phase 67 完成后是稳定窗口,所有命名 / 边界已经在最清晰状态;R 阶段 debug 需要清晰目录;O 阶段 raw_material 分层在重组目录上做更顺
+- **依赖**:Phase 67 完成(避免 import path 改动撞 M3 review);**O 与 R 都依赖 P 之后启动**
+
+### 候选 O:Storage Backend Independence(`RawMaterialStore` 接口)— 推荐次序 6
 
 - **核心价值**:KNOWLEDGE.md 2026-04-30 升级为三层架构 + Storage Backend Independence 后,文档已固化但实装未跟进;此 phase 引入 `RawMaterialStore` 接口 + filesystem 后端,为未来 object storage(MinIO / OSS / S3-compatible)清除技术债
 - **可能 slice**:
@@ -172,9 +196,9 @@ status: living-document
   - 不动 Knowledge Truth schema(`know_evidence.source_pointer` JSON 字段语义已能承载 source_ref / content_hash / parser_version / span / heading_path)
 - **风险**:中——跨多模块抽象边界引入;但 KNOWLEDGE.md `Replaceable Components` 表已固化语义边界,实装层只需对位
 - **优先级理由**:不是紧迫瓶颈,但 KNOWLEDGE.md 三层架构升级已发出"对象存储后端就绪"信号;长期不实装等于让"future MinIO/OSS 后端"持续作为 vaporware 信号
-- **依赖**:Phase 66 完成✅;建议候选 L / M 之后(此 phase 触动 IO 抽象,与候选 M IO ownership design 决议有耦合)
+- **依赖**:Phase 66 完成✅ + 候选 P 完成(P 重组目录后 raw_material 分层在新结构上做更顺);建议候选 L / M / N / P 之后
 
-### 候选 R:真实使用反馈观察期 — 推荐次序 6
+### 候选 R:真实使用反馈观察期 — 推荐次序 7
 
 - **核心价值**:治理三段(G + G.5 + H)闭合 + 代码债盘点(Phase 66)+ 文档强化(KNOWLEDGE 三层)三个稳定锚点都已就位后,**不再追加 capability-bearing phase**,而是观察一轮真实使用反馈
 - **观察维度**:多 agent 协作、复杂任务编排、长期知识沉淀、Wiki / Canonical 检索质量、route 自动学习有效性、INVARIANTS P1 / P2 在生产负载下的稳定性
@@ -183,7 +207,7 @@ status: living-document
 - **优先级理由**:架构债务已基本清空;无紧迫真实需求拉动新 phase;此时观察期价值高于继续推进 capability
 - **依赖**:无
 
-### 候选 D:编排增强(Planner / DAG / Strategy Router 显式化)
+### 候选 D:编排增强(Planner / DAG / Strategy Router 显式化)— 推荐次序 8
 
 - **核心价值**:把已部分抽出的 planning 能力继续一等化,形成明确 Planner 接口、DAG dependency orchestration 与 Strategy Router 可观测边界
 - **可能 slice**:Planner 接口抽取 / DAG-based subtask 依赖 / Strategy Router 显式化
@@ -195,7 +219,7 @@ status: living-document
 
 ## 五、Claude 推荐顺序
 
-**G ✓ → G.5 ✓ → H ✓ → K ✓ → {L / M / N / O 三选一} → R(观察) → D(后置)**(2026-04-30,Phase 66 merge + KNOWLEDGE 三层架构升级后确认)
+**G ✓ → G.5 ✓ → H ✓ → K ✓ → {L / M / N 任选起步 → P → O → R → D}**(2026-04-30,Phase 67 启动后 + 候选 P 加入后确认)
 
 理由:
 
@@ -203,13 +227,14 @@ status: living-document
 2. **候选 G.5 紧随已完成✅(NO_SKIP 红灯修复,Phase 64)** —— Phase 63 完成后 §9 守卫只启用 6/8 条会留治理尾巴;G.5 是 G 的自然延续,2 条红灯已被 M0 audit 精确定位(`executor.py:510` + `agent_llm.py:57`),scope 可控,完成后宪法守卫真正全启用
 3. **候选 H 已完成✅(Truth Plane SQLite 一致性,Phase 65)** —— P2 "SQLite-primary truth" 是 INVARIANTS 已写但代码未兑现的不变量。Phase 65 通过迁入 SQLite + `BEGIN IMMEDIATE` transaction + audit log 完整闭合;治理三段(G + G.5 + H)合璧后 INVARIANTS 宪法在治理维度实现完整兑现
 4. **候选 K 已完成✅(代码卫生 audit,Phase 66)** —— 75 个 .py 文件 / 30954 LOC 全 read-only audit;46 finding + 5 跨块共识主题 + 7 quick-win + 9 design-needed 已沉淀 backlog,为后续清理 phase 提供精确弹药
-5. **下一步 = {L / M / N / O} 由 Human 在新 Direction Gate 选择**(audit_index 明确警告"不应合并到一个 phase"):
+5. **候选 L / M / N 由 Human 在新 Direction Gate 选择**(audit_index 明确警告"不应合并到一个 phase";Phase 67 已知情接受三合一并通过严格分 milestone 缓解):
    - **候选 L(small hygiene cleanup)**:scope 最清晰、回滚最低,适合作为 audit 后第一个清理 phase 起步
    - **候选 M(IO + artifact ownership design)**:消化 audit 唯一 [high] finding(`_load_json_lines` cross-block dup),触动较深的设计决策
    - **候选 N(CLI dispatch tightening)**:public CLI surface 重构,起步 read-only 子集风险可控
-   - **候选 O(Storage Backend Independence)**:KNOWLEDGE 三层架构衍生的实装路径;不引入对象存储后端本身,只清除"绑定 filesystem 假设"技术债;长期不实装等于让"future object storage 后端"持续作为 vaporware 信号
-6. **候选 R 观察期(真实使用反馈)** —— 治理三段 + 代码债盘点 + 文档强化三大稳定锚点完成后,建议观察一轮真实使用反馈,验证 P1 / P2 代码承诺在生产负载下的有效性
-7. **候选 D 后置(Planner / DAG / Strategy Router)** —— 编排能力实际可用,无真实瓶颈推动。orchestrator 主链路重构回滚成本高,等到真实需求(MPS 真实使用反馈 / 多 task 复杂依赖场景)出现后再做
+6. **候选 P(模块重组 5 主目录)** —— Phase 67 完成后启动。LMN 三个清理 phase 把代码债清完后,代码命名 / 边界处于最清晰状态;此时按 Phase 66 audit 5 块 + KNOWLEDGE 三层架构对齐目录结构,为 R 阶段 debug 与候选 O 的 raw_material 分层都准备清晰的代码起点。**插在 R 与 O 之前**是关键:R 阶段需要清晰目录才能高效 debug;O 阶段在重组后的 knowledge_retrieval/ 下做 raw_material 分层比在扁平结构上做顺
+7. **候选 O(Storage Backend Independence)** —— KNOWLEDGE 三层架构衍生的实装路径;不引入对象存储后端本身,只清除"绑定 filesystem 假设"技术债;长期不实装等于让"future object storage 后端"持续作为 vaporware 信号
+8. **候选 R 观察期(真实使用反馈)** —— 治理三段 + 代码债盘点 + 模块重组 + 文档强化四大稳定锚点完成后,建议观察一轮真实使用反馈,验证 P1 / P2 代码承诺在生产负载下的有效性
+9. **候选 D 后置(Planner / DAG / Strategy Router)** —— 编排能力实际可用,无真实瓶颈推动。orchestrator 主链路重构回滚成本高,等到真实需求(MPS 真实使用反馈 / 多 task 复杂依赖场景)出现后再做
 
 ---
 
@@ -227,6 +252,7 @@ status: living-document
 | Truth 物理存储 | INVARIANTS P2 SQLite-primary truth + 对象存储后端兼容性 | ✅ **Phase 65 完成**:task / event / knowledge / evidence / relations / route metadata / policy 全迁 SQLite,事务保证 + 对象存储后端兼容性基础已就位 | **稳定期**;Raw material 物理后端通过候选 O `RawMaterialStore` 接口实装清除"绑定 filesystem"技术债 |
 | Raw material storage | filesystem 当前唯一后端,future object storage(MinIO / OSS / S3-compatible)留接口适配 | ✅ **2026-04-30 文档层就绪**:KNOWLEDGE.md §3.3 `RawMaterialStore` 接口 contract + URI scheme 示例(`file://` / `artifact://` / `s3://` / `minio://` / `oss://`)固化;实装层未跟进 | **候选 O**(推荐次序 5):接口实装 + filesystem 后端;不引入对象存储后端本身 |
 | 代码卫生 | dead code / 硬编码字面量 / 重复 helper / 抽象机会系统盘点 | ✅ **Phase 66 完成**:75 个 .py 文件全 read-only audit;46 finding + 5 跨块共识主题 + 7 quick-win + 9 design-needed 沉淀 backlog | **盘点期完成**;后续清理 = 候选 L / M / N(三个独立 phase 不应合并) |
+| 代码组织 | 75 文件按 audit 5 块 + KNOWLEDGE 三层对齐到目录结构 | 当前 75 个 .py 文件中 61 个挤在根目录扁平结构;Phase 66 audit 已识别 5 个语义聚类但代码层未体现 | **候选 P**(推荐次序 5):Phase 67 完成后启动,优先于 R 与 O;按 audit 5 块拆 5 主目录 |
 | 执行编排 | 高并发多路 + DAG | fan-out 已落地 | **候选 D**(后置) |
 | 思考-讨论-沉淀(完整) | 受控多视角综合 + multi-route synthesis | MPS 受控多视角综合 + 仲裁已落地(Phase 62) | **稳定期** |
 | 自我进化 | Librarian + Meta-Optimizer 提案应用闭环 | 已基本完成 | 远期 |
