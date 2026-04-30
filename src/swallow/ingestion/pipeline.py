@@ -28,6 +28,8 @@ DEFAULT_INGESTION_SUBMITTED_BY = "swl_ingest"
 DEFAULT_INGESTION_TAXONOMY_ROLE = LIBRARIAN_SYSTEM_ROLE
 DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY = "staged-knowledge"
 LOCAL_MARKDOWN_HEADING_PATTERN = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
+INGESTION_REPORT_PREVIEW_LIMIT = 80
+INGESTION_REPORT_PREVIEW_SUFFIX = "..."
 
 
 @dataclass(slots=True)
@@ -289,8 +291,9 @@ def build_ingestion_report(result: IngestionPipelineResult) -> str:
 
     for candidate in result.staged_candidates:
         preview = " ".join(candidate.text.split())
-        if len(preview) > 80:
-            preview = preview[:77].rstrip() + "..."
+        if len(preview) > INGESTION_REPORT_PREVIEW_LIMIT:
+            preview = preview[: INGESTION_REPORT_PREVIEW_LIMIT - len(INGESTION_REPORT_PREVIEW_SUFFIX)].rstrip()
+            preview += INGESTION_REPORT_PREVIEW_SUFFIX
         lines.extend(
             [
                 f"- {candidate.candidate_id}",

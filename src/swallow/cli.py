@@ -74,6 +74,7 @@ from .knowledge_objects import summarize_canonicalization
 from .knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from .knowledge_suggestions import apply_relation_suggestions, build_relation_suggestion_application_report
 from .models import Event, RouteSelection
+from .mps_policy_store import MPS_POLICY_KINDS
 from .orchestrator import (
     acknowledge_task,
     append_task_knowledge_capture,
@@ -1312,7 +1313,7 @@ def build_parser() -> argparse.ArgumentParser:
     synthesis_policy_set_parser.add_argument(
         "--kind",
         required=True,
-        choices=("mps_round_limit", "mps_participant_limit"),
+        choices=sorted(MPS_POLICY_KINDS),
         help="MPS policy kind to update.",
     )
     synthesis_policy_set_parser.add_argument(

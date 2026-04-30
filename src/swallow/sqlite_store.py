@@ -15,6 +15,9 @@ from .knowledge_store import (
 from .models import Event, TaskState, utc_now
 from .paths import app_root, artifacts_dir, swallow_db_path, task_root, tasks_root
 
+SQLITE_CONNECT_TIMEOUT_SECONDS = 5.0
+SQLITE_BUSY_TIMEOUT_MS = 5000
+
 
 CREATE_TASKS_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS tasks (
@@ -278,7 +281,7 @@ def _ensure_schema_version(connection: sqlite3.Connection) -> None:
 
 def _initialize_schema(connection: sqlite3.Connection) -> None:
     connection.execute("PRAGMA journal_mode=WAL")
-    connection.execute("PRAGMA busy_timeout = 5000")
+    connection.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
     connection.execute(CREATE_TASKS_TABLE_SQL)
     connection.execute(CREATE_EVENTS_TABLE_SQL)
     connection.execute(CREATE_EVENTS_TASK_INDEX_SQL)
@@ -324,7 +327,7 @@ def get_connection(base_dir: Path) -> sqlite3.Connection:
     store._ensure_layout(base_dir)
     connection = sqlite3.connect(
         swallow_db_path(base_dir),
-        timeout=5.0,
+        timeout=SQLITE_CONNECT_TIMEOUT_SECONDS,
         isolation_level=None,
         check_same_thread=False,
     )
@@ -355,7 +358,7 @@ class SqliteTaskStore:
 
     def _connect(self, base_dir: Path) -> sqlite3.Connection:
         self._ensure_layout(base_dir)
-        connection = sqlite3.connect(swallow_db_path(base_dir), timeout=5.0)
+        connection = sqlite3.connect(swallow_db_path(base_dir), timeout=SQLITE_CONNECT_TIMEOUT_SECONDS)
         connection.row_factory = sqlite3.Row
         _initialize_schema(connection)
         return connection
@@ -364,17 +367,21 @@ class SqliteTaskStore:
         db_path = swallow_db_path(base_dir)
         if not db_path.exists():
             return None
-        connection = sqlite3.connect(f"file:{db_path}?mode=ro&immutable=1", timeout=5.0, uri=True)
+        connection = sqlite3.connect(
+            f"file:{db_path}?mode=ro&immutable=1",
+            timeout=SQLITE_CONNECT_TIMEOUT_SECONDS,
+            uri=True,
+        )
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA query_only = ON")
-        connection.execute("PRAGMA busy_timeout = 5000")
+        connection.execute(f"PRAGMA busy_timeout = {SQLITE_BUSY_TIMEOUT_MS}")
         return connection
 
     def _checkpoint(self, base_dir: Path) -> None:
         db_path = swallow_db_path(base_dir)
         if not db_path.exists():
             return
-        with sqlite3.connect(db_path, timeout=5.0) as connection:
+        with sqlite3.connect(db_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS) as connection:
             connection.execute("PRAGMA wal_checkpoint(PASSIVE)")
 
     def save_state(self, base_dir: Path, state: TaskState) -> None:
@@ -882,7 +889,7 @@ class SqliteTaskStore:
             }
 
         try:
-            with sqlite3.connect(db_path, timeout=5.0) as connection:
+            with sqlite3.connect(db_path, timeout=SQLITE_CONNECT_TIMEOUT_SECONDS) as connection:
                 connection.row_factory = sqlite3.Row
                 tasks_table = _table_exists(connection, "tasks")
                 events_table = _table_exists(connection, "events")

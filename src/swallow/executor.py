@@ -31,6 +31,7 @@ from .runtime_config import resolve_swl_chat_model
 from .workspace import resolve_path
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
+DEFAULT_EXECUTOR_TIMEOUT_SECONDS = 20
 
 
 class UnknownExecutorError(ValueError):
@@ -1164,7 +1165,9 @@ def run_http_executor(
     prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
     endpoint = resolve_new_api_chat_completions_url()
     headers = _http_request_headers()
-    timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
+    timeout_seconds = parse_timeout_seconds(
+        os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", str(DEFAULT_EXECUTOR_TIMEOUT_SECONDS))
+    )
     payload = _http_request_payload(prompt, state)
 
     try:
@@ -1284,7 +1287,9 @@ async def run_http_executor_async(
     prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
     endpoint = resolve_new_api_chat_completions_url()
     headers = _http_request_headers()
-    timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
+    timeout_seconds = parse_timeout_seconds(
+        os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", str(DEFAULT_EXECUTOR_TIMEOUT_SECONDS))
+    )
     payload = _http_request_payload(prompt, state)
 
     try:
@@ -1425,7 +1430,9 @@ def run_cli_agent_executor(
 ) -> ExecutorResult:
     prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
     agent_bin = resolve_cli_agent_binary(config)
-    timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
+    timeout_seconds = parse_timeout_seconds(
+        os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", str(DEFAULT_EXECUTOR_TIMEOUT_SECONDS))
+    )
     if not shutil.which(agent_bin):
         result = ExecutorResult(
             executor_name=config.executor_name,
@@ -1551,7 +1558,9 @@ async def run_cli_agent_executor_async(
 ) -> ExecutorResult:
     prompt = prompt or build_formatted_executor_prompt(state, retrieval_items)
     agent_bin = resolve_cli_agent_binary(config)
-    timeout_seconds = parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "20"))
+    timeout_seconds = parse_timeout_seconds(
+        os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", str(DEFAULT_EXECUTOR_TIMEOUT_SECONDS))
+    )
     if not shutil.which(agent_bin):
         result = ExecutorResult(
             executor_name=config.executor_name,

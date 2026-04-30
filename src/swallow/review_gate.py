@@ -614,24 +614,6 @@ def _run_review_gate_sync(coro: Any) -> ReviewGateResult:
     raise RuntimeError("run_review_gate() cannot be used inside a running event loop; use run_review_gate_async().")
 
 
-def run_consensus_review(
-    state: TaskState,
-    executor_result: ExecutorResult,
-    card: TaskCard,
-    reviewer_routes: list[str],
-    consensus_policy: str,
-) -> ReviewGateResult:
-    return _run_review_gate_sync(
-        run_consensus_review_async(
-            state,
-            executor_result,
-            card,
-            reviewer_routes,
-            consensus_policy,
-        )
-    )
-
-
 async def run_review_gate_async(state: TaskState, executor_result: ExecutorResult, card: TaskCard) -> ReviewGateResult:
     reviewer_routes = _normalized_reviewer_routes(card.reviewer_routes)
     if not reviewer_routes:

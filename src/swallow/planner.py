@@ -90,6 +90,8 @@ def _token_cost_limit(state: TaskState) -> float:
 
 def _reviewer_timeout_seconds(state: TaskState) -> int:
     semantics = state.task_semantics if state.task_semantics else {}
+    # NOTE: 60 mirrors review_gate.DEFAULT_REVIEWER_TIMEOUT_SECONDS; keep
+    # literal here to avoid coupling planner to the review gate module.
     raw_timeout = semantics.get("reviewer_timeout_seconds", 60)
     try:
         parsed = int(raw_timeout)

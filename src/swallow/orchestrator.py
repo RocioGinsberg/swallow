@@ -133,6 +133,7 @@ from .router import (
 )
 from .planner import plan
 from .review_gate import (
+    DEFAULT_REVIEWER_TIMEOUT_SECONDS,
     ReviewFeedback,
     ReviewGateResult,
     build_review_feedback,
@@ -2545,7 +2546,7 @@ def create_task(
     route_mode: str = "auto",
     reviewer_routes: list[str] | None = None,
     consensus_policy: str = "majority",
-    reviewer_timeout_seconds: int = 60,
+    reviewer_timeout_seconds: int = DEFAULT_REVIEWER_TIMEOUT_SECONDS,
     token_cost_limit: float = 0.0,
 ) -> TaskState:
     task_id = uuid4().hex[:12]
@@ -2591,8 +2592,8 @@ def create_task(
     try:
         normalized_reviewer_timeout = int(reviewer_timeout_seconds)
     except (TypeError, ValueError):
-        normalized_reviewer_timeout = 60
-    if normalized_reviewer_timeout > 0 and normalized_reviewer_timeout != 60:
+        normalized_reviewer_timeout = DEFAULT_REVIEWER_TIMEOUT_SECONDS
+    if normalized_reviewer_timeout > 0 and normalized_reviewer_timeout != DEFAULT_REVIEWER_TIMEOUT_SECONDS:
         task_semantics_payload["reviewer_timeout_seconds"] = normalized_reviewer_timeout
     try:
         normalized_token_cost_limit = float(token_cost_limit)

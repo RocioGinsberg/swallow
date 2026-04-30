@@ -28,7 +28,9 @@ from .retrieval_config import (
     DEFAULT_RETRIEVAL_RERANK_CONFIG,
     KNOWLEDGE_PRIORITY_BONUS,
     RelationExpansionConfig,
+    RETRIEVAL_PREVIEW_LIMIT,
     RetrievalRerankConfig,
+    RETRIEVAL_SCORING_TEXT_LIMIT,
     resolve_retrieval_rerank_config,
 )
 from .sqlite_store import SqliteTaskStore
@@ -420,7 +422,7 @@ def iter_verified_knowledge_items(
 
     items: list[RetrievalItem] = []
     for match in matches:
-        preview = " ".join(match.document.text.split())[:220]
+        preview = " ".join(match.document.text.split())[:RETRIEVAL_PREVIEW_LIMIT]
         metadata = dict(match.document.metadata)
         metadata["knowledge_retrieval_adapter"] = match.adapter_name
         metadata["knowledge_retrieval_mode"] = retrieval_mode
@@ -642,7 +644,7 @@ def iter_canonical_reuse_items(
 
     items: list[RetrievalItem] = []
     for match in matches:
-        preview = " ".join(match.document.text.split())[:220]
+        preview = " ".join(match.document.text.split())[:RETRIEVAL_PREVIEW_LIMIT]
         metadata = dict(match.document.metadata)
         metadata["knowledge_retrieval_adapter"] = match.adapter_name
         metadata["knowledge_retrieval_mode"] = retrieval_mode
@@ -783,7 +785,7 @@ def expand_by_relations(
             if target_object_id not in seen_object_ids:
                 document = lookup.get(target_object_id)
                 if document is not None:
-                    preview = " ".join(document.text.split())[:220]
+                    preview = " ".join(document.text.split())[:RETRIEVAL_PREVIEW_LIMIT]
                     metadata = dict(document.metadata)
                     metadata.update(
                         {
@@ -872,7 +874,7 @@ def retrieve_context(
                 relative_path=relative_path,
                 path_name=path.name,
                 title=chunk.title,
-                chunk_text=chunk_text[:4000],
+                chunk_text=chunk_text[:RETRIEVAL_SCORING_TEXT_LIMIT],
             )
             if score <= 0:
                 continue
@@ -880,7 +882,7 @@ def retrieve_context(
             line_start = chunk.line_start
             line_end = chunk.line_end
             citation_line_start, citation_line_end = _citation_line_range(chunk)
-            preview = " ".join(chunk_text.split())[:220]
+            preview = " ".join(chunk_text.split())[:RETRIEVAL_PREVIEW_LIMIT]
             items.append(
                 RetrievalItem(
                     path=relative_path,

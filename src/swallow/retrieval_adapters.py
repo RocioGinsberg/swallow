@@ -17,6 +17,7 @@ from .runtime_config import (
     resolve_swl_embedding_dimensions,
     resolve_swl_embedding_model,
 )
+from .retrieval_config import RETRIEVAL_SCORING_TEXT_LIMIT
 
 TEXT_SUFFIXES = {
     ".md",
@@ -255,6 +256,7 @@ def rank_documents_by_local_embedding(
     adapter_name: str = "local_embedding",
     embedding_dimensions: int | None = None,
 ) -> list[RetrievalSearchMatch]:
+    # eval-only: production retrieval uses TextFallbackAdapter or VectorRetrievalAdapter.
     resolved_dimensions = resolve_swl_embedding_dimensions(explicit_dimensions=embedding_dimensions)
     query_embedding = build_local_embedding(query_text, dimensions=resolved_dimensions)
     matches: list[RetrievalSearchMatch] = []
@@ -264,7 +266,7 @@ def rank_documents_by_local_embedding(
             relative_path=document.path,
             path_name=document.path_name,
             title=document.title,
-            chunk_text=document.text[:4000],
+            chunk_text=document.text[:RETRIEVAL_SCORING_TEXT_LIMIT],
         )
         similarity = cosine_similarity(
             query_embedding,
@@ -309,7 +311,7 @@ class TextFallbackAdapter:
                 relative_path=document.path,
                 path_name=document.path_name,
                 title=document.title,
-                chunk_text=document.text[:4000],
+                chunk_text=document.text[:RETRIEVAL_SCORING_TEXT_LIMIT],
             )
             if score <= 0:
                 continue
@@ -449,7 +451,7 @@ class VectorRetrievalAdapter:
                 relative_path=document.path,
                 path_name=document.path_name,
                 title=document.title,
-                chunk_text=document.text[:4000],
+                chunk_text=document.text[:RETRIEVAL_SCORING_TEXT_LIMIT],
             )
             distance = max(0.0, min(float(row["distance"]), 2.0))
             vector_bonus = max(1, int(round((2.0 - distance) * 3)))

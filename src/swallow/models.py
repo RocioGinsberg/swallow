@@ -638,6 +638,8 @@ class TaskCard:
     # Under veto, reviewer_routes[0] owns veto authority and later routes are advisory.
     reviewer_routes: list[str] = field(default_factory=list)
     consensus_policy: str = "majority"
+    # NOTE: 60 mirrors review_gate.DEFAULT_REVIEWER_TIMEOUT_SECONDS.
+    # Do not import review_gate here: review_gate imports models.
     reviewer_timeout_seconds: int = 60
     token_cost_limit: float = 0.0
     constraints: list[str] = field(default_factory=list)

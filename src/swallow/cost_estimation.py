@@ -31,17 +31,6 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(normalized) // 4)
 
 
-def _pricing_for(model_hint: str) -> tuple[float, float]:
-    normalized_hint = (model_hint or "").strip().lower()
-    if not normalized_hint:
-        return (0.0, 0.0)
-    normalized_hint = LEGACY_MODEL_HINT_ALIASES.get(normalized_hint, normalized_hint)
-    for key, pricing in MODEL_PRICING.items():
-        if key in normalized_hint:
-            return pricing
-    return (0.0, 0.0)
-
-
 class StaticCostEstimator:
     def __init__(self, model_pricing: dict[str, tuple[float, float]] | None = None) -> None:
         self._model_pricing = dict(model_pricing or MODEL_PRICING)

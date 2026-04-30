@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 
 KNOWLEDGE_PRIORITY_BONUS = 50
+RETRIEVAL_SCORING_TEXT_LIMIT = 4000
+RETRIEVAL_PREVIEW_LIMIT = 220
 
 
 @dataclass(frozen=True, slots=True)
