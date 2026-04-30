@@ -2,7 +2,7 @@
 author: codex
 phase: phase66
 slice: audit-block1-truth-governance
-status: review
+status: final
 depends_on:
   - docs/plans/phase66/kickoff.md
   - docs/plans/phase66/design_decision.md
