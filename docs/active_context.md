@@ -11,141 +11,121 @@
 - latest_completed_track: `Knowledge / Storage`
 - latest_completed_phase: `Phase 68`
 - latest_completed_slice: `Candidate O / Raw Material Store Boundary`
-- active_track: `Knowledge / Storage`
-- active_phase: `Phase 68`
-- active_slice: `Closeout / PR Merge Prep`
-- active_branch: `feat/phase68-raw-material-store`
-- status: `phase68_complete_pending_phase67_then_phase68_merge`
+- active_track: `Release`
+- active_phase: `v1.5.0 Tag Release`
+- active_slice: `Release Doc Sync / Tag Prep`
+- active_branch: `main`
+- status: `v1.5.0_release_docs_ready_for_human_review`
 
 ## 当前状态说明
 
-Phase 67 implementation is complete on `feat/phase67-hygiene-io-cli-cleanup` and should be merged before Phase 68.
+Phase 67 and Phase 68 have both been merged into `main`.
 
-Phase 68 starts as a stacked branch from the current Phase 67 HEAD because Phase 67 has not yet been merged into
-`main` in this workspace. Merge order should be:
+Current main checkpoint:
 
-1. Merge Phase 67 first.
-2. Rebase or retarget Phase 68 if needed.
-3. Merge Phase 68 after its slice gates complete.
+- `eb2c743 merge: code hygiene execute` — Phase 67 L+M+N cleanup + Candidate P module reorganization.
+- `5cb08af merge: update knowledge plane raw material store` — Phase 68 Candidate O Raw Material Store boundary.
 
-Phase 68 implements Candidate O from `docs/roadmap.md` as a narrow Raw Material Store boundary:
+Latest executed public tag remains `v1.4.0`. The recommended pending release tag is `v1.5.0` because Phase 68 turns the roadmap Candidate O storage-backend-independence signal into implementation: `RawMaterialStore` interface, filesystem backend, stable `file://workspace/...` refs, and `artifact://...` evidence resolution.
 
-- S1: raw material interface, URI parser, filesystem backend, focused tests.
-- S2: ingestion migration to stable source refs.
-- S3: artifact evidence reference normalization.
-- Closeout / PR prep: complete; `pr.md` now describes Phase 68.
+Release-doc sync for `v1.5.0` is prepared in:
 
-Phase 68 must not modify:
+- `README.md`
+- `current_state.md`
+- `docs/active_context.md`
+- `docs/concerns_backlog.md`
+- `docs/roadmap.md`
 
-- `docs/design/INVARIANTS.md`
-- `docs/design/DATA_MODEL.md`
-- `docs/design/KNOWLEDGE.md`
-- Knowledge Truth schema
-- retrieval source type semantics
+No tag command has been executed yet.
 
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
-2. `docs/plans/phase68/kickoff.md`
-3. `docs/plans/phase68/breakdown.md`
-4. `docs/roadmap.md`
-5. `docs/design/INVARIANTS.md`
-6. `docs/design/KNOWLEDGE.md`
-7. `docs/plans/phase67/closeout.md`
-8. `docs/plans/phase68/closeout.md`
-9. `docs/plans/phase67/codex_review_notes_candidate_p.md`
+2. `current_state.md`
+3. `README.md`
+4. `docs/plans/phase67/closeout.md`
+5. `docs/plans/phase68/closeout.md`
+6. `docs/roadmap.md`
+7. `docs/concerns_backlog.md`
+8. `docs/design/INVARIANTS.md`
 
 ## 当前推进
 
 已完成:
 
-- **[Codex]** Phase 67 PR body draft was refreshed earlier; `pr.md` is now updated for Phase 68.
-- **[Codex]** Phase 68 branch created: `feat/phase68-raw-material-store`.
-- **[Codex]** Phase 68 kickoff / breakdown created with Human direction to proceed without a separate Claude design
-  gate.
-- **[Codex]** Phase 68 S1 implementation completed:
-  - added `src/swallow/knowledge_retrieval/raw_material.py`
-  - added `tests/test_raw_material_store.py`
-  - wrote `docs/plans/phase68/codex_review_notes_s1.md`
-  - focused verification: `10 passed`
-  - adjacent verification: `24 passed`
+- **[Human]** Phase 67 merged into `main`:
+  - `eb2c743 merge: code hygiene execute`
+- **[Human]** Phase 68 merged into `main`:
+  - `5cb08af merge: update knowledge plane raw material store`
+- **[Codex]** Release preflight on `main`:
   - `git diff --check`: passed
   - `git diff -- docs/design`: no output
-  - full pytest: `620 passed, 8 deselected, 10 subtests passed`
-- **[Human]** Phase 68 S1 commits completed:
-  - `97ab87d feat(phase68-s1): add raw material store interface`
-  - `c5affe7 docs(phase68-s1): record raw material store gate`
-- **[Codex]** Phase 68 S2 implementation completed:
-  - routed local/session ingestion reads through `FilesystemRawMaterialStore`
-  - changed new in-workspace ingestion refs to `file://workspace/<relative-path>`
-  - preserved out-of-workspace source refs as absolute file URIs
-  - kept clipboard and operator-note ingestion refs unchanged
-  - wrote `docs/plans/phase68/codex_review_notes_s2.md`
-  - focused verification: `20 passed`
-  - invariant-adjacent verification: `21 passed`
-  - CLI verification: `241 passed, 10 subtests passed`
-  - full pytest: `621 passed, 8 deselected, 10 subtests passed`
-- **[Human]** Phase 68 S2 commits completed:
-  - `2f04b63 refactor(phase68-s2): route ingestion through raw material store`
-  - `d135001 docs(phase68-s2): record ingestion raw material gate`
-- **[Codex]** Phase 68 S3 implementation completed:
-  - routed librarian artifact evidence existence checks through `FilesystemRawMaterialStore`
-  - normalized legacy `.swl/tasks/<task_id>/artifacts/<path>` refs internally to `artifact://...`
-  - accepted already-normalized `artifact://...` refs
-  - preserved persisted `artifact_ref` values and Knowledge Truth schema
-  - wrote `docs/plans/phase68/codex_review_notes_s3.md`
-  - focused verification: `16 passed`
-  - invariant guard verification: `1 passed`
-  - full pytest: `622 passed, 8 deselected, 10 subtests passed`
-- **[Human]** Phase 68 S3 commits completed:
-  - `550f3dc refactor(phase68-s3): normalize artifact raw material refs`
-  - `6c4545f docs(phase68-s3): record artifact raw material gate`
-- **[Codex]** Phase 68 closeout / PR prep completed:
-  - wrote `docs/plans/phase68/closeout.md`
-  - updated ignored `pr.md` to Phase 68 PR body
-  - synchronized `docs/active_context.md` and `current_state.md`
+  - `.venv/bin/python -m compileall -q src/swallow`: passed
+  - `.venv/bin/python -m pytest -q`: `622 passed, 8 deselected, 10 subtests passed`
+- **[Codex]** `v1.5.0` release-doc sync prepared:
+  - `README.md` release snapshot updated from `v1.4.0` to `v1.5.0`
+  - `current_state.md` updated to Phase 68 main checkpoint with pending release tag
+  - `docs/active_context.md` updated to tag release gate state
+  - `docs/concerns_backlog.md` moved the old release-doc sync debt to Resolved
+  - `docs/roadmap.md` factually synced Candidate L/M/N/P/O completion and pending `v1.5.0`
+- **[Codex]** Release preflight exposed the known subtask timeout wall-clock flake; stabilized
+  `tests/test_run_task_subtasks.py` by removing the brittle elapsed-time assertion while keeping artifact/event behavior assertions.
 
 进行中:
 
-- **[Human]** Merge Phase 67 first, then merge Phase 68.
+- **[Human]** Review release docs before release commit and annotated tag.
 
 待执行:
 
-- **[Human]** Push / PR / merge Phase 67.
-- **[Human]** Rebase or retarget Phase 68 if needed after Phase 67 reaches `main`.
-- **[Human]** Push / PR / merge Phase 68 using updated `pr.md`.
-- **[Codex]** After merges, perform post-merge state sync if requested.
+- **[Human]** Commit test stabilization separately from release docs.
+- **[Human]** Commit release docs on `main`.
+- **[Human]** Create annotated tag `v1.5.0`.
+- **[Human]** Push `main` and tags.
+- **[Codex]** After tag completion, update `docs/active_context.md` and `current_state.md` from pending tag to executed tag.
 
 当前阻塞项:
 
-- Phase 68 must wait for Phase 67 to merge first.
+- Waiting for Human release-doc review, commit, and tag execution.
+
+## Tag 建议
+
+- 建议: 打 tag
+- 建议版本号: `v1.5.0`
+- 理由: Phase 67 是内部 hygiene / module reorganization,单独不需要 tag;Phase 68 实装 `RawMaterialStore` raw-material 边界后,构成从 `v1.4.0` 治理闭合进入 storage-abstracted knowledge plane 的稳定 checkpoint。
+- 等待条件: Human review release docs, commit, then create annotated tag.
 
 ## 当前下一步
 
-1. **[Human]** Merge Phase 67.
-2. **[Human]** Rebase / retarget Phase 68 if needed.
-3. **[Human]** Merge Phase 68.
-4. **[Codex]** Sync post-merge state when Human confirms merge results.
+1. **[Human]** Review release docs:
+   - `README.md`
+   - `current_state.md`
+   - `docs/active_context.md`
+   - `docs/concerns_backlog.md`
+   - `docs/roadmap.md`
+2. **[Human]** Commit test stabilization:
+   - `test(orchestration): stabilize subtask timeout isolation`
+3. **[Human]** Commit release docs:
+   - `docs(release): sync v1.5.0 release docs`
+4. **[Human]** Create annotated tag:
+   - `git tag -a v1.5.0 -m "v1.5.0: raw material store boundary"`
+5. **[Codex]** Sync tag result after Human confirms tag completed.
 
 ```markdown
 milestone_gate:
-- current: phase68-closeout-merge-prep
-- next_gate: Human merge Phase 67, then Human merge Phase 68
-- proceed_to_post_merge_sync: after Human confirms merges
-- reason: Phase 68 is stacked on Phase 67 and must not merge first
+- current: v1.5.0-release-doc-sync
+- previous_gate: Phase 67 and Phase 68 merged into main
+- next_gate: Human release-doc review / commit / annotated tag
+- proceed_to_tag_result_sync: after Human confirms tag completed
+- reason: tag commands are Human-owned; Codex only prepares release files
 ```
 
 ## 当前产出物
 
-- `docs/plans/phase68/kickoff.md`(codex, 2026-04-30, Phase 68 kickoff)
-- `docs/plans/phase68/breakdown.md`(codex, 2026-04-30, Phase 68 slice breakdown)
-- `docs/plans/phase68/codex_review_notes_s1.md`(codex, 2026-04-30, S1 review notes)
-- `docs/plans/phase68/codex_review_notes_s2.md`(codex, 2026-04-30, S2 review notes)
-- `docs/plans/phase68/codex_review_notes_s3.md`(codex, 2026-04-30, S3 review notes)
+- `README.md`(codex, 2026-04-30, v1.5.0 release snapshot)
+- `current_state.md`(codex, 2026-04-30, v1.5.0 pending release checkpoint)
+- `docs/active_context.md`(codex, 2026-04-30, tag release gate state)
+- `docs/concerns_backlog.md`(codex, 2026-04-30, release-doc debt resolved)
+- `docs/roadmap.md`(codex, 2026-04-30, post-merge factual sync)
+- `tests/test_run_task_subtasks.py`(codex, 2026-04-30, release preflight flake stabilization)
+- `docs/plans/phase67/closeout.md`(codex, 2026-04-30, Phase 67 closeout)
 - `docs/plans/phase68/closeout.md`(codex, 2026-04-30, Phase 68 closeout)
-- `src/swallow/knowledge_retrieval/raw_material.py`(codex, 2026-04-30, S1 implementation)
-- `tests/test_raw_material_store.py`(codex, 2026-04-30, S1 tests)
-- `src/swallow/knowledge_retrieval/ingestion/pipeline.py`(codex, 2026-04-30, S2 implementation)
-- `src/swallow/surface_tools/librarian_executor.py`(codex, 2026-04-30, S3 implementation)
-- `pr.md`(codex, ignored PR body draft for Phase 68)
-- `docs/active_context.md`(codex, 2026-04-30, Phase 68 closeout / merge-prep state)

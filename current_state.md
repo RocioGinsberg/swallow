@@ -27,43 +27,33 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `Phase 66`
+- latest_main_checkpoint_phase: `Phase 68`
 - latest_executed_public_tag: `v1.4.0`
-- pending_release_tag: `none`
-- current_working_phase: `Phase 68 Closeout / PR Merge Prep`
-- checkpoint_type: `phase68_complete_pending_phase67_then_phase68_merge`
-- active_branch: `feat/phase68-raw-material-store`
+- pending_release_tag: `v1.5.0`
+- current_working_phase: `v1.5.0 Release Docs / Tag Prep`
+- checkpoint_type: `phase68_merged_pending_v1.5.0_tag`
+- active_branch: `main`
 - last_checked: `2026-04-30`
 
 说明：
 
-- `main` 最新稳定 checkpoint 仍是 Phase 66 merge:`596b54b merge: read-only code hygiene audit of project`。
-- Phase 67 工作分支为 `feat/phase67-hygiene-io-cli-cleanup`,Phase 67 L/M/N closeout、Candidate P module reorganization、CLI reference sync 已完成;当前可由 Human push / PR / merge。
-- 当前工作分支已切到 `feat/phase68-raw-material-store`,该分支从 Phase 67 HEAD stacked 启动;Human 应先合并 Phase 67,再视需要 rebase / retarget Phase 68。
-- Phase 67 完成 Phase 66 audit 衍生的 L+M+N consolidated cleanup:
-  - M1:7 项 hygiene quick-win。
-  - M2:`_io_helpers.py` + JSON / JSONL helper ownership。
-  - M3:read-only CLI artifact/report printer dispatch table。
-- Candidate P module reorganization 已完成:
-  - `src/swallow/` root Python files reduced to `__init__.py` + `_io_helpers.py`。
+- `main` 当前最新 checkpoint 为 `5cb08af merge: update knowledge plane raw material store`。
+- Phase 67 已 merge 到 `main`:`eb2c743 merge: code hygiene execute`。
+- Phase 68 已 merge 到 `main`:`5cb08af merge: update knowledge plane raw material store`。
+- 最新已执行公开 tag 仍为 `v1.4.0`;本轮 release docs 已按 pending tag `v1.5.0` 准备,但 tag 命令尚未执行。
+- Phase 67 完成 Phase 66 audit 衍生的 L+M+N cleanup 与 Candidate P module reorganization:
+  - root package Python surface 收敛为 `__init__.py` + `_io_helpers.py`。
   - runtime code moved into `truth_governance/`, `orchestration/`, `provider_router/`, `knowledge_retrieval/`, `surface_tools/`。
-  - `swl` entry point now targets `swallow.surface_tools.cli:main`。
-- Phase 67 final review verdict:`APPROVE`(`docs/plans/phase67/review_comments_block_n.md`)。
-- Candidate P final verification:`.venv/bin/python -m pytest -q` → `610 passed, 8 deselected, 10 subtests passed`。
-- Phase 67 未修改 `docs/design/`。
-- 最新公开 tag 仍为 `v1.4.0`;Phase 67 review 建议 cleanup phase 不打 release tag。
-- Phase 68 S1 已提交:
-  - `97ab87d feat(phase68-s1): add raw material store interface`
-  - `c5affe7 docs(phase68-s1): record raw material store gate`
-- Phase 68 S2 已完成 ingestion migration / stable source_ref update / full pytest。
-- Phase 68 S2 已提交:
-  - `2f04b63 refactor(phase68-s2): route ingestion through raw material store`
-  - `d135001 docs(phase68-s2): record ingestion raw material gate`
-- Phase 68 S3 已完成 artifact evidence reference normalization / full pytest。
-- Phase 68 S3 已提交:
-  - `550f3dc refactor(phase68-s3): normalize artifact raw material refs`
-  - `6c4545f docs(phase68-s3): record artifact raw material gate`
-- Phase 68 closeout 已完成:`docs/plans/phase68/closeout.md`;`pr.md` 已更新为 Phase 68 PR body。
+  - read-only CLI artifact/report dispatch 改为 table-driven。
+  - CLI reference 与当前 command map 同步。
+- Phase 68 完成 Candidate O raw material storage boundary:
+  - 新增 `RawMaterialStore` protocol / URI parser / filesystem backend / content hashing。
+  - ingestion file reads 通过 `FilesystemRawMaterialStore`。
+  - 新 workspace 内 ingestion source refs 使用 `file://workspace/<relative-path>`。
+  - workspace 外 source refs 使用 absolute `file://` URI。
+  - librarian artifact evidence checks 接受 `artifact://<task_id>/<artifact_path>` 并兼容 legacy `.swl/tasks/...` refs。
+- Phase 68 未修改 Knowledge Truth schema、retrieval source type semantics 或 `docs/design/`。
+- `v1.5.0` 建议作为 `v1.4.0` 之后的 storage-abstracted knowledge plane checkpoint。
 
 ---
 
@@ -71,17 +61,23 @@
 
 当前推荐从以下状态继续：
 
-- active_branch: `feat/phase68-raw-material-store`
-- active_track: `Knowledge / Storage`
-- active_phase: `Phase 68`
-- active_slice: `Closeout / PR Merge Prep`
-- workflow_status: `phase68_complete_pending_phase67_then_phase68_merge`
+- active_branch: `main`
+- active_track: `Release`
+- active_phase: `v1.5.0 Tag Release`
+- active_slice: `Release Doc Sync / Tag Prep`
+- workflow_status: `v1.5.0_release_docs_ready_for_human_review`
 
 说明：
 
-- Phase 67 已完成实现和验证,当前默认动作是 Human push / PR / merge Phase 67。
-- Phase 68 已完成实现、验证、closeout 和 PR body 更新。
-- Phase 68 是 stacked branch;必须先 merge Phase 67,再 rebase / retarget Phase 68 并合并。
+- Release docs 已准备:
+  - `README.md`
+  - `current_state.md`
+  - `docs/active_context.md`
+  - `docs/concerns_backlog.md`
+  - `docs/roadmap.md`
+- 当前默认动作是 Human review release docs,提交 release docs commit,然后执行 annotated tag。
+- Codex 不执行 `git commit`、`git tag` 或 `git push`。
+- Human 完成 tag 后,再由 Codex 把 pending tag 状态同步为 executed tag 状态。
 
 ---
 
@@ -92,36 +88,24 @@
 1. `AGENTS.md`
 2. `docs/active_context.md`
 3. `current_state.md`
-4. `.agents/shared/read_order.md`
-5. `.agents/shared/state_sync_rules.md`
-6. `docs/design/INVARIANTS.md`
-7. `docs/plans/phase66/closeout.md`
-8. `docs/plans/phase67/closeout.md`
-9. `docs/plans/phase67/codex_review_notes_candidate_p.md`
-10. `docs/plans/phase68/kickoff.md`
-11. `docs/plans/phase68/breakdown.md`
-12. `docs/plans/phase68/codex_review_notes_s1.md`
-13. `docs/plans/phase68/codex_review_notes_s2.md`
-14. `docs/plans/phase68/codex_review_notes_s3.md`
-15. `docs/plans/phase68/closeout.md`
-16. `docs/plans/phase67/review_comments_block_n.md`
-17. `docs/concerns_backlog.md`
-18. `docs/roadmap.md`
+4. `README.md`
+5. `.agents/shared/read_order.md`
+6. `.agents/shared/state_sync_rules.md`
+7. `.agents/workflows/tag_release.md`
+8. `docs/design/INVARIANTS.md`
+9. `docs/plans/phase67/closeout.md`
+10. `docs/plans/phase68/closeout.md`
+11. `docs/concerns_backlog.md`
+12. `docs/roadmap.md`
 
 仅在需要时再读取：
 
-- `CLAUDE.md`
-- `.codex/session_bootstrap.md`
-- `.agents/workflows/feature.md`
-- `.agents/workflows/tag_release.md`
-- `docs/plans/phase66/kickoff.md`
-- `docs/plans/phase66/design_decision.md`
-- `docs/plans/phase66/risk_assessment.md`
-- `docs/plans/phase66/audit_index.md`
-- Phase 66 block audit reports
-- `docs/plans/phase67/codex_review_notes_block_l.md`
-- `docs/plans/phase67/codex_review_notes_block_m.md`
-- `docs/plans/phase67/codex_review_notes_block_n.md`
+- `docs/plans/phase67/codex_review_notes_candidate_p.md`
+- `docs/plans/phase68/kickoff.md`
+- `docs/plans/phase68/breakdown.md`
+- `docs/plans/phase68/codex_review_notes_s1.md`
+- `docs/plans/phase68/codex_review_notes_s2.md`
+- `docs/plans/phase68/codex_review_notes_s3.md`
 - 历史 phase closeout / review_comments / archive 文档
 
 ---
@@ -138,16 +122,16 @@ git log --oneline --decorate -8
 git tag --list 'v*' --sort=-creatordate | head -n 5
 ```
 
-当前 Phase 68 merge-prep 状态验证命令：
+当前 tag release prep 状态验证命令：
 
 ```bash
 git diff --check
 git diff -- docs/design
-git status --short --branch
+.venv/bin/python -m compileall -q src/swallow
 .venv/bin/python -m pytest -q
 ```
 
-Phase 68 S3 最近一次验证：
+Release preflight on `main` after release-doc sync:
 
 ```bash
 git diff --check
@@ -156,12 +140,6 @@ git diff --check
 git diff -- docs/design
 # no output
 
-.venv/bin/python -m pytest tests/test_librarian_executor.py tests/test_raw_material_store.py -q
-# 16 passed
-
-.venv/bin/python -m pytest tests/test_invariant_guards.py::test_no_absolute_path_in_truth_writes -q
-# 1 passed
-
 .venv/bin/python -m compileall -q src/swallow
 # passed
 
@@ -169,28 +147,48 @@ git diff -- docs/design
 # 622 passed, 8 deselected, 10 subtests passed
 ```
 
-M3 manual verification:
-
-```text
-base_dir: /tmp/swallow-phase67-m3-verify
-task_id: 87f07afc59a6
-commands: summarize, route, validation, knowledge-policy, knowledge-decisions, dispatch
-result: matched 6
-```
-
 ---
 
 ## 当前已知边界
 
-- `v1.4.0` tag 已完成；不要删除或重打该 tag。
-- Phase 67 必须先 merge;Phase 68 在它之后 merge。
-- Phase 68 当前已完成 Candidate O narrow scope: Raw Material Store interface / ingestion migration / artifact evidence normalization。
-- Phase 67 review 建议不打新 release tag,除非 Human 另行要求并经过 Claude tag assessment。
-- `docs/design/INVARIANTS.md` / `docs/design/DATA_MODEL.md` / `docs/design/KNOWLEDGE.md` 在 Phase 67 中未修改。
-- Phase 66 / 67 carry-forward known gaps 仍以 `docs/concerns_backlog.md` 与 phase closeout 为权威来源。
+- `v1.4.0` tag 已完成;不要删除或重打该 tag。
+- `v1.5.0` 当前只是 pending release tag;尚未执行 tag 命令。
+- Tag 命令只能在 `main` 上、release docs commit 完成后由 Human 执行。
+- Phase 67 是 cleanup / module reorganization,单独不构成 release tag;Phase 68 Candidate O raw material boundary 构成本次 `v1.5.0` 的主要 release 信号。
+- Phase 68 当前只实现 filesystem backend;不引入真实 S3 / MinIO / OSS client。
 - 不主动推进多租户、分布式 worker、云端 truth 镜像或无边界 UI 扩张。
 - 不绕过 `apply_proposal` 直接写 canonical / route / policy。
 - README 当前为单文件双语结构;不要再要求同步不存在的 `README.zh-CN.md`。
+
+---
+
+## Release Commit / Tag 建议
+
+建议先提交测试稳定性修复:
+
+```bash
+git add tests/test_run_task_subtasks.py
+git commit -m "test(orchestration): stabilize subtask timeout isolation"
+```
+
+再提交 release docs:
+
+```bash
+git add README.md current_state.md docs/active_context.md docs/concerns_backlog.md docs/roadmap.md
+git commit -m "docs(release): sync v1.5.0 release docs"
+```
+
+建议 annotated tag:
+
+```bash
+git tag -a v1.5.0 -m "v1.5.0: raw material store boundary"
+git push origin main --tags
+```
+
+Human 确认 tag 完成后,通知 Codex 同步 tag result:
+
+- `current_state.md`: `latest_executed_public_tag` 从 `v1.4.0` 更新为 `v1.5.0`,`pending_release_tag` 归零。
+- `docs/active_context.md`: status 更新为 `v1.5.0_tag_completed`。
 
 ---
 
@@ -220,8 +218,8 @@ curl http://localhost:3000/api/status
 ```bash
 cd /home/rocio/projects/swallow
 sed -n '1,220p' docs/active_context.md
-sed -n '1,240p' AGENTS.md
 sed -n '1,220p' current_state.md
+sed -n '1,120p' README.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。

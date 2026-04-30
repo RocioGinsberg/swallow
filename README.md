@@ -10,14 +10,14 @@ swallow sustains multi-step, multi-session tasks by combining task orchestration
 
 ## Release Snapshot
 
-Current release: **v1.4.0**.
+Current release: **v1.5.0**.
 
-This snapshot closes the Governance G + G.5 + H sequence after `v1.3.1`:
+This snapshot closes the Phase 67 + Phase 68 sequence after `v1.4.0`:
 
-- `apply_proposal()` governance boundary: canonical knowledge, route metadata, and policy writes converge on one operator-gated entrypoint backed by Repository write boundaries.
-- LLM path closure: Path B fallback selection is resolved by the Orchestrator before execution, while Specialist Internal calls go through the Provider Router via `router.invoke_completion(...)`.
-- SQLite-primary route and policy truth: route registry, route selection policy, route weights, capability profiles, audit-trigger policy, and MPS policy now persist through SQLite with explicit `BEGIN IMMEDIATE` transactions and append-only route/policy audit logs.
-- Migration/status baseline: the initial schema records `schema_version=1` and `swl migrate --status` reports `schema_version: 1, pending: 0`.
+- Module hygiene and ownership: runtime code is organized into semantic packages (`truth_governance`, `orchestration`, `provider_router`, `knowledge_retrieval`, `surface_tools`), JSON/JSONL helper ownership is centralized, and read-only CLI artifact/report dispatch is table-driven.
+- Raw material storage boundary: `RawMaterialStore` defines the raw-source layer with URI parsing, content hashing, and a filesystem backend, keeping future object-storage backends behind the store boundary.
+- Stable raw material references: new in-workspace ingestion records use `file://workspace/...`, out-of-workspace inputs use absolute `file://` URIs, and librarian artifact evidence can resolve `artifact://...` while preserving legacy artifact refs.
+- Governance baseline preserved: no Knowledge Truth schema changes, no retrieval source type changes, and the `apply_proposal()` write boundary remains the canonical route for knowledge / route / policy mutation.
 
 ---
 
@@ -25,6 +25,7 @@ This snapshot closes the Governance G + G.5 + H sequence after `v1.3.1`:
 
 - **Stateful task runtime** — tasks persist across steps and sessions with explicit state, events, artifacts, checkpoints, resume, retry, rerun, and operator-initiated suspend.
 - **Knowledge governance** — SQLite-backed knowledge truth with staged → review → promote workflow, gated by a single `apply_proposal` entrypoint. Not implicit global memory.
+- **Raw material storage boundary** — source bytes are addressed through `RawMaterialStore` refs (`file://workspace/...`, absolute `file://`, and `artifact://...`) with the filesystem backend implemented today and object-storage compatibility kept behind the store boundary.
 - **Policy & execution loop** — proposal-driven self-evolution, operator review/apply, complexity-aware routing, and guarded fan-out orchestration.
 - **Multi-perspective synthesis** — Path A participant fan-out plus arbiter synthesis writes structured task artifacts, with staged knowledge entry only through explicit Operator CLI action.
 - **Replaceable executors** — role-first architecture; executors are bound by system role (five-tuple), not brand identity.
@@ -42,7 +43,7 @@ graph TD
     UI["① Interaction / Workbench<br/>CLI · Control Center · Chat Panel"]
     ORCH["② Orchestrator<br/>Strategy Router · Planner · Review Gate · Subtask Orchestrator"]
     EXEC["③ Execution & Capabilities<br/>Executors · Tools · Skills · Workflows · Validators"]
-    KNOW["④ Knowledge Truth & Retrieval<br/>Evidence · Wiki · Canonical · Retrieval"]
+    KNOW["④ Knowledge Truth & Retrieval<br/>Raw Material · Evidence · Wiki · Canonical · Retrieval"]
     STATE["⑤ State / Event / Artifact / Route Truth<br/>TaskState · EventLog · Artifacts · Policy"]
     PROVIDER["⑥ Provider Routing<br/>Route Registry · Dialect Adapters · Fallback"]
 
@@ -188,14 +189,14 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 ## Release Snapshot
 
-当前 release:**v1.4.0**。
+当前 release:**v1.5.0**。
 
-这个快照闭合 `v1.3.1` 之后的治理三段(G + G.5 + H):
+这个快照闭合 `v1.4.0` 之后的 Phase 67 + Phase 68:
 
-- `apply_proposal()` governance boundary:canonical knowledge / route metadata / policy 三类写入收敛到单一 operator-gated 入口,并由 Repository 写边界承接。
-- LLM path closure:Path B fallback selection 由 Orchestrator 在执行前解析,Specialist Internal 调用通过 `router.invoke_completion(...)` 穿透 Provider Router。
-- SQLite-primary route / policy truth:route registry、route selection policy、route weights、capability profiles、audit-trigger policy、MPS policy 现在通过 SQLite 持久化,并由显式 `BEGIN IMMEDIATE` transaction 与 append-only route/policy audit log 保护。
-- Migration/status baseline:初始 schema 记录 `schema_version=1`,`swl migrate --status` 输出 `schema_version: 1, pending: 0`。
+- 模块卫生与归属:runtime code 已按语义归入 `truth_governance`、`orchestration`、`provider_router`、`knowledge_retrieval`、`surface_tools`;JSON/JSONL helper 归属集中,read-only CLI artifact/report dispatch 改为表驱动。
+- Raw material 存储边界:`RawMaterialStore` 定义原始 source 层,提供 URI 解析、content hashing 与 filesystem backend,把未来 object-storage backend 留在 store 边界之后。
+- 稳定 raw material reference:新的 workspace 内 ingestion record 使用 `file://workspace/...`,workspace 外输入使用绝对 `file://` URI,librarian artifact evidence 可解析 `artifact://...`,同时保留 legacy artifact ref 兼容。
+- 治理基线保持不变:未修改 Knowledge Truth schema,未修改 retrieval source type 语义,knowledge / route / policy mutation 仍由 `apply_proposal()` 写入边界收口。
 
 ---
 
@@ -203,6 +204,7 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 - **有状态任务运行时**——任务跨步骤和会话持久化,支持显式 state / events / artifacts / checkpoint / resume / retry / rerun / operator 主动 suspend。
 - **知识治理**——SQLite-backed 知识真值层,staged → review → promote 工作流,通过单一 `apply_proposal` 入口收口。不是隐式全局记忆。
+- **Raw material 存储边界**——source bytes 通过 `RawMaterialStore` ref(`file://workspace/...`、绝对 `file://`、`artifact://...`)寻址;当前实现 filesystem backend,未来 object-storage 兼容性留在 store 边界之后。
 - **策略与执行闭环**——proposal-driven 的自我演化、operator review/apply、complexity-aware 路由与带守卫的 fan-out 编排。
 - **多视角综合**——Path A participant fan-out + arbiter synthesis 产出结构化 task artifact,且只通过显式 Operator CLI 动作进入 staged knowledge。
 - **可替换执行器**——role-first 架构,执行器按系统角色五元组绑定,而非品牌绑定。
@@ -220,7 +222,7 @@ graph TD
     UI["① 交互 / 工作台<br/>CLI · 控制中心 · 聊天面板"]
     ORCH["② 编排层<br/>Strategy Router · Planner · Review Gate · Subtask Orchestrator"]
     EXEC["③ 执行与能力层<br/>执行器 · Tools · Skills · Workflows · Validators"]
-    KNOW["④ 知识真值与检索<br/>Evidence · Wiki · Canonical · Retrieval"]
+    KNOW["④ 知识真值与检索<br/>Raw Material · Evidence · Wiki · Canonical · Retrieval"]
     STATE["⑤ 状态 / 事件 / 工件真值<br/>TaskState · EventLog · Artifacts · Policy"]
     PROVIDER["⑥ 模型路由<br/>Route Registry · 方言适配 · Fallback"]
 
