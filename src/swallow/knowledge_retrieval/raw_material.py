@@ -171,6 +171,10 @@ class FilesystemRawMaterialStore:
         )
 
 
+def resolve_raw_material(store: RawMaterialStore, source_ref: str) -> bytes:
+    return getattr(store, "resolve")(source_ref)
+
+
 def _combined_uri_key(netloc: str, path: str) -> str:
     decoded_netloc = unquote(netloc or "")
     decoded_path = unquote(path or "")

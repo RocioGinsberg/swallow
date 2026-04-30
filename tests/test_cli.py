@@ -6232,7 +6232,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("dry_run: no", output)
         self.assertEqual(len(staged_records), 1)
         self.assertEqual(staged_records[0].source_kind, "external_session_ingestion")
-        self.assertEqual(staged_records[0].source_ref, str(source.resolve()))
+        self.assertEqual(staged_records[0].source_ref, "file://workspace/session.md")
 
     def test_cli_ingest_summary_appends_structured_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -6343,7 +6343,7 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("dry_run: no", output)
         self.assertEqual(len(staged_records), 1)
         self.assertEqual(staged_records[0].source_kind, "local_file_capture")
-        self.assertEqual(staged_records[0].source_ref, f"file://{source.resolve()}")
+        self.assertEqual(staged_records[0].source_ref, "file://workspace/notes.md")
 
     def test_cli_knowledge_link_command(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

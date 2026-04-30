@@ -36,7 +36,8 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertEqual(len(result.staged_candidates), 2)
         self.assertEqual(len(staged_candidates), 2)
         self.assertEqual(staged_candidates[0].source_kind, "local_file_capture")
-        self.assertEqual(staged_candidates[0].source_ref, f"file://{source.resolve()}")
+        self.assertEqual(staged_candidates[0].source_ref, "file://workspace/notes.md")
+        self.assertEqual(result.source_path, "file://workspace/notes.md")
         self.assertTrue(staged_candidates[0].source_task_id.startswith("ingest-notes"))
         self.assertIn("Decisions", staged_candidates[0].text)
         self.assertIn("Constraints", staged_candidates[1].text)
@@ -52,7 +53,7 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertEqual(result.detected_format, "local_text")
         self.assertEqual(len(result.staged_candidates), 1)
         self.assertEqual(result.staged_candidates[0].source_kind, "local_file_capture")
-        self.assertEqual(result.staged_candidates[0].source_ref, f"file://{source.resolve()}")
+        self.assertEqual(result.staged_candidates[0].source_ref, "file://workspace/notes.txt")
         self.assertEqual(result.staged_candidates[0].text, "Keep the operator gate explicit.")
 
     def test_ingest_local_file_dry_run_does_not_persist_registry(self) -> None:
@@ -81,8 +82,20 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertEqual(len(result.staged_candidates), 2)
         self.assertEqual(len(staged_candidates), 2)
         self.assertEqual(staged_candidates[0].source_kind, EXTERNAL_SESSION_SOURCE_KIND)
-        self.assertEqual(staged_candidates[0].source_ref, str(source.resolve()))
+        self.assertEqual(staged_candidates[0].source_ref, "file://workspace/notes.md")
+        self.assertEqual(result.source_path, "file://workspace/notes.md")
         self.assertTrue(staged_candidates[0].source_task_id.startswith("ingest-notes"))
+
+    def test_run_ingestion_pipeline_supports_out_of_workspace_file_uri(self) -> None:
+        with tempfile.TemporaryDirectory() as base_tmp, tempfile.TemporaryDirectory() as source_tmp:
+            base_dir = Path(base_tmp)
+            source = Path(source_tmp) / "external-session.md"
+            source.write_text("# Decisions\nDecision: keep external export readable.", encoding="utf-8")
+
+            result = run_ingestion_pipeline(base_dir, source, dry_run=True)
+
+        self.assertEqual(result.source_path, source.resolve().as_uri())
+        self.assertEqual(result.staged_candidates[0].source_ref, source.resolve().as_uri())
 
     def test_run_ingestion_pipeline_dry_run_does_not_persist_registry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

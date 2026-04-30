@@ -9,6 +9,11 @@ from typing import Callable
 from uuid import uuid4
 
 from swallow.orchestration.models import LIBRARIAN_SYSTEM_ROLE
+from swallow.knowledge_retrieval.raw_material import (
+    FilesystemRawMaterialStore,
+    resolve_raw_material,
+    source_ref_for_file,
+)
 from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, submit_staged_candidate
 from swallow.surface_tools.workspace import resolve_path
 from .filters import ExtractedFragment, filter_conversation_turns
@@ -17,7 +22,6 @@ from .parsers import (
     detect_ingestion_format,
     normalize_ingestion_format_hint,
     parse_ingestion_bytes,
-    parse_ingestion_path,
 )
 
 
@@ -53,11 +57,14 @@ def run_ingestion_pipeline(
     taxonomy_memory_authority: str = DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY,
 ) -> IngestionPipelineResult:
     resolved_source = resolve_path(source_path)
-    turns = parse_ingestion_path(resolved_source, format_hint=format_hint)
+    raw_store = FilesystemRawMaterialStore(base_dir, workspace_root=base_dir)
+    source_ref = source_ref_for_file(resolved_source, workspace_root=base_dir)
+    source_bytes = resolve_raw_material(raw_store, source_ref)
+    turns = parse_ingestion_bytes(source_bytes, format_hint=format_hint, source_name=resolved_source.name)
     fragments = filter_conversation_turns(turns)
     staged_candidates = build_staged_candidates(
         fragments,
-        source_ref=str(resolved_source),
+        source_ref=source_ref,
         source_task_id=_build_source_task_id(resolved_source),
         submitted_by=submitted_by,
         taxonomy_role=taxonomy_role,
@@ -69,8 +76,12 @@ def run_ingestion_pipeline(
         persisted_candidates = [submit_staged_candidate(base_dir, candidate) for candidate in staged_candidates]
 
     return IngestionPipelineResult(
-        source_path=str(resolved_source),
-        detected_format=_resolve_detected_format(source_name=resolved_source.name, format_hint=format_hint, source_bytes=None),
+        source_path=source_ref,
+        detected_format=_resolve_detected_format(
+            source_name=resolved_source.name,
+            format_hint=format_hint,
+            source_bytes=source_bytes,
+        ),
         turns=turns,
         fragments=fragments,
         staged_candidates=persisted_candidates,
@@ -126,9 +137,13 @@ def ingest_local_file(
     taxonomy_memory_authority: str = DEFAULT_INGESTION_TAXONOMY_MEMORY_AUTHORITY,
 ) -> IngestionPipelineResult:
     resolved_source = resolve_path(source_path)
-    candidate_texts = parse_local_file(resolved_source)
+    raw_store = FilesystemRawMaterialStore(base_dir, workspace_root=base_dir)
+    source_ref = source_ref_for_file(resolved_source, workspace_root=base_dir)
+    candidate_texts = parse_local_file(
+        resolve_raw_material(raw_store, source_ref),
+        source_name=resolved_source.name,
+    )
     source_task_id = _build_source_task_id(resolved_source)
-    source_ref = f"file://{resolved_source}"
 
     staged_candidates = [
         StagedCandidate(
@@ -151,7 +166,7 @@ def ingest_local_file(
         persisted_candidates = [submit_staged_candidate(base_dir, candidate) for candidate in staged_candidates]
 
     return IngestionPipelineResult(
-        source_path=str(resolved_source),
+        source_path=source_ref,
         detected_format=_resolve_local_file_format(resolved_source),
         staged_candidates=persisted_candidates,
         dry_run=dry_run,
@@ -220,12 +235,12 @@ def build_staged_candidates(
     return candidates
 
 
-def parse_local_file(source_path: Path) -> list[str]:
-    text = source_path.read_text(encoding="utf-8", errors="replace")
+def parse_local_file(source_bytes: bytes, *, source_name: str) -> list[str]:
+    text = source_bytes.decode("utf-8", errors="replace")
     normalized = text.replace("\r\n", "\n").strip()
     if not normalized:
         return []
-    if source_path.suffix.lower() in {".md", ".markdown"}:
+    if Path(source_name).suffix.lower() in {".md", ".markdown"}:
         sections = _split_local_markdown(normalized)
         return sections or [normalized]
     return [normalized]
