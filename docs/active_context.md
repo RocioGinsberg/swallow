@@ -9,13 +9,13 @@
 ## 当前轮次
 
 - latest_completed_track: `Refactor / Hygiene`
-- latest_completed_phase: `Phase 66`
-- latest_completed_slice: `Code Hygiene Audit`
+- latest_completed_phase: `Phase 67`
+- latest_completed_slice: `L+M+N Cleanup`
 - active_track: `Refactor / Hygiene + Design / Refactor + Refactor / Surface`
 - active_phase: `Phase 67`
-- active_slice: `M3 / CLI Read-Only Dispatch Tightening`
+- active_slice: `Closeout`
 - active_branch: `feat/phase67-hygiene-io-cli-cleanup`
-- status: `phase67_m3_audit_gate_pending`
+- status: `phase67_implementation_complete_pending_merge_gate`
 
 ## 当前状态说明
 
@@ -29,9 +29,9 @@ M1 implementation and verification are complete, and Claude review verdict is `A
 
 M2 implementation is complete. Claude review verdict is `APPROVE_WITH_CONDITIONS`; conditions are closeout-stage documentation work and do not block M3.
 
-M3 implementation is complete and paused at the milestone audit gate. Codex must wait for Human review / manual commit and Claude `review_comments_block_n.md` before Phase 67 closeout.
+M3 implementation is complete. Claude final review verdict is `APPROVE`, and Phase 67 closeout is complete.
 
-M3 verification summary:
+Final verification summary:
 
 - `tests/test_cli.py`: `241 passed, 10 subtests passed`
 - full pytest: `610 passed, 8 deselected, 10 subtests passed`
@@ -100,33 +100,43 @@ Model review status:
   - verified selected command outputs byte-for-byte against the captured baseline
   - wrote `docs/plans/phase67/codex_review_notes_block_n.md`
   - updated `docs/concerns_backlog.md`
+- **[Human]** Phase 67 M3 implementation commit completed:
+  - `ec7fa76 refactor(phase67-m3): tighten cli artifact dispatch`
+- **[Claude]** M3 / final review produced `docs/plans/phase67/review_comments_block_n.md`, verdict = `APPROVE`.
+- **[Codex]** Phase 67 closeout completed:
+  - added `_io_helpers.py` module docstring for explicit IO policy / Candidate O positioning
+  - wrote `docs/plans/phase67/closeout.md`
+  - set `docs/plans/phase67/codex_review_notes_block_n.md` status to `final`
+  - synchronized `docs/active_context.md` and `current_state.md`
 
 进行中:
 
-- **[Human]** Review M3 diff and decide manual commit.
+- **[Human]** Review closeout diff and decide manual commit / PR.
 
 待执行:
 
-- **[Claude]** Produce `docs/plans/phase67/review_comments_block_n.md`.
+- **[Human]** Commit closeout materials if accepted.
+- **[Human]** Open / update PR and decide merge.
+- **[Codex]** Prepare `pr.md` if requested.
 
 当前阻塞项:
 
-- Phase closeout remains blocked until M3 commit + Claude audit gate.
-- M2 review requires closeout-stage documentation for `_io_helpers.py` docstring / Candidate O / design drift / test flake notes.
+- None for Phase 67 implementation. Merge remains a Human gate.
+- `docs/roadmap.md` currently has Claude-owned uncommitted roadmap-updater changes; Codex did not edit it in this closeout step.
 
 ## 当前下一步
 
-1. **[Human]** Review M3 diff and commit if accepted.
-2. **[Claude]** Review M3 and write `docs/plans/phase67/review_comments_block_n.md`.
-3. **[Codex]** Enter Phase 67 closeout only after the M3 review gate passes.
+1. **[Human]** Review and commit Phase 67 closeout materials if accepted.
+2. **[Human]** Open / update PR and decide merge.
+3. **[Codex]** After merge, synchronize post-merge state if requested.
 
 ```markdown
 milestone_gate:
-- current: M3
-- previous_gate: Claude review_comments_block_m.md verdict APPROVE_WITH_CONDITIONS
-- next_gate: Claude review_comments_block_n.md
-- proceed_to_closeout: false
-- reason: milestone isolation requires Human commit + Claude review before phase closeout
+- current: closeout
+- previous_gate: Claude review_comments_block_n.md verdict APPROVE
+- next_gate: Human merge gate
+- proceed_to_merge: human_decision_required
+- reason: implementation and closeout are complete; merge remains manual
 ```
 
 ## 当前产出物
@@ -141,5 +151,7 @@ milestone_gate:
 - `docs/plans/phase67/codex_review_notes_block_m.md`(codex, 2026-04-30, M2 review notes)
 - `docs/plans/phase67/review_comments_block_m.md`(claude, 2026-04-30, M2 review, verdict = APPROVE_WITH_CONDITIONS)
 - `docs/plans/phase67/codex_review_notes_block_n.md`(codex, 2026-04-30, M3 review notes)
+- `docs/plans/phase67/review_comments_block_n.md`(claude, 2026-04-30, M3/final review, verdict = APPROVE)
+- `docs/plans/phase67/closeout.md`(codex, 2026-04-30, Phase 67 closeout)
 - `docs/concerns_backlog.md`(codex, 2026-04-30, M3 CLI dispatch partial status update)
-- `docs/active_context.md`(codex, 2026-04-30, Phase 67 M3 audit-gate state sync)
+- `docs/active_context.md`(codex, 2026-04-30, Phase 67 closeout / merge-gate state sync)

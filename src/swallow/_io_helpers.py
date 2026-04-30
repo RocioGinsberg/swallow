@@ -1,3 +1,15 @@
+"""Shared JSON / JSONL IO helpers with explicit error-policy variants.
+
+This private module owns cross-module JSON read helpers for truth,
+orchestration, knowledge/retrieval, and CLI surface paths. Callers must choose
+the variant that matches their existing missing-file and malformed-payload
+behavior; do not homogenize strict paths into missing-empty display helpers.
+
+The signatures intentionally stay thin (`Path` in, parsed value out). A future
+RawMaterialStore / storage-backend-independence phase can evolve these callsites
+toward URI-like source references without changing the helper semantics first.
+"""
+
 from __future__ import annotations
 
 import json
