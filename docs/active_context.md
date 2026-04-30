@@ -13,125 +13,98 @@
 - latest_completed_slice: `Truth Plane SQLite Transfer`
 - active_track: `Refactor / Hygiene`
 - active_phase: `Phase 66`
-- active_slice: `S3 / M3 — audit block 2 + audit_index commit gate`
+- active_slice: `Closeout / Merge Gate prep`
 - active_branch: `feat/phase66-code-hygiene-audit`
-- status: `phase66_m3_commit_gate`
+- status: `phase66_audit_complete_pending_merge_gate`
 
 ## 当前状态说明
 
 Phase 66 is roadmap candidate K: a strict read-only code hygiene audit of `src/swallow/`.
-Human selected Phase 66 and started branch `feat/phase66-code-hygiene-audit`; kickoff/design/risk/design-audit/context files are committed in `a0aba54 docs(phase66): initialize phase66`.
 
-Phase 66 hard boundaries:
+The audit is complete. It produced five block reports, an audit index, review files for all three milestone gates, closeout, backlog updates, and a PR body draft. It did not modify `src/`, `tests/`, or `docs/design/`.
 
-- Do not edit `src/`, `tests/`, or `docs/design/`.
-- Do not fix typos, dead imports, small cleanup, or tests during the audit.
-- Only write audit reports under `docs/plans/phase66/` during audit milestones.
-- `docs/concerns_backlog.md` is reserved for closeout/backlog consolidation, not M1/M2/M3 audit output unless explicitly directed.
-- Each milestone stops at a Human commit gate; Codex does not run `git commit`.
+Final audit totals:
 
-Completed milestones:
+- 75 Python files
+- 30954 LOC
+- 46 findings
+- 2 high / 36 med / 8 low
+- 3 dead-code / 25 hardcoded-literal / 7 duplicate-helper / 11 abstraction-opportunity
 
-- **M1 / S1**: audit block 1 Truth & Governance + block 3 Provider Router & Calls.
-  - Codex outputs:
-    - `docs/plans/phase66/audit_block1_truth_governance.md`
-    - `docs/plans/phase66/audit_block3_provider_router.md`
-  - Human committed M1 outputs in `6e98509 docs(phase66): add m1 code hygiene audit`.
-  - Claude produced `docs/plans/phase66/review_comments_block1_3.md`, verdict = `APPROVE_WITH_CONDITIONS`.
-  - M1 report statuses are `final`.
-- **M2 / S2**: audit block 4 Knowledge & Retrieval + block 5 Surface & Tools.
-  - Codex outputs:
-    - `docs/plans/phase66/audit_block4_knowledge_retrieval.md`
-    - `docs/plans/phase66/audit_block5_surface_tools.md`
-  - Human committed M2 audit and review in `ddc8153 docs(phase66): add m2 audit review`.
-  - Claude produced `docs/plans/phase66/review_comments_block4_5.md`, verdict = `APPROVE_WITH_CONDITIONS`.
-  - Codex consumed the M2 review conditions in M3: Block 4/5 report statuses are now `final`; index dedupe / CLI negative finding / brand-literal consensus are recorded in `audit_index.md`.
-- **M3 / S3**: audit block 2 Orchestration + `audit_index.md`.
-  - Codex outputs:
-    - `docs/plans/phase66/audit_block2_orchestration.md`
-    - `docs/plans/phase66/audit_index.md`
-  - Current state: Codex has stopped at the M3 Human commit gate.
+Review status:
 
-Latest verification baseline inherited from Phase 65:
+- M1 review: `docs/plans/phase66/review_comments_block1_3.md`, verdict = `APPROVE_WITH_CONDITIONS`
+- M2 review: `docs/plans/phase66/review_comments_block4_5.md`, verdict = `APPROVE_WITH_CONDITIONS`
+- M3/final review: `docs/plans/phase66/review_comments_block2_index.md`, verdict = `APPROVE`
+- No review blocker remains.
 
-- `.venv/bin/python -m pytest -q` -> `610 passed, 8 deselected, 10 subtests passed`
-- `git diff --check` -> passed
-- `git diff -- docs/design/INVARIANTS.md` -> no output
+Backlog status:
 
-Phase 66 is read-only and does not require pytest for behavior validation. M1/M2 read-only checks passed before their gates.
-
-M3 gate verification:
-
-- `git diff --check` -> passed
-- `git diff -- src tests docs/design` -> no output
-- Report line counts: block 2 = 323 lines; audit index = 192 lines, both under the 800-line cap.
-- Trailing whitespace scan on changed Phase 66 docs -> no output.
+- `docs/concerns_backlog.md` now records Phase 66 follow-up themes at backlog level.
+- Detailed evidence remains in `docs/plans/phase66/audit_index.md` and block reports.
 
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
-2. `docs/plans/phase66/kickoff.md`(revised-after-design-audit)
-3. `docs/plans/phase66/design_decision.md`(revised-after-design-audit)
-4. `docs/plans/phase66/risk_assessment.md`(revised-after-design-audit)
+2. `docs/plans/phase66/kickoff.md`
+3. `docs/plans/phase66/design_decision.md`
+4. `docs/plans/phase66/risk_assessment.md`
 5. `docs/plans/phase66/context_brief.md`
 6. `docs/plans/phase66/design_audit.md`
-7. `docs/plans/phase66/review_comments_block1_3.md`(M1 review, verdict = APPROVE_WITH_CONDITIONS)
-8. `docs/plans/phase66/review_comments_block4_5.md`(M2 review, verdict = APPROVE_WITH_CONDITIONS)
-9. `docs/plans/phase66/audit_block1_truth_governance.md`
-10. `docs/plans/phase66/audit_block2_orchestration.md`
-11. `docs/plans/phase66/audit_block3_provider_router.md`
-12. `docs/plans/phase66/audit_block4_knowledge_retrieval.md`
-13. `docs/plans/phase66/audit_block5_surface_tools.md`
-14. `docs/plans/phase66/audit_index.md`
-15. `docs/concerns_backlog.md`(skip list source)
-16. `docs/roadmap.md`
-17. `docs/design/INVARIANTS.md`
-18. `docs/design/DATA_MODEL.md`
+7. `docs/plans/phase66/audit_block1_truth_governance.md`
+8. `docs/plans/phase66/audit_block2_orchestration.md`
+9. `docs/plans/phase66/audit_block3_provider_router.md`
+10. `docs/plans/phase66/audit_block4_knowledge_retrieval.md`
+11. `docs/plans/phase66/audit_block5_surface_tools.md`
+12. `docs/plans/phase66/audit_index.md`
+13. `docs/plans/phase66/review_comments_block1_3.md`
+14. `docs/plans/phase66/review_comments_block4_5.md`
+15. `docs/plans/phase66/review_comments_block2_index.md`
+16. `docs/plans/phase66/closeout.md`
+17. `docs/concerns_backlog.md`
+18. `pr.md`(local PR body draft)
 
 ## 当前推进
 
 已完成:
 
 - **[Human]** Phase 65 已 merge 到 `main` 并完成 `v1.4.0` tag。
-- **[Human]** `v1.4.0` tag-completed state sync 已提交到 `main`(`6c3ffbd docs(state): mark v1.4.0 tag completed`)。
 - **[Human / Claude]** Phase 66 Direction Gate 已选定候选 K(code hygiene audit),并在 `feat/phase66-code-hygiene-audit` 提交 phase docs。
-- **[Claude/context-analyst]** `docs/plans/phase66/context_brief.md` 已产出。
-- **[Claude]** `kickoff.md` / `design_decision.md` / `risk_assessment.md` 已修订为 `revised-after-design-audit`。
-- **[Claude/design-auditor]** `design_audit.md` 已产出;其 BLOCKER/CONCERN 已被 revised docs 消化。
 - **[Codex]** M1 audit reports 已产出并由 Human 提交:`6e98509 docs(phase66): add m1 code hygiene audit`。
-- **[Claude]** M1 review 已产出:`docs/plans/phase66/review_comments_block1_3.md`,verdict = `APPROVE_WITH_CONDITIONS`。
-- **[Codex]** M2 audit reports 已产出并由 Human 提交/审查:`ddc8153 docs(phase66): add m2 audit review`。
-- **[Claude]** M2 review 已产出:`docs/plans/phase66/review_comments_block4_5.md`,verdict = `APPROVE_WITH_CONDITIONS`。
-- **[Codex]** M3 audit reports 已产出:
-  - `docs/plans/phase66/audit_block2_orchestration.md`
-  - `docs/plans/phase66/audit_index.md`
-- **[Codex]** M2 review conditions consumed:
-  - Block 1 + Block 4 JSON/JSONL loader dedupe recorded in `audit_index.md`.
-  - Block 1 + Block 5 SQLite transaction-envelope consensus recorded in `audit_index.md`.
-  - Block 3 + Block 4 + Block 5 executor/provider/model brand literal consensus recorded in `audit_index.md`.
-  - CLI no-dead-subcommand negative finding and table-driven dispatch seed recorded in `audit_index.md`.
-  - `store.py` JSON helper checked-but-not-counted note recorded in `audit_index.md`.
-  - Block 4/5 report statuses changed from `review` to `final`.
+- **[Claude]** M1 review 已产出,verdict = `APPROVE_WITH_CONDITIONS`。
+- **[Codex]** M2 audit reports 已产出并由 Human 提交:`ddc8153 docs(phase66): add m2 audit review`。
+- **[Claude]** M2 review 已产出,verdict = `APPROVE_WITH_CONDITIONS`。
+- **[Codex]** M3 audit reports + `audit_index.md` 已产出并由 Human 提交:`9fdebdd docs(phase66): add m3 audit review`。
+- **[Claude]** M3/final review 已产出,verdict = `APPROVE`。
+- **[Codex]** Closeout 已完成:
+  - `docs/plans/phase66/closeout.md`
+  - `docs/concerns_backlog.md`
+  - `docs/active_context.md`
+  - `pr.md`
+  - `audit_block2_orchestration.md` and `audit_index.md` status set to `final`
 
 进行中:
 
-- 无。当前停在 M3 Human commit gate。
+- 无。当前停在 Human closeout commit / PR / Merge Gate。
 
 待执行:
 
-- **[Human]** Review and manually commit M3 outputs.
-- **[Claude]** After M3 commit, produce `docs/plans/phase66/review_comments_block2_index.md`.
-- **[Codex]** Do not enter Phase 66 closeout until M3 review verdict is `APPROVE` or `APPROVE_WITH_CONDITIONS`.
+- **[Human]** Review and manually commit closeout materials.
+- **[Human]** Push branch and create PR using `pr.md` if accepted.
+- **[Human]** Merge after PR review/decision.
+- **[Codex]** After merge, sync `current_state.md` and `docs/active_context.md`.
+- **[Claude/roadmap-updater]** After merge, update `docs/roadmap.md` for candidate K factual completion.
 
 当前阻塞项:
 
-- 等待人工审查与手动提交:M3 outputs + state sync.
+- 等待人工审查与手动提交:Phase 66 closeout materials.
 
 ## 当前下一步
 
-1. **[Human]** Review and manually commit M3 milestone.
-2. **[Claude]** Produce `docs/plans/phase66/review_comments_block2_index.md`.
-3. **[Codex]** After approved M3 review, enter Phase 66 closeout / backlog consolidation.
+1. **[Human]** Commit closeout materials if accepted.
+2. **[Human]** Push branch and create PR using `pr.md`.
+3. **[Human]** Merge when ready.
+4. **[Codex]** After merge, perform post-merge state sync.
 
 ```markdown
 model_review:
@@ -141,11 +114,11 @@ model_review:
 ```
 
 ```markdown
-milestone_policy:
-- M1: block 1 + block 3 audit reports, then Human commit gate
-- M2: starts only after review_comments_block1_3.md verdict APPROVE or APPROVE_WITH_CONDITIONS
-- M3: starts only after review_comments_block4_5.md verdict APPROVE or APPROVE_WITH_CONDITIONS
-- closeout: starts only after review_comments_block2_index.md verdict APPROVE or APPROVE_WITH_CONDITIONS
+merge_gate:
+- status: pending_human
+- pr_body: pr.md
+- closeout: docs/plans/phase66/closeout.md
+- note: Phase 66 is audit-only and does not require a release tag by kickoff guidance
 ```
 
 ## 当前产出物
@@ -157,10 +130,14 @@ milestone_policy:
 - `docs/plans/phase66/risk_assessment.md`(claude, 2026-04-30, revised-after-design-audit)
 - `docs/plans/phase66/audit_block1_truth_governance.md`(codex, 2026-04-30, M1 audit report, final)
 - `docs/plans/phase66/audit_block3_provider_router.md`(codex, 2026-04-30, M1 audit report, final)
-- `docs/plans/phase66/review_comments_block1_3.md`(claude, 2026-04-30, M1 review, verdict = APPROVE_WITH_CONDITIONS)
+- `docs/plans/phase66/review_comments_block1_3.md`(claude, 2026-04-30, M1 review)
 - `docs/plans/phase66/audit_block4_knowledge_retrieval.md`(codex, 2026-04-30, M2 audit report, final)
 - `docs/plans/phase66/audit_block5_surface_tools.md`(codex, 2026-04-30, M2 audit report, final)
-- `docs/plans/phase66/review_comments_block4_5.md`(claude, 2026-04-30, M2 review, verdict = APPROVE_WITH_CONDITIONS)
-- `docs/plans/phase66/audit_block2_orchestration.md`(codex, 2026-04-30, M3 audit report, review)
-- `docs/plans/phase66/audit_index.md`(codex, 2026-04-30, M3 audit index, review)
-- `docs/active_context.md`(codex, 2026-04-30, Phase 66 M3 commit gate state sync)
+- `docs/plans/phase66/review_comments_block4_5.md`(claude, 2026-04-30, M2 review)
+- `docs/plans/phase66/audit_block2_orchestration.md`(codex, 2026-04-30, M3 audit report, final)
+- `docs/plans/phase66/audit_index.md`(codex, 2026-04-30, M3 audit index, final)
+- `docs/plans/phase66/review_comments_block2_index.md`(claude, 2026-04-30, M3/final review, verdict = APPROVE)
+- `docs/plans/phase66/closeout.md`(codex, 2026-04-30, closeout)
+- `docs/concerns_backlog.md`(codex, 2026-04-30, Phase 66 follow-up themes)
+- `docs/active_context.md`(codex, 2026-04-30, Phase 66 merge gate state sync)
+- `pr.md`(codex, 2026-04-30, Phase 66 PR body draft)

@@ -2,7 +2,7 @@
 author: codex
 phase: phase66
 slice: audit-block2-orchestration
-status: review
+status: final
 depends_on:
   - docs/plans/phase66/kickoff.md
   - docs/plans/phase66/design_decision.md
@@ -320,4 +320,3 @@ The count is inside the design expectation for block 2(10-20 findings).
 - `run_review_gate_async(...)` is production-used through `orchestrator.py:3520` and tested by `tests/test_review_gate_async.py`; only the sync `run_consensus_review(...)` wrapper is counted as dead.
 - `dispatch_policy.py` helper functions are production-used by `orchestrator.py:2414-2423`; no dead-code finding was counted there.
 - `synthesis.py` MPS route helpers are reachable through CLI `synthesis run`; no dead-code finding was counted.
-

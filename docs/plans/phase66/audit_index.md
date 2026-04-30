@@ -2,7 +2,7 @@
 author: codex
 phase: phase66
 slice: audit-index
-status: review
+status: final
 depends_on:
   - docs/plans/phase66/audit_block1_truth_governance.md
   - docs/plans/phase66/audit_block2_orchestration.md
@@ -189,4 +189,3 @@ Skipped items:
 3. **CLI dispatch tightening phase**: start with read-only artifact/report command table dispatch, then evaluate whether governance write commands should remain explicit.
 
 Do not combine all design-needed themes into one cleanup phase. The cross-block ownership items touch enough public surface that they should be split.
-
