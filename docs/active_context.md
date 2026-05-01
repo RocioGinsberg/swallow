@@ -13,9 +13,9 @@
 - latest_completed_slice: `R1 Design Docs Observation Sample`
 - active_track: `Retrieval Quality`
 - active_phase: `Retrieval U-T-Y / Observability, EvidencePack, Summary Surface`
-- active_slice: `RUTY7 Review Gate / Commit Preparation`
+- active_slice: `RUTY7 PR Preparation`
 - active_branch: `feat/retrieval-u-t-y`
-- status: `retrieval_u_t_y_m1_committed_m2_to_m6_complete_validation_passed`
+- status: `retrieval_u_t_y_pr_ready`
 
 ## 当前状态说明
 
@@ -209,19 +209,26 @@ Candidate R observation closeout is complete. Human selected a unified retrieval
   - compile: `.venv/bin/python -m compileall -q src/swallow`
   - full: `.venv/bin/python -m pytest -q` -> `635 passed, 8 deselected, 10 subtests passed`
   - hygiene: `git diff --check` passed.
+- **[Human]** Retrieval U-T-Y implementation committed:
+  - `cda56d5 docs(plan): add retrieval u-t-y plan`
+  - `bcb984d feat(retrieval): replace chat rerank with dedicated rerank adapter`
+  - `0358114 feat(retrieval): add source policy evidence pack and summary surface`
+  - `9f9764d docs(state): update retrieval u-t-y validation state`
+- **[Codex]** Retrieval U-T-Y PR material prepared:
+  - `pr.md` refreshed for this branch with context, implementation notes, test coverage, and review gate notes.
 
 进行中:
 
-- **[Human]** Review uncommitted Retrieval U-T-Y M2-M6 implementation on `feat/retrieval-u-t-y`.
+- **[Human]** Push `feat/retrieval-u-t-y`, create PR from `pr.md`, run/record review, and merge after approval.
 
 待执行:
 
-- **[Human]** Commit the reviewed M2-M6 implementation in milestone-aligned commits.
-- **[Codex]** After commit/review, prepare Retrieval U-T-Y closeout / PR material if requested.
+- **[Human]** Create PR and complete merge decision.
+- **[Codex]** After merge, sync `current_state.md`, `docs/active_context.md`, and closeout state for Retrieval U-T-Y.
 
 当前阻塞项:
 
-- Waiting for Human review / commit gate for M2-M6 uncommitted work.
+- Waiting for Human PR creation / review / merge.
 
 ## Tag 状态
 
@@ -232,13 +239,14 @@ Candidate R observation closeout is complete. Human selected a unified retrieval
 
 ## 当前下一步
 
-1. **[Human]** Review current uncommitted M2-M6 diff on `feat/retrieval-u-t-y`.
-2. **[Human]** Commit reviewed implementation with milestone-aligned commits.
-3. **[Codex]** After Human commit/review, prepare closeout / PR material for Retrieval U-T-Y.
+1. **[Human]** Commit the `pr.md` / active context PR-prep update if it should travel with the branch.
+2. **[Human]** Push `feat/retrieval-u-t-y` and create PR using `pr.md`.
+3. **[Human]** Run/record review, then merge after approval.
+4. **[Codex]** After merge, sync post-merge state and closeout.
 
 ```markdown
 milestone_gate:
-- current: retrieval-u-t-y-m2-to-m6-review
+- current: retrieval-u-t-y-pr-ready
 - active_branch: feat/retrieval-u-t-y
 - previous_gate: v1.5.0 annotated tag completed on main
 - observation_sample: docs/design/
@@ -260,9 +268,11 @@ milestone_gate:
 - m5: source pointer resolution complete
 - m6: summary route surface clarification complete
 - validation: full pytest `635 passed, 8 deselected, 10 subtests passed`; `git diff --check` passed
-- next_gate: Human review / milestone commit for M2-M6
-- proceed_to_closeout: after Human review/commit
-- reason: U/T/Y implementation scope is complete in working tree; closeout should wait for review/commit boundary
+- commits: `cda56d5`, `bcb984d`, `0358114`, `9f9764d`
+- pr_body: `pr.md`
+- next_gate: Human PR creation / review / merge
+- proceed_to_closeout: after Human merge
+- reason: U/T/Y implementation scope is committed and PR material is ready
 ```
 
 ## 当前产出物
@@ -285,6 +295,7 @@ milestone_gate:
 - `docs/plans/retrieval-u-t-y/plan.md`(codex, 2026-05-01, unified U/T/Y retrieval implementation plan for `feat/retrieval-u-t-y`)
 - `src/swallow/knowledge_retrieval/evidence_pack.py`(codex, 2026-05-01, EvidencePack-compatible retrieval serving view and source pointers)
 - `tests/test_evidence_pack.py`(codex, 2026-05-01, EvidencePack grouping and source pointer resolution coverage)
+- `pr.md`(codex, 2026-05-01, Retrieval U-T-Y PR body draft)
 - `CLAUDE.md`(codex, 2026-05-01, Claude role narrowed to plan audit / PR review / tag evaluation)
 - `.codex/session_bootstrap.md`(codex, 2026-05-01, Codex role expanded to plan definition via `plan.md`)
 - `.agents/workflows/feature.md`(codex, 2026-05-01, feature workflow rewritten around `context_brief.md` + `plan.md` + `plan_audit.md`)
