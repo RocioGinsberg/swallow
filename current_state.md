@@ -10,15 +10,7 @@
 
 本文件用于在终端会话中断、重新打开仓库或切换设备后，快速恢复到当前稳定工作位置。
 
-它回答的问题是：
-
-- 当前最近的稳定 checkpoint 是什么
-- 当前默认应从哪里继续
-- 恢复前需要先看哪些文件
-- 最小验证命令是什么
-- 当前已知边界是什么
-
-当前高频状态请看：
+当前高频状态请看:
 
 - `docs/active_context.md`
 
@@ -27,90 +19,81 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `Phase 68`
+- latest_main_checkpoint_phase: `Architecture Recomposition First Branch`
 - latest_executed_public_tag: `v1.5.0`
 - pending_release_tag: `none`
-- current_working_phase: `Candidate R / Real-use Feedback Observation`
-- checkpoint_type: `v1.5.0_tagged_r_entry_ready`
+- current_working_phase: `Provider Router Split / LTO-7 Step 1`
+- checkpoint_type: `post_architecture_recomposition_merge_next_phase_planning`
 - active_branch: `main`
-- last_checked: `2026-04-30`
+- last_checked: `2026-05-01`
 
-说明：
+说明:
 
-- `main` 当前最新 checkpoint 为 `bc8abb1 docs(release): sync v1.5.0 release docs`。
-- Phase 67 已 merge 到 `main`:`eb2c743 merge: code hygiene execute`。
-- Phase 68 已 merge 到 `main`:`5cb08af merge: update knowledge plane raw material store`。
-- 最新已执行公开 tag 为 `v1.5.0`;annotated tag 已打在 `bc8abb1`。
-- Phase 67 完成 Phase 66 audit 衍生的 L+M+N cleanup 与 Candidate P module reorganization:
-  - root package Python surface 收敛为 `__init__.py` + `_io_helpers.py`。
-  - runtime code moved into `truth_governance/`, `orchestration/`, `provider_router/`, `knowledge_retrieval/`, `surface_tools/`。
-  - read-only CLI artifact/report dispatch 改为 table-driven。
-  - CLI reference 与当前 command map 同步。
-- Phase 68 完成 Candidate O raw material storage boundary:
-  - 新增 `RawMaterialStore` protocol / URI parser / filesystem backend / content hashing。
-  - ingestion file reads 通过 `FilesystemRawMaterialStore`。
-  - 新 workspace 内 ingestion source refs 使用 `file://workspace/<relative-path>`。
-  - workspace 外 source refs 使用 absolute `file://` URI。
-  - librarian artifact evidence checks 接受 `artifact://<task_id>/<artifact_path>` 并兼容 legacy `.swl/tasks/...` refs。
-- Phase 68 未修改 Knowledge Truth schema、retrieval source type semantics 或 `docs/design/`。
-- `v1.5.0` 是 `v1.4.0` 之后的 storage-abstracted knowledge plane checkpoint。
-- R-entry 复核结论:设计不变量与当前实现足以支撑真实使用反馈观察期;剩余 Open concerns 作为观察项 / 使用边界 / 后续设计债处理。
+- `main` 当前最新 checkpoint 为 `a1e536b docs(state): update roadmap`。
+- Architecture Recomposition first branch 已 merge 到 `main`:
+  - `c3596c2 merge: architecture recomposition first branch`
+- 该 branch 完成了第一轮 architecture recomposition pilot:
+  - minimal test helper foundation
+  - Knowledge Plane facade pilot
+  - narrow upper-layer import migration
+  - focused test relocation
+  - Control Center application query pilot
+- Roadmap 已重组为长期优化目标(`LTO-*`)与近期 phase ticket 队列。
+- 最新已执行公开 tag 仍为 `v1.5.0`;annotated tag 指向 `bc8abb1 docs(release): sync v1.5.0 release docs`。
+- 当前下一阶段按 roadmap 从 `LTO-7 Provider Router Maintainability` 开始，`docs/plans/provider-router-split/plan.md` 已按 audit 修订，下一步等待 required model review / Human Plan Gate。
 
 ---
 
 ## 当前默认继续方向
 
-当前推荐从以下状态继续：
+当前推荐从以下状态继续:
 
 - active_branch: `main`
-- active_track: `Operations`
-- active_phase: `Candidate R / Real-use Feedback Observation`
-- active_slice: `R-entry Readiness Gate`
-- workflow_status: `r_entry_ready_after_v1.5.0_tag`
+- active_track: `Architecture / Engineering`
+- active_phase: `Provider Router Split / LTO-7 Step 1`
+- active_slice: `Plan revised after audit; awaiting model review`
+- workflow_status: `plan_revision_complete_model_review_pending`
 
-说明：
+说明:
 
-- `v1.5.0` release docs commit 与 annotated tag 已完成。
-- 当前默认动作是进入 Candidate R 真实使用反馈观察期。
-- 进入 R 前无需再新增 bugfix phase;若真实样本复现 Open concerns,再按具体问题开 follow-up bugfix / governance / design slice。
-- Codex 不执行 `git commit`、`git tag` 或 `git push`。
+- 当前只允许推进计划审查与 gate，不进入实现。
+- `plan_audit.md` 已产出，Codex 已吸收 blocker / concerns 到 `plan.md`。
+- 实现前必须完成 required `model_review.md`，由 Human 通过 Plan Gate，并从 `main` 切换到 `feat/provider-router-split`。
+- Codex 不执行 `git commit`、`git tag`、`git push`、PR 创建或 merge。
 
 ---
 
 ## 恢复时优先读取
 
-恢复工作时，优先按以下顺序阅读：
+恢复工作时，优先按以下顺序阅读:
 
 1. `AGENTS.md`
-2. `docs/active_context.md`
-3. `current_state.md`
-4. `README.md`
-5. `.agents/shared/read_order.md`
-6. `.agents/shared/state_sync_rules.md`
-7. `docs/design/INVARIANTS.md`
-8. `docs/design/ARCHITECTURE.md`
-9. `docs/design/DATA_MODEL.md`
-10. `docs/design/KNOWLEDGE.md`
-11. `docs/plans/phase67/closeout.md`
-12. `docs/plans/phase68/closeout.md`
-13. `docs/concerns_backlog.md`
-14. `docs/roadmap.md`
+2. `.agents/shared/read_order.md`
+3. `.agents/shared/state_sync_rules.md`
+4. `docs/active_context.md`
+5. `current_state.md`
+6. `docs/roadmap.md`
+7. `docs/plans/provider-router-split/plan.md`
+8. `docs/plans/provider-router-split/plan_audit.md`
+9. `docs/design/INVARIANTS.md`
+10. `docs/design/PROVIDER_ROUTER.md`
+11. `docs/design/DATA_MODEL.md`
+12. `docs/design/ORCHESTRATION.md`
+13. `docs/design/EXECUTOR_REGISTRY.md`
+14. `docs/engineering/CODE_ORGANIZATION.md`
+15. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
+16. `docs/engineering/TEST_ARCHITECTURE.md`
 
-仅在需要时再读取：
+仅在需要追溯上一阶段边界时再读取:
 
-- `docs/plans/phase67/codex_review_notes_candidate_p.md`
-- `docs/plans/phase68/kickoff.md`
-- `docs/plans/phase68/breakdown.md`
-- `docs/plans/phase68/codex_review_notes_s1.md`
-- `docs/plans/phase68/codex_review_notes_s2.md`
-- `docs/plans/phase68/codex_review_notes_s3.md`
-- 历史 phase closeout / review_comments / archive 文档
+- `docs/plans/architecture-recomposition/plan.md`
+- git log around `c3596c2 merge: architecture recomposition first branch`
 
 ---
 
 ## 最小验证命令
 
-恢复工作前，建议至少执行以下检查：
+恢复工作前，建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -120,62 +103,47 @@ git log --oneline --decorate -8
 git tag --list 'v*' --sort=-creatordate | head -n 5
 ```
 
-当前 R-entry 状态验证命令：
+Provider Router Split planning gate 的最小文档检查:
 
 ```bash
 git diff --check
-git diff -- docs/design
-.venv/bin/python -m compileall -q src/swallow
-.venv/bin/python -m pytest -q
+sed -n '1,220p' docs/plans/provider-router-split/plan.md
 ```
 
-Release preflight on `main` after release-doc sync:
+实现阶段 baseline checks 由 `docs/plans/provider-router-split/plan.md` 定义。进入实现前至少保留:
 
 ```bash
+.venv/bin/python -m pytest tests/test_router.py -q
+.venv/bin/python -m pytest tests/test_invariant_guards.py -q
+.venv/bin/python -m compileall -q src/swallow
+.venv/bin/python -m pytest -q
 git diff --check
-# passed
-
-git diff -- docs/design
-# no output
-
-.venv/bin/python -m compileall -q src/swallow
-# passed
-
-.venv/bin/python -m pytest -q
-# 622 passed, 8 deselected, 10 subtests passed
-```
-
-R-entry focused design / implementation guard check:
-
-```bash
-.venv/bin/python -m pytest tests/test_invariant_guards.py tests/test_raw_material_store.py tests/test_ingestion_pipeline.py tests/test_librarian_executor.py -q
-# 51 passed
-
-.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q
-# 21 passed
 ```
 
 ---
 
 ## 当前已知边界
 
-- `v1.4.0` 与 `v1.5.0` tag 均已完成;不要删除或重打这些 tag。
-- Phase 67 是 cleanup / module reorganization,单独不构成 release tag;Phase 68 Candidate O raw material boundary 构成本次 `v1.5.0` 的主要 release 信号。
-- Phase 68 当前只实现 filesystem backend;不引入真实 S3 / MinIO / OSS client。
-- R 阶段默认使用 fresh v1.5 workspace 或现有 v1 backfill;不要把 schema v2 migration runner、跨进程 durable proposal restore、真实 object-storage backend 当作入口条件。
-- 不主动推进多租户、分布式 worker、云端 truth 镜像或无边界 UI 扩张。
-- 不绕过 `apply_proposal` 直接写 canonical / route / policy。
+- 当前阶段是 `Provider Router Split / LTO-7 Step 1` 的 model review / plan gate 前状态。
+- 不在 `main` 上做实现。
+- 不把 LTO-8 Orchestration、LTO-9 Surface / Meta Optimizer 或 LTO-10 Governance 合并进本 phase。
+- 不改变 `docs/design/*.md` 设计语义。
+- 不改变 Path A/B/C 语义，不让 Path B 调用 Provider Router。
+- 不改变 Control Plane 权限，Provider Router 不做任务域判断、复杂度评估、waiting_human 决策或语义级 retry 决策。
+- 不绕过 `apply_proposal` 直接写 route metadata / policy。
+- 不引入新的 provider、网络协议、schema migration 或真实模型调用要求。
+- Provider Router selection extraction must not import executor defaults through `swallow.orchestration.executor`; use `swallow.knowledge_retrieval.dialect_data` unless a narrower non-orchestration constants module is explicitly introduced.
 - README 当前为单文件双语结构;不要再要求同步不存在的 `README.zh-CN.md`。
 
 ---
 
-## R-entry Commit 建议
+## 当前建议提交范围
 
-如接受本轮状态同步与准入判断,建议提交:
+如接受本轮状态同步、plan audit 与修订后的计划，建议由 Human 单独提交文档:
 
 ```bash
-git add current_state.md docs/active_context.md docs/concerns_backlog.md docs/roadmap.md
-git commit -m "docs(state): record R-entry readiness"
+git add docs/active_context.md current_state.md docs/plans/provider-router-split/plan.md docs/plans/provider-router-split/plan_audit.md
+git commit -m "docs(plan): add provider router split plan"
 ```
 
 ---
@@ -191,7 +159,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-验证 new-api 可达：
+验证 new-api 可达:
 
 ```bash
 curl http://localhost:3000/api/status
@@ -201,13 +169,14 @@ curl http://localhost:3000/api/status
 
 ## 恢复命令
 
-重新打开仓库后，可先执行：
+重新打开仓库后，可先执行:
 
 ```bash
 cd /home/rocio/projects/swallow
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
-sed -n '1,120p' README.md
+sed -n '1,220p' docs/plans/provider-router-split/plan.md
+sed -n '1,220p' docs/plans/provider-router-split/plan_audit.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
