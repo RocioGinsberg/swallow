@@ -8,14 +8,14 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Knowledge / Storage`
-- latest_completed_phase: `Phase 68`
-- latest_completed_slice: `Candidate O / Raw Material Store Boundary`
-- active_track: `Operations`
-- active_phase: `Candidate R / Real-use Feedback Observation`
-- active_slice: `R-entry Readiness Gate`
+- latest_completed_track: `Operations / Knowledge`
+- latest_completed_phase: `Candidate R / Real-use Feedback Observation`
+- latest_completed_slice: `R1 Design Docs Observation Sample`
+- active_track: `Retrieval Quality`
+- active_phase: `Candidate U / Neural Retrieval Observability / Eval / Index Hardening`
+- active_slice: `U0 Plan Definition`
 - active_branch: `main`
-- status: `r_entry_ready_agent_workflow_sync_pending_review`
+- status: `candidate_u_plan_pending`
 
 ## 当前状态说明
 
@@ -44,6 +44,8 @@ R-entry design / implementation readiness has been checked against:
 - `docs/design/INTERACTION.md`
 - `docs/design/EXECUTOR_REGISTRY.md`
 
+Candidate R observation closeout is complete. The next selected implementation direction is Candidate U: retrieval observability / eval / index hardening, with Candidate T and Candidate Y kept as follow-ups.
+
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
@@ -54,6 +56,10 @@ R-entry design / implementation readiness has been checked against:
 6. `docs/roadmap.md`
 7. `docs/concerns_backlog.md`
 8. `docs/design/INVARIANTS.md`
+9. `docs/plans/candidate-r/plan.md`
+10. `docs/plans/candidate-r/observations.md`
+11. `docs/plans/candidate-r/closeout.md`
+12. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
 
 ## 当前推进
 
@@ -109,70 +115,96 @@ R-entry design / implementation readiness has been checked against:
 - **[Codex]** Concerns backlog hygiene pass completed:
   - `docs/concerns_backlog.md` Open items are now split into Active Open vs Roadmap-Bound, preventing long-running mapped concerns from remaining in the active Open table.
   - `docs/roadmap.md` candidates AA/AB/U/W/X/Y/Z now explicitly list the mapped concern groups they should consume.
+- **[Codex]** Candidate R observation plan started:
+  - `docs/plans/candidate-r/plan.md` fixes the first observation sample as `docs/design/`.
+  - R1 will observe design-doc ingestion, staged review, retrieval reports, evidence traceability, and operator friction before selecting a follow-up implementation candidate.
+- **[Human]** Candidate R `INVARIANTS.md` staged review seed completed:
+  - `swl knowledge ingest-file docs/design/INVARIANTS.md --summary` created 12 staged candidates with `file://workspace/docs/design/INVARIANTS.md` source refs.
+  - 5 high-signal invariant candidates were promoted: §0 invariant rules, §4 LLM call paths, §5 Truth write matrix, §7 single-user evolution boundary, and §9 invariant guard tests.
+  - `swl knowledge canonical-audit` reports `total: 5`, `active: 5`, `duplicate_active_keys: 0`, `orphan_records: 0`.
+- **[Human/Codex]** Candidate R retrieval probe P1 completed:
+  - task: `2f77c3a3a82d` (`R probe: apply_proposal boundary`)
+  - result transcript: `results/R.md` (local observation artifact)
+  - retrieval reused 4 promoted canonical invariant records and exposed `knowledge_retrieval_mode: text_fallback` after embedding API fallback.
+  - observation summary recorded in `docs/plans/candidate-r/observations.md`.
+- **[Human/Codex]** Candidate R retrieval probe P2 completed:
+  - task: `5e891023a196` (`R probe: LLM call path boundary`)
+  - retrieval reused the target §4 canonical invariant record (`canonical-staged-090c3193`) plus invariant guard tests.
+  - top 5 results were historical `docs/archive_phases/phase64/*` notes, exposing a stronger Candidate U source-weighting / archive-noise signal.
+  - embedding API fallback repeated; canonical metadata still reports `knowledge_retrieval_mode: text_fallback`.
+- **[Human]** Embedding API configuration restored:
+  - `swl doctor stack` reports `embedding_api_endpoint=pass` at `http://localhost:3000/v1/embeddings`.
+  - Postgres / pgvector and WireGuard / egress proxy checks remain non-blocking for this local SQLite-first R observation slice.
+- **[Human/Codex]** Candidate R P2b vector-enabled comparison completed:
+  - `.venv/bin/swl` with restored `.env` and `sqlite-vec` moved `canonical-staged-090c3193` from P2 rank 6 to rank 1.
+  - `retrieval-json` now reports `embedding_backend=api_embedding`, `knowledge_retrieval_adapter=sqlite_vec`, `knowledge_retrieval_mode=vector`, and `rerank_applied=true`.
+  - Candidate U signal narrowed from "basic vector path failure" to fallback-mode clarity, archive source policy, and retrieval report observability.
+- **[Human/Codex]** Candidate R `KNOWLEDGE.md` dry-run intake completed:
+  - `.venv/bin/swl knowledge ingest-file docs/design/KNOWLEDGE.md --dry-run --summary` reported 32 preview candidates.
+  - Codex selected 10 recommended P3 seed chunks by `source_object_id` across design statement, Raw Material, Knowledge Truth, Evidence, Retrieval & Serving, EvidencePack, Retrieval Source Types, Wiki / Canonical, and raw-material-vs-knowledge boundaries.
+  - Dry-run also exposed Candidate U/T signals: code / command fragment over-splitting, missing line spans / heading paths in the report, confusing `fragments=0` vs `staged_candidates=32`, and empty Decisions / Constraints summary buckets.
+- **[Codex]** Candidate R `KNOWLEDGE.md` P3 seed promotion completed:
+  - Persisted `KNOWLEDGE.md` staged candidates, inspected the selected 10 core records, and promoted them with note `Candidate R P3 knowledge-boundary seed`.
+  - Promoted canonical IDs: `canonical-staged-6c3bf658`, `canonical-staged-35757554`, `canonical-staged-d153b1fc`, `canonical-staged-87b38d5f`, `canonical-staged-f07145f3`, `canonical-staged-2dfb5d20`, `canonical-staged-a763b064`, `canonical-staged-5b08bc0a`, `canonical-staged-383b9d7f`, `canonical-staged-bdbd97a2`.
+  - `.venv/bin/swl knowledge canonical-audit` reports `total: 15`, `active: 15`, `duplicate_active_keys: 0`, `orphan_records: 0`.
+- **[Codex]** Candidate R retrieval probe P3/P3b completed:
+  - P3 task `f767f87222d9` completed but fell back to text because this tool shell had not loaded `.env`.
+  - P3b task `c1adb2f7f807` reran the same knowledge-truth boundary probe with `.env` loaded and confirmed `embedding_backend=api_embedding`, `knowledge_retrieval_adapter=sqlite_vec`, `knowledge_retrieval_mode=vector`, and `rerank_applied=true`.
+  - P3b reused 7 promoted `KNOWLEDGE.md` canonical records in the top 7 results; `docs/plans/candidate-r/observations.md` appeared as the 8th notes result.
+  - Candidate U/T/Y signals remain: rerank order vs raw score readability, source-only evidence without resolved spans, self-referential notes retrieval, and summary route not producing a semantic answer.
+- **[Codex/Human]** Candidate R closeout direction accepted and roadmap updated:
+  - `docs/plans/candidate-r/closeout.md` records Candidate R complete and recommends Candidate U first.
+  - `docs/roadmap.md` now marks R as completed observation, promotes Candidate U to the current recommended next phase, and adds Candidate AC as the later system-design refactor / GoF pattern alignment track.
+  - Candidate T remains the next evidence/source-resolution follow-up; Candidate Y remains a narrow summary-route / surface ergonomics follow-up.
+- **[Codex]** GoF-style system design guidance added:
+  - `docs/engineering/GOF_PATTERN_ALIGNMENT.md` defines how Swallow should use Facade / Strategy / Command / Repository / Adapter / Value Object / State as responsibility language, not as pattern-for-pattern's-sake.
+  - `docs/roadmap.md` now references Candidate AC for later coordination of AB/V/W/X/Y/Z system-design refactors.
 
 进行中:
 
-- **[Human]** Review and commit R-entry engineering + agent workflow sync, then begin Candidate R real-use feedback observation using the refreshed R0/R1/R2 gap triage in `docs/roadmap.md`.
+- **[Codex]** Candidate U plan definition pending. No implementation should start before `docs/plans/candidate-u/plan.md` is drafted and reviewed.
 
 待执行:
 
-- **[Human]** Review and commit this R-entry engineering + agent workflow sync if accepted.
-- **[Human/Codex]** During R, classify real-use observations into Candidate S/T/U/D, test/interface friction into Candidate AA/AB, and source-organization friction into Candidate V/W/X/Y/Z using the refreshed roadmap split; do not start Candidate D until a real orchestration bottleneck appears.
+- **[Codex]** Draft `docs/plans/candidate-u/plan.md` around retrieval report clarity, fallback/env visibility, rerank score semantics, source-policy labels, staged queue hygiene, P1/P2/P3 regression probes, and the GoF-style responsibility language in `docs/engineering/GOF_PATTERN_ALIGNMENT.md`.
+- **[Human]** Review Candidate U plan before any implementation branch or code changes.
 
 当前阻塞项:
 
-- None for entering Candidate R. Active Open concerns are R-observation quality edge cases only; roadmap-bound concerns are not R-entry blockers.
+- None for Candidate U planning. Implementation remains gated on a reviewed `docs/plans/candidate-u/plan.md`.
 
 ## Tag 状态
 
 - 最新已执行 tag: `v1.5.0`
 - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
 - tag message: `v1.5.0: raw material store boundary`
-- 结论: tag release gate 已关闭,可以进入 Candidate R 观察期。
+- 结论: tag release gate 已关闭;Candidate R 观察已收口,当前进入 Candidate U plan definition。
 
 ## 当前下一步
 
-1. **[Human]** Review this R-entry state / workflow sync:
-   - `CLAUDE.md`
-   - `.codex/session_bootstrap.md`
-   - `.agents/claude/role.md`
-   - `.agents/claude/rules.md`
-   - `.agents/codex/role.md`
-   - `.agents/codex/rules.md`
-   - `.agents/shared/rules.md`
-   - `.agents/shared/state_sync_rules.md`
-   - `.agents/shared/document_discipline.md`
-   - `.agents/shared/reading_manifest_format.md`
-   - `.agents/workflows/feature.md`
-   - `.agents/workflows/model_review.md`
-   - `.agents/workflows/hotfix.md`
-   - `.agents/templates/pr_body.md`
-   - `.claude/agents/context-analyst.md`
-   - `.claude/agents/design-auditor.md`
-   - `.claude/agents/phase-guard.md`
-   - `.claude/agents/consistency-checker.md`
-   - `.claude/agents/roadmap-updater.md`
-   - `.claude/skills/model-review/SKILL.md`
-   - `.agents/codex/templates/plan_template.md`
-   - `AGENTS.md`
-   - `.agents/shared/read_order.md`
-   - `current_state.md`
-   - `docs/active_context.md`
-   - `docs/concerns_backlog.md`
-   - `docs/design/INTERACTION.md`
-   - `docs/engineering/CODE_ORGANIZATION.md`
-   - `docs/engineering/TEST_ARCHITECTURE.md`
-   - `docs/roadmap.md`
-2. **[Human]** Commit accepted R-entry / workflow sync.
-3. **[Human/Codex]** Start Candidate R real-use feedback observation on the `v1.5.0` checkpoint.
+1. **[Codex]** Prepare `docs/plans/candidate-u/plan.md`.
+2. **[Human]** Review Candidate U plan and approve / adjust scope.
+3. **[Human]** After plan approval, decide whether to create a feature branch for Candidate U implementation.
 
 ```markdown
 milestone_gate:
-- current: candidate-r-entry-readiness
+- current: candidate-u-plan-definition
 - previous_gate: v1.5.0 annotated tag completed on main
-- next_gate: Human R-entry state sync review / commit
-- proceed_to_r: allowed after state sync review
-- reason: design invariants and focused implementation guards are sufficient for observation-stage real-use testing
+- observation_sample: docs/design/
+- promoted_seed: INVARIANTS §0/§4/§5/§7/§9
+- completed_probe: P1 apply_proposal boundary (`2f77c3a3a82d`)
+- completed_probe_2: P2 LLM call path boundary (`5e891023a196`)
+- environment_gate: embedding_api_endpoint restored
+- completed_probe_2b: P2 vector-enabled comparison confirmed (`5e891023a196`)
+- knowledge_dry_run: KNOWLEDGE.md produced 32 preview candidates; 10 recommended P3 seed chunks selected
+- promoted_knowledge_seed: 10 KNOWLEDGE.md canonical records promoted for P3; canonical audit clean
+- completed_probe_3: P3 knowledge-truth boundary (`f767f87222d9`, text fallback) and P3b vector rerun (`c1adb2f7f807`)
+- closeout: docs/plans/candidate-r/closeout.md final
+- roadmap: Candidate U promoted to current recommended next implementation candidate
+- engineering_guidance: docs/engineering/GOF_PATTERN_ALIGNMENT.md added; Candidate AC introduced as later system-design refactor track
+- next_gate: Candidate U plan reviewed
+- proceed_to_u: planning_only
+- reason: Candidate R showed canonical reuse works, while retrieval observability / fallback clarity / rerank report semantics are the primary next bottleneck
 ```
 
 ## 当前产出物
@@ -185,9 +217,13 @@ milestone_gate:
 - `docs/concerns_backlog.md`(codex, 2026-04-30, release-doc debt resolved + R-entry blocker/design triage)
 - `docs/design/INTERACTION.md`(codex, 2026-05-01, local UI runtime standard: Browser/Desktop UI via local FastAPI, CLI direct application layer)
 - `docs/engineering/CODE_ORGANIZATION.md`(codex, 2026-05-01, long-term code organization convergence standard)
+- `docs/engineering/GOF_PATTERN_ALIGNMENT.md`(codex, 2026-05-01, GoF-style responsibility language for system-design refactors)
 - `docs/engineering/TEST_ARCHITECTURE.md`(codex, 2026-05-01, long-term test architecture and TDD harness standard)
-- `docs/roadmap.md`(codex, 2026-05-01, pruned roadmap + v1.5.0 post-start RAG, test architecture, interface boundary, and code-organization planning: Candidate R + S/T/U + AA/AB + V/W/X/Y/Z)
+- `docs/roadmap.md`(codex, 2026-05-01, Candidate R closeout findings folded in; Candidate U promoted to next recommended implementation candidate)
 - `docs/concerns_backlog.md`(codex, 2026-05-01, Open concerns grouped into Active Open vs Roadmap-Bound and mapped to roadmap candidates)
+- `docs/plans/candidate-r/plan.md`(codex, 2026-05-01, Candidate R design-doc observation plan)
+- `docs/plans/candidate-r/observations.md`(codex, 2026-05-01, Candidate R P1/P2/P2b/P3/P3b + KNOWLEDGE dry-run/promotion observation summary)
+- `docs/plans/candidate-r/closeout.md`(codex, 2026-05-01, Candidate R closeout and next-candidate recommendation)
 - `CLAUDE.md`(codex, 2026-05-01, Claude role narrowed to plan audit / PR review / tag evaluation)
 - `.codex/session_bootstrap.md`(codex, 2026-05-01, Codex role expanded to plan definition via `plan.md`)
 - `.agents/workflows/feature.md`(codex, 2026-05-01, feature workflow rewritten around `context_brief.md` + `plan.md` + `plan_audit.md`)

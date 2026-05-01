@@ -8,6 +8,8 @@
 
 This document fixes Swallow's long-term code organization direction. It is a convergence standard, not a frozen final directory tree.
 
+For GoF-style responsibility vocabulary used during system-design refactors, see `docs/engineering/GOF_PATTERN_ALIGNMENT.md`.
+
 ---
 
 ## 1. Target Shape
