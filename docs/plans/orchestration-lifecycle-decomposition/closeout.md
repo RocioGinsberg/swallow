@@ -2,10 +2,12 @@
 author: codex
 phase: orchestration-lifecycle-decomposition
 slice: m5-knowledge-flow-facade-closeout
-status: review
+status: final
 depends_on:
   - docs/plans/orchestration-lifecycle-decomposition/plan.md
   - docs/plans/orchestration-lifecycle-decomposition/plan_audit.md
+  - docs/plans/orchestration-lifecycle-decomposition/review_comments.md
+  - docs/concerns_backlog.md
   - docs/active_context.md
   - docs/design/INVARIANTS.md
   - docs/engineering/CODE_ORGANIZATION.md
@@ -15,7 +17,7 @@ depends_on:
 TL;DR:
 LTO-8 Step 1 completed a behavior-preserving decomposition of `orchestrator.py` into focused orchestration helpers while keeping task advancement authority in `orchestrator.py`.
 No helper imports or calls `save_state`; M4/M5 helpers also avoid event append and executor/harness dependencies.
-Implementation validation passed with full default pytest: `686 passed, 8 deselected, 10 subtests passed`; Human M5 commit and Claude PR review are still pending.
+Implementation and Claude PR review both passed full default pytest: `686 passed, 8 deselected, 10 subtests passed`; review recommends merge with 3 non-blocking concerns tracked in `docs/concerns_backlog.md`.
 
 # Orchestration Lifecycle Decomposition Closeout
 
@@ -110,21 +112,27 @@ Earlier milestone validation is recorded in `docs/active_context.md`.
 
 ## Review Status
 
-Claude PR review has not been produced yet. Per `.agents/workflows/feature.md`, the next steps are:
+Claude PR review has been produced:
 
-1. Human reviews and commits M5 if accepted.
-2. Claude reviews the completed feature branch and writes `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`.
-3. Codex updates `pr.md` if review findings change the merge summary.
-4. Human decides the merge gate.
+- review file: `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`
+- reviewed branch/head: `feat/orchestration-lifecycle-decomposition` @ `fe31d72`
+- recommendation: merge
+- blocking findings: none
+- audit resolution: all 1 BLOCKER + 7 CONCERNs from `plan_audit.md` are resolved
+- review validation: full default pytest reverified with `686 passed, 8 deselected, 10 subtests passed`
+- follow-up concerns: 3 non-blocking concerns recorded in `docs/concerns_backlog.md`
 
 ## Deferred Follow-up
 
 - Further reduction of `orchestrator.py` can continue in later LTO-8 slices, but should remain facade-first.
+- `execution_attempts.debate_loop_core` / `debate_loop_core_async` callback shape should be revisited or documented so telemetry callbacks cannot be mistaken for a state-advancement control pattern.
 - `harness.py` decomposition remains a separate future target.
 - Public CLI / FastAPI / Meta Optimizer surface split remains LTO-9.
+- LTO-7 route metadata guard allowlist drift should be fixed in LTO-9 rather than waiting for LTO-10.
 - Governance handler split remains LTO-10.
 - Any future move of `_apply_librarian_side_effects(...)` requires an explicit plan for the `apply_proposal` boundary.
+- Post-merge roadmap update should mark LTO-8 as `Step 1 done`, not fully complete.
 
 ## Completion Status
 
-Implementation and validation for LTO-8 Step 1 are complete. The branch is waiting for Human M5 review / commit before Claude PR review.
+Implementation, validation, and Claude PR review for LTO-8 Step 1 are complete. The branch is ready for Human PR submission / merge decision after the review-closeout docs are committed.

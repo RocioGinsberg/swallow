@@ -24,7 +24,7 @@
 - latest_executed_public_tag: `v1.5.0`
 - pending_release_tag: `none`
 - current_working_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- checkpoint_type: `lto8_m5_validation_passed_waiting_human_commit`
+- checkpoint_type: `lto8_pr_review_pass_waiting_human_merge`
 - active_branch: `feat/orchestration-lifecycle-decomposition`
 - last_checked: `2026-05-02`
 
@@ -36,9 +36,10 @@
 - Codex 已起草并根据 audit 修订 `docs/plans/orchestration-lifecycle-decomposition/plan.md`。
 - Claude plan audit 已产出在 `docs/plans/orchestration-lifecycle-decomposition/plan_audit.md`，结论为 1 BLOCKER + 7 CONCERNs。
 - Audit BLOCKER 已通过计划修订吸收：milestone 数量从 6 降到 5，原 M6 closeout / PR gate 折进 M5 与 Completion Conditions。
-- Human Plan Gate 已通过，M1-M4 已由 Human 提交。
-- Codex 已完成 M5 knowledge-flow / facade cleanup implementation、full validation、closeout draft 与 `pr.md` draft。
-- 当前等待 Human review / commit M5；M5 commit 后进入 Claude PR review。
+- Human Plan Gate 已通过，M1-M5 均已由 Human 提交。
+- Claude PR review 已完成，结论为 merge，3 个 non-blocking concerns 已记录到 `docs/concerns_backlog.md`。
+- Codex 已同步 closeout / `current_state.md` / `docs/active_context.md` / `pr.md` 收口状态。
+- 当前等待 Human 提交或更新 PR 并执行 merge。
 - 最新已执行公开 tag 仍为 `v1.5.0`; annotated tag 指向 `bc8abb1 docs(release): sync v1.5.0 release docs`。
 
 ---
@@ -50,15 +51,15 @@
 - active_branch: `feat/orchestration-lifecycle-decomposition`
 - active_track: `Architecture / Engineering`
 - active_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- active_slice: `M5 knowledge-flow / facade cleanup`
-- workflow_status: `m5_validation_passed_waiting_human_commit`
+- active_slice: `PR review complete; awaiting Human merge decision`
+- workflow_status: `pr_review_pass_with_3_concerns_recommend_merge`
 
 下一步:
 
-1. Human reviews M5 diff and commits if accepted.
-2. Claude performs PR review and writes `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`.
-3. Codex updates `pr.md` if review findings change the merge summary.
-4. Human decides merge gate.
+1. Human commits or updates the review / closeout docs if needed, then uses `pr.md` to update the PR.
+2. Human decides whether to merge the PR.
+3. After merge, Codex syncs post-merge state and roadmap factual update.
+4. If merge happens, roadmap-updater should mark LTO-8 as Step 1 done, not fully complete.
 
 ---
 
@@ -82,8 +83,9 @@
 14. `docs/plans/provider-router-split/closeout.md`
 15. `docs/plans/provider-router-split/review_comments.md`
 16. `docs/concerns_backlog.md`
-17. `docs/plans/orchestration-lifecycle-decomposition/closeout.md`
-18. `pr.md`
+17. `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`
+18. `docs/plans/orchestration-lifecycle-decomposition/closeout.md`
+19. `pr.md`
 
 ---
 
@@ -98,7 +100,7 @@ git show --no-patch --decorate --oneline HEAD
 git log --oneline --decorate -8
 ```
 
-LTO-8 M5 implementation validation completed with:
+LTO-8 implementation validation and PR review completed with:
 
 ```bash
 git status --short --branch
@@ -128,22 +130,22 @@ Final default pytest result: `686 passed, 8 deselected, 10 subtests passed`.
 - `run_task` / `run_task_async` / `create_task` 仍由 `swallow.orchestration.orchestrator` 公开承载。
 - `_apply_librarian_side_effects(...)` 与任何 direct `apply_proposal` caller 仍留在 `orchestrator.py`。
 - `knowledge_flow.py` 不依赖 `save_state` / `append_event` / `apply_proposal` / `orchestration.harness` / `orchestration.executor`。
+- LTO-8 Step 1 仍是分解里的第一步，`orchestrator.py` 后续还会继续收缩，但不会把控制权移出 Orchestrator。
 
 ---
 
 ## 当前建议提交范围
 
-如接受 M5 knowledge-flow / facade cleanup，建议由 Human 提交:
+M5 implementation 已提交到 `fe31d72`。当前只建议提交 review / closeout 状态材料:
 
 ```bash
-git add src/swallow/orchestration/orchestrator.py \
-  src/swallow/orchestration/knowledge_flow.py \
-  tests/unit/orchestration/test_knowledge_flow_module.py \
-  docs/plans/orchestration-lifecycle-decomposition/closeout.md \
+git add docs/plans/orchestration-lifecycle-decomposition/closeout.md \
+  docs/plans/orchestration-lifecycle-decomposition/review_comments.md \
+  docs/concerns_backlog.md \
   docs/active_context.md \
   current_state.md
 
-git commit -m "refactor(orchestration): extract knowledge flow helpers"
+git commit -m "docs(state): close orchestration lifecycle review"
 ```
 
 `pr.md` has been updated as the local PR body draft, but it is ignored by git in this repository; do not include it in the commit unless Human explicitly wants to force-add it.

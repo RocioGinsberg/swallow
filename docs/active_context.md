@@ -13,9 +13,9 @@
 - latest_completed_slice: `Provider Router Maintainability`
 - active_track: `Architecture / Engineering`
 - active_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- active_slice: `M5 knowledge-flow / facade cleanup`
+- active_slice: `PR review complete; awaiting Human merge decision`
 - active_branch: `feat/orchestration-lifecycle-decomposition`
-- status: `m5_validation_passed_waiting_human_commit`
+- status: `pr_review_pass_with_3_concerns_recommend_merge`
 
 ## 当前状态说明
 
@@ -100,6 +100,20 @@ Codex 已完成 M5 knowledge-flow / facade cleanup:
   - `current_state.md`
   - `pr.md`
 
+Human 已提交 M5:
+
+- `fe31d72 refactor(orchestration): extract knowledge flow helpers`
+
+Claude PR review 已完成:
+
+- 产物: `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`
+- verdict: `recommend merge`
+- blocking findings: none
+- review 复验: full default pytest `686 passed, 8 deselected, 10 subtests passed`
+- non-blocking concerns: 3 项，已记录到 `docs/concerns_backlog.md`
+
+当前状态已经从“实现中”切换到“review 完成、等待 Human 处理 PR / merge”。
+
 ## 当前关键文档
 
 1. `docs/active_context.md`(本文)
@@ -116,6 +130,8 @@ Codex 已完成 M5 knowledge-flow / facade cleanup:
 12. `docs/plans/provider-router-split/closeout.md`
 13. `docs/plans/provider-router-split/review_comments.md`
 14. `docs/concerns_backlog.md`
+15. `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`
+16. `pr.md`
 
 ## 当前推进
 
@@ -221,20 +237,37 @@ Codex 已完成 M5 knowledge-flow / facade cleanup:
   - `rg -n "save_state|append_event|apply_proposal|orchestration\.harness|orchestration\.executor" src/swallow/orchestration/knowledge_flow.py` -> no matches
   - runtime import audit for `knowledge_flow.py` -> `orchestration.executor` and `orchestration.harness` not loaded
   - `.venv/bin/python -m pytest -q` -> `686 passed, 8 deselected, 10 subtests passed`
+- **[Human]** Committed M5:
+  - `fe31d72 refactor(orchestration): extract knowledge flow helpers`
+- **[Claude]** Completed PR review:
+  - `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`
+  - recommendation: merge
+  - blocking findings: none
+  - non-blocking concerns: 3
+  - full pytest reverified: `686 passed, 8 deselected, 10 subtests passed`
+- **[Claude/Codex]** Review concerns are tracked in `docs/concerns_backlog.md`:
+  - LTO-8 debate-loop callback / closure pattern follow-up
+  - LTO-8 Step 1 should not mark full LTO-8 done
+  - LTO-7 route metadata guard allowlist drift targeted for LTO-9
+- **[Codex]** Synced review closeout state:
+  - `docs/plans/orchestration-lifecycle-decomposition/closeout.md`
+  - `current_state.md`
+  - `docs/active_context.md`
+  - `pr.md`
 
 进行中:
 
-- None. M5 is waiting for Human review / commit.
+- None. Review passed with non-blocking concerns; branch is ready for Human PR submission / merge decision after the review-closeout docs are committed.
 
 待执行:
 
-- **[Human]** Review and commit M5 if accepted.
-- **[Claude]** After M5 commit is confirmed, perform PR review and write `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`.
-- **[Codex]** Update `pr.md` if review findings change the merge summary.
+- **[Human]** Commit review / closeout docs if accepted.
+- **[Human]** Use updated `pr.md` to submit or update the PR, then merge if accepted.
+- **[Codex]** After merge, sync post-merge state and coordinate roadmap factual update / tag evaluation.
 
 当前阻塞项:
 
-- 等待人工审批: review and commit M5.
+- 无 blocking review finding。等待人工操作: review-closeout docs commit, PR submission/update, and merge decision.
 
 ## Tag 状态
 
@@ -245,18 +278,18 @@ Codex 已完成 M5 knowledge-flow / facade cleanup:
 
 ## 当前下一步
 
-1. **[Human]** Review M5 changes and commit if accepted.
-2. **[Claude]** After Human confirms M5 commit, perform PR review.
-3. **[Codex]** Update `pr.md` / state if review produces findings or merge-ready status changes.
+1. **[Human]** Review and commit the review / closeout docs if accepted.
+2. **[Human]** Use `pr.md` to submit or update the PR, then merge if accepted.
+3. **[Codex]** After Human confirms merge to `main`, update post-merge state and prepare roadmap/tag follow-up.
 
 ```markdown
 milestone_gate:
-- current: lto8-m5-validation-passed-waiting-human-commit
+- current: lto8-pr-review-passed-waiting-human-pr-merge
 - active_branch: feat/orchestration-lifecycle-decomposition
 - latest_main_checkpoint: 6033558 Provider Router Maintainability
 - active_track: Architecture / Engineering
 - active_phase: Orchestration Lifecycle Decomposition / LTO-8 Step 1
-- active_slice: M5 knowledge-flow / facade cleanup
+- active_slice: PR review complete; awaiting Human merge decision
 - plan: docs/plans/orchestration-lifecycle-decomposition/plan.md (revised after audit)
 - plan_audit: docs/plans/orchestration-lifecycle-decomposition/plan_audit.md (1 BLOCKER + 7 CONCERNs)
 - audit_absorbed: milestone count, save_state closure ban, harness scope, module naming, append_event boundary, apply_proposal movement boundary
@@ -277,7 +310,9 @@ milestone_gate:
 - m4_commit: 9fdf743 refactor(orchestration): extract execution attempt helpers
 - m5_outputs: knowledge_flow.py write-plan/report/payload helpers, orchestrator.py helper delegation while retaining proposal/event/state ownership, tests/unit/orchestration/test_knowledge_flow_module.py, closeout.md, current_state.md, pr.md
 - m5_validation: unit orchestration `35 passed`; librarian executor `6 passed`; invariant guards `25 passed`; CLI knowledge/canonical/librarian focused `50 passed, 192 deselected, 2 subtests passed`; review gate `13 passed`; compileall src/swallow passed; git diff --check passed; knowledge_flow forbidden dependency grep/runtime import audit no matches; full default pytest `686 passed, 8 deselected, 10 subtests passed`
-- next_gate: Human M5 review / commit
+- m5_commit: fe31d72 refactor(orchestration): extract knowledge flow helpers
+- pr_review: docs/plans/orchestration-lifecycle-decomposition/review_comments.md; recommendation merge; no blockers; 3 non-blocking concerns tracked
+- next_gate: Human review-closeout docs commit, PR submission/update, and merge decision
 ```
 
 ## 当前产出物
@@ -298,7 +333,9 @@ milestone_gate:
 - `tests/unit/orchestration/test_execution_attempts_module.py`(codex, 2026-05-02, execution attempt helper behavior and boundary tests)
 - `src/swallow/orchestration/knowledge_flow.py`(codex, 2026-05-02, knowledge store write-plan, report, and summary payload helpers)
 - `tests/unit/orchestration/test_knowledge_flow_module.py`(codex, 2026-05-02, knowledge flow helper behavior and boundary tests)
-- `docs/plans/orchestration-lifecycle-decomposition/closeout.md`(codex, 2026-05-02, implementation closeout pending Human M5 commit and Claude PR review)
-- `current_state.md`(codex, 2026-05-02, recovery state for LTO-8 M5 review / commit gate)
-- `pr.md`(codex, 2026-05-02, ignored local PR body draft pending Claude PR review)
-- `docs/active_context.md`(codex, 2026-05-02, active phase switched to LTO-8 M5 review / commit gate)
+- `docs/plans/orchestration-lifecycle-decomposition/closeout.md`(codex, 2026-05-02, final closeout after Claude PR review)
+- `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`(claude, 2026-05-02, PR review recommend merge with 3 non-blocking concerns)
+- `docs/concerns_backlog.md`(claude/codex, 2026-05-02, review concerns recorded / retargeted)
+- `current_state.md`(codex, 2026-05-02, recovery state for LTO-8 PR review pass / merge gate)
+- `pr.md`(codex, 2026-05-02, ignored local PR body draft updated after Claude review)
+- `docs/active_context.md`(codex, 2026-05-02, active phase switched to PR review pass / Human merge gate)
