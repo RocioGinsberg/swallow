@@ -1,18 +1,12 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 from pathlib import Path
 
-from swallow.orchestration.models import utc_now
-from swallow.surface_tools.identity import local_actor
 from swallow.surface_tools.paths import route_policy_path
-from swallow.truth_governance import sqlite_store
 
 
 DEFAULT_ROUTE_POLICY_PATH = Path(__file__).with_name("route_policy.default.json")
-_ROUTE_SELECTION_POLICY_ID = "route_selection:global"
-_ROUTE_SELECTION_POLICY_KIND = "route_selection"
 
 ROUTE_MODE_ALIASES = {
     "": "auto",
@@ -124,110 +118,16 @@ def _apply_route_policy_payload(route_policy: dict[str, object]) -> None:
     SUMMARY_FALLBACK_ROUTE_NAME = str(normalized.get("summary_fallback_route_name", "") or "")
 
 
-def _save_route_selection_policy_to_sqlite(
-    connection: sqlite3.Connection,
-    route_policy: object,
-) -> dict[str, object]:
-    normalized_policy = normalize_route_policy_payload(route_policy)
-    connection.execute(
-        """
-        INSERT INTO policy_records (
-            policy_id, kind, scope, scope_value, payload, updated_at, updated_by
-        )
-        VALUES (?, ?, ?, NULL, ?, ?, ?)
-        ON CONFLICT(policy_id) DO UPDATE SET
-            kind = excluded.kind,
-            scope = excluded.scope,
-            scope_value = excluded.scope_value,
-            payload = excluded.payload,
-            updated_at = excluded.updated_at,
-            updated_by = excluded.updated_by
-        """,
-        (
-            _ROUTE_SELECTION_POLICY_ID,
-            _ROUTE_SELECTION_POLICY_KIND,
-            "global",
-            json.dumps(normalized_policy, sort_keys=True, separators=(",", ":")),
-            utc_now(),
-            local_actor(),
-        ),
-    )
-    return normalized_policy
-
-
-def _route_policy_row_exists(connection: sqlite3.Connection) -> bool:
-    row = connection.execute(
-        "SELECT 1 FROM policy_records WHERE policy_id = ?",
-        (_ROUTE_SELECTION_POLICY_ID,),
-    ).fetchone()
-    return row is not None
-
-
-def _load_route_policy_from_sqlite(connection: sqlite3.Connection) -> dict[str, object]:
-    row = connection.execute(
-        "SELECT payload FROM policy_records WHERE policy_id = ?",
-        (_ROUTE_SELECTION_POLICY_ID,),
-    ).fetchone()
-    if row is None:
-        return {}
-    try:
-        return normalize_route_policy_payload(json.loads(str(row["payload"])))
-    except (json.JSONDecodeError, ValueError):
-        return load_default_route_policy()
-
-
-def _run_sqlite_write(base_dir: Path, writer) -> None:
-    connection = sqlite_store.get_connection(base_dir)
-    if connection.in_transaction:
-        writer(connection)
-        return
-    connection.execute("BEGIN IMMEDIATE")
-    try:
-        writer(connection)
-        connection.execute("COMMIT")
-    except Exception:
-        connection.execute("ROLLBACK")
-        raise
-
-
-def _bootstrap_route_policy_from_legacy_json(base_dir: Path) -> None:
-    connection = sqlite_store.get_connection(base_dir)
-    if _route_policy_row_exists(connection):
-        return
-    connection.execute("BEGIN IMMEDIATE")
-    try:
-        if _route_policy_row_exists(connection):
-            connection.execute("COMMIT")
-            return
-        policy_path = route_policy_path(base_dir)
-        policy_payload = (
-            load_route_policy_from_path(policy_path)
-            if policy_path.exists()
-            else load_default_route_policy()
-        )
-        _save_route_selection_policy_to_sqlite(connection, policy_payload)
-        connection.execute("COMMIT")
-    except Exception:
-        connection.execute("ROLLBACK")
-        raise
-
-
 def load_route_policy(base_dir: Path) -> dict[str, object]:
-    _bootstrap_route_policy_from_legacy_json(base_dir)
-    connection = sqlite_store.get_connection(base_dir)
-    route_policy = _load_route_policy_from_sqlite(connection)
-    if route_policy:
-        return route_policy
-    path = route_policy_path(base_dir)
-    if path.exists():
-        return load_route_policy_from_path(path)
-    return load_default_route_policy()
+    from swallow.provider_router import route_metadata_store as route_metadata_store_module
+
+    return route_metadata_store_module.load_route_policy(base_dir)
 
 
 def save_route_policy(base_dir: Path, route_policy: object) -> Path:
-    path = route_policy_path(base_dir)
-    _run_sqlite_write(base_dir, lambda connection: _save_route_selection_policy_to_sqlite(connection, route_policy))
-    return path
+    from swallow.provider_router import route_metadata_store as route_metadata_store_module
+
+    return route_metadata_store_module.persist_route_policy(base_dir, route_policy)
 
 
 def apply_route_policy(base_dir: Path) -> dict[str, object]:

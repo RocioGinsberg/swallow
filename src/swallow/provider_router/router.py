@@ -8,6 +8,7 @@ from pathlib import Path
 
 import httpx
 
+from swallow.provider_router import route_metadata_store as route_metadata_store_module
 from swallow.provider_router import route_policy as route_policy_module
 from swallow.provider_router import route_registry as route_registry_module
 from swallow.truth_governance import sqlite_store
@@ -785,15 +786,7 @@ def _bootstrap_route_policy_from_legacy_json(base_dir: Path) -> None:
 
 
 def route_metadata_snapshot(base_dir: Path) -> dict[str, object]:
-    connection = sqlite_store.get_connection(base_dir)
-    _bootstrap_route_metadata_from_legacy_json(base_dir)
-    _bootstrap_route_policy_from_legacy_json(base_dir)
-    return {
-        "route_registry": _load_route_registry_from_sqlite(connection),
-        "route_policy": _load_route_policy_from_sqlite(connection),
-        "route_weights": _load_route_weights_from_sqlite(connection),
-        "route_capability_profiles": _load_route_capability_profiles_from_sqlite(connection, include_empty=False),
-    }
+    return route_metadata_store_module.route_metadata_snapshot(base_dir)
 
 
 def _build_default_route_registry() -> RouteRegistry:
@@ -867,39 +860,19 @@ def normalize_route_name(raw_name: str | None) -> str:
 
 
 def load_route_registry(base_dir: Path) -> dict[str, dict[str, object]]:
-    _bootstrap_route_metadata_from_legacy_json(base_dir)
-    connection = sqlite_store.get_connection(base_dir)
-    route_registry = _load_route_registry_from_sqlite(connection)
-    if route_registry:
-        return route_registry
-    path = route_registry_path(base_dir)
-    if path.exists():
-        return load_route_registry_from_path(path)
-    return load_default_route_registry()
+    return route_metadata_store_module.load_route_registry(base_dir)
 
 
 def load_route_policy(base_dir: Path) -> dict[str, object]:
-    _bootstrap_route_policy_from_legacy_json(base_dir)
-    connection = sqlite_store.get_connection(base_dir)
-    route_policy = _load_route_policy_from_sqlite(connection)
-    if route_policy:
-        return route_policy
-    path = route_policy_path(base_dir)
-    if path.exists():
-        return load_route_policy_from_path(path)
-    return load_default_route_policy()
+    return route_metadata_store_module.load_route_policy(base_dir)
 
 
 def save_route_registry(base_dir: Path, route_registry: object) -> Path:
-    path = route_registry_path(base_dir)
-    _run_sqlite_write(base_dir, lambda connection: _replace_route_registry_in_sqlite(connection, route_registry))
-    return path
+    return route_metadata_store_module.save_route_registry(base_dir, route_registry)
 
 
 def save_route_policy(base_dir: Path, route_policy: object) -> Path:
-    path = route_policy_path(base_dir)
-    _run_sqlite_write(base_dir, lambda connection: _save_route_selection_policy_to_sqlite(connection, route_policy))
-    return path
+    return route_metadata_store_module.save_route_policy(base_dir, route_policy)
 
 
 def apply_route_registry(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, dict[str, object]]:
@@ -928,16 +901,11 @@ def build_route_policy_report(base_dir: Path) -> str:
 
 
 def load_route_weights(base_dir: Path) -> dict[str, float]:
-    _bootstrap_route_metadata_from_legacy_json(base_dir)
-    connection = sqlite_store.get_connection(base_dir)
-    return _load_route_weights_from_sqlite(connection)
+    return route_metadata_store_module.load_route_weights(base_dir)
 
 
 def save_route_weights(base_dir: Path, weights: dict[str, float]) -> Path:
-    path = route_weights_path(base_dir)
-    _bootstrap_route_metadata_from_legacy_json(base_dir)
-    _run_sqlite_write(base_dir, lambda connection: _save_route_weights_to_sqlite(connection, weights))
-    return path
+    return route_metadata_store_module.save_route_weights(base_dir, weights)
 
 
 def apply_route_weights(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, float]:
@@ -969,16 +937,11 @@ def build_route_weights_report(base_dir: Path, registry: RouteRegistry | None = 
 
 
 def load_route_capability_profiles(base_dir: Path) -> dict[str, dict[str, object]]:
-    _bootstrap_route_metadata_from_legacy_json(base_dir)
-    connection = sqlite_store.get_connection(base_dir)
-    return _load_route_capability_profiles_from_sqlite(connection, include_empty=False)
+    return route_metadata_store_module.load_route_capability_profiles(base_dir)
 
 
 def save_route_capability_profiles(base_dir: Path, profiles: dict[str, dict[str, object]]) -> Path:
-    path = route_capabilities_path(base_dir)
-    _bootstrap_route_metadata_from_legacy_json(base_dir)
-    _run_sqlite_write(base_dir, lambda connection: _save_route_capability_profiles_to_sqlite(connection, profiles))
-    return path
+    return route_metadata_store_module.save_route_capability_profiles(base_dir, profiles)
 
 
 def apply_route_capability_profiles(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, dict[str, object]]:
