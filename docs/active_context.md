@@ -13,9 +13,9 @@
 - latest_completed_slice: `Provider Router Maintainability`
 - active_track: `Architecture / Engineering`
 - active_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- active_slice: `plan audit absorbed; awaiting Human Plan Gate`
+- active_slice: `M2 retrieval flow extraction complete`
 - active_branch: `feat/orchestration-lifecycle-decomposition`
-- status: `lto8_plan_revised_pending_human_gate`
+- status: `m2_validation_passed_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -44,11 +44,24 @@ Plan audit 结论为 `has-blockers`，包含 1 个 BLOCKER 与 7 个 CONCERN。C
 - 明确 helper 默认不得调用 `append_event`，如确需 helper-owned event append 必须先修订计划。
 - 明确 M5 不移动 `_apply_librarian_side_effects(...)` 或任何直接 `apply_proposal` caller。
 
-本阶段尚未进入实现。按仓库 workflow,实现前仍需:
+Human 已批准开始实现。M1 已完成并已由 Human 提交:
 
-1. Human 确认修订后的 `plan.md` 已解决 audit BLOCKER。
-2. Human Plan Gate 通过。
-3. 当前分支继续保持 `feat/orchestration-lifecycle-decomposition`。
+- `0c6545d refactor(orchestration): extract lifecycle payload helpers`
+
+M1 范围保持为纯 lifecycle helper extraction:
+
+- 新增 `src/swallow/orchestration/task_lifecycle.py`
+- 新增 `tests/unit/orchestration/test_task_lifecycle_module.py`
+- `orchestrator.py` 仍保留 `_set_phase(...)` / `_record_phase_checkpoint(...)` / `_append_phase_recovery_fallback(...)` 的 `save_state(...)` 与 `append_event(...)` 调用，只把 payload 构造委托给纯 helper。
+- `task_lifecycle.py` 无 `save_state` / `append_event` / `orchestration.harness` / `orchestration.executor` 依赖命中。
+
+Codex 已完成 M2 retrieval flow extraction:
+
+- 目标模块: `src/swallow/orchestration/retrieval_flow.py`
+- `orchestrator.py` 继续决定 retrieval skip / rerun 和 task advancement。
+- 未移动 `harness.py` 中的 `run_retrieval(...)` / `run_retrieval_async(...)` execution。
+- `retrieval_flow.py` 无 `save_state` / `append_event` / `orchestration.harness` / `orchestration.executor` 依赖命中。
+- 新增 focused tests 覆盖 retrieval source policy、explicit override、previous retrieval artifact loading、selective retry invalid artifact fallback。
 
 ## 当前关键文档
 
@@ -88,20 +101,46 @@ Plan audit 结论为 `has-blockers`，包含 1 个 BLOCKER 与 7 个 CONCERN。C
   - excluded `harness.py` migration from this phase
   - aligned target module names with `CODE_ORGANIZATION.md §5`
   - clarified `append_event` and `apply_proposal` boundaries
+- **[Human]** Approved implementation start on `feat/orchestration-lifecycle-decomposition`.
+- **[Codex]** M1 lifecycle helper extraction implemented:
+  - added `src/swallow/orchestration/task_lifecycle.py` with pure phase event / checkpoint / recovery fallback payload builders
+  - updated `src/swallow/orchestration/orchestrator.py` to use those payload builders while keeping state writes and event appends in Orchestrator
+  - added `tests/unit/orchestration/test_task_lifecycle_module.py` for payload parity and no-control-plane-write-surface assertions
+- **[Codex]** M1 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/orchestration -q` -> `4 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m compileall -q src/swallow/orchestration` -> passed
+  - `git diff --check` -> passed
+  - `rg -n "save_state|append_event|orchestration\.harness|orchestration\.executor" src/swallow/orchestration/task_lifecycle.py` -> no matches
+- **[Human]** Committed M1:
+  - `0c6545d refactor(orchestration): extract lifecycle payload helpers`
+- **[Codex]** M2 retrieval flow extraction implemented:
+  - added `src/swallow/orchestration/retrieval_flow.py` for retrieval request construction and previous retrieval artifact loading
+  - updated `src/swallow/orchestration/orchestrator.py` to import the retrieval flow helpers while keeping retrieval skip / rerun decisions in Orchestrator
+  - added `tests/unit/orchestration/test_retrieval_flow_module.py` for source policy, artifact loading, selective retry fallback, and boundary assertions
+- **[Codex]** M2 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/orchestration -q` -> `13 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -k build_task_retrieval_request -q` -> `8 passed, 234 deselected, 5 subtests passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -q` -> `242 passed, 10 subtests passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m compileall -q src/swallow/orchestration` -> passed
+  - `git diff --check` -> passed
+  - `git diff --check --no-index /dev/null src/swallow/orchestration/retrieval_flow.py` -> no whitespace warnings
+  - `git diff --check --no-index /dev/null tests/unit/orchestration/test_retrieval_flow_module.py` -> no whitespace warnings
+  - `rg -n "save_state|append_event|orchestration\.harness|orchestration\.executor" src/swallow/orchestration/retrieval_flow.py` -> no matches
 
 进行中:
 
-- **[Human]** Plan Gate for revised LTO-8 plan.
+- **[Human]** M2 review / commit gate.
 
 待执行:
 
-- **[Human]** Review revised `docs/plans/orchestration-lifecycle-decomposition/plan.md`.
-- **[Human]** Approve Plan Gate if the audit blocker is considered resolved.
-- **[Codex]** Start LTO-8 implementation after gate and branch alignment.
+- **[Human]** Review and commit M2 if accepted.
+- **[Codex]** Start M3 artifact writer / subtask glue extraction after M2 commit.
 
 当前阻塞项:
 
-- Waiting for Human Plan Gate before implementation.
+- Waiting for Human review / commit of M2 retrieval flow extraction.
 
 ## Tag 状态
 
@@ -112,25 +151,28 @@ Plan audit 结论为 `has-blockers`，包含 1 个 BLOCKER 与 7 个 CONCERN。C
 
 ## 当前下一步
 
-1. **[Human]** Review revised `docs/plans/orchestration-lifecycle-decomposition/plan.md`.
-2. **[Human]** Approve Plan Gate if accepted.
-3. **[Codex]** Implement M1 after gate.
+1. **[Human]** Review M2 diff and commit if accepted.
+2. **[Codex]** Continue to M3 artifact writer / subtask glue extraction after M2 commit.
 
 ```markdown
 milestone_gate:
-- current: lto8-plan-revised-after-audit
+- current: lto8-m2-validation-passed
 - active_branch: feat/orchestration-lifecycle-decomposition
 - latest_main_checkpoint: 6033558 Provider Router Maintainability
 - active_track: Architecture / Engineering
 - active_phase: Orchestration Lifecycle Decomposition / LTO-8 Step 1
-- active_slice: plan audit absorbed; awaiting Human Plan Gate
+- active_slice: M2 retrieval flow extraction complete
 - plan: docs/plans/orchestration-lifecycle-decomposition/plan.md (revised after audit)
 - plan_audit: docs/plans/orchestration-lifecycle-decomposition/plan_audit.md (1 BLOCKER + 7 CONCERNs)
 - audit_absorbed: milestone count, save_state closure ban, harness scope, module naming, append_event boundary, apply_proposal movement boundary
 - roadmap: docs/roadmap.md current ticket Orchestration lifecycle decomposition
 - recommended_implementation_branch: feat/orchestration-lifecycle-decomposition
-- implementation_status: not_started_waiting_human_gate
-- next_gate: Human Plan Gate
+- m1_outputs: task_lifecycle.py pure payload helpers, orchestrator.py payload delegation, tests/unit/orchestration/test_task_lifecycle_module.py
+- m1_validation: unit orchestration `4 passed`; invariant guards `25 passed`; compileall orchestration passed; git diff --check passed; task_lifecycle forbidden dependency grep no matches
+- m1_commit: 0c6545d refactor(orchestration): extract lifecycle payload helpers
+- m2_outputs: retrieval_flow.py request/loading helpers, orchestrator.py facade import and loader call, tests/unit/orchestration/test_retrieval_flow_module.py
+- m2_validation: unit orchestration `13 passed`; CLI retrieval request focused `8 passed`; full CLI `242 passed`; invariant guards `25 passed`; compileall orchestration passed; git diff --check passed; retrieval_flow forbidden dependency grep no matches
+- next_gate: Human M2 review / commit
 ```
 
 ## 当前产出物
@@ -138,5 +180,10 @@ milestone_gate:
 - `docs/roadmap.md`(roadmap-updater, 2026-05-01, LTO-7 complete and LTO-8 current ticket)
 - `docs/plans/orchestration-lifecycle-decomposition/plan.md`(codex, 2026-05-01, LTO-8 Step 1 plan revised after audit)
 - `docs/plans/orchestration-lifecycle-decomposition/plan_audit.md`(claude, 2026-05-01, 1 BLOCKER + 7 CONCERNs)
+- `src/swallow/orchestration/task_lifecycle.py`(codex, 2026-05-01, pure lifecycle payload builders)
+- `src/swallow/orchestration/orchestrator.py`(codex, 2026-05-01, M1 payload builder delegation while retaining state/event writes)
+- `tests/unit/orchestration/test_task_lifecycle_module.py`(codex, 2026-05-01, lifecycle payload parity and boundary tests)
+- `src/swallow/orchestration/retrieval_flow.py`(codex, 2026-05-01, retrieval request construction and previous retrieval artifact loading)
+- `tests/unit/orchestration/test_retrieval_flow_module.py`(codex, 2026-05-01, retrieval flow policy, selective retry fallback, and boundary tests)
 - `current_state.md`(codex, 2026-05-01, post-merge recovery state for LTO-7 / LTO-8 planning gate)
-- `docs/active_context.md`(codex, 2026-05-01, active phase switched to LTO-8 Human Plan Gate)
+- `docs/active_context.md`(codex, 2026-05-01, active phase switched to LTO-8 M2 review / commit gate)
