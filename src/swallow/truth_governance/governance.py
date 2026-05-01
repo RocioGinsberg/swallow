@@ -6,7 +6,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal
 
-from swallow.knowledge_retrieval.knowledge_store import LIBRARIAN_AGENT_WRITE_AUTHORITY
+from swallow.knowledge_retrieval.knowledge_plane import LIBRARIAN_AGENT_WRITE_AUTHORITY
 from swallow.orchestration.models import AuditTriggerPolicy
 from swallow.provider_router.router import (
     load_route_capability_profiles,

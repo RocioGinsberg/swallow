@@ -1,0 +1,98 @@
+"""Facade for Knowledge Plane APIs used by upper layers during migration."""
+
+from __future__ import annotations
+
+from swallow.knowledge_retrieval.canonical_registry import (
+    build_canonical_key,
+    build_canonical_record,
+    build_canonical_registry_index,
+    build_canonical_registry_index_report,
+    build_canonical_registry_report,
+    build_staged_canonical_key,
+    resolve_knowledge_object_id,
+)
+from swallow.knowledge_retrieval.canonical_reuse import (
+    build_canonical_reuse_report,
+    build_canonical_reuse_summary,
+    is_canonical_reuse_visible,
+)
+from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index, build_knowledge_index_report
+from swallow.knowledge_retrieval.knowledge_objects import (
+    build_knowledge_objects,
+    canonicalization_status_for,
+    is_retrieval_reuse_ready,
+    normalize_canonicalization_intent,
+    summarize_canonicalization,
+    summarize_knowledge_evidence,
+    summarize_knowledge_reuse,
+    summarize_knowledge_stages,
+)
+from swallow.knowledge_retrieval.knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
+from swallow.knowledge_retrieval.knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
+from swallow.knowledge_retrieval.knowledge_store import (
+    CANONICAL_KNOWLEDGE_WRITE_AUTHORITIES,
+    LIBRARIAN_AGENT_WRITE_AUTHORITY,
+    KNOWLEDGE_MIGRATION_WRITE_AUTHORITY,
+    OPERATOR_CANONICAL_WRITE_AUTHORITY,
+    TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+    build_wiki_entry_from_canonical_record,
+    enforce_canonical_knowledge_write_authority,
+    is_canonical_knowledge_write_authorized,
+    iter_file_knowledge_task_ids,
+    load_task_evidence_entries,
+    load_task_knowledge_view,
+    load_task_knowledge_view_from_files,
+    load_task_wiki_entries,
+    migrate_file_knowledge_to_sqlite,
+    normalize_evidence_entry,
+    normalize_task_knowledge_view,
+    normalize_wiki_entry,
+    persist_task_knowledge_view,
+    split_task_knowledge_view,
+)
+
+__all__ = [
+    "CANONICAL_KNOWLEDGE_WRITE_AUTHORITIES",
+    "LIBRARIAN_AGENT_WRITE_AUTHORITY",
+    "KNOWLEDGE_MIGRATION_WRITE_AUTHORITY",
+    "OPERATOR_CANONICAL_WRITE_AUTHORITY",
+    "TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY",
+    "apply_knowledge_decision",
+    "build_canonical_key",
+    "build_canonical_record",
+    "build_canonical_registry_index",
+    "build_canonical_registry_index_report",
+    "build_canonical_registry_report",
+    "build_canonical_reuse_report",
+    "build_canonical_reuse_summary",
+    "build_knowledge_decisions_report",
+    "build_knowledge_index",
+    "build_knowledge_index_report",
+    "build_knowledge_objects",
+    "build_knowledge_partition",
+    "build_knowledge_partition_report",
+    "build_staged_canonical_key",
+    "build_wiki_entry_from_canonical_record",
+    "canonicalization_status_for",
+    "enforce_canonical_knowledge_write_authority",
+    "is_canonical_knowledge_write_authorized",
+    "is_canonical_reuse_visible",
+    "is_retrieval_reuse_ready",
+    "iter_file_knowledge_task_ids",
+    "load_task_evidence_entries",
+    "load_task_knowledge_view",
+    "load_task_knowledge_view_from_files",
+    "load_task_wiki_entries",
+    "migrate_file_knowledge_to_sqlite",
+    "normalize_canonicalization_intent",
+    "normalize_evidence_entry",
+    "normalize_task_knowledge_view",
+    "normalize_wiki_entry",
+    "persist_task_knowledge_view",
+    "resolve_knowledge_object_id",
+    "split_task_knowledge_view",
+    "summarize_canonicalization",
+    "summarize_knowledge_evidence",
+    "summarize_knowledge_reuse",
+    "summarize_knowledge_stages",
+]

@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from swallow._io_helpers import read_json_lines_strict_or_empty
-from swallow.knowledge_retrieval.canonical_registry import build_canonical_registry_index
-from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_summary
+from swallow.knowledge_retrieval.knowledge_plane import (
+    build_canonical_registry_index,
+    build_canonical_reuse_summary,
+)
 from swallow.knowledge_retrieval.knowledge_store import persist_wiki_entry_from_record
 from swallow.surface_tools.paths import canonical_registry_path
 from swallow.truth_governance.store import append_canonical_record, save_canonical_registry_index, save_canonical_reuse_policy

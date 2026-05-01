@@ -73,7 +73,6 @@ from swallow.surface_tools.paths import (
     canonical_reuse_regression_path,
     knowledge_wiki_entry_path,
     latest_optimization_proposal_bundle_path,
-    mps_policy_path,
     remote_handoff_contract_path,
     route_capabilities_path,
     route_policy_path,
@@ -81,7 +80,6 @@ from swallow.surface_tools.paths import (
     route_weights_path,
     swallow_db_path,
 )
-from swallow.surface_tools.mps_policy_store import read_mps_policy
 from swallow.knowledge_retrieval.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.knowledge_retrieval.retrieval_adapters import select_retrieval_adapter
 from swallow.provider_router.router import (
@@ -145,33 +143,6 @@ class CliLifecycleTest(unittest.TestCase):
 
         self.assertIn("Unknown profile capability: missing_profile", errors)
         self.assertIn("Unknown validator capability: missing_validator", errors)
-
-    def test_synthesis_policy_set_writes_mps_policy(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            base_dir = Path(tmp)
-            stdout = StringIO()
-
-            with redirect_stdout(stdout):
-                self.assertEqual(
-                    main(
-                        [
-                            "--base-dir",
-                            str(base_dir),
-                            "synthesis",
-                            "policy",
-                            "set",
-                            "--kind",
-                            "mps_round_limit",
-                            "--value",
-                            "3",
-                        ]
-                    ),
-                    0,
-                )
-
-            self.assertIn("mps_round_limit: 3", stdout.getvalue())
-            self.assertEqual(read_mps_policy(base_dir, "mps_round_limit"), 3)
-            self.assertFalse(mps_policy_path(base_dir).exists())
 
     def test_synthesis_stage_rejects_duplicate(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

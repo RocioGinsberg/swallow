@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Iterable, Protocol
 
 from swallow._io_helpers import read_json_lines_strict_or_empty
-from swallow.knowledge_retrieval.knowledge_store import load_task_knowledge_view, persist_task_knowledge_view
+from swallow.knowledge_retrieval.knowledge_plane import load_task_knowledge_view, persist_task_knowledge_view
 from swallow.orchestration.models import (
     Event,
     RetrievalItem,
