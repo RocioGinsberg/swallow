@@ -170,6 +170,11 @@ from swallow.truth_governance.store import (
     write_artifact,
 )
 from swallow.orchestration.task_semantics import build_task_semantics, normalize_retrieval_source_types
+from swallow.orchestration.task_lifecycle import (
+    build_phase_checkpoint_payload,
+    build_phase_event_payload,
+    build_phase_recovery_fallback_payload,
+)
 from swallow.orchestration.models import utc_now
 from swallow.surface_tools.workspace import resolve_path
 
@@ -3007,12 +3012,7 @@ def _set_phase(base_dir: Path, state: TaskState, phase: str) -> None:
             task_id=state.task_id,
             event_type="task.phase",
             message=f"Entering {phase} phase.",
-            payload={
-                "phase": state.phase,
-                "status": state.status,
-                "execution_lifecycle": state.execution_lifecycle,
-                "executor_status": state.executor_status,
-            },
+            payload=build_phase_event_payload(state),
         ),
     )
 
@@ -3034,14 +3034,7 @@ def _record_phase_checkpoint(
             task_id=state.task_id,
             event_type="task.phase_checkpoint",
             message=f"Execution phase checkpoint recorded for {execution_phase}.",
-            payload={
-                "phase": state.phase,
-                "status": state.status,
-                "execution_phase": state.execution_phase,
-                "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
-                "skipped": skipped,
-                "source": source or ("reused_artifacts" if skipped else "live_run"),
-            },
+            payload=build_phase_checkpoint_payload(state, skipped=skipped, source=source),
         ),
     )
 
@@ -3060,11 +3053,11 @@ def _append_phase_recovery_fallback(
             task_id=state.task_id,
             event_type="task.phase_recovery_fallback",
             message="Selective retry fell back to an earlier execution phase.",
-            payload={
-                "requested_skip_to_phase": requested_skip_to_phase,
-                "fallback_phase": fallback_phase,
-                "reason": reason,
-            },
+            payload=build_phase_recovery_fallback_payload(
+                requested_skip_to_phase=requested_skip_to_phase,
+                fallback_phase=fallback_phase,
+                reason=reason,
+            ),
         ),
     )
 
