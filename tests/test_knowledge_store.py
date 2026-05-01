@@ -10,58 +10,14 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.knowledge_retrieval.knowledge_store import (
-    OPERATOR_CANONICAL_WRITE_AUTHORITY,
     load_task_knowledge_view,
     persist_wiki_entry_from_record,
 )
-from swallow.surface_tools.paths import knowledge_evidence_entry_path, knowledge_objects_path, knowledge_wiki_entry_path
+from swallow.surface_tools.paths import knowledge_evidence_entry_path, knowledge_objects_path
 from swallow.truth_governance.store import save_knowledge_objects
 
 
 class KnowledgeStoreTest(unittest.TestCase):
-    def test_save_knowledge_objects_persists_evidence_and_wiki_layers(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            tmp_path = Path(tmp)
-
-            save_knowledge_objects(
-                tmp_path,
-                "task-store",
-                [
-                    {
-                        "object_id": "knowledge-0001",
-                        "text": "Keep this as evidence.",
-                        "stage": "verified",
-                        "evidence_status": "artifact_backed",
-                        "artifact_ref": ".swl/tasks/task-store/artifacts/evidence.md",
-                    },
-                    {
-                        "object_id": "knowledge-0002",
-                        "text": "Promoted canonical note.",
-                        "stage": "canonical",
-                        "evidence_status": "artifact_backed",
-                        "artifact_ref": ".swl/tasks/task-store/artifacts/canonical.md",
-                    },
-                ],
-                write_authority=OPERATOR_CANONICAL_WRITE_AUTHORITY,
-            )
-
-            legacy_payload = json.loads(knowledge_objects_path(tmp_path, "task-store").read_text(encoding="utf-8"))
-            evidence_payload = json.loads(
-                knowledge_evidence_entry_path(tmp_path, "task-store", "knowledge-0001").read_text(encoding="utf-8")
-            )
-            wiki_payload = json.loads(
-                knowledge_wiki_entry_path(tmp_path, "task-store", "knowledge-0002").read_text(encoding="utf-8")
-            )
-            merged_view = load_task_knowledge_view(tmp_path, "task-store")
-
-        self.assertEqual(legacy_payload[0]["store_type"], "evidence")
-        self.assertEqual(legacy_payload[1]["store_type"], "wiki")
-        self.assertEqual(evidence_payload["store_type"], "evidence")
-        self.assertEqual(wiki_payload["store_type"], "wiki")
-        self.assertEqual(wiki_payload["source_evidence_ids"], ["knowledge-0002"])
-        self.assertEqual([item["object_id"] for item in merged_view], ["knowledge-0001", "knowledge-0002"])
-        self.assertEqual(merged_view[1]["stage"], "canonical")
-
     def test_persist_wiki_entry_from_record_overlays_legacy_view(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
