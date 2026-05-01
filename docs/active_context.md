@@ -13,9 +13,9 @@
 - latest_completed_slice: `AD1/V pilot + AB query pilot + roadmap LTO reorganization`
 - active_track: `Architecture / Engineering`
 - active_phase: `Provider Router Split / LTO-7 Step 1`
-- active_slice: `M4 completion gateway and reports extraction`
+- active_slice: `M5 cleanup and closeout`
 - active_branch: `feat/provider-router-split`
-- status: `m4_validation_passed_waiting_human_review_commit`
+- status: `m5_validation_passed_waiting_human_review_commit`
 
 ## 当前状态说明
 
@@ -29,7 +29,7 @@
 
 Roadmap 当前 ticket 明确为 **Provider Router split (LTO-7 第 1 步)**。Human 已切到 `feat/provider-router-split` 并要求 Codex 开始实现。`model_review.md` 未产出；本轮按 Human 明确实现请求进入实现，并在 active context 中记录该 gate override。
 
-当前 feature branch checkpoint 为 `270c239 docs(router): extract route selection`。M1 / M2 / M3 均已提交，M4 completion gateway and reports extraction 已完成并通过验证，等待 Human review / commit。
+当前 feature branch checkpoint 为 `18ba7b8 docs(state): update provider router split m4 state`。M1 / M2 / M3 / M4 均已提交，M5 cleanup and closeout 已完成并通过验证，等待 Human review / commit。
 
 本轮未由 `context-analyst` 产出 `context_brief.md`。依据 `.agents/workflows/feature.md` Step 2，Human 已显式要求 Codex 从 roadmap / design context 生成方案，因此本轮直接产出 `plan.md`；如 plan audit 或 Human 认为需要事实型 brief，可在 Plan Gate 前补 `docs/plans/provider-router-split/context_brief.md`。
 
@@ -40,15 +40,17 @@ Roadmap 当前 ticket 明确为 **Provider Router split (LTO-7 第 1 步)**。Hu
 3. `docs/roadmap.md`
 4. `docs/plans/provider-router-split/plan.md`
 5. `docs/plans/provider-router-split/plan_audit.md`
-6. `docs/design/INVARIANTS.md`
-7. `docs/design/PROVIDER_ROUTER.md`
-8. `docs/design/DATA_MODEL.md`
-9. `docs/design/ORCHESTRATION.md`
-10. `docs/design/EXECUTOR_REGISTRY.md`
-11. `docs/engineering/CODE_ORGANIZATION.md`
-12. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
-13. `docs/engineering/TEST_ARCHITECTURE.md`
-14. `docs/plans/architecture-recomposition/plan.md`
+6. `docs/plans/provider-router-split/closeout.md`
+7. `pr.md`
+8. `docs/design/INVARIANTS.md`
+9. `docs/design/PROVIDER_ROUTER.md`
+10. `docs/design/DATA_MODEL.md`
+11. `docs/design/ORCHESTRATION.md`
+12. `docs/design/EXECUTOR_REGISTRY.md`
+13. `docs/engineering/CODE_ORGANIZATION.md`
+14. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
+15. `docs/engineering/TEST_ARCHITECTURE.md`
+16. `docs/plans/architecture-recomposition/plan.md`
 
 ## 当前推进
 
@@ -135,10 +137,30 @@ Roadmap 当前 ticket 明确为 **Provider Router split (LTO-7 第 1 步)**。Hu
   - `git diff --check` -> passed
   - `rg -n "from swallow\.orchestration\.executor|orchestration\.executor" src/swallow/provider_router` -> no matches
   - `.venv/bin/python -m pytest -q` -> `648 passed, 8 deselected, 10 subtests passed`
+- **[Human]** M4 implementation and M4 state sync committed on `feat/provider-router-split`:
+  - `380d202 refactor(router): extract completion gateway and reports`
+  - `18ba7b8 docs(state): update provider router split m4 state`
+- **[Codex]** M5 cleanup and closeout implemented:
+  - reduced `src/swallow/provider_router/router.py` to a compatibility facade over focused Provider Router modules
+  - removed dead private `RouteRegistry`, SQLite route metadata, route selection helper, completion gateway, and report rendering implementations from `router.py`
+  - kept public constants, aliases, wrapper functions, and the patched `ROUTE_REGISTRY` compatibility boundary in `router.py`
+  - added `tests/unit/provider_router/test_router_facade_module.py` to lock module ownership and facade cleanup expectations
+  - wrote `docs/plans/provider-router-split/closeout.md`
+  - updated `current_state.md`
+  - updated root `pr.md` for Human PR creation
+- **[Codex]** M5 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/provider_router -q` -> `14 passed`
+  - `.venv/bin/python -m pytest tests/test_router.py tests/test_governance.py tests/test_meta_optimizer.py tests/test_phase65_sqlite_truth.py tests/test_invariant_guards.py tests/test_cli.py -q` -> `348 passed, 10 subtests passed`
+  - `.venv/bin/python -m pytest tests/test_synthesis.py tests/test_executor_protocol.py tests/test_executor_async.py tests/eval/test_http_executor_eval.py -q` -> `38 passed, 2 deselected`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+  - `rg -n "from swallow\.orchestration\.executor|orchestration\.executor" src/swallow/provider_router` -> no matches
+  - `rg -n "sqlite_store|sqlite3|httpx\.post|class RouteRegistry|def invoke_completion|def build_route_registry_report|_replace_route_registry_in_sqlite" src/swallow/provider_router/router.py` -> no matches
+  - `.venv/bin/python -m pytest -q` -> `651 passed, 8 deselected, 10 subtests passed`
 
 进行中:
 
-- **[Human/Codex]** M4 review / commit gate.
+- **[Human/Codex]** M5 review / commit gate.
 
 已确认决策:
 
@@ -147,38 +169,41 @@ Roadmap 当前 ticket 明确为 **Provider Router split (LTO-7 第 1 步)**。Hu
 - **[Human]** M1 commit is present as `088e80a`.
 - **[Human]** M2 implementation and state commits are present as `2ff2941` and `87b2919`.
 - **[Human]** M3 implementation and state commits are present as `eb7c54e` and `270c239`.
+- **[Human]** M4 implementation and state commits are present as `380d202` and `18ba7b8`.
 
 待执行:
 
-- **[Human]** Review / commit M4 after validation passes.
-- **[Codex]** After M4 commit gate, continue M5 cleanup and closeout.
+- **[Human]** Review / commit M5 after validation passes.
+- **[Human]** Create PR using `pr.md` after M5 commit if accepted.
+- **[Claude]** Review PR and record findings in `docs/plans/provider-router-split/review_comments.md`.
 
 当前阻塞项:
 
-- Waiting for Human review / commit of M4.
+- Waiting for Human review / commit of M5 cleanup and closeout.
 
 ## Tag 状态
 
 - 最新已执行 tag: `v1.5.0`
 - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
 - tag message: `v1.5.0: raw material store boundary`
-- 结论: tag release gate 已关闭;当前处于 Provider Router Split M4 implementation review gate。
+- 结论: tag release gate 已关闭;当前处于 Provider Router Split M5 implementation review gate。
 
 ## 当前下一步
 
-1. **[Human]** Review M4 completion gateway and reports extraction diff.
-2. **[Human]** Commit M4 if accepted.
-3. **[Codex]** Continue with M5 cleanup and closeout after commit gate.
+1. **[Human]** Review M5 cleanup / closeout diff.
+2. **[Human]** Commit M5 if accepted.
+3. **[Human]** Create PR using `pr.md`.
+4. **[Claude]** Review PR and write `docs/plans/provider-router-split/review_comments.md`.
 
 ```markdown
 milestone_gate:
-- current: provider-router-split-m4-validation-passed
+- current: provider-router-split-m5-validation-passed
 - active_branch: feat/provider-router-split
 - latest_main_checkpoint: a1e536b docs(state): update roadmap
 - previous_merge: c3596c2 merge: architecture recomposition first branch
 - active_track: Architecture / Engineering
 - active_phase: Provider Router Split / LTO-7 Step 1
-- active_slice: M4 completion gateway and reports extraction
+- active_slice: M5 cleanup and closeout
 - plan: docs/plans/provider-router-split/plan.md (revised after audit)
 - plan_audit: docs/plans/provider-router-split/plan_audit.md (1 BLOCKER + 4 CONCERN, no SCOPE WARNING)
 - audit_absorbed: import source blocker, milestone count, test location, agent_llm update rule, transaction wrapper rule
@@ -188,6 +213,7 @@ milestone_gate:
 - m1_commit: 088e80a feat(M1):Baseline, registry, and policy extraction
 - m2_commits: 2ff2941 refactor(router): extract route metadata store; 87b2919 docs(state): update provider router split m2 state
 - m3_commits: eb7c54e refactor(router): extract route selection; 270c239 docs(router): extract route selection
+- m4_commits: 380d202 refactor(router): extract completion gateway and reports; 18ba7b8 docs(state): update provider router split m4 state
 - m1_outputs: route_policy.py, route_registry.py, router.py compatibility facade updates, tests/unit/provider_router/test_registry_policy_modules.py
 - m1_validation: focused provider/router/governance/meta/invariant/synthesis/executor/eval gate `126 passed, 2 deselected`; compileall passed; full pytest `640 passed, 8 deselected, 10 subtests passed`; git diff --check passed
 - m2_outputs: route_metadata_store.py, router.py metadata-store facade delegation, route_policy.py policy persistence delegation, tests/unit/provider_router/test_metadata_store_module.py
@@ -196,13 +222,15 @@ milestone_gate:
 - m3_validation: unit provider_router `8 passed`; route/synthesis/executor/eval/invariant gate `94 passed, 2 deselected`; governance/meta/phase65 gate `50 passed`; compileall passed; git diff --check passed; provider_router orchestration.executor grep no matches; full pytest `645 passed, 8 deselected, 10 subtests passed`
 - m4_outputs: completion_gateway.py, route_reports.py, router.py gateway/report facade re-exports, agent_llm.py completion gateway lazy import, invariant guard update, tests/unit/provider_router/test_completion_gateway_module.py, tests/unit/provider_router/test_reports_module.py
 - m4_validation: unit provider_router `11 passed`; router/invariant/cli gate `298 passed, 10 subtests passed`; compileall passed; git diff --check passed; provider_router orchestration.executor grep no matches; full pytest `648 passed, 8 deselected, 10 subtests passed`
-- next_gate: Human M4 review / commit
+- m5_outputs: router.py thin compatibility facade, tests/unit/provider_router/test_router_facade_module.py, docs/plans/provider-router-split/closeout.md, current_state.md, pr.md, active_context.md state sync
+- m5_validation: unit provider_router `14 passed`; router/governance/meta/phase65/invariant/cli gate `348 passed, 10 subtests passed`; synthesis/executor/eval gate `38 passed, 2 deselected`; compileall passed; git diff --check passed; provider_router orchestration.executor grep no matches; router.py extracted-implementation grep no matches; full pytest `651 passed, 8 deselected, 10 subtests passed`
+- next_gate: Human M5 review / commit, then PR creation and Claude review
 ```
 
 ## 当前产出物
 
-- `docs/active_context.md`(codex, 2026-05-01, updated to Provider Router Split M4 validation state)
-- `current_state.md`(codex, 2026-05-01, recovery entry synced to Provider Router Split planning)
+- `docs/active_context.md`(codex, 2026-05-01, updated to Provider Router Split M5 validation / PR-ready state)
+- `current_state.md`(codex, 2026-05-01, recovery entry synced to Provider Router Split M5 validation / PR-ready gate)
 - `docs/plans/provider-router-split/plan.md`(codex, 2026-05-01, Provider Router Split / LTO-7 Step 1 plan revised after audit)
 - `docs/plans/provider-router-split/plan_audit.md`(claude, 2026-05-01, 1 BLOCKER + 4 CONCERN, no SCOPE WARNING; model_review required)
 - `src/swallow/provider_router/route_policy.py`(codex, 2026-05-01, route policy module extracted behind router facade; policy persistence now delegates to route metadata store; report rendering moved to route_reports)
@@ -212,13 +240,16 @@ milestone_gate:
 - `src/swallow/provider_router/completion_gateway.py`(codex, 2026-05-01, controlled HTTP chat-completions gateway extracted behind router facade)
 - `src/swallow/provider_router/route_reports.py`(codex, 2026-05-01, route registry/policy/weights/capability profile report rendering extracted behind router facade)
 - `src/swallow/provider_router/agent_llm.py`(codex, 2026-05-01, specialist LLM helper lazy-imports completion_gateway directly)
-- `src/swallow/provider_router/router.py`(codex, 2026-05-01, compatibility facade delegation for route policy/default registry, metadata store, route selection, completion gateway, reports, and executor default import cleanup)
+- `src/swallow/provider_router/router.py`(codex, 2026-05-01, thin compatibility facade delegation for route policy/default registry, metadata store, route selection, completion gateway, reports, and executor default import cleanup; dead private implementations removed in M5)
 - `tests/unit/provider_router/test_registry_policy_modules.py`(codex, 2026-05-01, focused module/facade compatibility coverage)
 - `tests/unit/provider_router/test_metadata_store_module.py`(codex, 2026-05-01, metadata store module/facade round-trip and snapshot coverage)
 - `tests/unit/provider_router/test_route_selection_module.py`(codex, 2026-05-01, route selection module/facade parity and import-boundary coverage)
 - `tests/unit/provider_router/test_completion_gateway_module.py`(codex, 2026-05-01, completion gateway module/facade and agent_llm lazy-import coverage)
 - `tests/unit/provider_router/test_reports_module.py`(codex, 2026-05-01, route report module/facade parity coverage)
+- `tests/unit/provider_router/test_router_facade_module.py`(codex, 2026-05-01, router facade ownership and cleanup boundary coverage)
 - `tests/test_router.py`(codex, 2026-05-01, mocked completion gateway test retargeted to extracted module)
 - `tests/test_invariant_guards.py`(codex, 2026-05-01, specialist internal LLM HTTP guard retargeted to completion_gateway)
+- `docs/plans/provider-router-split/closeout.md`(codex, 2026-05-01, Provider Router Split implementation closeout and module ownership record)
+- `pr.md`(codex, 2026-05-01, Provider Router Split PR body draft)
 - `docs/roadmap.md`(codex, 2026-05-01, LTO roadmap + Provider Router Split current ticket; existing committed input)
 - `docs/plans/architecture-recomposition/plan.md`(codex, 2026-05-01, prior architecture program plan; existing committed input)
