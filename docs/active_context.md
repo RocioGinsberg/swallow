@@ -13,9 +13,9 @@
 - latest_completed_slice: `Provider Router Maintainability`
 - active_track: `Architecture / Engineering`
 - active_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- active_slice: `M4 execution attempt helper extraction`
+- active_slice: `M5 knowledge-flow / facade cleanup`
 - active_branch: `feat/orchestration-lifecycle-decomposition`
-- status: `m4_validation_passed_waiting_human_commit`
+- status: `m5_validation_passed_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -84,6 +84,21 @@ Codex 已完成 M4 execution attempt helper extraction:
 - `orchestrator.py` 继续保留 executor invocation、review gate decision consumption、status transition sequencing、`save_state(...)` 与 `append_event(...)`。
 - M4 helper 允许 append 的 event kind: none。`task.budget_exhausted` / `subtask.<n>.budget_exhausted` / `task.debate_round` / `task.debate_circuit_breaker` / `subtask.<n>.debate_round` / `subtask.<n>.debate_circuit_breaker` 均继续在 `orchestrator.py` 中 append。
 - `execution_attempts.py` 无 `save_state` / `append_event` / `orchestration.harness` / `orchestration.executor` / `orchestration.review_gate` 依赖命中，避免通过 review gate runtime import 形成隐性 executor dependency。
+- M4 已由 Human 提交:
+  - `9fdf743 refactor(orchestration): extract execution attempt helpers`
+
+Codex 已完成 M5 knowledge-flow / facade cleanup:
+
+- 目标模块: `src/swallow/orchestration/knowledge_flow.py`
+- 已抽取 low-risk knowledge store write-plan、knowledge objects report preparation、knowledge summary payload helpers。
+- 不移动 `_apply_librarian_side_effects(...)`。
+- 不移动任何直接 import / call `apply_proposal` 的函数。
+- `orchestrator.py` 继续保留 canonical / route / policy truth mutation coordination。
+- `knowledge_flow.py` 无 `save_state` / `append_event` / `apply_proposal` / `orchestration.harness` / `orchestration.executor` 依赖命中，runtime import audit 未加载 `orchestration.executor` / `orchestration.harness`。
+- Codex 已产出 implementation closeout 与 PR body draft:
+  - `docs/plans/orchestration-lifecycle-decomposition/closeout.md`
+  - `current_state.md`
+  - `pr.md`
 
 ## 当前关键文档
 
@@ -188,19 +203,38 @@ Codex 已完成 M4 execution attempt helper extraction:
   - `git diff --check --no-index /dev/null <new M4 files>` -> no whitespace warnings
   - `rg -n "save_state|append_event|orchestration\.harness|orchestration\.executor|orchestration\.review_gate" src/swallow/orchestration/execution_attempts.py` -> no matches
   - runtime import audit for `execution_attempts.py` -> `orchestration.executor`, `orchestration.harness`, and `orchestration.review_gate` not loaded
+- **[Human]** Committed M4:
+  - `9fdf743 refactor(orchestration): extract execution attempt helpers`
+- **[Codex]** M5 knowledge-flow / facade cleanup implemented:
+  - added `src/swallow/orchestration/knowledge_flow.py` for knowledge store write-plan construction, knowledge objects report preparation, and knowledge summary payloads
+  - updated `src/swallow/orchestration/orchestrator.py` to delegate those helper surfaces while keeping `_apply_librarian_side_effects(...)`, `decide_task_knowledge(...)`, all persistence, events, and proposal application in Orchestrator
+  - added `tests/unit/orchestration/test_knowledge_flow_module.py` for write-plan/report/payload behavior and helper boundary assertions
+  - added implementation closeout / recovery / PR draft materials
+- **[Codex]** M5 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/orchestration -q` -> `35 passed`
+  - `.venv/bin/python -m pytest tests/test_librarian_executor.py -q` -> `6 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -k "knowledge or canonical_reuse or librarian" -q` -> `50 passed, 192 deselected, 2 subtests passed`
+  - `.venv/bin/python -m pytest tests/test_review_gate.py -q` -> `13 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+  - `rg -n "save_state|append_event|apply_proposal|orchestration\.harness|orchestration\.executor" src/swallow/orchestration/knowledge_flow.py` -> no matches
+  - runtime import audit for `knowledge_flow.py` -> `orchestration.executor` and `orchestration.harness` not loaded
+  - `.venv/bin/python -m pytest -q` -> `686 passed, 8 deselected, 10 subtests passed`
 
 进行中:
 
-- None. M4 is waiting for Human review / commit.
+- None. M5 is waiting for Human review / commit.
 
 待执行:
 
-- **[Human]** Review and commit M4 if accepted.
-- **[Codex]** After M4 commit is confirmed, begin M5 knowledge-flow / facade cleanup per plan.
+- **[Human]** Review and commit M5 if accepted.
+- **[Claude]** After M5 commit is confirmed, perform PR review and write `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`.
+- **[Codex]** Update `pr.md` if review findings change the merge summary.
 
 当前阻塞项:
 
-- 等待人工审批: review and commit M4.
+- 等待人工审批: review and commit M5.
 
 ## Tag 状态
 
@@ -211,17 +245,18 @@ Codex 已完成 M4 execution attempt helper extraction:
 
 ## 当前下一步
 
-1. **[Human]** Review M4 changes and commit if accepted.
-2. **[Codex]** After Human confirms the M4 commit, continue to M5 knowledge-flow / facade cleanup per plan.
+1. **[Human]** Review M5 changes and commit if accepted.
+2. **[Claude]** After Human confirms M5 commit, perform PR review.
+3. **[Codex]** Update `pr.md` / state if review produces findings or merge-ready status changes.
 
 ```markdown
 milestone_gate:
-- current: lto8-m4-validation-passed-waiting-human-commit
+- current: lto8-m5-validation-passed-waiting-human-commit
 - active_branch: feat/orchestration-lifecycle-decomposition
 - latest_main_checkpoint: 6033558 Provider Router Maintainability
 - active_track: Architecture / Engineering
 - active_phase: Orchestration Lifecycle Decomposition / LTO-8 Step 1
-- active_slice: M4 execution attempt helper extraction
+- active_slice: M5 knowledge-flow / facade cleanup
 - plan: docs/plans/orchestration-lifecycle-decomposition/plan.md (revised after audit)
 - plan_audit: docs/plans/orchestration-lifecycle-decomposition/plan_audit.md (1 BLOCKER + 7 CONCERNs)
 - audit_absorbed: milestone count, save_state closure ban, harness scope, module naming, append_event boundary, apply_proposal movement boundary
@@ -239,7 +274,10 @@ milestone_gate:
 - m4_outputs: execution_attempts.py metadata/budget/debate helpers, orchestrator.py helper delegation while retaining executor/review/status/event ownership, tests/unit/orchestration/test_execution_attempts_module.py
 - m4_event_append_allowlist: none; M4 helper appends no events
 - m4_validation: unit orchestration `31 passed`; subtask/review regression `27 passed`; review gate async `2 passed`; Web API `10 passed`; consistency audit `11 passed`; invariant guards `25 passed`; full CLI `242 passed, 10 subtests passed`; compileall src/swallow passed; git diff --check passed; execution_attempts forbidden dependency grep/runtime import audit no matches
-- next_gate: Human M4 review / commit
+- m4_commit: 9fdf743 refactor(orchestration): extract execution attempt helpers
+- m5_outputs: knowledge_flow.py write-plan/report/payload helpers, orchestrator.py helper delegation while retaining proposal/event/state ownership, tests/unit/orchestration/test_knowledge_flow_module.py, closeout.md, current_state.md, pr.md
+- m5_validation: unit orchestration `35 passed`; librarian executor `6 passed`; invariant guards `25 passed`; CLI knowledge/canonical/librarian focused `50 passed, 192 deselected, 2 subtests passed`; review gate `13 passed`; compileall src/swallow passed; git diff --check passed; knowledge_flow forbidden dependency grep/runtime import audit no matches; full default pytest `686 passed, 8 deselected, 10 subtests passed`
+- next_gate: Human M5 review / commit
 ```
 
 ## 当前产出物
@@ -258,5 +296,9 @@ milestone_gate:
 - `tests/unit/orchestration/test_subtask_flow_module.py`(codex, 2026-05-02, subtask artifact serialization and boundary tests)
 - `src/swallow/orchestration/execution_attempts.py`(codex, 2026-05-02, execution attempt metadata, budget, and debate-loop helper extraction)
 - `tests/unit/orchestration/test_execution_attempts_module.py`(codex, 2026-05-02, execution attempt helper behavior and boundary tests)
-- `current_state.md`(codex, 2026-05-01, post-merge recovery state for LTO-7 / LTO-8 planning gate)
-- `docs/active_context.md`(codex, 2026-05-02, active phase switched to LTO-8 M4 review / commit gate)
+- `src/swallow/orchestration/knowledge_flow.py`(codex, 2026-05-02, knowledge store write-plan, report, and summary payload helpers)
+- `tests/unit/orchestration/test_knowledge_flow_module.py`(codex, 2026-05-02, knowledge flow helper behavior and boundary tests)
+- `docs/plans/orchestration-lifecycle-decomposition/closeout.md`(codex, 2026-05-02, implementation closeout pending Human M5 commit and Claude PR review)
+- `current_state.md`(codex, 2026-05-02, recovery state for LTO-8 M5 review / commit gate)
+- `pr.md`(codex, 2026-05-02, ignored local PR body draft pending Claude PR review)
+- `docs/active_context.md`(codex, 2026-05-02, active phase switched to LTO-8 M5 review / commit gate)

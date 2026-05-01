@@ -24,19 +24,21 @@
 - latest_executed_public_tag: `v1.5.0`
 - pending_release_tag: `none`
 - current_working_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- checkpoint_type: `lto8_plan_revised_pending_human_gate`
+- checkpoint_type: `lto8_m5_validation_passed_waiting_human_commit`
 - active_branch: `feat/orchestration-lifecycle-decomposition`
-- last_checked: `2026-05-01`
+- last_checked: `2026-05-02`
 
 说明:
 
 - LTO-7 Provider Router Split 已合并到 `main`，merge checkpoint 为 `6033558 Provider Router Maintainability`。
 - `docs/roadmap.md` 已更新为 LTO-7 completed / LTO-8 current ticket。
-- 当前下一阶段为 `Orchestration Lifecycle Decomposition / LTO-8 Step 1`。
+- 当前工作阶段为 `Orchestration Lifecycle Decomposition / LTO-8 Step 1`。
 - Codex 已起草并根据 audit 修订 `docs/plans/orchestration-lifecycle-decomposition/plan.md`。
 - Claude plan audit 已产出在 `docs/plans/orchestration-lifecycle-decomposition/plan_audit.md`，结论为 1 BLOCKER + 7 CONCERNs。
 - Audit BLOCKER 已通过计划修订吸收：milestone 数量从 6 降到 5，原 M6 closeout / PR gate 折进 M5 与 Completion Conditions。
-- 当前尚未进入实现；实现前需要 Human Plan Gate。当前分支已是建议实现分支 `feat/orchestration-lifecycle-decomposition`。
+- Human Plan Gate 已通过，M1-M4 已由 Human 提交。
+- Codex 已完成 M5 knowledge-flow / facade cleanup implementation、full validation、closeout draft 与 `pr.md` draft。
+- 当前等待 Human review / commit M5；M5 commit 后进入 Claude PR review。
 - 最新已执行公开 tag 仍为 `v1.5.0`; annotated tag 指向 `bc8abb1 docs(release): sync v1.5.0 release docs`。
 
 ---
@@ -48,14 +50,15 @@
 - active_branch: `feat/orchestration-lifecycle-decomposition`
 - active_track: `Architecture / Engineering`
 - active_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- active_slice: `plan audit absorbed; awaiting Human Plan Gate`
-- workflow_status: `lto8_plan_revised_pending_human_gate`
+- active_slice: `M5 knowledge-flow / facade cleanup`
+- workflow_status: `m5_validation_passed_waiting_human_commit`
 
 下一步:
 
-1. Human reviews revised `docs/plans/orchestration-lifecycle-decomposition/plan.md`.
-2. Human approves Plan Gate if accepted.
-3. Codex starts M1 implementation after gate.
+1. Human reviews M5 diff and commits if accepted.
+2. Claude performs PR review and writes `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`.
+3. Codex updates `pr.md` if review findings change the merge summary.
+4. Human decides merge gate.
 
 ---
 
@@ -79,6 +82,8 @@
 14. `docs/plans/provider-router-split/closeout.md`
 15. `docs/plans/provider-router-split/review_comments.md`
 16. `docs/concerns_backlog.md`
+17. `docs/plans/orchestration-lifecycle-decomposition/closeout.md`
+18. `pr.md`
 
 ---
 
@@ -93,20 +98,27 @@ git show --no-patch --decorate --oneline HEAD
 git log --oneline --decorate -8
 ```
 
-LTO-8 planning sync verified with:
+LTO-8 M5 implementation validation completed with:
 
 ```bash
+git status --short --branch
 git diff --check
+.venv/bin/python -m pytest tests/unit/orchestration -q
+.venv/bin/python -m pytest tests/test_librarian_executor.py -q
+.venv/bin/python -m pytest tests/test_invariant_guards.py -q
+.venv/bin/python -m pytest tests/test_cli.py -k "knowledge or canonical_reuse or librarian" -q
+.venv/bin/python -m pytest tests/test_review_gate.py -q
+.venv/bin/python -m compileall -q src/swallow
+.venv/bin/python -m pytest -q
 ```
 
-Implementation validation will be selected by `docs/plans/orchestration-lifecycle-decomposition/plan.md`.
+Final default pytest result: `686 passed, 8 deselected, 10 subtests passed`.
 
 ---
 
 ## 当前已知边界
 
 - 不在 `main` 上做 LTO-8 代码实现。
-- 不在 Human Plan Gate 前修改 orchestration runtime code。
 - 不把 LTO-9 Surface / Meta Optimizer 或 LTO-10 Governance 合并进本 phase。
 - 不改变 `docs/design/*.md` 设计语义。
 - 不改变 Control Plane 权限；helper module 不得成为第二个 Orchestrator。
@@ -114,17 +126,27 @@ Implementation validation will be selected by `docs/plans/orchestration-lifecycl
 - 不改变 route selection / Provider Router behavior。
 - 不引入 schema migration、真实模型调用要求、远端 worker 或 Planner/DAG。
 - `run_task` / `run_task_async` / `create_task` 仍由 `swallow.orchestration.orchestrator` 公开承载。
+- `_apply_librarian_side_effects(...)` 与任何 direct `apply_proposal` caller 仍留在 `orchestrator.py`。
+- `knowledge_flow.py` 不依赖 `save_state` / `append_event` / `apply_proposal` / `orchestration.harness` / `orchestration.executor`。
 
 ---
 
 ## 当前建议提交范围
 
-如接受 LTO-8 plan audit 吸收结果，建议由 Human 提交:
+如接受 M5 knowledge-flow / facade cleanup，建议由 Human 提交:
 
 ```bash
-git add docs/active_context.md current_state.md docs/plans/orchestration-lifecycle-decomposition/plan.md docs/plans/orchestration-lifecycle-decomposition/plan_audit.md
-git commit -m "docs(plan): absorb orchestration lifecycle audit"
+git add src/swallow/orchestration/orchestrator.py \
+  src/swallow/orchestration/knowledge_flow.py \
+  tests/unit/orchestration/test_knowledge_flow_module.py \
+  docs/plans/orchestration-lifecycle-decomposition/closeout.md \
+  docs/active_context.md \
+  current_state.md
+
+git commit -m "refactor(orchestration): extract knowledge flow helpers"
 ```
+
+`pr.md` has been updated as the local PR body draft, but it is ignored by git in this repository; do not include it in the commit unless Human explicitly wants to force-add it.
 
 ---
 
@@ -139,7 +161,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 LTO-8 planning phase 不要求 live HTTP / API-key dependent test。
+当前 LTO-8 implementation phase 不要求 live HTTP / API-key dependent test。
 
 ---
 
@@ -152,6 +174,7 @@ cd /home/rocio/projects/swallow
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
 sed -n '1,260p' docs/plans/orchestration-lifecycle-decomposition/plan.md
+sed -n '1,260p' docs/plans/orchestration-lifecycle-decomposition/closeout.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
