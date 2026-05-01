@@ -8,7 +8,7 @@ import threading
 
 from dataclasses import replace
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Awaitable
 from uuid import uuid4
 
 from swallow._io_helpers import read_json_lines_strict_or_empty, read_json_or_empty, read_json_strict
@@ -46,25 +46,16 @@ from swallow.orchestration.harness import (
     run_retrieval,
     write_task_artifacts,
 )
-from swallow.knowledge_retrieval.knowledge_objects import (
-    build_knowledge_objects,
-    canonicalization_status_for,
-    summarize_canonicalization,
-    summarize_knowledge_evidence,
-    summarize_knowledge_reuse,
-    summarize_knowledge_stages,
-)
+from swallow.knowledge_retrieval.knowledge_objects import build_knowledge_objects
 from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index, build_knowledge_index_report
 from swallow.knowledge_retrieval.knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from swallow.knowledge_retrieval.knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from swallow.knowledge_retrieval.knowledge_suggestions import persist_executor_side_effects
 from swallow.knowledge_retrieval.knowledge_store import (
     LIBRARIAN_AGENT_WRITE_AUTHORITY,
     OPERATOR_CANONICAL_WRITE_AUTHORITY,
     persist_task_knowledge_view,
 )
 from swallow.truth_governance.governance import OperatorToken, ProposalTarget, apply_proposal, register_canonical_proposal
-from swallow.knowledge_retrieval.knowledge_store import normalize_task_knowledge_view, split_task_knowledge_view
 from swallow.surface_tools.librarian_executor import (
     LIBRARIAN_CHANGE_LOG_KIND,
     build_knowledge_objects_report as build_librarian_knowledge_objects_report,
@@ -82,44 +73,21 @@ from swallow.orchestration.models import (
     TaskState,
     build_telemetry_fields,
     evaluate_dispatch_verdict,
-    infer_task_family,
 )
 from swallow.surface_tools.paths import (
     artifacts_dir,
-    capability_assembly_path,
-    capability_manifest_path,
-    checkpoint_snapshot_path,
     canonical_registry_index_path,
     canonical_registry_path,
     canonical_reuse_policy_path,
     canonical_reuse_eval_path,
-    canonical_reuse_regression_path,
-    compatibility_path,
-    dispatch_path,
-    execution_site_path,
-    execution_fit_path,
-    execution_budget_policy_path,
     handoff_path,
-    knowledge_evidence_entry_path,
     knowledge_decisions_path,
     knowledge_index_path,
-    knowledge_objects_path,
     knowledge_partition_path,
-    knowledge_policy_path,
-    knowledge_wiki_entry_path,
-    memory_path,
-    retry_policy_path,
-    stop_policy_path,
     task_root,
-    task_semantics_path,
     retrieval_path,
-    remote_handoff_contract_path,
-    route_path,
     state_path,
-    topology_path,
-    validation_path,
 )
-from swallow.knowledge_retrieval.retrieval import build_retrieval_request
 from swallow.provider_router.router import (
     apply_route_capability_profiles,
     apply_route_fallbacks,
@@ -170,36 +138,51 @@ from swallow.truth_governance.store import (
     write_artifact,
 )
 from swallow.orchestration.task_semantics import build_task_semantics, normalize_retrieval_source_types
+from swallow.orchestration.artifact_writer import (
+    build_create_task_artifact_paths,
+    build_run_task_artifact_paths,
+    write_parent_executor_artifacts,
+    write_prefixed_executor_artifacts,
+)
+from swallow.orchestration.retrieval_flow import (
+    build_task_retrieval_request,
+    load_previous_retrieval_items,
+)
+from swallow.orchestration.subtask_flow import (
+    collect_subtask_attempt_artifact_refs,
+    collect_subtask_extra_artifacts,
+    write_subtask_attempt_artifacts,
+)
+from swallow.orchestration.task_lifecycle import (
+    build_phase_checkpoint_payload,
+    build_phase_event_payload,
+    build_phase_recovery_fallback_payload,
+)
+from swallow.orchestration.execution_attempts import (
+    DEBATE_MAX_ROUNDS,
+    build_budget_exhausted_event_payload,
+    build_budget_exhausted_executor_result,
+    build_budget_exhausted_review_gate_fields,
+    build_debate_exhausted_executor_result,
+    build_next_execution_attempt_metadata,
+    budget_exhausted_event_type,
+    debate_loop_core,
+    debate_loop_core_async,
+)
+from swallow.orchestration.knowledge_flow import (
+    build_knowledge_objects_report as build_knowledge_objects_report_from_objects,
+    build_knowledge_store_write_plan,
+    build_knowledge_summary_payload,
+)
 from swallow.orchestration.models import utc_now
 from swallow.surface_tools.workspace import resolve_path
 
 
-STANDARD_SUBTASK_ARTIFACT_NAMES = {
-    "executor_prompt.md",
-    "executor_output.md",
-    "executor_stdout.txt",
-    "executor_stderr.txt",
-}
-
-EXECUTOR_ARTIFACT_NAMES = (
-    "executor_prompt.md",
-    "executor_output.md",
-    "executor_stdout.txt",
-    "executor_stderr.txt",
-)
-
-DEBATE_MAX_ROUNDS = 3
 _BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
 
 
 def _resolved_path_string(path: Path) -> str:
     return str(resolve_path(path))
-_RETRIEVAL_SOURCE_POLICY: dict[tuple[str, str], tuple[str, ...]] = {
-    ("autonomous_cli_coding", "*"): ("knowledge",),
-    ("api", "*"): ("knowledge", "notes"),
-    ("legacy_local_fallback", "*"): ("repo", "notes", "knowledge"),
-    ("*", "*"): ("knowledge", "notes"),
-}
 
 
 def _apply_capability_enforcement(state: TaskState) -> list[CapabilityConstraint]:
@@ -387,43 +370,11 @@ def _append_canonical_write_guard_warning(base_dir: Path, state: TaskState, card
     )
 
 
-def _build_knowledge_store_write_plan(
-    base_dir: Path,
-    task_id: str,
-    knowledge_objects: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], dict[Path, str], list[Path]]:
-    normalized_view = normalize_task_knowledge_view(knowledge_objects)
-    evidence_entries, wiki_entries = split_task_knowledge_view(normalized_view)
-    updates: dict[Path, str] = {
-        knowledge_objects_path(base_dir, task_id): json.dumps(normalized_view, indent=2) + "\n",
-    }
-    deletes: list[Path] = []
-
-    for entries, path_factory in (
-        (evidence_entries, lambda entry_id: knowledge_evidence_entry_path(base_dir, task_id, entry_id)),
-        (wiki_entries, lambda entry_id: knowledge_wiki_entry_path(base_dir, task_id, entry_id)),
-    ):
-        desired_names: set[str] = set()
-        for entry in entries:
-            entry_id = str(entry.get("object_id") or entry.get("source_object_id") or entry.get("canonical_id") or "").strip()
-            if not entry_id:
-                entry_id = "knowledge-entry"
-            desired_names.add(f"{entry_id}.json")
-            updates[path_factory(entry_id)] = json.dumps(entry, indent=2) + "\n"
-        store_root = path_factory("placeholder").parent
-        if store_root.exists():
-            for path in store_root.glob("*.json"):
-                if path.name not in desired_names:
-                    deletes.append(path)
-
-    return normalized_view, updates, deletes
-
-
 def _persist_librarian_atomic_updates(
     base_dir: Path,
     state: TaskState,
 ) -> tuple[dict[str, object], dict[str, object]]:
-    normalized_view, knowledge_updates, knowledge_deletes = _build_knowledge_store_write_plan(
+    normalized_view, knowledge_updates, knowledge_deletes = build_knowledge_store_write_plan(
         base_dir,
         state.task_id,
         state.knowledge_objects,
@@ -522,78 +473,6 @@ def _apply_librarian_side_effects(
     write_artifact(base_dir, state.task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(canonical_index))
     write_artifact(base_dir, state.task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(canonical_reuse_summary))
     return state
-
-
-def _write_subtask_attempt_artifacts(
-    base_dir: Path,
-    task_id: str,
-    record: SubtaskRunRecord,
-    *,
-    attempt_number: int,
-    extra_artifacts: dict[str, str] | None = None,
-) -> None:
-    executor_result = record.executor_result or ExecutorResult(
-        executor_name="subtask-orchestrator",
-        status="failed",
-        message="Missing subtask executor result.",
-    )
-    review_gate_result = record.review_gate_result
-    prompt_with_dialect = (
-        f"dialect: {executor_result.dialect or 'plain_text'}\n\n{executor_result.prompt}"
-    )
-    prefix = f"subtask_{record.subtask_index}_attempt{attempt_number}"
-    write_artifact(base_dir, task_id, f"{prefix}_executor_prompt.md", prompt_with_dialect)
-    write_artifact(
-        base_dir,
-        task_id,
-        f"{prefix}_executor_output.md",
-        executor_result.output or executor_result.message or "(no executor output)",
-    )
-    write_artifact(base_dir, task_id, f"{prefix}_executor_stdout.txt", executor_result.stdout or "")
-    write_artifact(base_dir, task_id, f"{prefix}_executor_stderr.txt", executor_result.stderr or "")
-    if review_gate_result is not None:
-        write_artifact(
-            base_dir,
-            task_id,
-            f"{prefix}_review_gate.json",
-            json.dumps(review_gate_result.to_dict(), indent=2),
-        )
-    for artifact_name, content in sorted((extra_artifacts or {}).items()):
-        write_artifact(base_dir, task_id, f"{prefix}_{artifact_name}", content)
-
-
-def _collect_subtask_extra_artifacts(
-    subtask_base_dir: Path,
-    task_id: str,
-) -> dict[str, str]:
-    subtask_artifacts_dir = artifacts_dir(subtask_base_dir, task_id)
-    if not subtask_artifacts_dir.exists():
-        return {}
-
-    extra_artifacts: dict[str, str] = {}
-    for artifact_path in sorted(subtask_artifacts_dir.rglob("*")):
-        if not artifact_path.is_file():
-            continue
-        relative_name = artifact_path.relative_to(subtask_artifacts_dir).as_posix().replace("/", "__")
-        if relative_name in STANDARD_SUBTASK_ARTIFACT_NAMES:
-            continue
-        extra_artifacts[relative_name] = artifact_path.read_text(encoding="utf-8", errors="replace")
-    return extra_artifacts
-
-
-def _write_parent_executor_artifacts(
-    base_dir: Path,
-    state: TaskState,
-    executor_result: ExecutorResult,
-) -> None:
-    prompt_with_dialect = (
-        f"dialect: {executor_result.dialect or state.route_dialect or 'plain_text'}\n\n{executor_result.prompt}"
-    )
-    write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt_with_dialect)
-    write_artifact(base_dir, state.task_id, "executor_output.md", executor_result.output or executor_result.message)
-    write_artifact(base_dir, state.task_id, "executor_stdout.txt", executor_result.stdout)
-    write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
-    persist_executor_side_effects(base_dir, state.task_id, executor_result.side_effects)
 
 
 def _clear_review_feedback_state(state: TaskState) -> None:
@@ -715,29 +594,6 @@ def _append_parent_executor_event(
     )
 
 
-def _write_prefixed_executor_artifacts(
-    base_dir: Path,
-    task_id: str,
-    *,
-    prefix: str,
-) -> list[str]:
-    written: list[str] = []
-    task_artifacts_dir = artifacts_dir(base_dir, task_id)
-    for artifact_name in EXECUTOR_ARTIFACT_NAMES:
-        source_path = task_artifacts_dir / artifact_name
-        if not source_path.exists():
-            continue
-        prefixed_name = f"{prefix}_{artifact_name}"
-        write_artifact(
-            base_dir,
-            task_id,
-            prefixed_name,
-            source_path.read_text(encoding="utf-8", errors="replace"),
-        )
-        written.append(prefixed_name)
-    return written
-
-
 def _run_binary_fallback(
     base_dir: Path,
     state: TaskState,
@@ -754,7 +610,7 @@ def _run_binary_fallback(
     primary_route_name = state.route_name
     primary_executor_name = primary_result.executor_name
     primary_failure_kind = primary_result.failure_kind
-    primary_artifacts = _write_prefixed_executor_artifacts(
+    primary_artifacts = write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,
         prefix="fallback_primary",
@@ -782,7 +638,7 @@ def _run_binary_fallback(
         original_route_name=primary_route_name,
         fallback_route_name=fallback_route.name,
     )
-    fallback_artifacts = _write_prefixed_executor_artifacts(
+    fallback_artifacts = write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,
         prefix="fallback",
@@ -838,7 +694,7 @@ async def _run_binary_fallback_async(
     primary_route_name = state.route_name
     primary_executor_name = primary_result.executor_name
     primary_failure_kind = primary_result.failure_kind
-    primary_artifacts = _write_prefixed_executor_artifacts(
+    primary_artifacts = write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,
         prefix="fallback_primary",
@@ -866,7 +722,7 @@ async def _run_binary_fallback_async(
         original_route_name=primary_route_name,
         fallback_route_name=fallback_route.name,
     )
-    fallback_artifacts = _write_prefixed_executor_artifacts(
+    fallback_artifacts = write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,
         prefix="fallback",
@@ -930,51 +786,6 @@ def _task_card_token_cost_limit(card: TaskCard) -> float:
     return normalize_token_cost_limit(card.token_cost_limit)
 
 
-def _build_budget_exhausted_executor_result(
-    state: TaskState,
-    card: TaskCard,
-    *,
-    current_token_cost: float,
-    token_cost_limit: float,
-) -> ExecutorResult:
-    return ExecutorResult(
-        executor_name=state.executor_name,
-        status="failed",
-        message=(
-            "TaskCard token cost budget is exhausted; waiting for human intervention before continuing "
-            f"(current={current_token_cost:.8f}, limit={token_cost_limit:.8f})."
-        ),
-        failure_kind="budget_exhausted",
-        review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip(),
-        output="",
-        prompt="",
-        dialect=state.route_dialect or "plain_text",
-        stdout="",
-        stderr="",
-    )
-
-
-def _build_budget_exhausted_review_gate_result(
-    *,
-    current_token_cost: float,
-    token_cost_limit: float,
-) -> ReviewGateResult:
-    return ReviewGateResult(
-        status="failed",
-        message="TaskCard token cost budget is exhausted before execution can continue.",
-        checks=[
-            {
-                "name": "token_cost_budget",
-                "passed": False,
-                "detail": (
-                    f"current_token_cost={current_token_cost:.8f}; "
-                    f"token_cost_limit={token_cost_limit:.8f}"
-                ),
-            }
-        ],
-    )
-
-
 def _append_budget_exhausted_event(
     base_dir: Path,
     state: TaskState,
@@ -986,24 +797,20 @@ def _append_budget_exhausted_event(
     token_cost_limit: float,
     subtask_index: int | None = None,
 ) -> None:
-    event_type = "task.budget_exhausted" if subtask_index is None else f"subtask.{subtask_index}.budget_exhausted"
     append_event(
         base_dir,
         Event(
             task_id=state.task_id,
-            event_type=event_type,
+            event_type=budget_exhausted_event_type(subtask_index=subtask_index),
             message="Token cost limit reached before the next execution attempt.",
-            payload={
-                "card_id": card.card_id,
-                "goal": card.goal,
-                "retry_round": retry_round,
-                "attempt_number": attempt_number,
-                "current_token_cost": current_token_cost,
-                "token_cost_limit": token_cost_limit,
-                "consensus_policy": card.consensus_policy,
-                "reviewer_routes": card.reviewer_routes,
-                "subtask_index": subtask_index or card.subtask_index,
-            },
+            payload=build_budget_exhausted_event_payload(
+                card,
+                retry_round=retry_round,
+                attempt_number=attempt_number,
+                current_token_cost=current_token_cost,
+                token_cost_limit=token_cost_limit,
+                subtask_index=subtask_index,
+            ),
         ),
     )
 
@@ -1038,119 +845,18 @@ def _budget_guard_result(
         subtask_index=subtask_index,
     )
     return (
-        _build_budget_exhausted_executor_result(
+        build_budget_exhausted_executor_result(
             state,
-            card,
             current_token_cost=current_token_cost,
             token_cost_limit=token_cost_limit,
         ),
-        _build_budget_exhausted_review_gate_result(
-            current_token_cost=current_token_cost,
-            token_cost_limit=token_cost_limit,
+        ReviewGateResult(
+            **build_budget_exhausted_review_gate_fields(
+                current_token_cost=current_token_cost,
+                token_cost_limit=token_cost_limit,
+            ).to_kwargs()
         ),
     )
-
-
-def _debate_loop_core(
-    *,
-    run_attempt: Callable[[int], tuple[ExecutorResult, ReviewGateResult]],
-    clear_feedback_state: Callable[[], None],
-    store_feedback: Callable[[ReviewFeedback], str],
-    apply_feedback: Callable[[str, ReviewFeedback], None],
-    append_round_event: Callable[[str, ReviewFeedback, ExecutorResult, ReviewGateResult], None],
-    persist_exhausted: Callable[[list[str], ReviewFeedback, ReviewGateResult], str],
-    append_breaker_event: Callable[[list[str], str, ExecutorResult, ReviewGateResult], None],
-) -> tuple[ExecutorResult, ReviewGateResult, bool]:
-    feedback_refs: list[str] = []
-    retry_round = 0
-    clear_feedback_state()
-
-    while True:
-        executor_result, review_gate_result = run_attempt(retry_round)
-
-        if review_gate_result.status == "passed":
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-        if executor_result.status != "completed":
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-
-        if retry_round >= DEBATE_MAX_ROUNDS:
-            last_feedback = _build_debate_last_feedback(
-                review_gate_result,
-                executor_result,
-                retry_round=retry_round,
-            )
-            debate_exhausted_ref = persist_exhausted(feedback_refs, last_feedback, review_gate_result)
-            append_breaker_event(feedback_refs, debate_exhausted_ref, executor_result, review_gate_result)
-            return executor_result, review_gate_result, True
-
-        feedback = build_review_feedback(
-            review_gate_result,
-            executor_result,
-            round_number=retry_round + 1,
-            max_rounds=DEBATE_MAX_ROUNDS,
-        )
-        if feedback is None:
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-
-        feedback_ref = store_feedback(feedback)
-        feedback_refs.append(feedback_ref)
-        apply_feedback(feedback_ref, feedback)
-        append_round_event(feedback_ref, feedback, executor_result, review_gate_result)
-        retry_round += 1
-
-
-async def _debate_loop_core_async(
-    *,
-    run_attempt: Callable[[int], Awaitable[tuple[ExecutorResult, ReviewGateResult]]],
-    clear_feedback_state: Callable[[], None],
-    store_feedback: Callable[[ReviewFeedback], str],
-    apply_feedback: Callable[[str, ReviewFeedback], None],
-    append_round_event: Callable[[str, ReviewFeedback, ExecutorResult, ReviewGateResult], None],
-    persist_exhausted: Callable[[list[str], ReviewFeedback, ReviewGateResult], str],
-    append_breaker_event: Callable[[list[str], str, ExecutorResult, ReviewGateResult], None],
-) -> tuple[ExecutorResult, ReviewGateResult, bool]:
-    feedback_refs: list[str] = []
-    retry_round = 0
-    clear_feedback_state()
-
-    while True:
-        executor_result, review_gate_result = await run_attempt(retry_round)
-
-        if review_gate_result.status == "passed":
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-        if executor_result.status != "completed":
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-
-        if retry_round >= DEBATE_MAX_ROUNDS:
-            last_feedback = _build_debate_last_feedback(
-                review_gate_result,
-                executor_result,
-                retry_round=retry_round,
-            )
-            debate_exhausted_ref = persist_exhausted(feedback_refs, last_feedback, review_gate_result)
-            append_breaker_event(feedback_refs, debate_exhausted_ref, executor_result, review_gate_result)
-            return executor_result, review_gate_result, True
-
-        feedback = build_review_feedback(
-            review_gate_result,
-            executor_result,
-            round_number=retry_round + 1,
-            max_rounds=DEBATE_MAX_ROUNDS,
-        )
-        if feedback is None:
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-
-        feedback_ref = store_feedback(feedback)
-        feedback_refs.append(feedback_ref)
-        apply_feedback(feedback_ref, feedback)
-        append_round_event(feedback_ref, feedback, executor_result, review_gate_result)
-        retry_round += 1
 
 
 def _run_single_task_with_debate(
@@ -1188,15 +894,26 @@ def _run_single_task_with_debate(
         review_gate_result = run_review_gate(state, executor_result, current_card)
         return executor_result, review_gate_result
 
-    executor_result, review_gate_result, debate_exhausted = _debate_loop_core(
+    executor_result, review_gate_result, debate_exhausted = debate_loop_core(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(state),
+        build_feedback=lambda review_gate_result, executor_result, round_number: build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=round_number,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        ),
+        build_last_feedback=lambda review_gate_result, executor_result, retry_round: _build_debate_last_feedback(
+            review_gate_result,
+            executor_result,
+            retry_round=retry_round,
+        ),
         store_feedback=lambda feedback: _persist_review_feedback(base_dir, state.task_id, feedback),
         apply_feedback=lambda feedback_ref, feedback: (
             setattr(state, "review_feedback_ref", feedback_ref),
             setattr(state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
         ),
-        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+        record_round=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1222,7 +939,7 @@ def _run_single_task_with_debate(
             last_feedback=last_feedback,
             review_gate_result=review_gate_result,
         ),
-        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+        record_exhausted=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1241,12 +958,9 @@ def _run_single_task_with_debate(
 
     if debate_exhausted:
         return (
-            replace(
+            build_debate_exhausted_executor_result(
                 executor_result,
-                status="failed",
-                message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
-                failure_kind="debate_circuit_breaker",
-                review_feedback=state.review_feedback_ref,
+                review_feedback_ref=state.review_feedback_ref,
             ),
             review_gate_result,
             True,
@@ -1289,15 +1003,26 @@ async def _run_single_task_with_debate_async(
         review_gate_result = await run_review_gate_async(state, executor_result, current_card)
         return executor_result, review_gate_result
 
-    executor_result, review_gate_result, debate_exhausted = await _debate_loop_core_async(
+    executor_result, review_gate_result, debate_exhausted = await debate_loop_core_async(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(state),
+        build_feedback=lambda review_gate_result, executor_result, round_number: build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=round_number,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        ),
+        build_last_feedback=lambda review_gate_result, executor_result, retry_round: _build_debate_last_feedback(
+            review_gate_result,
+            executor_result,
+            retry_round=retry_round,
+        ),
         store_feedback=lambda feedback: _persist_review_feedback(base_dir, state.task_id, feedback),
         apply_feedback=lambda feedback_ref, feedback: (
             setattr(state, "review_feedback_ref", feedback_ref),
             setattr(state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
         ),
-        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+        record_round=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1323,7 +1048,7 @@ async def _run_single_task_with_debate_async(
             last_feedback=last_feedback,
             review_gate_result=review_gate_result,
         ),
-        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+        record_exhausted=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1342,12 +1067,9 @@ async def _run_single_task_with_debate_async(
 
     if debate_exhausted:
         return (
-            replace(
+            build_debate_exhausted_executor_result(
                 executor_result,
-                status="failed",
-                message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
-                failure_kind="debate_circuit_breaker",
-                review_feedback=state.review_feedback_ref,
+                review_feedback_ref=state.review_feedback_ref,
             ),
             review_gate_result,
             True,
@@ -1426,7 +1148,7 @@ def _run_subtask_attempt(
             with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
                 subtask_base_dir = Path(tmp)
                 executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, retrieval_items)
-                extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+                extra_artifacts = collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
             review_gate_result = run_review_gate(isolated_state, executor_result, card)
     except Exception as exc:  # pragma: no cover - defensive path
         executor_result = ExecutorResult(
@@ -1501,7 +1223,7 @@ async def _run_subtask_attempt_async(
                     card,
                     retrieval_items,
                 )
-                extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+                extra_artifacts = collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
             review_gate_result = await run_review_gate_async(isolated_state, executor_result, card)
     except Exception as exc:  # pragma: no cover - defensive path
         executor_result = ExecutorResult(
@@ -1581,9 +1303,20 @@ def _run_subtask_debate_retries(
         )
         return executor_result, review_gate_result
 
-    _executor_result, _review_gate_result, debate_exhausted = _debate_loop_core(
+    _executor_result, _review_gate_result, debate_exhausted = debate_loop_core(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(isolated_state),
+        build_feedback=lambda review_gate_result, executor_result, round_number: build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=round_number,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        ),
+        build_last_feedback=lambda review_gate_result, executor_result, retry_round: _build_debate_last_feedback(
+            review_gate_result,
+            executor_result,
+            retry_round=retry_round,
+        ),
         store_feedback=lambda feedback: _persist_subtask_review_feedback(
             base_dir,
             state.task_id,
@@ -1594,7 +1327,7 @@ def _run_subtask_debate_retries(
             setattr(isolated_state, "review_feedback_ref", feedback_ref),
             setattr(isolated_state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
         ),
-        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+        record_round=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1625,7 +1358,7 @@ def _run_subtask_debate_retries(
             last_feedback=last_feedback,
             review_gate_result=review_gate_result,
         ),
-        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+        record_exhausted=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1685,9 +1418,20 @@ async def _run_subtask_debate_retries_async(
         )
         return executor_result, review_gate_result
 
-    _executor_result, _review_gate_result, debate_exhausted = await _debate_loop_core_async(
+    _executor_result, _review_gate_result, debate_exhausted = await debate_loop_core_async(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(isolated_state),
+        build_feedback=lambda review_gate_result, executor_result, round_number: build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=round_number,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        ),
+        build_last_feedback=lambda review_gate_result, executor_result, retry_round: _build_debate_last_feedback(
+            review_gate_result,
+            executor_result,
+            retry_round=retry_round,
+        ),
         store_feedback=lambda feedback: _persist_subtask_review_feedback(
             base_dir,
             state.task_id,
@@ -1698,7 +1442,7 @@ async def _run_subtask_debate_retries_async(
             setattr(isolated_state, "review_feedback_ref", feedback_ref),
             setattr(isolated_state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
         ),
-        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+        record_round=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1729,7 +1473,7 @@ async def _run_subtask_debate_retries_async(
             last_feedback=last_feedback,
             review_gate_result=review_gate_result,
         ),
-        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+        record_exhausted=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1916,30 +1660,6 @@ def _build_subtask_executor_result(
     )
 
 
-def _subtask_artifact_ref(task_id: str, artifact_name: str) -> str:
-    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
-
-
-def _collect_subtask_attempt_artifact_refs(
-    base_dir: Path,
-    task_id: str,
-    *,
-    subtask_index: int,
-    attempt_number: int,
-) -> list[str]:
-    artifact_root = artifacts_dir(base_dir, task_id)
-    if not artifact_root.exists():
-        return []
-
-    prefix = f"subtask_{subtask_index}_attempt{attempt_number}_"
-    artifact_names = sorted(
-        path.relative_to(artifact_root).as_posix()
-        for path in artifact_root.glob(f"{prefix}*")
-        if path.is_file()
-    )
-    return [_subtask_artifact_ref(task_id, artifact_name) for artifact_name in artifact_names]
-
-
 def _build_subtask_summary_report(
     base_dir: Path,
     task_id: str,
@@ -1969,7 +1689,7 @@ def _build_subtask_summary_report(
         executor_result = record.executor_result
         review_gate_result = record.review_gate_result
         latest_attempt = attempt_counts.get(record.card_id, 1)
-        artifact_refs = _collect_subtask_attempt_artifact_refs(
+        artifact_refs = collect_subtask_attempt_artifact_refs(
             base_dir,
             task_id,
             subtask_index=record.subtask_index,
@@ -2031,7 +1751,7 @@ def _run_subtask_orchestration(
         with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
             subtask_base_dir = Path(tmp)
             executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, subtask_retrieval_items)
-            extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+            extra_artifacts = collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
             with subtask_extra_artifacts_lock:
                 subtask_extra_artifacts[card.card_id] = extra_artifacts
             return executor_result
@@ -2053,7 +1773,7 @@ def _run_subtask_orchestration(
     debate_exhausted_card_ids: list[str] = []
 
     for record in result.records:
-        _write_subtask_attempt_artifacts(
+        write_subtask_attempt_artifacts(
             base_dir,
             state.task_id,
             record,
@@ -2074,7 +1794,7 @@ def _run_subtask_orchestration(
             attempt_counts[failed_record.card_id] = 1 + len(retry_attempts)
             records_by_id[failed_record.card_id] = retry_attempts[-1][1]
             for attempt_number, retry_record, extra_artifacts in retry_attempts:
-                _write_subtask_attempt_artifacts(
+                write_subtask_attempt_artifacts(
                     base_dir,
                     state.task_id,
                     retry_record,
@@ -2135,7 +1855,7 @@ def _run_subtask_orchestration(
             budget_exhausted_card_ids=budget_exhausted_card_ids,
         ),
     )
-    _write_parent_executor_artifacts(base_dir, state, executor_result)
+    write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
     return executor_result, review_gate_result, result, bool(debate_exhausted_card_ids or budget_exhausted_card_ids)
 
@@ -2177,7 +1897,7 @@ async def _run_subtask_orchestration_async(
                 card,
                 subtask_retrieval_items,
             )
-            extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+            extra_artifacts = collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
         async with subtask_extra_artifacts_lock:
             subtask_extra_artifacts[card.card_id] = extra_artifacts
         return executor_result
@@ -2199,7 +1919,7 @@ async def _run_subtask_orchestration_async(
     debate_exhausted_card_ids: list[str] = []
 
     for record in result.records:
-        _write_subtask_attempt_artifacts(
+        write_subtask_attempt_artifacts(
             base_dir,
             state.task_id,
             record,
@@ -2220,7 +1940,7 @@ async def _run_subtask_orchestration_async(
             attempt_counts[failed_record.card_id] = 1 + len(retry_attempts)
             records_by_id[failed_record.card_id] = retry_attempts[-1][1]
             for attempt_number, retry_record, extra_artifacts in retry_attempts:
-                _write_subtask_attempt_artifacts(
+                write_subtask_attempt_artifacts(
                     base_dir,
                     state.task_id,
                     retry_record,
@@ -2281,7 +2001,7 @@ async def _run_subtask_orchestration_async(
             budget_exhausted_card_ids=budget_exhausted_card_ids,
         ),
     )
-    _write_parent_executor_artifacts(base_dir, state, executor_result)
+    write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
     return executor_result, review_gate_result, result, bool(debate_exhausted_card_ids or budget_exhausted_card_ids)
 
@@ -2368,17 +2088,22 @@ def _apply_execution_site_contract(state: TaskState) -> None:
 
 
 def _begin_execution_attempt(state: TaskState) -> None:
-    state.run_attempt_count += 1
-    state.current_attempt_number = state.run_attempt_count
-    state.current_attempt_id = f"attempt-{state.current_attempt_number:04d}"
-    state.current_attempt_owner_kind = "local_orchestrator"
-    state.current_attempt_owner_ref = "swl_cli"
-    state.current_attempt_ownership_status = "owned"
-    state.current_attempt_owner_assigned_at = utc_now()
-    state.current_attempt_transfer_reason = ""
-    state.dispatch_requested_at = utc_now()
-    state.dispatch_started_at = ""
-    state.execution_lifecycle = "prepared"
+    metadata = build_next_execution_attempt_metadata(
+        state,
+        owner_assigned_at=utc_now(),
+        dispatch_requested_at=utc_now(),
+    )
+    state.run_attempt_count = metadata.run_attempt_count
+    state.current_attempt_number = metadata.current_attempt_number
+    state.current_attempt_id = metadata.current_attempt_id
+    state.current_attempt_owner_kind = metadata.current_attempt_owner_kind
+    state.current_attempt_owner_ref = metadata.current_attempt_owner_ref
+    state.current_attempt_ownership_status = metadata.current_attempt_ownership_status
+    state.current_attempt_owner_assigned_at = metadata.current_attempt_owner_assigned_at
+    state.current_attempt_transfer_reason = metadata.current_attempt_transfer_reason
+    state.dispatch_requested_at = metadata.dispatch_requested_at
+    state.dispatch_started_at = metadata.dispatch_started_at
+    state.execution_lifecycle = metadata.execution_lifecycle
 
 
 def _evaluate_dispatch_for_run(base_dir: Path, state: TaskState) -> tuple[dict[str, object], DispatchVerdict]:
@@ -2604,41 +2329,7 @@ def create_task(
     state.executor_name = normalize_executor_name(executor_name)
     _apply_execution_topology(state, dispatch_status="not_requested")
     _apply_execution_site_contract(state)
-    state.artifact_paths = {
-        "task_semantics_json": _resolved_path_string(task_semantics_path(base_dir, task_id)),
-        "task_semantics_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "task_semantics_report.md"),
-        "knowledge_objects_json": _resolved_path_string(knowledge_objects_path(base_dir, task_id)),
-        "knowledge_objects_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md"),
-        "librarian_change_log": _resolved_path_string(artifacts_dir(base_dir, task_id) / "librarian_change_log.json"),
-        "librarian_change_log_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md"
-        ),
-        "knowledge_partition_json": _resolved_path_string(knowledge_partition_path(base_dir, task_id)),
-        "knowledge_partition_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md"),
-        "knowledge_index_json": _resolved_path_string(knowledge_index_path(base_dir, task_id)),
-        "knowledge_index_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_index_report.md"),
-        "knowledge_decisions_json": _resolved_path_string(knowledge_decisions_path(base_dir, task_id)),
-        "knowledge_decisions_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_decisions_report.md"),
-        "canonical_registry_json": _resolved_path_string(canonical_registry_path(base_dir)),
-        "canonical_registry_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "canonical_registry_report.md"),
-        "canonical_registry_index_json": _resolved_path_string(canonical_registry_index_path(base_dir)),
-        "canonical_registry_index_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "canonical_registry_index_report.md"
-        ),
-        "canonical_reuse_policy_json": _resolved_path_string(canonical_reuse_policy_path(base_dir)),
-        "canonical_reuse_policy_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md"
-        ),
-        "canonical_reuse_eval_json": _resolved_path_string(canonical_reuse_eval_path(base_dir, task_id)),
-        "canonical_reuse_eval_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "canonical_reuse_eval_report.md"),
-        "canonical_reuse_regression_json": _resolved_path_string(canonical_reuse_regression_path(base_dir, task_id)),
-        "remote_handoff_contract_json": _resolved_path_string(remote_handoff_contract_path(base_dir, task_id)),
-        "remote_handoff_contract_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md"
-        ),
-        "checkpoint_snapshot_json": _resolved_path_string(checkpoint_snapshot_path(base_dir, task_id)),
-        "checkpoint_snapshot_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md"),
-    }
+    state.artifact_paths = build_create_task_artifact_paths(base_dir, task_id)
     knowledge_partition = build_knowledge_partition(state.knowledge_objects)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
     save_state(base_dir, state)
@@ -2703,20 +2394,11 @@ def create_task(
                 "executor_name": state.executor_name,
                 "input_context": state.input_context,
                 "task_semantics": state.task_semantics,
-                "knowledge_objects_count": len(state.knowledge_objects),
-                "knowledge_stage_counts": summarize_knowledge_stages(state.knowledge_objects),
-                "knowledge_evidence_counts": summarize_knowledge_evidence(state.knowledge_objects),
-                "knowledge_reuse_counts": summarize_knowledge_reuse(state.knowledge_objects),
-                "knowledge_canonicalization_counts": summarize_canonicalization(state.knowledge_objects),
-                "knowledge_partition": {
-                    "task_linked_count": knowledge_partition["task_linked_count"],
-                    "reusable_candidate_count": knowledge_partition["reusable_candidate_count"],
-                },
-                "knowledge_index": {
-                    "active_reusable_count": knowledge_index["active_reusable_count"],
-                    "inactive_reusable_count": knowledge_index["inactive_reusable_count"],
-                    "refreshed_at": knowledge_index["refreshed_at"],
-                },
+                **build_knowledge_summary_payload(
+                    state.knowledge_objects,
+                    knowledge_partition=knowledge_partition,
+                    knowledge_index=knowledge_index,
+                ),
                 "capability_manifest": state.capability_manifest,
                 "capability_assembly": state.capability_assembly,
                 "route_mode": state.route_mode,
@@ -2865,20 +2547,11 @@ def append_task_knowledge_capture(
             message="Knowledge capture updated.",
             payload={
                 "added_count": len(new_objects),
-                "knowledge_objects_count": len(state.knowledge_objects),
-                "knowledge_stage_counts": summarize_knowledge_stages(state.knowledge_objects),
-                "knowledge_evidence_counts": summarize_knowledge_evidence(state.knowledge_objects),
-                "knowledge_reuse_counts": summarize_knowledge_reuse(state.knowledge_objects),
-                "knowledge_canonicalization_counts": summarize_canonicalization(state.knowledge_objects),
-                "knowledge_partition": {
-                    "task_linked_count": knowledge_partition["task_linked_count"],
-                    "reusable_candidate_count": knowledge_partition["reusable_candidate_count"],
-                },
-                "knowledge_index": {
-                    "active_reusable_count": knowledge_index["active_reusable_count"],
-                    "inactive_reusable_count": knowledge_index["inactive_reusable_count"],
-                    "refreshed_at": knowledge_index["refreshed_at"],
-                },
+                **build_knowledge_summary_payload(
+                    state.knowledge_objects,
+                    knowledge_partition=knowledge_partition,
+                    knowledge_index=knowledge_index,
+                ),
             },
         ),
     )
@@ -3007,12 +2680,7 @@ def _set_phase(base_dir: Path, state: TaskState, phase: str) -> None:
             task_id=state.task_id,
             event_type="task.phase",
             message=f"Entering {phase} phase.",
-            payload={
-                "phase": state.phase,
-                "status": state.status,
-                "execution_lifecycle": state.execution_lifecycle,
-                "executor_status": state.executor_status,
-            },
+            payload=build_phase_event_payload(state),
         ),
     )
 
@@ -3034,14 +2702,7 @@ def _record_phase_checkpoint(
             task_id=state.task_id,
             event_type="task.phase_checkpoint",
             message=f"Execution phase checkpoint recorded for {execution_phase}.",
-            payload={
-                "phase": state.phase,
-                "status": state.status,
-                "execution_phase": state.execution_phase,
-                "last_phase_checkpoint_at": state.last_phase_checkpoint_at,
-                "skipped": skipped,
-                "source": source or ("reused_artifacts" if skipped else "live_run"),
-            },
+            payload=build_phase_checkpoint_payload(state, skipped=skipped, source=source),
         ),
     )
 
@@ -3060,34 +2721,13 @@ def _append_phase_recovery_fallback(
             task_id=state.task_id,
             event_type="task.phase_recovery_fallback",
             message="Selective retry fell back to an earlier execution phase.",
-            payload={
-                "requested_skip_to_phase": requested_skip_to_phase,
-                "fallback_phase": fallback_phase,
-                "reason": reason,
-            },
+            payload=build_phase_recovery_fallback_payload(
+                requested_skip_to_phase=requested_skip_to_phase,
+                fallback_phase=fallback_phase,
+                reason=reason,
+            ),
         ),
     )
-
-
-def _load_previous_retrieval_items(base_dir: Path, task_id: str) -> list[RetrievalItem] | None:
-    retrieval_file = retrieval_path(base_dir, task_id)
-    if not retrieval_file.exists():
-        return None
-    try:
-        payload = read_json_strict(retrieval_file)
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(payload, list):
-        return None
-    items: list[RetrievalItem] = []
-    try:
-        for entry in payload:
-            if not isinstance(entry, dict):
-                return None
-            items.append(RetrievalItem(**entry))
-    except TypeError:
-        return None
-    return items
 
 
 def _load_previous_executor_result(base_dir: Path, state: TaskState) -> ExecutorResult | None:
@@ -3119,52 +2759,6 @@ def _load_previous_executor_result(base_dir: Path, state: TaskState) -> Executor
         failure_kind=str(handoff_record.get("failure_kind", "")).strip(),
         stdout=stdout_path.read_text(encoding="utf-8") if stdout_path.exists() else "",
         stderr=stderr_path.read_text(encoding="utf-8") if stderr_path.exists() else "",
-    )
-
-
-def _retrieval_policy_family(state: TaskState) -> str:
-    capabilities = state.route_capabilities if isinstance(state.route_capabilities, dict) else {}
-    executor_family = str(state.route_executor_family or "").strip().lower()
-    taxonomy_role = str(state.route_taxonomy_role or "").strip().lower()
-    execution_kind = str(capabilities.get("execution_kind", "")).strip().lower()
-    supports_tool_loop = capabilities.get("supports_tool_loop") is True
-    deterministic = capabilities.get("deterministic") is True
-
-    if executor_family == "cli" and supports_tool_loop and execution_kind == "code_execution":
-        if taxonomy_role in {"", "general-executor"}:
-            return "autonomous_cli_coding"
-    if executor_family == "api":
-        return "api"
-    if executor_family == "cli" and deterministic and not supports_tool_loop:
-        return "legacy_local_fallback"
-    return executor_family or "*"
-
-
-def _select_source_types(route_policy_family: str, task_family: str) -> list[str]:
-    normalized_task_family = str(task_family or "").strip().lower() or "*"
-    for policy_key in (
-        (route_policy_family, normalized_task_family),
-        (route_policy_family, "*"),
-        ("*", "*"),
-    ):
-        source_types = _RETRIEVAL_SOURCE_POLICY.get(policy_key)
-        if source_types is not None:
-            return list(source_types)
-    return ["knowledge", "notes"]
-
-
-def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
-    semantics = state.task_semantics if isinstance(state.task_semantics, dict) else {}
-    explicit_source_types = normalize_retrieval_source_types(semantics.get("retrieval_source_types"))
-    route_policy_family = _retrieval_policy_family(state)
-    task_family = infer_task_family(state)
-    return build_retrieval_request(
-        query=f"{state.title} {state.goal}".strip(),
-        source_types=explicit_source_types or _select_source_types(route_policy_family, task_family),
-        context_layers=["workspace", "task"],
-        current_task_id=state.task_id,
-        limit=8,
-        strategy="system_baseline",
     )
 
 
@@ -3394,7 +2988,7 @@ async def run_task_async(
     _set_phase(base_dir, state, "retrieval")
     retrieval_items: list[RetrievalItem] | None = None
     if requested_skip_to_phase in {"execution", "analysis"}:
-        retrieval_items = _load_previous_retrieval_items(base_dir, task_id)
+        retrieval_items = load_previous_retrieval_items(base_dir, task_id)
         if retrieval_items is None:
             _append_phase_recovery_fallback(
                 base_dir,
@@ -3526,74 +3120,7 @@ async def run_task_async(
     )
 
     _set_phase(base_dir, state, "summarize")
-    state.artifact_paths = {
-        "executor_prompt": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_prompt.md"),
-        "executor_output": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_output.md"),
-        "executor_stdout": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_stdout.txt"),
-        "executor_stderr": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_stderr.txt"),
-        "task_semantics_json": _resolved_path_string(task_semantics_path(base_dir, task_id)),
-        "task_semantics_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "task_semantics_report.md"),
-        "knowledge_objects_json": _resolved_path_string(knowledge_objects_path(base_dir, task_id)),
-        "knowledge_objects_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md"),
-        "librarian_change_log": _resolved_path_string(artifacts_dir(base_dir, task_id) / "librarian_change_log.json"),
-        "librarian_change_log_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md"
-        ),
-        "knowledge_partition_json": _resolved_path_string(knowledge_partition_path(base_dir, task_id)),
-        "knowledge_partition_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md"),
-        "knowledge_index_json": _resolved_path_string(knowledge_index_path(base_dir, task_id)),
-        "knowledge_index_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_index_report.md"),
-        "knowledge_policy_json": _resolved_path_string(knowledge_policy_path(base_dir, task_id)),
-        "canonical_reuse_policy_json": _resolved_path_string(canonical_reuse_policy_path(base_dir)),
-        "knowledge_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_policy_report.md"),
-        "canonical_reuse_policy_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md"
-        ),
-        "summary": _resolved_path_string(artifacts_dir(base_dir, task_id) / "summary.md"),
-        "resume_note": _resolved_path_string(artifacts_dir(base_dir, task_id) / "resume_note.md"),
-        "route_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "route_report.md"),
-        "compatibility_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "compatibility_report.md"),
-        "source_grounding": _resolved_path_string(artifacts_dir(base_dir, task_id) / "source_grounding.md"),
-        "grounding_evidence_json": _resolved_path_string(artifacts_dir(base_dir, task_id) / "grounding_evidence.json"),
-        "grounding_evidence_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "grounding_evidence_report.md"),
-        "retrieval_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "retrieval_report.md"),
-        "retrieval_json": _resolved_path_string(retrieval_path(base_dir, task_id)),
-        "validation_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "validation_report.md"),
-        "compatibility_json": _resolved_path_string(compatibility_path(base_dir, task_id)),
-        "validation_json": _resolved_path_string(validation_path(base_dir, task_id)),
-        "task_memory": _resolved_path_string(memory_path(base_dir, task_id)),
-        "capability_manifest_json": _resolved_path_string(capability_manifest_path(base_dir, task_id)),
-        "capability_assembly_json": _resolved_path_string(capability_assembly_path(base_dir, task_id)),
-        "route_json": _resolved_path_string(route_path(base_dir, task_id)),
-        "topology_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "topology_report.md"),
-        "topology_json": _resolved_path_string(topology_path(base_dir, task_id)),
-        "execution_site_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "execution_site_report.md"),
-        "execution_site_json": _resolved_path_string(execution_site_path(base_dir, task_id)),
-        "dispatch_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "dispatch_report.md"),
-        "dispatch_json": _resolved_path_string(dispatch_path(base_dir, task_id)),
-        "handoff_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "handoff_report.md"),
-        "handoff_json": _resolved_path_string(handoff_path(base_dir, task_id)),
-        "remote_handoff_contract_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md"
-        ),
-        "remote_handoff_contract_json": _resolved_path_string(remote_handoff_contract_path(base_dir, task_id)),
-        "execution_fit_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "execution_fit_report.md"),
-        "execution_fit_json": _resolved_path_string(execution_fit_path(base_dir, task_id)),
-        "retry_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "retry_policy_report.md"),
-        "retry_policy_json": _resolved_path_string(retry_policy_path(base_dir, task_id)),
-        "execution_budget_policy_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "execution_budget_policy_report.md"
-        ),
-        "execution_budget_policy_json": _resolved_path_string(execution_budget_policy_path(base_dir, task_id)),
-        "stop_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "stop_policy_report.md"),
-        "stop_policy_json": _resolved_path_string(stop_policy_path(base_dir, task_id)),
-        "checkpoint_snapshot_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md"),
-        "checkpoint_snapshot_json": _resolved_path_string(checkpoint_snapshot_path(base_dir, task_id)),
-    }
-    if multi_card_plan:
-        state.artifact_paths["subtask_summary"] = _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "subtask_summary.md"
-        )
+    state.artifact_paths = build_run_task_artifact_paths(base_dir, task_id, multi_card_plan=multi_card_plan)
     state.execution_phase = "analysis_done"
     state.last_phase_checkpoint_at = utc_now()
     save_state(base_dir, state)
@@ -3801,53 +3328,4 @@ def build_task_semantics_report(state: TaskState) -> str:
 
 
 def build_knowledge_objects_report(state: TaskState) -> str:
-    knowledge_objects = state.knowledge_objects or []
-    stage_counts = summarize_knowledge_stages(knowledge_objects)
-    evidence_counts = summarize_knowledge_evidence(knowledge_objects)
-    reuse_counts = summarize_knowledge_reuse(knowledge_objects)
-    canonicalization_counts = summarize_canonicalization(knowledge_objects)
-    lines = [
-        "# Knowledge Objects Report",
-        "",
-        f"- count: {len(knowledge_objects)}",
-        f"- raw: {stage_counts.get('raw', 0)}",
-        f"- candidate: {stage_counts.get('candidate', 0)}",
-        f"- verified: {stage_counts.get('verified', 0)}",
-        f"- canonical: {stage_counts.get('canonical', 0)}",
-        f"- artifact_backed: {evidence_counts.get('artifact_backed', 0)}",
-        f"- source_only: {evidence_counts.get('source_only', 0)}",
-        f"- unbacked: {evidence_counts.get('unbacked', 0)}",
-        f"- retrieval_candidate: {reuse_counts.get('retrieval_candidate', 0)}",
-        f"- task_only: {reuse_counts.get('task_only', 0)}",
-        f"- canonicalization_not_requested: {canonicalization_counts.get('not_requested', 0)}",
-        f"- canonicalization_review_ready: {canonicalization_counts.get('review_ready', 0)}",
-        f"- canonicalization_promotion_ready: {canonicalization_counts.get('promotion_ready', 0)}",
-        f"- canonicalization_blocked_stage: {canonicalization_counts.get('blocked_stage', 0)}",
-        f"- canonicalization_blocked_evidence: {canonicalization_counts.get('blocked_evidence', 0)}",
-        f"- canonicalization_canonical: {canonicalization_counts.get('canonical', 0)}",
-        "",
-        "## Objects",
-    ]
-    if not knowledge_objects:
-        lines.append("- none")
-        return "\n".join(lines)
-
-    for item in knowledge_objects:
-        lines.extend(
-            [
-                f"- id: {item.get('object_id', 'unknown')}",
-                f"  stage: {item.get('stage', 'raw')}",
-                f"  source_kind: {item.get('source_kind', 'unknown')}",
-                f"  source_ref: {item.get('source_ref', '') or 'none'}",
-                f"  captured_at: {item.get('captured_at', 'unknown')}",
-                f"  task_linked: {'yes' if item.get('task_linked', False) else 'no'}",
-                f"  evidence_status: {item.get('evidence_status', 'unbacked')}",
-                f"  artifact_ref: {item.get('artifact_ref', '') or 'none'}",
-                f"  retrieval_eligible: {'yes' if item.get('retrieval_eligible', False) else 'no'}",
-                f"  knowledge_reuse_scope: {item.get('knowledge_reuse_scope', 'task_only')}",
-                f"  canonicalization_intent: {item.get('canonicalization_intent', 'none')}",
-                f"  canonicalization_status: {canonicalization_status_for(item)}",
-                f"  text: {item.get('text', '') or '(empty)'}",
-            ]
-        )
-    return "\n".join(lines)
+    return build_knowledge_objects_report_from_objects(state.knowledge_objects or [])
