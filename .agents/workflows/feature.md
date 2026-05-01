@@ -45,7 +45,7 @@ Codex: Plan Authoring (`plan.md`)
         ↓
 [subagent: design-auditor]: Plan Audit (`plan_audit.md`)
         ↓
-Claude: Model Review Gate (conditional)
+Codex: Optimize `plan.md`
         ↓
 Human: Plan Gate
         ↓
