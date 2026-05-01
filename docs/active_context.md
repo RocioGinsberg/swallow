@@ -13,9 +13,9 @@
 - latest_completed_slice: `AD1/V pilot + AB query pilot + roadmap LTO reorganization`
 - active_track: `Architecture / Engineering`
 - active_phase: `Provider Router Split / LTO-7 Step 1`
-- active_slice: `M5 cleanup and closeout`
+- active_slice: `PR review complete; awaiting Human merge decision`
 - active_branch: `feat/provider-router-split`
-- status: `m5_validation_passed_waiting_human_review_commit`
+- status: `pr_review_pass_with_3_concerns_recommend_merge`
 
 ## 当前状态说明
 
@@ -29,7 +29,7 @@
 
 Roadmap 当前 ticket 明确为 **Provider Router split (LTO-7 第 1 步)**。Human 已切到 `feat/provider-router-split` 并要求 Codex 开始实现。`model_review.md` 未产出；本轮按 Human 明确实现请求进入实现，并在 active context 中记录该 gate override。
 
-当前 feature branch checkpoint 为 `18ba7b8 docs(state): update provider router split m4 state`。M1 / M2 / M3 / M4 均已提交，M5 cleanup and closeout 已完成并通过验证，等待 Human review / commit。
+当前 feature branch checkpoint 为 `cbc72ce docs(state): close provider router split implementation`。M1 / M2 / M3 / M4 / M5 均已提交,closeout final。Claude PR review 已完成:`docs/plans/provider-router-split/review_comments.md`。结论:**PASS with 3 CONCERNs (non-blocking),Recommend merge**。Full pytest re-verified locally: `651 passed, 8 deselected, 10 subtests passed`。3 个 CONCERN 已同步到 `docs/concerns_backlog.md` Active Open 表(LTO-7 follow-up group)。
 
 本轮未由 `context-analyst` 产出 `context_brief.md`。依据 `.agents/workflows/feature.md` Step 2，Human 已显式要求 Codex 从 roadmap / design context 生成方案，因此本轮直接产出 `plan.md`；如 plan audit 或 Human 认为需要事实型 brief，可在 Plan Gate 前补 `docs/plans/provider-router-split/context_brief.md`。
 
@@ -41,16 +41,18 @@ Roadmap 当前 ticket 明确为 **Provider Router split (LTO-7 第 1 步)**。Hu
 4. `docs/plans/provider-router-split/plan.md`
 5. `docs/plans/provider-router-split/plan_audit.md`
 6. `docs/plans/provider-router-split/closeout.md`
-7. `pr.md`
-8. `docs/design/INVARIANTS.md`
-9. `docs/design/PROVIDER_ROUTER.md`
-10. `docs/design/DATA_MODEL.md`
-11. `docs/design/ORCHESTRATION.md`
-12. `docs/design/EXECUTOR_REGISTRY.md`
-13. `docs/engineering/CODE_ORGANIZATION.md`
-14. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
-15. `docs/engineering/TEST_ARCHITECTURE.md`
-16. `docs/plans/architecture-recomposition/plan.md`
+7. `docs/plans/provider-router-split/review_comments.md`
+8. `docs/concerns_backlog.md`
+9. `pr.md`
+10. `docs/design/INVARIANTS.md`
+11. `docs/design/PROVIDER_ROUTER.md`
+12. `docs/design/DATA_MODEL.md`
+13. `docs/design/ORCHESTRATION.md`
+14. `docs/design/EXECUTOR_REGISTRY.md`
+15. `docs/engineering/CODE_ORGANIZATION.md`
+16. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
+17. `docs/engineering/TEST_ARCHITECTURE.md`
+18. `docs/plans/architecture-recomposition/plan.md`
 
 ## 当前推进
 
@@ -157,10 +159,21 @@ Roadmap 当前 ticket 明确为 **Provider Router split (LTO-7 第 1 步)**。Hu
   - `rg -n "from swallow\.orchestration\.executor|orchestration\.executor" src/swallow/provider_router` -> no matches
   - `rg -n "sqlite_store|sqlite3|httpx\.post|class RouteRegistry|def invoke_completion|def build_route_registry_report|_replace_route_registry_in_sqlite" src/swallow/provider_router/router.py` -> no matches
   - `.venv/bin/python -m pytest -q` -> `651 passed, 8 deselected, 10 subtests passed`
+- **[Human]** M5 cleanup and closeout committed on `feat/provider-router-split`:
+  - `64995d6 refactor(router): reduce provider router facade`
+  - `cbc72ce docs(state): close provider router split implementation`
+- **[Claude]** PR review completed:
+  - `docs/plans/provider-router-split/review_comments.md`
+  - result: `PASS` with 3 non-blocking CONCERNs
+  - recommendation: merge
+  - full pytest re-verified during review: `651 passed, 8 deselected, 10 subtests passed`
+- **[Codex/Claude]** Review CONCERNs synced to backlog:
+  - `docs/concerns_backlog.md`
+  - group: `Provider Router Split (LTO-7) follow-up`
 
 进行中:
 
-- **[Human/Codex]** M5 review / commit gate.
+- **[Human]** Merge gate.
 
 已确认决策:
 
@@ -170,40 +183,43 @@ Roadmap 当前 ticket 明确为 **Provider Router split (LTO-7 第 1 步)**。Hu
 - **[Human]** M2 implementation and state commits are present as `2ff2941` and `87b2919`.
 - **[Human]** M3 implementation and state commits are present as `eb7c54e` and `270c239`.
 - **[Human]** M4 implementation and state commits are present as `380d202` and `18ba7b8`.
+- **[Human]** M5 implementation and closeout commits are present as `64995d6` and `cbc72ce`.
+- **[Claude]** Review produced no BLOCK; Codex assessed no code change is needed before merge.
 
 待执行:
 
-- **[Human]** Review / commit M5 after validation passes.
-- **[Human]** Create PR using `pr.md` after M5 commit if accepted.
-- **[Claude]** Review PR and record findings in `docs/plans/provider-router-split/review_comments.md`.
+- **[Human]** Merge `feat/provider-router-split` if accepted.
+- **[Codex]** After merge, sync `current_state.md` / `docs/active_context.md` on `main`.
+- **[roadmap-updater]** After merge, perform roadmap factual update.
+- **[Claude]** After merge, perform tag evaluation. Current review recommendation: do not tag LTO-7 alone.
 
 当前阻塞项:
 
-- Waiting for Human review / commit of M5 cleanup and closeout.
+- Waiting for Human merge decision.
 
 ## Tag 状态
 
 - 最新已执行 tag: `v1.5.0`
 - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
 - tag message: `v1.5.0: raw material store boundary`
-- 结论: tag release gate 已关闭;当前处于 Provider Router Split M5 implementation review gate。
+- 结论: tag release gate 已关闭;当前处于 Provider Router Split merge gate。Claude review 建议 LTO-7 alone 不打 tag，等 Cluster-C subtracks 形成更完整能力边界后再评估。
 
 ## 当前下一步
 
-1. **[Human]** Review M5 cleanup / closeout diff.
-2. **[Human]** Commit M5 if accepted.
-3. **[Human]** Create PR using `pr.md`.
-4. **[Claude]** Review PR and write `docs/plans/provider-router-split/review_comments.md`.
+1. **[Human]** Review PR and Claude review result.
+2. **[Human]** Merge `feat/provider-router-split` if accepted.
+3. **[Codex]** Post-merge state sync on `main`.
+4. **[roadmap-updater]** Post-merge roadmap factual update.
 
 ```markdown
 milestone_gate:
-- current: provider-router-split-m5-validation-passed
+- current: provider-router-split-pr-review-pass
 - active_branch: feat/provider-router-split
 - latest_main_checkpoint: a1e536b docs(state): update roadmap
 - previous_merge: c3596c2 merge: architecture recomposition first branch
 - active_track: Architecture / Engineering
 - active_phase: Provider Router Split / LTO-7 Step 1
-- active_slice: M5 cleanup and closeout
+- active_slice: PR review complete; awaiting Human merge decision
 - plan: docs/plans/provider-router-split/plan.md (revised after audit)
 - plan_audit: docs/plans/provider-router-split/plan_audit.md (1 BLOCKER + 4 CONCERN, no SCOPE WARNING)
 - audit_absorbed: import source blocker, milestone count, test location, agent_llm update rule, transaction wrapper rule
@@ -214,6 +230,7 @@ milestone_gate:
 - m2_commits: 2ff2941 refactor(router): extract route metadata store; 87b2919 docs(state): update provider router split m2 state
 - m3_commits: eb7c54e refactor(router): extract route selection; 270c239 docs(router): extract route selection
 - m4_commits: 380d202 refactor(router): extract completion gateway and reports; 18ba7b8 docs(state): update provider router split m4 state
+- m5_commits: 64995d6 refactor(router): reduce provider router facade; cbc72ce docs(state): close provider router split implementation
 - m1_outputs: route_policy.py, route_registry.py, router.py compatibility facade updates, tests/unit/provider_router/test_registry_policy_modules.py
 - m1_validation: focused provider/router/governance/meta/invariant/synthesis/executor/eval gate `126 passed, 2 deselected`; compileall passed; full pytest `640 passed, 8 deselected, 10 subtests passed`; git diff --check passed
 - m2_outputs: route_metadata_store.py, router.py metadata-store facade delegation, route_policy.py policy persistence delegation, tests/unit/provider_router/test_metadata_store_module.py
@@ -224,7 +241,9 @@ milestone_gate:
 - m4_validation: unit provider_router `11 passed`; router/invariant/cli gate `298 passed, 10 subtests passed`; compileall passed; git diff --check passed; provider_router orchestration.executor grep no matches; full pytest `648 passed, 8 deselected, 10 subtests passed`
 - m5_outputs: router.py thin compatibility facade, tests/unit/provider_router/test_router_facade_module.py, docs/plans/provider-router-split/closeout.md, current_state.md, pr.md, active_context.md state sync
 - m5_validation: unit provider_router `14 passed`; router/governance/meta/phase65/invariant/cli gate `348 passed, 10 subtests passed`; synthesis/executor/eval gate `38 passed, 2 deselected`; compileall passed; git diff --check passed; provider_router orchestration.executor grep no matches; router.py extracted-implementation grep no matches; full pytest `651 passed, 8 deselected, 10 subtests passed`
-- next_gate: Human M5 review / commit, then PR creation and Claude review
+- review: docs/plans/provider-router-split/review_comments.md; PASS with 3 non-blocking CONCERNs; recommend merge
+- concerns_backlog: docs/concerns_backlog.md Provider Router Split (LTO-7) follow-up group records all 3 concerns
+- next_gate: Human merge decision
 ```
 
 ## 当前产出物
@@ -233,6 +252,8 @@ milestone_gate:
 - `current_state.md`(codex, 2026-05-01, recovery entry synced to Provider Router Split M5 validation / PR-ready gate)
 - `docs/plans/provider-router-split/plan.md`(codex, 2026-05-01, Provider Router Split / LTO-7 Step 1 plan revised after audit)
 - `docs/plans/provider-router-split/plan_audit.md`(claude, 2026-05-01, 1 BLOCKER + 4 CONCERN, no SCOPE WARNING; model_review required)
+- `docs/plans/provider-router-split/review_comments.md`(claude, 2026-05-01, PR review PASS with 3 non-blocking CONCERNs, recommend merge)
+- `docs/concerns_backlog.md`(claude/codex, 2026-05-01, Provider Router Split review concerns recorded under Active Open)
 - `src/swallow/provider_router/route_policy.py`(codex, 2026-05-01, route policy module extracted behind router facade; policy persistence now delegates to route metadata store; report rendering moved to route_reports)
 - `src/swallow/provider_router/route_registry.py`(codex, 2026-05-01, route registry/default loading module extracted behind router facade)
 - `src/swallow/provider_router/route_metadata_store.py`(codex, 2026-05-01, SQLite-backed route metadata store for registry/policy/weights/capability profiles/snapshot)
@@ -249,7 +270,7 @@ milestone_gate:
 - `tests/unit/provider_router/test_router_facade_module.py`(codex, 2026-05-01, router facade ownership and cleanup boundary coverage)
 - `tests/test_router.py`(codex, 2026-05-01, mocked completion gateway test retargeted to extracted module)
 - `tests/test_invariant_guards.py`(codex, 2026-05-01, specialist internal LLM HTTP guard retargeted to completion_gateway)
-- `docs/plans/provider-router-split/closeout.md`(codex, 2026-05-01, Provider Router Split implementation closeout and module ownership record)
-- `pr.md`(codex, 2026-05-01, Provider Router Split PR body draft)
+- `docs/plans/provider-router-split/closeout.md`(codex, 2026-05-01, Provider Router Split implementation/review closeout and module ownership record)
+- `pr.md`(codex, 2026-05-01, Provider Router Split PR body draft updated with Claude review result)
 - `docs/roadmap.md`(codex, 2026-05-01, LTO roadmap + Provider Router Split current ticket; existing committed input)
 - `docs/plans/architecture-recomposition/plan.md`(codex, 2026-05-01, prior architecture program plan; existing committed input)

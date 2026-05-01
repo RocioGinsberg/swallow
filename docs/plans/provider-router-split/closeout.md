@@ -15,7 +15,7 @@ depends_on:
 TL;DR:
 Provider Router Split completed the LTO-7 first step without changing routing semantics, route metadata schema, default route data, or Path A/B/C boundaries.
 `router.py` is now a compatibility facade over focused modules for registry, policy, metadata storage, selection, completion gateway, and reports.
-Final validation passed with full pytest: `651 passed, 8 deselected, 10 subtests passed`.
+Final validation passed with full pytest: `651 passed, 8 deselected, 10 subtests passed`; Claude PR review recommends merge with three non-blocking concerns recorded in `docs/concerns_backlog.md`.
 
 # Provider Router Split Closeout
 
@@ -68,6 +68,21 @@ Final validation passed with full pytest: `651 passed, 8 deselected, 10 subtests
 - Path B remains outside Provider Router.
 - No `docs/design/*.md` semantics were changed.
 
+## Review Outcome
+
+Claude PR review was recorded in `docs/plans/provider-router-split/review_comments.md`.
+
+- verdict: `PASS`
+- recommendation: merge
+- blocking findings: none
+- concerns: 3 non-blocking follow-ups
+
+The three concerns were triaged into `docs/concerns_backlog.md` under `Provider Router Split (LTO-7) follow-up`:
+
+1. Align `test_route_metadata_writes_only_via_apply_proposal` allowlist with the new `route_metadata_store.py` implementation owner before LTO-10.
+2. Clean up `router.py` access to underscore-prefixed helpers in `route_policy.py` / `route_registry.py` on a touched-surface basis.
+3. Consider moving `_BUILTIN_ROUTE_FALLBACKS` ownership from `router.py` into registry-owned code on a touched-surface basis.
+
 ## Validation Commands Run
 
 Focused validation:
@@ -105,10 +120,10 @@ rg -n "sqlite_store|sqlite3|httpx\.post|class RouteRegistry|def invoke_completio
 ## Deferred Follow-up
 
 - Optional touched-surface caller migration can import focused modules directly later, but this branch deliberately keeps `router.py` as the stable public surface.
-- Claude PR review is still pending and should be recorded in `docs/plans/provider-router-split/review_comments.md`.
+- The three Claude review concerns are non-blocking and are tracked in `docs/concerns_backlog.md`.
 - Post-merge state sync and roadmap factual update should happen after Human merge decision.
 - Tag evaluation remains a post-merge Claude/Human decision.
 
 ## Completion Status
 
-Provider Router Split implementation is PR-ready once Human reviews and commits the M5 cleanup / closeout changes.
+Provider Router Split implementation and review are complete. The branch is ready for Human merge decision.
