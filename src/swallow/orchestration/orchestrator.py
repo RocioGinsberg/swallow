@@ -8,7 +8,7 @@ import threading
 
 from dataclasses import replace
 from pathlib import Path
-from typing import Awaitable, Callable
+from typing import Awaitable
 from uuid import uuid4
 
 from swallow._io_helpers import read_json_lines_strict_or_empty, read_json_or_empty, read_json_strict
@@ -169,11 +169,21 @@ from swallow.orchestration.task_lifecycle import (
     build_phase_event_payload,
     build_phase_recovery_fallback_payload,
 )
+from swallow.orchestration.execution_attempts import (
+    DEBATE_MAX_ROUNDS,
+    build_budget_exhausted_event_payload,
+    build_budget_exhausted_executor_result,
+    build_budget_exhausted_review_gate_fields,
+    build_debate_exhausted_executor_result,
+    build_next_execution_attempt_metadata,
+    budget_exhausted_event_type,
+    debate_loop_core,
+    debate_loop_core_async,
+)
 from swallow.orchestration.models import utc_now
 from swallow.surface_tools.workspace import resolve_path
 
 
-DEBATE_MAX_ROUNDS = 3
 _BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
 
 
@@ -814,51 +824,6 @@ def _task_card_token_cost_limit(card: TaskCard) -> float:
     return normalize_token_cost_limit(card.token_cost_limit)
 
 
-def _build_budget_exhausted_executor_result(
-    state: TaskState,
-    card: TaskCard,
-    *,
-    current_token_cost: float,
-    token_cost_limit: float,
-) -> ExecutorResult:
-    return ExecutorResult(
-        executor_name=state.executor_name,
-        status="failed",
-        message=(
-            "TaskCard token cost budget is exhausted; waiting for human intervention before continuing "
-            f"(current={current_token_cost:.8f}, limit={token_cost_limit:.8f})."
-        ),
-        failure_kind="budget_exhausted",
-        review_feedback=str(getattr(state, "review_feedback_ref", "") or "").strip(),
-        output="",
-        prompt="",
-        dialect=state.route_dialect or "plain_text",
-        stdout="",
-        stderr="",
-    )
-
-
-def _build_budget_exhausted_review_gate_result(
-    *,
-    current_token_cost: float,
-    token_cost_limit: float,
-) -> ReviewGateResult:
-    return ReviewGateResult(
-        status="failed",
-        message="TaskCard token cost budget is exhausted before execution can continue.",
-        checks=[
-            {
-                "name": "token_cost_budget",
-                "passed": False,
-                "detail": (
-                    f"current_token_cost={current_token_cost:.8f}; "
-                    f"token_cost_limit={token_cost_limit:.8f}"
-                ),
-            }
-        ],
-    )
-
-
 def _append_budget_exhausted_event(
     base_dir: Path,
     state: TaskState,
@@ -870,24 +835,20 @@ def _append_budget_exhausted_event(
     token_cost_limit: float,
     subtask_index: int | None = None,
 ) -> None:
-    event_type = "task.budget_exhausted" if subtask_index is None else f"subtask.{subtask_index}.budget_exhausted"
     append_event(
         base_dir,
         Event(
             task_id=state.task_id,
-            event_type=event_type,
+            event_type=budget_exhausted_event_type(subtask_index=subtask_index),
             message="Token cost limit reached before the next execution attempt.",
-            payload={
-                "card_id": card.card_id,
-                "goal": card.goal,
-                "retry_round": retry_round,
-                "attempt_number": attempt_number,
-                "current_token_cost": current_token_cost,
-                "token_cost_limit": token_cost_limit,
-                "consensus_policy": card.consensus_policy,
-                "reviewer_routes": card.reviewer_routes,
-                "subtask_index": subtask_index or card.subtask_index,
-            },
+            payload=build_budget_exhausted_event_payload(
+                card,
+                retry_round=retry_round,
+                attempt_number=attempt_number,
+                current_token_cost=current_token_cost,
+                token_cost_limit=token_cost_limit,
+                subtask_index=subtask_index,
+            ),
         ),
     )
 
@@ -922,119 +883,18 @@ def _budget_guard_result(
         subtask_index=subtask_index,
     )
     return (
-        _build_budget_exhausted_executor_result(
+        build_budget_exhausted_executor_result(
             state,
-            card,
             current_token_cost=current_token_cost,
             token_cost_limit=token_cost_limit,
         ),
-        _build_budget_exhausted_review_gate_result(
-            current_token_cost=current_token_cost,
-            token_cost_limit=token_cost_limit,
+        ReviewGateResult(
+            **build_budget_exhausted_review_gate_fields(
+                current_token_cost=current_token_cost,
+                token_cost_limit=token_cost_limit,
+            ).to_kwargs()
         ),
     )
-
-
-def _debate_loop_core(
-    *,
-    run_attempt: Callable[[int], tuple[ExecutorResult, ReviewGateResult]],
-    clear_feedback_state: Callable[[], None],
-    store_feedback: Callable[[ReviewFeedback], str],
-    apply_feedback: Callable[[str, ReviewFeedback], None],
-    append_round_event: Callable[[str, ReviewFeedback, ExecutorResult, ReviewGateResult], None],
-    persist_exhausted: Callable[[list[str], ReviewFeedback, ReviewGateResult], str],
-    append_breaker_event: Callable[[list[str], str, ExecutorResult, ReviewGateResult], None],
-) -> tuple[ExecutorResult, ReviewGateResult, bool]:
-    feedback_refs: list[str] = []
-    retry_round = 0
-    clear_feedback_state()
-
-    while True:
-        executor_result, review_gate_result = run_attempt(retry_round)
-
-        if review_gate_result.status == "passed":
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-        if executor_result.status != "completed":
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-
-        if retry_round >= DEBATE_MAX_ROUNDS:
-            last_feedback = _build_debate_last_feedback(
-                review_gate_result,
-                executor_result,
-                retry_round=retry_round,
-            )
-            debate_exhausted_ref = persist_exhausted(feedback_refs, last_feedback, review_gate_result)
-            append_breaker_event(feedback_refs, debate_exhausted_ref, executor_result, review_gate_result)
-            return executor_result, review_gate_result, True
-
-        feedback = build_review_feedback(
-            review_gate_result,
-            executor_result,
-            round_number=retry_round + 1,
-            max_rounds=DEBATE_MAX_ROUNDS,
-        )
-        if feedback is None:
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-
-        feedback_ref = store_feedback(feedback)
-        feedback_refs.append(feedback_ref)
-        apply_feedback(feedback_ref, feedback)
-        append_round_event(feedback_ref, feedback, executor_result, review_gate_result)
-        retry_round += 1
-
-
-async def _debate_loop_core_async(
-    *,
-    run_attempt: Callable[[int], Awaitable[tuple[ExecutorResult, ReviewGateResult]]],
-    clear_feedback_state: Callable[[], None],
-    store_feedback: Callable[[ReviewFeedback], str],
-    apply_feedback: Callable[[str, ReviewFeedback], None],
-    append_round_event: Callable[[str, ReviewFeedback, ExecutorResult, ReviewGateResult], None],
-    persist_exhausted: Callable[[list[str], ReviewFeedback, ReviewGateResult], str],
-    append_breaker_event: Callable[[list[str], str, ExecutorResult, ReviewGateResult], None],
-) -> tuple[ExecutorResult, ReviewGateResult, bool]:
-    feedback_refs: list[str] = []
-    retry_round = 0
-    clear_feedback_state()
-
-    while True:
-        executor_result, review_gate_result = await run_attempt(retry_round)
-
-        if review_gate_result.status == "passed":
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-        if executor_result.status != "completed":
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-
-        if retry_round >= DEBATE_MAX_ROUNDS:
-            last_feedback = _build_debate_last_feedback(
-                review_gate_result,
-                executor_result,
-                retry_round=retry_round,
-            )
-            debate_exhausted_ref = persist_exhausted(feedback_refs, last_feedback, review_gate_result)
-            append_breaker_event(feedback_refs, debate_exhausted_ref, executor_result, review_gate_result)
-            return executor_result, review_gate_result, True
-
-        feedback = build_review_feedback(
-            review_gate_result,
-            executor_result,
-            round_number=retry_round + 1,
-            max_rounds=DEBATE_MAX_ROUNDS,
-        )
-        if feedback is None:
-            clear_feedback_state()
-            return executor_result, review_gate_result, False
-
-        feedback_ref = store_feedback(feedback)
-        feedback_refs.append(feedback_ref)
-        apply_feedback(feedback_ref, feedback)
-        append_round_event(feedback_ref, feedback, executor_result, review_gate_result)
-        retry_round += 1
 
 
 def _run_single_task_with_debate(
@@ -1072,15 +932,26 @@ def _run_single_task_with_debate(
         review_gate_result = run_review_gate(state, executor_result, current_card)
         return executor_result, review_gate_result
 
-    executor_result, review_gate_result, debate_exhausted = _debate_loop_core(
+    executor_result, review_gate_result, debate_exhausted = debate_loop_core(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(state),
+        build_feedback=lambda review_gate_result, executor_result, round_number: build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=round_number,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        ),
+        build_last_feedback=lambda review_gate_result, executor_result, retry_round: _build_debate_last_feedback(
+            review_gate_result,
+            executor_result,
+            retry_round=retry_round,
+        ),
         store_feedback=lambda feedback: _persist_review_feedback(base_dir, state.task_id, feedback),
         apply_feedback=lambda feedback_ref, feedback: (
             setattr(state, "review_feedback_ref", feedback_ref),
             setattr(state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
         ),
-        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+        record_round=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1106,7 +977,7 @@ def _run_single_task_with_debate(
             last_feedback=last_feedback,
             review_gate_result=review_gate_result,
         ),
-        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+        record_exhausted=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1125,12 +996,9 @@ def _run_single_task_with_debate(
 
     if debate_exhausted:
         return (
-            replace(
+            build_debate_exhausted_executor_result(
                 executor_result,
-                status="failed",
-                message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
-                failure_kind="debate_circuit_breaker",
-                review_feedback=state.review_feedback_ref,
+                review_feedback_ref=state.review_feedback_ref,
             ),
             review_gate_result,
             True,
@@ -1173,15 +1041,26 @@ async def _run_single_task_with_debate_async(
         review_gate_result = await run_review_gate_async(state, executor_result, current_card)
         return executor_result, review_gate_result
 
-    executor_result, review_gate_result, debate_exhausted = await _debate_loop_core_async(
+    executor_result, review_gate_result, debate_exhausted = await debate_loop_core_async(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(state),
+        build_feedback=lambda review_gate_result, executor_result, round_number: build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=round_number,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        ),
+        build_last_feedback=lambda review_gate_result, executor_result, retry_round: _build_debate_last_feedback(
+            review_gate_result,
+            executor_result,
+            retry_round=retry_round,
+        ),
         store_feedback=lambda feedback: _persist_review_feedback(base_dir, state.task_id, feedback),
         apply_feedback=lambda feedback_ref, feedback: (
             setattr(state, "review_feedback_ref", feedback_ref),
             setattr(state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
         ),
-        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+        record_round=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1207,7 +1086,7 @@ async def _run_single_task_with_debate_async(
             last_feedback=last_feedback,
             review_gate_result=review_gate_result,
         ),
-        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+        record_exhausted=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1226,12 +1105,9 @@ async def _run_single_task_with_debate_async(
 
     if debate_exhausted:
         return (
-            replace(
+            build_debate_exhausted_executor_result(
                 executor_result,
-                status="failed",
-                message="Debate loop exhausted the maximum review rounds; waiting for human intervention.",
-                failure_kind="debate_circuit_breaker",
-                review_feedback=state.review_feedback_ref,
+                review_feedback_ref=state.review_feedback_ref,
             ),
             review_gate_result,
             True,
@@ -1465,9 +1341,20 @@ def _run_subtask_debate_retries(
         )
         return executor_result, review_gate_result
 
-    _executor_result, _review_gate_result, debate_exhausted = _debate_loop_core(
+    _executor_result, _review_gate_result, debate_exhausted = debate_loop_core(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(isolated_state),
+        build_feedback=lambda review_gate_result, executor_result, round_number: build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=round_number,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        ),
+        build_last_feedback=lambda review_gate_result, executor_result, retry_round: _build_debate_last_feedback(
+            review_gate_result,
+            executor_result,
+            retry_round=retry_round,
+        ),
         store_feedback=lambda feedback: _persist_subtask_review_feedback(
             base_dir,
             state.task_id,
@@ -1478,7 +1365,7 @@ def _run_subtask_debate_retries(
             setattr(isolated_state, "review_feedback_ref", feedback_ref),
             setattr(isolated_state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
         ),
-        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+        record_round=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1509,7 +1396,7 @@ def _run_subtask_debate_retries(
             last_feedback=last_feedback,
             review_gate_result=review_gate_result,
         ),
-        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+        record_exhausted=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1569,9 +1456,20 @@ async def _run_subtask_debate_retries_async(
         )
         return executor_result, review_gate_result
 
-    _executor_result, _review_gate_result, debate_exhausted = await _debate_loop_core_async(
+    _executor_result, _review_gate_result, debate_exhausted = await debate_loop_core_async(
         run_attempt=run_attempt,
         clear_feedback_state=lambda: _clear_review_feedback_state(isolated_state),
+        build_feedback=lambda review_gate_result, executor_result, round_number: build_review_feedback(
+            review_gate_result,
+            executor_result,
+            round_number=round_number,
+            max_rounds=DEBATE_MAX_ROUNDS,
+        ),
+        build_last_feedback=lambda review_gate_result, executor_result, retry_round: _build_debate_last_feedback(
+            review_gate_result,
+            executor_result,
+            retry_round=retry_round,
+        ),
         store_feedback=lambda feedback: _persist_subtask_review_feedback(
             base_dir,
             state.task_id,
@@ -1582,7 +1480,7 @@ async def _run_subtask_debate_retries_async(
             setattr(isolated_state, "review_feedback_ref", feedback_ref),
             setattr(isolated_state, "review_feedback_markdown", render_review_feedback_markdown(feedback)),
         ),
-        append_round_event=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
+        record_round=lambda feedback_ref, feedback, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -1613,7 +1511,7 @@ async def _run_subtask_debate_retries_async(
             last_feedback=last_feedback,
             review_gate_result=review_gate_result,
         ),
-        append_breaker_event=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
+        record_exhausted=lambda feedback_refs, debate_exhausted_ref, executor_result, review_gate_result: append_event(
             base_dir,
             Event(
                 task_id=state.task_id,
@@ -2228,17 +2126,22 @@ def _apply_execution_site_contract(state: TaskState) -> None:
 
 
 def _begin_execution_attempt(state: TaskState) -> None:
-    state.run_attempt_count += 1
-    state.current_attempt_number = state.run_attempt_count
-    state.current_attempt_id = f"attempt-{state.current_attempt_number:04d}"
-    state.current_attempt_owner_kind = "local_orchestrator"
-    state.current_attempt_owner_ref = "swl_cli"
-    state.current_attempt_ownership_status = "owned"
-    state.current_attempt_owner_assigned_at = utc_now()
-    state.current_attempt_transfer_reason = ""
-    state.dispatch_requested_at = utc_now()
-    state.dispatch_started_at = ""
-    state.execution_lifecycle = "prepared"
+    metadata = build_next_execution_attempt_metadata(
+        state,
+        owner_assigned_at=utc_now(),
+        dispatch_requested_at=utc_now(),
+    )
+    state.run_attempt_count = metadata.run_attempt_count
+    state.current_attempt_number = metadata.current_attempt_number
+    state.current_attempt_id = metadata.current_attempt_id
+    state.current_attempt_owner_kind = metadata.current_attempt_owner_kind
+    state.current_attempt_owner_ref = metadata.current_attempt_owner_ref
+    state.current_attempt_ownership_status = metadata.current_attempt_ownership_status
+    state.current_attempt_owner_assigned_at = metadata.current_attempt_owner_assigned_at
+    state.current_attempt_transfer_reason = metadata.current_attempt_transfer_reason
+    state.dispatch_requested_at = metadata.dispatch_requested_at
+    state.dispatch_started_at = metadata.dispatch_started_at
+    state.execution_lifecycle = metadata.execution_lifecycle
 
 
 def _evaluate_dispatch_for_run(base_dir: Path, state: TaskState) -> tuple[dict[str, object], DispatchVerdict]:

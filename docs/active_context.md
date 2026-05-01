@@ -13,9 +13,9 @@
 - latest_completed_slice: `Provider Router Maintainability`
 - active_track: `Architecture / Engineering`
 - active_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- active_slice: `M3 artifact writer / subtask glue extraction complete`
+- active_slice: `M4 execution attempt helper extraction`
 - active_branch: `feat/orchestration-lifecycle-decomposition`
-- status: `m3_validation_passed_waiting_human_commit`
+- status: `m4_validation_passed_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -73,6 +73,17 @@ Codex 已完成 M3 artifact writer / subtask glue extraction:
 - 不改变 `.swl/tasks/<task_id>/artifacts/*` 文件名。
 - 新 helper 无 `save_state` / `append_event` / `orchestration.harness` / `orchestration.executor` 依赖命中。
 - `orchestrator.py` 继续保留 task advancement、event append、subtask scheduling、fallback routing 决策。
+- M3 已由 Human 提交:
+  - `246aac3 refactor(orchestration): extract artifact writer and subtask glue`
+
+Codex 已完成 M4 execution attempt helper extraction:
+
+- 目标模块: `src/swallow/orchestration/execution_attempts.py`
+- 已抽取 safe execution-attempt metadata helpers、budget exhausted executor / review-gate field builders、budget event type / payload builders、debate exhausted executor result builder。
+- 已抽取 sync / async debate-loop core，但 executor invocation、review feedback construction、review gate decision consumption、event append、status transition sequencing 仍由 `orchestrator.py` 提供回调并持有。
+- `orchestrator.py` 继续保留 executor invocation、review gate decision consumption、status transition sequencing、`save_state(...)` 与 `append_event(...)`。
+- M4 helper 允许 append 的 event kind: none。`task.budget_exhausted` / `subtask.<n>.budget_exhausted` / `task.debate_round` / `task.debate_circuit_breaker` / `subtask.<n>.debate_round` / `subtask.<n>.debate_circuit_breaker` 均继续在 `orchestrator.py` 中 append。
+- `execution_attempts.py` 无 `save_state` / `append_event` / `orchestration.harness` / `orchestration.executor` / `orchestration.review_gate` 依赖命中，避免通过 review gate runtime import 形成隐性 executor dependency。
 
 ## 当前关键文档
 
@@ -157,19 +168,39 @@ Codex 已完成 M3 artifact writer / subtask glue extraction:
   - `git diff --check` -> passed
   - `git diff --check --no-index /dev/null <new M3 files>` -> no whitespace warnings
   - `rg -n "save_state|append_event|orchestration\.harness|orchestration\.executor" src/swallow/orchestration/artifact_writer.py src/swallow/orchestration/subtask_flow.py` -> no matches
+- **[Human]** Committed M3:
+  - `246aac3 refactor(orchestration): extract artifact writer and subtask glue`
+- **[Codex]** M4 execution attempt helper extraction implemented:
+  - added `src/swallow/orchestration/execution_attempts.py` for attempt metadata, budget exhausted result/event payload builders, and generic sync / async debate-loop core
+  - updated `src/swallow/orchestration/orchestrator.py` to delegate those helper surfaces while keeping executor invocation, review gate integration, `save_state(...)`, and `append_event(...)` in Orchestrator
+  - added `tests/unit/orchestration/test_execution_attempts_module.py` for metadata/budget/debate behavior and helper boundary assertions
+  - M4 helper event append allowlist: none
+- **[Codex]** M4 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/orchestration -q` -> `31 passed`
+  - `.venv/bin/python -m pytest tests/test_run_task_subtasks.py tests/test_subtask_orchestrator.py tests/test_review_gate.py -q` -> `27 passed`
+  - `.venv/bin/python -m pytest tests/test_review_gate_async.py -q` -> `2 passed`
+  - `.venv/bin/python -m pytest tests/test_web_api.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_consistency_audit.py -q` -> `11 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -q` -> `242 passed, 10 subtests passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+  - `git diff --check --no-index /dev/null <new M4 files>` -> no whitespace warnings
+  - `rg -n "save_state|append_event|orchestration\.harness|orchestration\.executor|orchestration\.review_gate" src/swallow/orchestration/execution_attempts.py` -> no matches
+  - runtime import audit for `execution_attempts.py` -> `orchestration.executor`, `orchestration.harness`, and `orchestration.review_gate` not loaded
 
 进行中:
 
-- **[Human]** M3 review / commit gate.
+- None. M4 is waiting for Human review / commit.
 
 待执行:
 
-- **[Human]** Review and commit M3 if accepted.
-- **[Codex]** Start M4 execution attempt helper extraction after M3 commit.
+- **[Human]** Review and commit M4 if accepted.
+- **[Codex]** After M4 commit is confirmed, begin M5 knowledge-flow / facade cleanup per plan.
 
 当前阻塞项:
 
-- Waiting for Human review / commit of M3 artifact writer / subtask glue extraction.
+- 等待人工审批: review and commit M4.
 
 ## Tag 状态
 
@@ -180,17 +211,17 @@ Codex 已完成 M3 artifact writer / subtask glue extraction:
 
 ## 当前下一步
 
-1. **[Human]** Review M3 diff and commit if accepted.
-2. **[Codex]** Continue to M4 execution attempt helper extraction after M3 commit.
+1. **[Human]** Review M4 changes and commit if accepted.
+2. **[Codex]** After Human confirms the M4 commit, continue to M5 knowledge-flow / facade cleanup per plan.
 
 ```markdown
 milestone_gate:
-- current: lto8-m3-validation-passed
+- current: lto8-m4-validation-passed-waiting-human-commit
 - active_branch: feat/orchestration-lifecycle-decomposition
 - latest_main_checkpoint: 6033558 Provider Router Maintainability
 - active_track: Architecture / Engineering
 - active_phase: Orchestration Lifecycle Decomposition / LTO-8 Step 1
-- active_slice: M3 artifact writer / subtask glue extraction complete
+- active_slice: M4 execution attempt helper extraction
 - plan: docs/plans/orchestration-lifecycle-decomposition/plan.md (revised after audit)
 - plan_audit: docs/plans/orchestration-lifecycle-decomposition/plan_audit.md (1 BLOCKER + 7 CONCERNs)
 - audit_absorbed: milestone count, save_state closure ban, harness scope, module naming, append_event boundary, apply_proposal movement boundary
@@ -204,7 +235,11 @@ milestone_gate:
 - m2_commit: e4d0539 refactor(orchestration): extract retrieval flow
 - m3_outputs: artifact_writer.py artifact path/copy helpers, subtask_flow.py subtask attempt artifact helpers, orchestrator.py helper delegation, focused unit tests
 - m3_validation: unit orchestration `22 passed`; subtask/review regression `27 passed`; Web API `10 passed`; full CLI `242 passed`; consistency audit `11 passed`; invariant guards `25 passed`; compileall src/swallow passed; git diff --check passed; M3 helper forbidden dependency grep no matches
-- next_gate: Human M3 review / commit
+- m3_commit: 246aac3 refactor(orchestration): extract artifact writer and subtask glue
+- m4_outputs: execution_attempts.py metadata/budget/debate helpers, orchestrator.py helper delegation while retaining executor/review/status/event ownership, tests/unit/orchestration/test_execution_attempts_module.py
+- m4_event_append_allowlist: none; M4 helper appends no events
+- m4_validation: unit orchestration `31 passed`; subtask/review regression `27 passed`; review gate async `2 passed`; Web API `10 passed`; consistency audit `11 passed`; invariant guards `25 passed`; full CLI `242 passed, 10 subtests passed`; compileall src/swallow passed; git diff --check passed; execution_attempts forbidden dependency grep/runtime import audit no matches
+- next_gate: Human M4 review / commit
 ```
 
 ## 当前产出物
@@ -221,5 +256,7 @@ milestone_gate:
 - `src/swallow/orchestration/subtask_flow.py`(codex, 2026-05-02, subtask attempt artifact write/collect/ref helpers)
 - `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-02, artifact writer path/file/boundary tests)
 - `tests/unit/orchestration/test_subtask_flow_module.py`(codex, 2026-05-02, subtask artifact serialization and boundary tests)
+- `src/swallow/orchestration/execution_attempts.py`(codex, 2026-05-02, execution attempt metadata, budget, and debate-loop helper extraction)
+- `tests/unit/orchestration/test_execution_attempts_module.py`(codex, 2026-05-02, execution attempt helper behavior and boundary tests)
 - `current_state.md`(codex, 2026-05-01, post-merge recovery state for LTO-7 / LTO-8 planning gate)
-- `docs/active_context.md`(codex, 2026-05-02, active phase switched to LTO-8 M3 review / commit gate)
+- `docs/active_context.md`(codex, 2026-05-02, active phase switched to LTO-8 M4 review / commit gate)
