@@ -45,7 +45,7 @@ from swallow.orchestration.models import (
     build_telemetry_fields,
     ValidationResult,
 )
-from swallow.knowledge_retrieval.retrieval import retrieve_context, summarize_reused_knowledge
+from swallow.knowledge_retrieval.retrieval import retrieve_context, summarize_retrieval_trace, summarize_reused_knowledge
 from swallow.orchestration.retry_policy import build_retry_policy_report, evaluate_retry_policy
 from swallow.orchestration.stop_policy import build_stop_policy_report, evaluate_stop_policy
 from swallow.truth_governance.store import (
@@ -733,10 +733,23 @@ def build_source_grounding(retrieval_items: list[RetrievalItem]) -> str:
 
 def build_retrieval_report(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    retrieval_trace = summarize_retrieval_trace(retrieval_items)
     lines = [
         "# Retrieval Report",
         "",
         f"- retrieval_count: {len(retrieval_items)}",
+        f"- retrieval_mode: {retrieval_trace['retrieval_mode']}",
+        f"- retrieval_adapter: {retrieval_trace['retrieval_adapter']}",
+        f"- embedding_backend: {retrieval_trace['embedding_backend']}",
+        f"- fallback_reason: {retrieval_trace['fallback_reason']}",
+        f"- rerank_backend: {retrieval_trace['rerank_backend']}",
+        f"- rerank_model: {retrieval_trace['rerank_model']}",
+        f"- rerank_enabled: {retrieval_trace['rerank_enabled']}",
+        f"- rerank_configured: {retrieval_trace['rerank_configured']}",
+        f"- rerank_attempted: {retrieval_trace['rerank_attempted']}",
+        f"- rerank_applied: {retrieval_trace['rerank_applied']}",
+        f"- rerank_failure_reason: {retrieval_trace['rerank_failure_reason']}",
+        f"- final_order_basis: {retrieval_trace['final_order_basis']}",
         f"- reused_knowledge_count: {reused_knowledge['count']}",
         f"- reused_task_knowledge_count: {reused_knowledge.get('task_knowledge_count', 0)}",
         f"- reused_canonical_registry_count: {reused_knowledge.get('canonical_registry_count', 0)}",
@@ -758,7 +771,11 @@ def build_retrieval_report(state: TaskState, retrieval_items: list[RetrievalItem
             [
                 f"- [{item.source_type}] {item.reference()}",
                 f"  title: {item.display_title()}",
+                f"  final_rank: {item.metadata.get('final_rank', 'unknown')}",
                 f"  score: {item.score}",
+                f"  raw_score: {item.metadata.get('raw_score', item.score)}",
+                f"  vector_distance_milli: {item.score_breakdown.get('vector_distance_milli', 'n/a')}",
+                f"  rerank_position: {item.metadata.get('rerank_position', 'n/a')}",
                 f"  adapter: {item.metadata.get('adapter_name', 'unknown')}",
                 f"  chunk_kind: {item.metadata.get('chunk_kind', 'unknown')}",
                 f"  storage_scope: {item.metadata.get('storage_scope', 'unknown')}",

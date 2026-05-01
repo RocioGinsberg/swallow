@@ -9,11 +9,13 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import swallow.knowledge_retrieval.retrieval as retrieval_module
-from swallow.provider_router.agent_llm import AgentLLMResponse, AgentLLMUnavailable
 from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_summary
 from swallow.knowledge_retrieval.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, rerank_retrieval_items, retrieve_context
 from swallow.knowledge_retrieval.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RetrievalRerankConfig
 from swallow.knowledge_retrieval.retrieval_adapters import (
+    DedicatedRerankAdapter,
+    DedicatedRerankResult,
+    DedicatedRerankUnavailable,
     EmbeddingAPIUnavailable,
     build_markdown_chunks,
     build_repo_chunks,
@@ -168,25 +170,33 @@ class RetrievalAdaptersTest(unittest.TestCase):
         ]
 
         with patch(
-            "swallow.provider_router.agent_llm.call_agent_llm",
-            return_value=AgentLLMResponse(
-                content='{"ordered_indexes":[1,0]}',
-                input_tokens=50,
-                output_tokens=10,
-                model="gpt-4o-mini",
+            "swallow.knowledge_retrieval.retrieval.DedicatedRerankAdapter.rerank",
+            return_value=DedicatedRerankResult(
+                ordered_indexes=[1, 0],
+                model="bge-reranker",
+                scores_by_index={1: 0.92, 0: 0.14},
             ),
         ):
             reranked = rerank_retrieval_items(
                 retrieval_items,
                 query="knowledge truth",
-                config=RetrievalRerankConfig(enabled=True, top_n=2),
+                config=RetrievalRerankConfig(
+                    enabled=True,
+                    top_n=2,
+                    model="bge-reranker",
+                    url="http://rerank.example/v1/rerank",
+                ),
             )
 
         self.assertEqual(reranked[0].chunk_id, "canonical-1")
         self.assertTrue(reranked[0].metadata["rerank_applied"])
+        self.assertEqual(reranked[0].metadata["rerank_backend"], "dedicated_http")
+        self.assertEqual(reranked[0].metadata["rerank_model"], "bge-reranker")
         self.assertEqual(reranked[0].metadata["rerank_position"], 1)
+        self.assertEqual(reranked[0].metadata["rerank_score"], 0.92)
+        self.assertEqual(reranked[0].metadata["final_order_basis"], "dedicated_rerank")
 
-    def test_rerank_retrieval_items_falls_back_on_llm_failure(self) -> None:
+    def test_rerank_retrieval_items_keeps_raw_order_on_dedicated_rerank_failure(self) -> None:
         items = [
             retrieval_module.RetrievalItem(
                 path="results/knowledge.md",
@@ -214,14 +224,46 @@ class RetrievalAdaptersTest(unittest.TestCase):
             ),
         ]
 
-        with patch("swallow.provider_router.agent_llm.call_agent_llm", side_effect=AgentLLMUnavailable("timeout")):
+        with patch(
+            "swallow.knowledge_retrieval.retrieval.DedicatedRerankAdapter.rerank",
+            side_effect=DedicatedRerankUnavailable("timeout"),
+        ):
             reranked = rerank_retrieval_items(
                 items,
                 query="knowledge truth",
-                config=RetrievalRerankConfig(enabled=True, top_n=2),
+                config=RetrievalRerankConfig(
+                    enabled=True,
+                    top_n=2,
+                    model="bge-reranker",
+                    url="http://rerank.example/v1/rerank",
+                ),
             )
 
         self.assertEqual([item.chunk_id for item in reranked], ["notes-1", "canonical-1"])
+        self.assertTrue(reranked[0].metadata["rerank_attempted"])
+        self.assertFalse(reranked[0].metadata["rerank_applied"])
+        self.assertEqual(reranked[0].metadata["rerank_failure_reason"], "timeout")
+        self.assertEqual(reranked[0].metadata["final_order_basis"], "raw_score")
+
+    def test_rerank_retrieval_items_does_not_use_chat_when_dedicated_rerank_is_unconfigured(self) -> None:
+        items = [
+            retrieval_module.RetrievalItem(path="notes.md", source_type="notes", score=2, preview="notes"),
+            retrieval_module.RetrievalItem(path="truth.md", source_type="knowledge", score=1, preview="truth"),
+        ]
+
+        with patch("swallow.provider_router.agent_llm.call_agent_llm") as chat_rerank_mock:
+            with patch("swallow.knowledge_retrieval.retrieval.DedicatedRerankAdapter.rerank") as dedicated_rerank_mock:
+                reranked = rerank_retrieval_items(
+                    items,
+                    query="knowledge truth",
+                    config=RetrievalRerankConfig(enabled=True, top_n=2),
+                )
+
+        chat_rerank_mock.assert_not_called()
+        dedicated_rerank_mock.assert_not_called()
+        self.assertEqual([item.path for item in reranked], ["notes.md", "truth.md"])
+        self.assertFalse(reranked[0].metadata["rerank_configured"])
+        self.assertEqual(reranked[0].metadata["rerank_failure_reason"], "not_configured")
 
     def test_build_api_embedding_reads_openai_compatible_response(self) -> None:
         class _FakeResponse:
@@ -242,6 +284,63 @@ class RetrievalAdaptersTest(unittest.TestCase):
 
         self.assertEqual(embedding, [0.1, 0.2, 0.3])
         self.assertEqual(http_post.call_args.kwargs["json"]["model"], "text-embedding-3-small")
+
+    def test_dedicated_rerank_adapter_uses_explicit_rerank_endpoint(self) -> None:
+        class _FakeResponse:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict[str, object]:
+                return {
+                    "model": "bge-reranker",
+                    "results": [
+                        {"index": 1, "relevance_score": 0.95},
+                        {"index": 0, "relevance_score": 0.12},
+                    ],
+                }
+
+        documents = [
+            RetrievalSearchDocument(
+                path="notes.md",
+                path_name="notes.md",
+                source_type="notes",
+                chunk_id="notes-1",
+                title="Noisy notes",
+                citation="notes.md#L1",
+                text="Noisy notes.",
+            ),
+            RetrievalSearchDocument(
+                path="truth.md",
+                path_name="truth.md",
+                source_type=KNOWLEDGE_SOURCE_TYPE,
+                chunk_id="truth-1",
+                title="Canonical truth",
+                citation="truth.md#truth-1",
+                text="Canonical truth.",
+            ),
+        ]
+
+        with patch.dict("os.environ", {"SWL_API_KEY": "test-key"}, clear=False):
+            with patch("swallow.knowledge_retrieval.retrieval_adapters.httpx.post", return_value=_FakeResponse()) as http_post:
+                result = DedicatedRerankAdapter().rerank(
+                    query_text="knowledge truth",
+                    documents=documents,
+                    config=RetrievalRerankConfig(
+                        enabled=True,
+                        top_n=2,
+                        model="bge-reranker",
+                        url="http://rerank.example/v1/rerank",
+                    ),
+                )
+
+        self.assertEqual(result.ordered_indexes, [1, 0])
+        self.assertEqual(result.model, "bge-reranker")
+        self.assertEqual(result.scores_by_index[1], 0.95)
+        self.assertEqual(http_post.call_args.args[0], "http://rerank.example/v1/rerank")
+        self.assertEqual(http_post.call_args.kwargs["headers"]["Authorization"], "Bearer test-key")
+        self.assertEqual(http_post.call_args.kwargs["json"]["model"], "bge-reranker")
+        self.assertEqual(http_post.call_args.kwargs["json"]["query"], "knowledge truth")
+        self.assertNotIn("messages", http_post.call_args.kwargs["json"])
 
     def test_vector_adapter_raises_when_embedding_api_is_unavailable(self) -> None:
         adapter = VectorRetrievalAdapter(embedding_dimensions=3)
@@ -492,7 +591,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
 
             with patch.dict("os.environ", {"SWL_RETRIEVAL_RERANK_ENABLED": "false"}, clear=False):
                 with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
-                    with patch("swallow.provider_router.agent_llm.call_agent_llm") as rerank_mock:
+                    with patch("swallow.knowledge_retrieval.retrieval.DedicatedRerankAdapter.rerank") as rerank_mock:
                         items = retrieve_context(
                             tmp_path,
                             query="vector retrieval verified knowledge",

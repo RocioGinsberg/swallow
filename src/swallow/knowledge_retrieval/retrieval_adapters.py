@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import re
 import sqlite3
 from hashlib import blake2b
@@ -17,7 +18,7 @@ from swallow.orchestration.runtime_config import (
     resolve_swl_embedding_dimensions,
     resolve_swl_embedding_model,
 )
-from swallow.knowledge_retrieval.retrieval_config import RETRIEVAL_SCORING_TEXT_LIMIT
+from swallow.knowledge_retrieval.retrieval_config import RETRIEVAL_SCORING_TEXT_LIMIT, RetrievalRerankConfig
 
 TEXT_SUFFIXES = {
     ".md",
@@ -103,6 +104,17 @@ class VectorRetrievalUnavailable(RuntimeError):
 
 class EmbeddingAPIUnavailable(RuntimeError):
     """Raised when API-backed embeddings are unavailable."""
+
+
+class DedicatedRerankUnavailable(RuntimeError):
+    """Raised when a dedicated rerank endpoint cannot produce an ordering."""
+
+
+@dataclass(frozen=True, slots=True)
+class DedicatedRerankResult:
+    ordered_indexes: list[int]
+    model: str
+    scores_by_index: dict[int, float] = field(default_factory=dict)
 
 
 def matched_terms_for(token_list: list[str], *haystacks: str) -> list[str]:
@@ -480,6 +492,133 @@ class VectorRetrievalAdapter:
             )
         matches.sort(key=lambda match: (-match.score, match.document.path, match.document.chunk_id))
         return matches[:limit]
+
+
+@dataclass(slots=True)
+class DedicatedRerankAdapter:
+    name: str = "dedicated_http_rerank"
+
+    def rerank(
+        self,
+        *,
+        query_text: str,
+        documents: list[RetrievalSearchDocument],
+        config: RetrievalRerankConfig,
+    ) -> DedicatedRerankResult:
+        if not config.configured:
+            raise DedicatedRerankUnavailable("dedicated rerank model/url is not configured")
+        if not documents:
+            raise DedicatedRerankUnavailable("no documents to rerank")
+
+        api_key = os.environ.get("SWL_RETRIEVAL_RERANK_API_KEY", "").strip() or resolve_swl_api_key()
+        headers = {"Content-Type": "application/json"}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        try:
+            response = httpx.post(
+                config.url,
+                json={
+                    "model": config.model,
+                    "query": query_text,
+                    "documents": [self._document_text(document) for document in documents],
+                },
+                headers=headers,
+                timeout=config.timeout_seconds,
+            )
+            response.raise_for_status()
+            payload = response.json()
+        except httpx.HTTPError as exc:
+            raise DedicatedRerankUnavailable(str(exc)) from exc
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise DedicatedRerankUnavailable(f"Unreadable rerank payload: {exc}") from exc
+
+        return self._parse_response(payload, item_count=len(documents), requested_model=config.model)
+
+    @staticmethod
+    def _document_text(document: RetrievalSearchDocument) -> str:
+        title = document.title.strip()
+        text = document.text.strip()
+        if title and text:
+            return f"{title}\n{text}"
+        return title or text
+
+    @staticmethod
+    def _parse_response(payload: object, *, item_count: int, requested_model: str) -> DedicatedRerankResult:
+        if not isinstance(payload, dict):
+            raise DedicatedRerankUnavailable("rerank payload must be a JSON object")
+
+        returned_model = str(payload.get("model", "") or requested_model).strip() or requested_model
+        ordered_indexes = payload.get("ordered_indexes")
+        if isinstance(ordered_indexes, list):
+            return DedicatedRerankResult(
+                ordered_indexes=_normalize_ordered_indexes(ordered_indexes, item_count=item_count),
+                model=returned_model,
+            )
+
+        results = payload.get("results")
+        if not isinstance(results, list):
+            results = payload.get("data")
+        if not isinstance(results, list):
+            raise DedicatedRerankUnavailable("rerank payload missing results/data list")
+
+        ranked: list[tuple[int, float, int]] = []
+        scores_by_index: dict[int, float] = {}
+        for position, result in enumerate(results):
+            if not isinstance(result, dict):
+                continue
+            raw_index = result.get("index")
+            if raw_index is None:
+                raw_index = result.get("document_index")
+            try:
+                index = int(raw_index)
+            except (TypeError, ValueError):
+                continue
+            if index < 0 or index >= item_count:
+                continue
+            raw_score = result.get("relevance_score")
+            if raw_score is None:
+                raw_score = result.get("score")
+            try:
+                score = float(raw_score)
+            except (TypeError, ValueError):
+                score = float(item_count - position)
+            scores_by_index[index] = score
+            ranked.append((index, score, position))
+
+        if not ranked:
+            raise DedicatedRerankUnavailable("rerank payload did not contain usable result indexes")
+        ranked.sort(key=lambda value: (-value[1], value[2], value[0]))
+        return DedicatedRerankResult(
+            ordered_indexes=_normalize_ordered_indexes(
+                [index for index, _score, _position in ranked],
+                item_count=item_count,
+            ),
+            model=returned_model,
+            scores_by_index=scores_by_index,
+        )
+
+
+def _normalize_ordered_indexes(raw_indexes: list[object], *, item_count: int) -> list[int]:
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for value in raw_indexes:
+        if isinstance(value, bool):
+            continue
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            continue
+        if index < 0 or index >= item_count or index in seen:
+            continue
+        seen.add(index)
+        normalized.append(index)
+    if not normalized:
+        raise DedicatedRerankUnavailable("rerank payload did not contain usable indexes")
+    for index in range(item_count):
+        if index not in seen:
+            normalized.append(index)
+    return normalized
 
 
 def markdown_heading_level(line: str) -> int:

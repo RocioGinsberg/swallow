@@ -19,6 +19,13 @@ class RelationExpansionConfig:
 class RetrievalRerankConfig:
     enabled: bool = True
     top_n: int = 10
+    model: str = ""
+    url: str = ""
+    timeout_seconds: int = 20
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.model.strip() and self.url.strip())
 
 
 DEFAULT_RELATION_EXPANSION_CONFIG = RelationExpansionConfig()
@@ -42,4 +49,20 @@ def resolve_retrieval_rerank_config() -> RetrievalRerankConfig:
     if top_n <= 0:
         top_n = DEFAULT_RETRIEVAL_RERANK_CONFIG.top_n
 
-    return RetrievalRerankConfig(enabled=enabled, top_n=top_n)
+    model = os.environ.get("SWL_RETRIEVAL_RERANK_MODEL", "").strip()
+    url = os.environ.get("SWL_RETRIEVAL_RERANK_URL", "").strip().rstrip("/")
+    timeout_raw = os.environ.get("SWL_RETRIEVAL_RERANK_TIMEOUT_SECONDS", "").strip()
+    try:
+        timeout_seconds = int(timeout_raw) if timeout_raw else DEFAULT_RETRIEVAL_RERANK_CONFIG.timeout_seconds
+    except ValueError:
+        timeout_seconds = DEFAULT_RETRIEVAL_RERANK_CONFIG.timeout_seconds
+    if timeout_seconds <= 0:
+        timeout_seconds = DEFAULT_RETRIEVAL_RERANK_CONFIG.timeout_seconds
+
+    return RetrievalRerankConfig(
+        enabled=enabled,
+        top_n=top_n,
+        model=model,
+        url=url,
+        timeout_seconds=timeout_seconds,
+    )

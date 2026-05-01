@@ -15,6 +15,8 @@ from swallow.knowledge_retrieval.knowledge_objects import is_retrieval_reuse_rea
 from swallow.orchestration.models import RetrievalItem, RetrievalRequest
 from swallow.surface_tools.paths import canonical_reuse_policy_path
 from swallow.knowledge_retrieval.retrieval_adapters import (
+    DedicatedRerankAdapter,
+    DedicatedRerankUnavailable,
     EmbeddingAPIUnavailable,
     SQLITE_VEC_FALLBACK_WARNING,
     RetrievalSearchDocument,
@@ -379,6 +381,61 @@ def summarize_reused_knowledge(retrieval_items: list[RetrievalItem]) -> dict[str
     }
 
 
+def summarize_retrieval_trace(retrieval_items: list[RetrievalItem]) -> dict[str, Any]:
+    if not retrieval_items:
+        return {
+            "retrieval_mode": "none",
+            "retrieval_adapter": "none",
+            "embedding_backend": "none",
+            "fallback_reason": "none",
+            "rerank_backend": "none",
+            "rerank_model": "none",
+            "rerank_enabled": False,
+            "rerank_configured": False,
+            "rerank_attempted": False,
+            "rerank_applied": False,
+            "rerank_failure_reason": "none",
+            "final_order_basis": "none",
+        }
+
+    def _unique_metadata_values(*keys: str) -> list[str]:
+        values: list[str] = []
+        for item in retrieval_items:
+            for key in keys:
+                value = str(item.metadata.get(key, "")).strip()
+                if value:
+                    if value not in values:
+                        values.append(value)
+                    break
+        return values
+
+    def _single_or_mixed(values: list[str], default: str = "unknown") -> str:
+        if not values:
+            return default
+        if len(values) == 1:
+            return values[0]
+        return "mixed:" + ",".join(values)
+
+    first_metadata = retrieval_items[0].metadata
+    return {
+        "retrieval_mode": _single_or_mixed(_unique_metadata_values("knowledge_retrieval_mode"), "lexical"),
+        "retrieval_adapter": _single_or_mixed(
+            _unique_metadata_values("knowledge_retrieval_adapter", "adapter_name"),
+            "unknown",
+        ),
+        "embedding_backend": _single_or_mixed(_unique_metadata_values("embedding_backend"), "none"),
+        "fallback_reason": _single_or_mixed(_unique_metadata_values("retrieval_fallback_reason"), "none"),
+        "rerank_backend": str(first_metadata.get("rerank_backend", "unknown") or "unknown"),
+        "rerank_model": str(first_metadata.get("rerank_model", "") or "none"),
+        "rerank_enabled": bool(first_metadata.get("rerank_enabled", False)),
+        "rerank_configured": bool(first_metadata.get("rerank_configured", False)),
+        "rerank_attempted": bool(first_metadata.get("rerank_attempted", False)),
+        "rerank_applied": bool(first_metadata.get("rerank_applied", False)),
+        "rerank_failure_reason": str(first_metadata.get("rerank_failure_reason", "") or "none"),
+        "final_order_basis": str(first_metadata.get("final_order_basis", "") or "unknown"),
+    }
+
+
 def iter_verified_knowledge_items(
     workspace_root: Path,
     request: RetrievalRequest,
@@ -404,6 +461,7 @@ def iter_verified_knowledge_items(
             limit=request.limit,
         )
         retrieval_mode = "vector"
+        fallback_reason = ""
     except VectorRetrievalUnavailable:
         _warn_sqlite_vec_fallback_once()
         matches = TextFallbackAdapter().search(
@@ -412,6 +470,7 @@ def iter_verified_knowledge_items(
             limit=request.limit,
         )
         retrieval_mode = "text_fallback"
+        fallback_reason = "sqlite_vec_unavailable"
     except EmbeddingAPIUnavailable:
         _warn_embedding_api_fallback_once()
         matches = TextFallbackAdapter().search(
@@ -420,6 +479,7 @@ def iter_verified_knowledge_items(
             limit=request.limit,
         )
         retrieval_mode = "text_fallback"
+        fallback_reason = "embedding_api_unavailable"
 
     items: list[RetrievalItem] = []
     for match in matches:
@@ -427,6 +487,7 @@ def iter_verified_knowledge_items(
         metadata = dict(match.document.metadata)
         metadata["knowledge_retrieval_adapter"] = match.adapter_name
         metadata["knowledge_retrieval_mode"] = retrieval_mode
+        metadata["retrieval_fallback_reason"] = fallback_reason
         score_breakdown = dict(match.score_breakdown)
         score_breakdown["knowledge_priority_bonus"] = KNOWLEDGE_PRIORITY_BONUS
         items.append(
@@ -452,7 +513,7 @@ def _vector_or_text_matches(
     request: RetrievalRequest,
     query_plan: dict[str, Any],
     limit: int,
-) -> tuple[list[RetrievalSearchMatch], str]:
+) -> tuple[list[RetrievalSearchMatch], str, str]:
     try:
         return (
             VectorRetrievalAdapter().search(
@@ -462,6 +523,7 @@ def _vector_or_text_matches(
                 limit=limit,
             ),
             "vector",
+            "",
         )
     except VectorRetrievalUnavailable:
         _warn_sqlite_vec_fallback_once()
@@ -472,6 +534,7 @@ def _vector_or_text_matches(
                 limit=limit,
             ),
             "text_fallback",
+            "sqlite_vec_unavailable",
         )
     except EmbeddingAPIUnavailable:
         _warn_embedding_api_fallback_once()
@@ -482,63 +545,8 @@ def _vector_or_text_matches(
                 limit=limit,
             ),
             "text_fallback",
+            "embedding_api_unavailable",
         )
-
-
-def _rerank_system_prompt() -> str:
-    return (
-        "You are ranking retrieval results for Swallow. "
-        "Return strict JSON only with key ordered_indexes containing a list of 0-based item indexes "
-        "sorted from most relevant to least relevant."
-    )
-
-
-def _build_rerank_prompt(query: str, items: list[RetrievalItem]) -> str:
-    lines = [
-        "# Retrieval Rerank",
-        "",
-        f"query: {query}",
-        "Return JSON only: {\"ordered_indexes\": [ ... ]}",
-        "",
-        "## Candidates",
-    ]
-    for index, item in enumerate(items):
-        lines.extend(
-            [
-                f"- index: {index}",
-                f"  title: {item.title or item.path}",
-                f"  path: {item.path}",
-                f"  source_type: {item.source_type}",
-                f"  score: {item.score}",
-                f"  preview: {item.preview}",
-            ]
-        )
-    return "\n".join(lines)
-
-
-def _parse_rerank_indexes(payload: dict[str, object], *, item_count: int) -> list[int]:
-    ordered_indexes = payload.get("ordered_indexes", [])
-    if not isinstance(ordered_indexes, list):
-        raise ValueError("rerank payload missing ordered_indexes list")
-    normalized: list[int] = []
-    seen: set[int] = set()
-    for value in ordered_indexes:
-        if isinstance(value, bool):
-            continue
-        try:
-            index = int(value)
-        except (TypeError, ValueError):
-            continue
-        if index < 0 or index >= item_count or index in seen:
-            continue
-        seen.add(index)
-        normalized.append(index)
-    if not normalized:
-        raise ValueError("rerank payload did not contain usable indexes")
-    for index in range(item_count):
-        if index not in seen:
-            normalized.append(index)
-    return normalized
 
 
 def rerank_retrieval_items(
@@ -547,36 +555,78 @@ def rerank_retrieval_items(
     query: str,
     config: RetrievalRerankConfig | None = None,
 ) -> list[RetrievalItem]:
-    from swallow.provider_router.agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
-
     rerank_config = config or DEFAULT_RETRIEVAL_RERANK_CONFIG
-    if not rerank_config.enabled or len(items) < 2 or not query.strip():
-        return items
+    if not rerank_config.enabled:
+        return _annotate_rerank_trace(items, config=rerank_config, final_order_basis="raw_score", failure_reason="disabled")
+    if not rerank_config.configured:
+        return _annotate_rerank_trace(
+            items,
+            config=rerank_config,
+            final_order_basis="raw_score",
+            failure_reason="not_configured",
+        )
+    if len(items) < 2:
+        return _annotate_rerank_trace(
+            items,
+            config=rerank_config,
+            final_order_basis="raw_score",
+            failure_reason="not_enough_candidates",
+        )
+    if not query.strip():
+        return _annotate_rerank_trace(
+            items,
+            config=rerank_config,
+            final_order_basis="raw_score",
+            failure_reason="empty_query",
+        )
 
     top_n = min(rerank_config.top_n, len(items))
     if top_n < 2:
-        return items
+        return _annotate_rerank_trace(
+            items,
+            config=rerank_config,
+            final_order_basis="raw_score",
+            failure_reason="not_enough_candidates",
+        )
 
     candidate_items = items[:top_n]
-    try:
-        llm_response = call_agent_llm(
-            _build_rerank_prompt(query, candidate_items),
-            system=_rerank_system_prompt(),
+    documents = [
+        RetrievalSearchDocument(
+            path=item.path,
+            path_name=Path(item.path).name,
+            source_type=item.source_type,
+            chunk_id=item.chunk_id,
+            title=item.display_title(),
+            citation=item.reference(),
+            text=item.preview,
+            metadata=dict(item.metadata),
         )
-        payload = extract_json_object(llm_response.content)
-        ordered_indexes = _parse_rerank_indexes(payload, item_count=len(candidate_items))
-    except (AgentLLMUnavailable, ValueError):
-        return items
+        for item in candidate_items
+    ]
+    try:
+        rerank_response = DedicatedRerankAdapter().rerank(
+            query_text=query,
+            documents=documents,
+            config=rerank_config,
+        )
+    except DedicatedRerankUnavailable as exc:
+        return _annotate_rerank_trace(
+            items,
+            config=rerank_config,
+            attempted=True,
+            final_order_basis="raw_score",
+            failure_reason=str(exc) or "dedicated_rerank_unavailable",
+        )
 
     reranked_items: list[RetrievalItem] = []
-    for rerank_position, item_index in enumerate(ordered_indexes, start=1):
+    for rerank_position, item_index in enumerate(rerank_response.ordered_indexes, start=1):
         item = candidate_items[item_index]
         metadata = dict(item.metadata)
-        metadata["rerank_applied"] = True
-        metadata["rerank_model"] = llm_response.model
         metadata["rerank_position"] = rerank_position
+        if item_index in rerank_response.scores_by_index:
+            metadata["rerank_score"] = rerank_response.scores_by_index[item_index]
         score_breakdown = dict(item.score_breakdown)
-        score_breakdown["llm_rerank_applied"] = 1
+        score_breakdown["dedicated_rerank_applied"] = 1
         reranked_items.append(
             replace(
                 item,
@@ -585,7 +635,43 @@ def rerank_retrieval_items(
             )
         )
 
-    return reranked_items + items[top_n:]
+    return _annotate_rerank_trace(
+        reranked_items + items[top_n:],
+        config=rerank_config,
+        attempted=True,
+        applied=True,
+        model=rerank_response.model,
+        final_order_basis="dedicated_rerank",
+    )
+
+
+def _annotate_rerank_trace(
+    items: list[RetrievalItem],
+    *,
+    config: RetrievalRerankConfig,
+    attempted: bool = False,
+    applied: bool = False,
+    model: str = "",
+    final_order_basis: str,
+    failure_reason: str = "",
+) -> list[RetrievalItem]:
+    annotated_items: list[RetrievalItem] = []
+    configured = config.configured
+    for final_rank, item in enumerate(items, start=1):
+        metadata = dict(item.metadata)
+        metadata.setdefault("raw_score", item.score)
+        metadata["final_rank"] = final_rank
+        metadata["final_order_basis"] = final_order_basis
+        metadata["rerank_backend"] = "dedicated_http" if configured else "none"
+        metadata["rerank_model"] = model or config.model
+        metadata["rerank_enabled"] = config.enabled
+        metadata["rerank_configured"] = configured
+        metadata["rerank_attempted"] = attempted
+        metadata["rerank_applied"] = applied
+        metadata["rerank_failure_reason"] = failure_reason
+        metadata["rerank_top_n"] = config.top_n
+        annotated_items.append(replace(item, metadata=metadata))
+    return annotated_items
 
 
 def iter_canonical_reuse_items(
@@ -636,7 +722,7 @@ def iter_canonical_reuse_items(
     if not documents:
         return []
 
-    matches, retrieval_mode = _vector_or_text_matches(
+    matches, retrieval_mode, fallback_reason = _vector_or_text_matches(
         documents,
         request=request,
         query_plan=query_plan,
@@ -649,6 +735,7 @@ def iter_canonical_reuse_items(
         metadata = dict(match.document.metadata)
         metadata["knowledge_retrieval_adapter"] = match.adapter_name
         metadata["knowledge_retrieval_mode"] = retrieval_mode
+        metadata["retrieval_fallback_reason"] = fallback_reason
         score_breakdown = dict(match.score_breakdown)
         score_breakdown["knowledge_priority_bonus"] = KNOWLEDGE_PRIORITY_BONUS
         items.append(

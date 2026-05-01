@@ -2828,6 +2828,20 @@ class CliLifecycleTest(unittest.TestCase):
                     "artifact_ref": ".swl/tasks/demo/artifacts/evidence.md",
                     "adapter_name": "canonical_registry_records",
                     "chunk_kind": "canonical_record",
+                    "knowledge_retrieval_mode": "vector",
+                    "knowledge_retrieval_adapter": "sqlite_vec",
+                    "embedding_backend": "api_embedding",
+                    "retrieval_fallback_reason": "",
+                    "final_rank": 1,
+                    "raw_score": 8,
+                    "final_order_basis": "raw_score",
+                    "rerank_backend": "none",
+                    "rerank_model": "",
+                    "rerank_enabled": True,
+                    "rerank_configured": False,
+                    "rerank_attempted": False,
+                    "rerank_applied": False,
+                    "rerank_failure_reason": "not_configured",
                 },
             )
         ]
@@ -2836,6 +2850,12 @@ class CliLifecycleTest(unittest.TestCase):
         source_grounding = build_source_grounding(retrieval_items)
 
         self.assertIn("reused_canonical_registry_count: 1", retrieval_report)
+        self.assertIn("retrieval_mode: vector", retrieval_report)
+        self.assertIn("retrieval_adapter: sqlite_vec", retrieval_report)
+        self.assertIn("embedding_backend: api_embedding", retrieval_report)
+        self.assertIn("rerank_backend: none", retrieval_report)
+        self.assertIn("rerank_configured: False", retrieval_report)
+        self.assertIn("final_order_basis: raw_score", retrieval_report)
         self.assertIn("storage_scope: canonical_registry", retrieval_report)
         self.assertIn("canonical_id: canonical-trace123-knowledge-0001", retrieval_report)
         self.assertIn("canonical_policy: reuse_visible", retrieval_report)
