@@ -8,16 +8,20 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Operations / Knowledge`
-- latest_completed_phase: `Candidate R / Real-use Feedback Observation`
-- latest_completed_slice: `R1 Design Docs Observation Sample`
-- active_track: `Retrieval Quality`
-- active_phase: `Retrieval U-T-Y / Observability, EvidencePack, Summary Surface`
-- active_slice: `RUTY7 PR Preparation`
-- active_branch: `feat/retrieval-u-t-y`
-- status: `retrieval_u_t_y_pr_ready`
+- latest_completed_track: `Retrieval Quality`
+- latest_completed_phase: `Retrieval U-T-Y / Observability, EvidencePack, Summary Surface`
+- latest_completed_slice: `Retrieval U-T-Y M1-M6 Implementation`
+- active_track: `Architecture / Engineering`
+- active_phase: `Architecture Recomposition AD1/V Pilot`
+- active_slice: `AD1 minimum test helpers + V Knowledge Plane facade`
+- active_branch: `feat/architecture-recomposition-ad1-v`
+- status: `ad1_v_validation_complete`
 
 ## 当前状态说明
+
+Human has merged Retrieval U-T-Y. Per Human request, Codex did not perform an extra Retrieval U-T-Y file closeout and moved directly into the next architecture phase.
+
+Current branch `feat/architecture-recomposition-ad1-v` implements the first bounded Architecture Recomposition pilot: minimal test helper foundation, a Knowledge Plane facade, narrow upper-layer import migration, and focused test relocation. Validation completed with full default pytest.
 
 Phase 67 and Phase 68 have both been merged into `main`.
 
@@ -61,6 +65,7 @@ Candidate R observation closeout is complete. Human selected a unified retrieval
 11. `docs/plans/candidate-r/closeout.md`
 12. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
 13. `docs/plans/retrieval-u-t-y/plan.md`
+14. `docs/plans/architecture-recomposition/plan.md`
 
 ## 当前推进
 
@@ -219,60 +224,45 @@ Candidate R observation closeout is complete. Human selected a unified retrieval
 
 进行中:
 
-- **[Human]** Push `feat/retrieval-u-t-y`, create PR from `pr.md`, run/record review, and merge after approval.
+- **[Human]** Review and commit the AD1/V pilot branch changes.
 
 待执行:
 
-- **[Human]** Create PR and complete merge decision.
-- **[Codex]** After merge, sync `current_state.md`, `docs/active_context.md`, and closeout state for Retrieval U-T-Y.
+- **[Human]** Push `feat/architecture-recomposition-ad1-v` after review.
+- **[Human/Codex]** Decide whether to create PR material for this branch or continue to the next AD subtrack first.
 
 当前阻塞项:
 
-- Waiting for Human PR creation / review / merge.
+- Waiting for Human review / commit of AD1/V pilot.
 
 ## Tag 状态
 
 - 最新已执行 tag: `v1.5.0`
 - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
 - tag message: `v1.5.0: raw material store boundary`
-- 结论: tag release gate 已关闭;Candidate R 观察已收口,当前进入 Candidate U plan definition。
+- 结论: tag release gate 已关闭;Retrieval U-T-Y 已 merge;当前进入 Architecture Recomposition AD1/V pilot。
 
 ## 当前下一步
 
-1. **[Human]** Commit the `pr.md` / active context PR-prep update if it should travel with the branch.
-2. **[Human]** Push `feat/retrieval-u-t-y` and create PR using `pr.md`.
-3. **[Human]** Run/record review, then merge after approval.
-4. **[Codex]** After merge, sync post-merge state and closeout.
+1. **[Human]** Review the AD1/V pilot diff.
+2. **[Human]** Commit the implementation and state docs if accepted.
+3. **[Human/Codex]** Decide whether the next step is PR material or a follow-up AD subtrack.
 
 ```markdown
 milestone_gate:
-- current: retrieval-u-t-y-pr-ready
-- active_branch: feat/retrieval-u-t-y
-- previous_gate: v1.5.0 annotated tag completed on main
-- observation_sample: docs/design/
-- promoted_seed: INVARIANTS §0/§4/§5/§7/§9
-- completed_probe: P1 apply_proposal boundary (`2f77c3a3a82d`)
-- completed_probe_2: P2 LLM call path boundary (`5e891023a196`)
-- environment_gate: embedding_api_endpoint restored
-- completed_probe_2b: P2 vector-enabled comparison confirmed (`5e891023a196`)
-- knowledge_dry_run: KNOWLEDGE.md produced 32 preview candidates; 10 recommended P3 seed chunks selected
-- promoted_knowledge_seed: 10 KNOWLEDGE.md canonical records promoted for P3; canonical audit clean
-- completed_probe_3: P3 knowledge-truth boundary (`f767f87222d9`, text fallback) and P3b vector rerun (`c1adb2f7f807`)
-- closeout: docs/plans/candidate-r/closeout.md final
-- roadmap: Candidate U promoted to current recommended next implementation candidate
-- engineering_guidance: docs/engineering/GOF_PATTERN_ALIGNMENT.md added; Candidate AC introduced as later system-design refactor track
-- m1: dedicated rerank adapter + retrieval trace/report header complete and committed (`bcb984d`)
-- m2: source policy labels + observation-noise warnings complete
-- m3: P1/P2/P3 regression probes + staged intake hygiene warnings complete
-- m4: EvidencePack compatibility view complete
-- m5: source pointer resolution complete
-- m6: summary route surface clarification complete
-- validation: full pytest `635 passed, 8 deselected, 10 subtests passed`; `git diff --check` passed
-- commits: `cda56d5`, `bcb984d`, `0358114`, `9f9764d`
-- pr_body: `pr.md`
-- next_gate: Human PR creation / review / merge
-- proceed_to_closeout: after Human merge
-- reason: U/T/Y implementation scope is committed and PR material is ready
+- current: architecture-recomposition-ad1-v-validation-complete
+- active_branch: feat/architecture-recomposition-ad1-v
+- previous_gate: Human merged Retrieval U-T-Y and requested direct next-stage implementation
+- roadmap: Candidate AD introduced as Architecture Recomposition program
+- plan: docs/plans/architecture-recomposition/plan.md approved
+- ad1: tests/conftest.py + tests/helpers/{workspace,cli_runner}.py added
+- v_pilot: src/swallow/knowledge_retrieval/knowledge_plane.py facade added
+- migration: truth_governance/store.py, governance.py, truth/knowledge.py migrated narrowly to facade-safe imports
+- test_split: one CLI synthesis test moved to tests/integration/cli; one knowledge facade test added under tests/unit/knowledge
+- guard_note: protected canonical writer persist_wiki_entry_from_record remains outside public facade after guard feedback
+- validation: focused tests passed; governance/sqlite/invariant guard tests passed; compileall passed; full pytest `636 passed, 8 deselected, 10 subtests passed`; git diff --check passed
+- next_gate: Human review / commit
+- reason: AD1/V pilot is behavior-preserving and validation complete
 ```
 
 ## 当前产出物
@@ -281,7 +271,13 @@ milestone_gate:
 - `current_state.md`(codex, 2026-04-30, v1.5.0 executed tag + R-entry checkpoint)
 - `AGENTS.md`(codex, 2026-05-01, docs/engineering layer indexed)
 - `.agents/shared/read_order.md`(codex, 2026-05-01, engineering docs added as contextual reads for refactor/TDD work)
-- `docs/active_context.md`(codex, 2026-04-30, R-entry readiness state)
+- `docs/active_context.md`(codex, 2026-05-01, Architecture Recomposition AD1/V pilot validation state)
+- `docs/plans/architecture-recomposition/plan.md`(codex, 2026-05-01, approved AD program plan and AD1/V pilot sequence)
+- `src/swallow/knowledge_retrieval/knowledge_plane.py`(codex, 2026-05-01, Knowledge Plane facade for migration-safe upper-layer imports)
+- `tests/conftest.py`(codex, 2026-05-01, shared src import setup for new layered tests)
+- `tests/helpers/workspace.py` / `tests/helpers/cli_runner.py`(codex, 2026-05-01, minimal test helper foundation)
+- `tests/unit/knowledge/test_knowledge_plane.py`(codex, 2026-05-01, Knowledge Plane facade compatibility coverage)
+- `tests/integration/cli/test_synthesis_commands.py`(codex, 2026-05-01, first CLI test moved into focused integration layer)
 - `docs/concerns_backlog.md`(codex, 2026-04-30, release-doc debt resolved + R-entry blocker/design triage)
 - `docs/design/INTERACTION.md`(codex, 2026-05-01, local UI runtime standard: Browser/Desktop UI via local FastAPI, CLI direct application layer)
 - `docs/engineering/CODE_ORGANIZATION.md`(codex, 2026-05-01, long-term code organization convergence standard)
