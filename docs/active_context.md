@@ -12,16 +12,18 @@
 - latest_completed_phase: `Retrieval U-T-Y / Observability, EvidencePack, Summary Surface`
 - latest_completed_slice: `Retrieval U-T-Y M1-M6 Implementation`
 - active_track: `Architecture / Engineering`
-- active_phase: `Architecture Recomposition AD1/V Pilot`
-- active_slice: `AD1 minimum test helpers + V Knowledge Plane facade`
+- active_phase: `Architecture Recomposition First Branch`
+- active_slice: `M6 closeout and next subtrack selection`
 - active_branch: `feat/architecture-recomposition-ad1-v`
-- status: `ad1_v_validation_complete`
+- status: `roadmap_lto_reorganization_complete`
 
 ## 当前状态说明
 
 Human has merged Retrieval U-T-Y. Per Human request, Codex did not perform an extra Retrieval U-T-Y file closeout and moved directly into the next architecture phase.
 
-Current branch `feat/architecture-recomposition-ad1-v` implements the first bounded Architecture Recomposition pilot: minimal test helper foundation, a Knowledge Plane facade, narrow upper-layer import migration, and focused test relocation. Validation completed with full default pytest.
+Current branch `feat/architecture-recomposition-ad1-v` has committed the first bounded Architecture Recomposition pilot: minimal test helper foundation, a Knowledge Plane facade, narrow upper-layer import migration, and focused test relocation.
+
+The optional M5 AB pilot from `docs/plans/architecture-recomposition/plan.md` has also been committed as `e36e854 refactor(application): add control center query pilot`. Current docs reconciliation clarifies that `docs/plans/architecture-recomposition/plan.md` is the active plan, but it authorizes only the first AD branch plus one optional AB pilot. The roadmap has been reorganized around long-term optimization goals (`LTO-*`) plus short-term phase tickets, so partially advanced areas stay visible without making completed candidates look unfinished. The next step is M6 closeout / PR material / next subtrack selection, not continuing into later AD subtracks implicitly.
 
 Phase 67 and Phase 68 have both been merged into `main`.
 
@@ -221,48 +223,78 @@ Candidate R observation closeout is complete. Human selected a unified retrieval
   - `9f9764d docs(state): update retrieval u-t-y validation state`
 - **[Codex]** Retrieval U-T-Y PR material prepared:
   - `pr.md` refreshed for this branch with context, implementation notes, test coverage, and review gate notes.
+- **[Human]** AD1/V pilot committed on `feat/architecture-recomposition-ad1-v`:
+  - `e449879 refactor(knowledge): add knowledge plane facade pilot`
+  - `98313ed docs(state): update architecture recomposition pilot state`
+- **[Codex]** Architecture Recomposition M5 AB query pilot completed:
+  - added `src/swallow/application/queries/control_center.py` as a shared read-model layer for Control Center task list/detail/events/knowledge payloads.
+  - kept `src/swallow/surface_tools/web/api.py` as the FastAPI adapter and compatibility import surface for existing Web API tests/callers.
+  - added `tests/unit/application/test_control_center_queries.py` for the application query layer.
+  - validation passed:
+    - `.venv/bin/python -m pytest tests/unit/application/test_control_center_queries.py tests/test_web_api.py tests/test_sqlite_store.py -q` -> `26 passed`
+    - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+    - `.venv/bin/python -m compileall -q src/swallow` -> passed
+    - `.venv/bin/python -m pytest -q` -> `637 passed, 8 deselected, 10 subtests passed`
+    - `git diff --check` -> passed
+- **[Human]** M5 AB query pilot implementation committed:
+  - `e36e854 refactor(application): add control center query pilot`
+- **[Codex]** Roadmap / plan alignment completed:
+  - `docs/roadmap.md` now marks AD as active execution rather than merely "current recommended next step".
+  - `docs/plans/architecture-recomposition/plan.md` now distinguishes the AD program plan from the first implementation branch scope.
+  - Current next step is M6 closeout / PR material / next subtrack selection.
+- **[Codex]** Roadmap structure reorganized:
+  - `docs/roadmap.md` now separates durable long-term optimization goals (`LTO-*`) from short-lived phase tickets.
+  - completed / partially advanced old tickets now update their owning LTO state instead of remaining as awkward half-complete queue entries.
+  - old candidate letters are no longer used as roadmap navigation; the near-term queue is expressed as closeout / PR, selected architecture subtrack, broad test/application/knowledge follow-up, and Wiki Compiler workflow.
 
 进行中:
 
-- **[Human]** Review and commit the AD1/V pilot branch changes.
+- **[Human/Codex]** Review the roadmap LTO reorganization and decide whether to prepare PR material for the current branch.
 
 待执行:
 
-- **[Human]** Push `feat/architecture-recomposition-ad1-v` after review.
-- **[Human/Codex]** Decide whether to create PR material for this branch or continue to the next AD subtrack first.
+- **[Human]** Commit the state / roadmap / plan alignment docs if accepted.
+- **[Human/Codex]** Decide the next AD subtrack only after current branch M6 closeout / PR gate.
 
 当前阻塞项:
 
-- Waiting for Human review / commit of AD1/V pilot.
+- Waiting for Human review / commit of roadmap LTO reorganization docs.
 
 ## Tag 状态
 
 - 最新已执行 tag: `v1.5.0`
 - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
 - tag message: `v1.5.0: raw material store boundary`
-- 结论: tag release gate 已关闭;Retrieval U-T-Y 已 merge;当前进入 Architecture Recomposition AD1/V pilot。
+- 结论: tag release gate 已关闭;Retrieval U-T-Y 已 merge;当前处于 Architecture Recomposition first branch 的 M6 closeout / next subtrack selection gate。
 
 ## 当前下一步
 
-1. **[Human]** Review the AD1/V pilot diff.
-2. **[Human]** Commit the implementation and state docs if accepted.
-3. **[Human/Codex]** Decide whether the next step is PR material or a follow-up AD subtrack.
+1. **[Human]** Review roadmap / plan alignment docs.
+2. **[Human]** Commit the docs if accepted.
+3. **[Human/Codex]** Prepare M6 closeout / PR material or explicitly open a new subtrack gate.
 
 ```markdown
 milestone_gate:
-- current: architecture-recomposition-ad1-v-validation-complete
+- current: architecture-recomposition-roadmap-lto-reorganization-complete
 - active_branch: feat/architecture-recomposition-ad1-v
 - previous_gate: Human merged Retrieval U-T-Y and requested direct next-stage implementation
-- roadmap: Candidate AD introduced as Architecture Recomposition program
+- roadmap: Architecture Recomposition is tracked through LTO-3 and near-term phase tickets
 - plan: docs/plans/architecture-recomposition/plan.md approved
 - ad1: tests/conftest.py + tests/helpers/{workspace,cli_runner}.py added
 - v_pilot: src/swallow/knowledge_retrieval/knowledge_plane.py facade added
 - migration: truth_governance/store.py, governance.py, truth/knowledge.py migrated narrowly to facade-safe imports
 - test_split: one CLI synthesis test moved to tests/integration/cli; one knowledge facade test added under tests/unit/knowledge
 - guard_note: protected canonical writer persist_wiki_entry_from_record remains outside public facade after guard feedback
-- validation: focused tests passed; governance/sqlite/invariant guard tests passed; compileall passed; full pytest `636 passed, 8 deselected, 10 subtests passed`; git diff --check passed
-- next_gate: Human review / commit
-- reason: AD1/V pilot is behavior-preserving and validation complete
+- committed_gate: AD1/V pilot committed as `e449879` + `98313ed`
+- ab_pilot: Control Center task list/detail/events/knowledge read models moved from FastAPI adapter to `swallow.application.queries.control_center`
+- ab_compatibility: `swallow.surface_tools.web.api` re-exports the same payload builders for existing callers
+- ab_commit: `e36e854 refactor(application): add control center query pilot`
+- validation: focused application/web/sqlite tests `26 passed`; invariant guards `25 passed`; compileall passed; full pytest `637 passed, 8 deselected, 10 subtests passed`; git diff --check passed
+- roadmap_alignment: docs/roadmap.md now records AD first branch status and M6 gate
+- roadmap_structure: docs/roadmap.md now separates long-term optimization goals from short-term phase tickets
+- plan_alignment: docs/plans/architecture-recomposition/plan.md now separates program plan from first branch scope
+- next_gate: Human review / commit docs, then M6 closeout / PR material
+- reason: prevent AD program plan from being mistaken as implicit authorization for later subtrack implementation
 ```
 
 ## 当前产出物
@@ -271,19 +303,22 @@ milestone_gate:
 - `current_state.md`(codex, 2026-04-30, v1.5.0 executed tag + R-entry checkpoint)
 - `AGENTS.md`(codex, 2026-05-01, docs/engineering layer indexed)
 - `.agents/shared/read_order.md`(codex, 2026-05-01, engineering docs added as contextual reads for refactor/TDD work)
-- `docs/active_context.md`(codex, 2026-05-01, Architecture Recomposition AD1/V pilot validation state)
-- `docs/plans/architecture-recomposition/plan.md`(codex, 2026-05-01, approved AD program plan and AD1/V pilot sequence)
+- `docs/active_context.md`(codex, 2026-05-01, Architecture Recomposition M6 / roadmap-plan alignment state)
+- `docs/plans/architecture-recomposition/plan.md`(codex, 2026-05-01, active AD program plan clarified with first-branch scope and M6 gate)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py`(codex, 2026-05-01, Knowledge Plane facade for migration-safe upper-layer imports)
+- `src/swallow/application/__init__.py` / `src/swallow/application/queries/__init__.py`(codex, 2026-05-01, application layer package markers for AB pilot)
+- `src/swallow/application/queries/control_center.py`(codex, 2026-05-01, Control Center task read models shared by interface adapters)
 - `tests/conftest.py`(codex, 2026-05-01, shared src import setup for new layered tests)
 - `tests/helpers/workspace.py` / `tests/helpers/cli_runner.py`(codex, 2026-05-01, minimal test helper foundation)
 - `tests/unit/knowledge/test_knowledge_plane.py`(codex, 2026-05-01, Knowledge Plane facade compatibility coverage)
+- `tests/unit/application/test_control_center_queries.py`(codex, 2026-05-01, application query read-model coverage)
 - `tests/integration/cli/test_synthesis_commands.py`(codex, 2026-05-01, first CLI test moved into focused integration layer)
 - `docs/concerns_backlog.md`(codex, 2026-04-30, release-doc debt resolved + R-entry blocker/design triage)
 - `docs/design/INTERACTION.md`(codex, 2026-05-01, local UI runtime standard: Browser/Desktop UI via local FastAPI, CLI direct application layer)
 - `docs/engineering/CODE_ORGANIZATION.md`(codex, 2026-05-01, long-term code organization convergence standard)
 - `docs/engineering/GOF_PATTERN_ALIGNMENT.md`(codex, 2026-05-01, GoF-style responsibility language for system-design refactors)
 - `docs/engineering/TEST_ARCHITECTURE.md`(codex, 2026-05-01, long-term test architecture and TDD harness standard)
-- `docs/roadmap.md`(codex, 2026-05-01, Candidate R closeout findings folded in; Candidate U promoted to next recommended implementation candidate)
+- `docs/roadmap.md`(codex, 2026-05-01, reorganized around long-term optimization goals plus short-term phase tickets)
 - `docs/concerns_backlog.md`(codex, 2026-05-01, Open concerns grouped into Active Open vs Roadmap-Bound and mapped to roadmap candidates)
 - `docs/plans/candidate-r/plan.md`(codex, 2026-05-01, Candidate R design-doc observation plan)
 - `docs/plans/candidate-r/observations.md`(codex, 2026-05-01, Candidate R P1/P2/P2b/P3/P3b + KNOWLEDGE dry-run/promotion observation summary)

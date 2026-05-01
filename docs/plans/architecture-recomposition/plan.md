@@ -1,7 +1,7 @@
 ---
 author: codex
 phase: architecture-recomposition
-slice: ad0-program-plan
+slice: architecture-program-plan
 status: approved
 depends_on:
   - docs/design/INVARIANTS.md
@@ -14,23 +14,40 @@ depends_on:
 ---
 
 TL;DR:
-Candidate AD turns the desired deep refactor into a multi-phase architecture recomposition program.
-It uses AC's GoF-style responsibility language, AA's test harness as the first execution dependency, and V/AB/W/X/Y/Z as ordered subtracks.
+Architecture Recomposition turns the desired deep refactor into a multi-phase program under `LTO-3`.
+It uses GoF-style responsibility language, test harness work as the first execution dependency, and named architecture subtracks.
 The first implementation phase should be small: test harness foundation plus one facade-first pilot, not a big-bang rewrite.
 
 # Architecture Recomposition Plan
 
 ## Frame
 
-- candidate: `AD`
+- long_term_goal: `LTO-3`
 - name: `Architecture Recomposition / Deep Refactor Program`
 - primary track: `Architecture / Engineering`
 - intent: coordinate deeper system refactors across interface, application, domain, persistence, orchestration, provider routing, knowledge, surface, and governance boundaries.
 - stance: program-level roadmap plus small implementation phases; no single PR should attempt the full recomposition.
 
+## Current Scope And Status
+
+This file is the current active plan, but it has two levels:
+
+1. **Program plan**: the ordered architecture recomposition subtracks.
+2. **First implementation branch plan**: the bounded Architecture Recomposition first branch.
+
+The first branch is intentionally narrow. It may include:
+
+- minimum test helper seed.
+- Knowledge Plane facade pilot.
+- one optional application query/command pilot if the test harness is stable.
+
+As of the current branch, the helper seed and Knowledge Plane facade have been committed, and the optional Control Center query pilot has also been committed. The next step for this plan is therefore **M6 closeout and next subtrack selection**, not continuing into Provider Router, Orchestration, Surface, or Governance subtracks on the same implicit authorization.
+
+Any Provider Router split, orchestration lifecycle decomposition, surface command split, or governance apply handler split needs a separate subtrack gate or a revised plan before implementation.
+
 ## Why This Exists
 
-The existing roadmap candidates `AB/V/W/X/Y/Z` identify real local refactor needs, but they are not independent cleanups. They interact through shared constraints:
+The long-term architecture goals identify real local refactor needs, but they are not independent cleanups. They interact through shared constraints:
 
 - CLI and FastAPI must converge on application commands / queries.
 - SQLite stays local-first truth behind repository facades.
@@ -39,18 +56,18 @@ The existing roadmap candidates `AB/V/W/X/Y/Z` identify real local refactor need
 - `apply_proposal` remains the only public mutation entry for canonical / route / policy truth.
 - Tests need a stronger TDD harness before broad module movement.
 
-Candidate AD is the program wrapper that makes those dependencies explicit.
+Architecture Recomposition is the program wrapper that makes those dependencies explicit.
 
 ## Goals
 
 1. Define the execution order for deeper refactor work:
-   - AA test harness foundation
-   - V Knowledge Plane facade
-   - AB application command/query pilot
-   - W Provider Router split
-   - X Orchestration lifecycle decomposition
-   - Y Surface command split
-   - Z Governance private handler split
+   - test harness foundation
+   - Knowledge Plane facade
+   - application command/query pilot
+   - Provider Router split
+   - Orchestration lifecycle decomposition
+   - Surface command split
+   - Governance private handler split
 2. Keep public behavior stable through facade-first migration.
 3. Make every subtrack reviewable and reversible.
 4. Ensure each subtrack has focused tests before or with implementation.
@@ -92,22 +109,22 @@ Candidate AD is the program wrapper that makes those dependencies explicit.
 
 ## Program Topology
 
-| Subtrack | Existing Candidate | Main Boundary | Primary Pattern Language | Default Rule |
+| Subtrack | Owning LTO | Main Boundary | Primary Pattern Language | Default Rule |
 |---|---|---|---|---|
-| AD0 | AD | program plan / dependency order | Facade, Command, Repository, Adapter | docs-only, no runtime move |
-| AD1 | AA | test harness foundation | Builder, Fixture, CLI runner, Guard helpers | helpers first, test moves second |
-| AD2 | V | Knowledge Plane API | Facade, Repository, Value Object | add facade before moving internals |
-| AD3 | AB | application command/query boundary | Command, Query, Adapter | pilot one surface first |
-| AD4 | W | Provider Router internals | Facade, Strategy, Registry, Adapter | keep `router.py` compatibility facade |
-| AD5 | X | orchestration lifecycle | Template Method, State, Observer | helpers cannot own Control Plane advancement |
-| AD6 | Y | surface command families / meta optimizer | Command, Adapter, Facade | behavior-preserving split |
-| AD7 | Z | governance private handlers | Facade, Command Handler, Repository | `apply_proposal` stays public entry |
+| Program plan / dependency order | LTO-3 | architecture recomposition sequence | Facade, Command, Repository, Adapter | docs-only, no runtime move |
+| Test harness foundation | LTO-4 | test helpers and layered test seed | Builder, Fixture, CLI runner, Guard helpers | helpers first, test moves second |
+| Knowledge Plane API | LTO-6 | public knowledge facade | Facade, Repository, Value Object | add facade before moving internals |
+| Application command/query boundary | LTO-5 | shared application layer | Command, Query, Adapter | pilot one surface first |
+| Provider Router internals | LTO-7 | provider router modules | Facade, Strategy, Registry, Adapter | keep `router.py` compatibility facade |
+| Orchestration lifecycle | LTO-8 | task lifecycle and execution flow | Template Method, State, Observer | helpers cannot own Control Plane advancement |
+| Surface command families / meta optimizer | LTO-9 | CLI and optimizer modules | Command, Adapter, Facade | behavior-preserving split |
+| Governance private handlers | LTO-10 | internal apply handlers | Facade, Command Handler, Repository | `apply_proposal` stays public entry |
 
 ## Suggested First Implementation Phase
 
-The first code phase after AD0 should not attempt all of AD. Recommended first phase:
+The first code phase should not attempt the full architecture program. Recommended first phase:
 
-`Architecture Recomposition AD1/V Pilot`
+`Architecture Recomposition First Branch`
 
 Scope:
 
@@ -132,17 +149,17 @@ Exit criteria:
 
 | Milestone | Scope | Risk | Gate |
 |---|---|---|---|
-| M0 | AD roadmap + program plan | low | docs diff review |
-| M1 | AA minimum helpers and CLI runner | medium | focused helper tests + current CLI focused tests |
+| M0 | Architecture roadmap + program plan | low | docs diff review |
+| M1 | Minimum helpers and CLI runner | medium | focused helper tests + current CLI focused tests |
 | M2 | Move or add first focused tests into target test layers | medium | collect-only + focused pytest |
-| M3 | V Knowledge Plane facade skeleton | medium | import compatibility tests |
+| M3 | Knowledge Plane facade skeleton | medium | import compatibility tests |
 | M4 | Migrate limited Knowledge Plane callers | medium | focused knowledge / retrieval / CLI tests |
-| M5 | Optional AB query/command pilot | medium-high | one surface only, full regression |
+| M5 | Optional application query/command pilot | medium-high | one surface only, full regression |
 | M6 | Closeout and next subtrack selection | low | full pytest + guard + diff hygiene |
 
 ## Subtrack Entry Criteria
 
-Before starting each AD subtrack:
+Before starting each architecture subtrack:
 
 - Identify the compatibility facade.
 - Identify which existing callers must remain unchanged.
@@ -159,11 +176,11 @@ Before starting each AD subtrack:
 | Hidden behavior changes | Behavior-preserving moves use old assertions first; assertion improvements are separate commits. |
 | Control authority drift | Orchestration helpers cannot advance task state independently. |
 | Truth boundary drift | Repositories protect writes; `apply_proposal` facade stays unique. |
-| Test instability | AA helpers and collect-only checks precede broad moves. |
+| Test instability | Test helpers and collect-only checks precede broad moves. |
 
 ## Validation Baseline
 
-Minimum checks for AD implementation phases:
+Minimum checks for architecture implementation phases:
 
 ```bash
 .venv/bin/python -m pytest tests/test_invariant_guards.py -q
@@ -174,9 +191,9 @@ git diff --check
 
 Additional focused checks are selected per subtrack.
 
-## Completion Conditions For AD0
+## Completion Conditions For Program Plan
 
-- `docs/roadmap.md` names Candidate AD and its subtracks.
+- `docs/roadmap.md` names the relevant `LTO-*` goals and near-term phase tickets.
 - This plan records the program topology, non-goals, risk controls, and first implementation recommendation.
 - No runtime code changes are required for AD0.
-- The next implementation phase can be planned as a bounded AA/V pilot instead of an unbounded architecture rewrite.
+- The next implementation phase can be planned as a bounded first branch instead of an unbounded architecture rewrite.
