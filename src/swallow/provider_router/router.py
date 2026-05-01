@@ -1,29 +1,22 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from collections.abc import Iterable
 from pathlib import Path
 
-import httpx
-
 from swallow.provider_router import route_metadata_store as route_metadata_store_module
+from swallow.provider_router.completion_gateway import invoke_completion
 from swallow.provider_router import route_policy as route_policy_module
+from swallow.provider_router.route_reports import (
+    build_route_capability_profiles_report,
+    build_route_policy_report,
+    build_route_registry_report,
+    build_route_weights_report,
+)
 from swallow.provider_router import route_registry as route_registry_module
 from swallow.provider_router import route_selection as route_selection_module
 from swallow.truth_governance import sqlite_store
-from swallow.provider_router._http_helpers import (
-    AgentLLMResponse,
-    AgentLLMUnavailable,
-    clean_output,
-    extract_api_usage,
-    http_request_headers,
-    normalize_http_response_content,
-    parse_timeout_seconds,
-    resolve_new_api_api_key,
-    resolve_new_api_chat_completions_url,
-)
 from swallow.knowledge_retrieval.dialect_data import DEFAULT_EXECUTOR, normalize_executor_name
 from swallow.surface_tools.identity import local_actor
 from swallow.orchestration.models import RouteCapabilities, RouteSelection, RouteSpec, TaskState, TaxonomyProfile, infer_task_family, utc_now
@@ -34,7 +27,6 @@ from swallow.surface_tools.paths import (
     route_registry_path,
     route_weights_path,
 )
-from swallow.orchestration.runtime_config import resolve_swl_chat_model
 
 
 CAPABILITY_MATCH_FIELDS = (
@@ -799,34 +791,6 @@ def current_route_registry(registry: RouteRegistry | None = None) -> dict[str, d
     return {route.name: route.to_dict() for route in active_registry.values()}
 
 
-def build_route_registry_report(base_dir: Path, registry: RouteRegistry | None = None) -> str:
-    active_registry = registry or ROUTE_REGISTRY
-    lines = [
-        "# Route Registry",
-        "",
-        f"- path: {route_registry_path(base_dir)}",
-        f"- default_path: {DEFAULT_ROUTE_REGISTRY_PATH}",
-        "",
-        "## Routes",
-    ]
-    for route in sorted(active_registry.values(), key=lambda item: item.name):
-        lines.extend(
-            [
-                f"- {route.name}",
-                f"  executor_name: {route.executor_name}",
-                f"  backend_kind: {route.backend_kind}",
-                f"  model_hint: {route.model_hint}",
-                f"  dialect_hint: {route.dialect_hint or '-'}",
-                f"  fallback_route_name: {route.fallback_route_name or '-'}",
-                f"  executor_family: {route.executor_family}",
-                f"  execution_site: {route.execution_site}",
-                f"  transport_kind: {route.transport_kind}",
-                f"  taxonomy: {route.taxonomy.system_role} / {route.taxonomy.memory_authority}",
-            ]
-        )
-    return "\n".join(lines) + "\n"
-
-
 ROUTE_REGISTRY = _build_default_route_registry()
 RouteRegistry = route_registry_module.RouteRegistry
 ROUTE_REGISTRY = route_registry_module.ROUTE_REGISTRY
@@ -883,10 +847,6 @@ def current_route_policy() -> dict[str, object]:
     return route_policy_module.current_route_policy()
 
 
-def build_route_policy_report(base_dir: Path) -> str:
-    return route_policy_module.build_route_policy_report(base_dir)
-
-
 def load_route_weights(base_dir: Path) -> dict[str, float]:
     return route_metadata_store_module.load_route_weights(base_dir)
 
@@ -906,21 +866,6 @@ def apply_route_weights(base_dir: Path, registry: RouteRegistry | None = None) -
 def current_route_weights(registry: RouteRegistry | None = None) -> dict[str, float]:
     active_registry = registry or ROUTE_REGISTRY
     return {route.name: route.quality_weight for route in active_registry.values()}
-
-
-def build_route_weights_report(base_dir: Path, registry: RouteRegistry | None = None) -> str:
-    active_registry = registry or ROUTE_REGISTRY
-    weights = current_route_weights(active_registry)
-    lines = [
-        "# Route Quality Weights",
-        "",
-        f"- path: {route_weights_path(base_dir)}",
-        "",
-        "## Weights",
-    ]
-    for route_name, weight in sorted(weights.items(), key=lambda item: (-item[1], item[0])):
-        lines.append(f"- {route_name}: {weight:.6f}")
-    return "\n".join(lines) + "\n"
 
 
 def load_route_capability_profiles(base_dir: Path) -> dict[str, dict[str, object]]:
@@ -950,33 +895,6 @@ def current_route_capability_profiles(registry: RouteRegistry | None = None) -> 
         }
         for route in active_registry.values()
     }
-
-
-def build_route_capability_profiles_report(base_dir: Path, registry: RouteRegistry | None = None) -> str:
-    active_registry = registry or ROUTE_REGISTRY
-    profiles = current_route_capability_profiles(active_registry)
-    lines = [
-        "# Route Capability Profiles",
-        "",
-        f"- path: {route_capabilities_path(base_dir)}",
-        "",
-        "## Routes",
-    ]
-    for route_name in sorted(profiles):
-        profile = profiles[route_name]
-        score_text = ", ".join(
-            f"{task_type}={score:.6f}"
-            for task_type, score in sorted(profile["task_family_scores"].items())
-        ) or "none"
-        unsupported_text = ", ".join(profile["unsupported_task_types"]) or "none"
-        lines.extend(
-            [
-                f"- {route_name}",
-                f"  task_family_scores: {score_text}",
-                f"  unsupported_task_types: {unsupported_text}",
-            ]
-        )
-    return "\n".join(lines) + "\n"
 
 
 def load_route_fallbacks(base_dir: Path) -> dict[str, str]:
@@ -1018,54 +936,6 @@ def apply_route_fallbacks(base_dir: Path, registry: RouteRegistry | None = None)
                 fallback_name = configured_fallback
         route.fallback_route_name = fallback_name
     return {route.name: route.fallback_route_name for route in active_registry.values()}
-
-
-def invoke_completion(
-    prompt: str,
-    *,
-    system: str = "",
-    model: str | None = None,
-    timeout_seconds: int | None = None,
-) -> AgentLLMResponse:
-    api_key = resolve_new_api_api_key()
-    if not api_key:
-        raise AgentLLMUnavailable("LLM enhancement unavailable: API key not configured.")
-
-    resolved_timeout = timeout_seconds or parse_timeout_seconds(os.environ.get("AIWF_EXECUTOR_TIMEOUT_SECONDS", "30"))
-    resolved_model = resolve_swl_chat_model(explicit_model=model)
-    messages: list[dict[str, str]] = []
-    if system.strip():
-        messages.append({"role": "system", "content": system.strip()})
-    messages.append({"role": "user", "content": prompt})
-
-    try:
-        response = httpx.post(
-            resolve_new_api_chat_completions_url(),
-            json={"model": resolved_model, "messages": messages},
-            headers=http_request_headers(),
-            timeout=resolved_timeout,
-        )
-        response.raise_for_status()
-        payload = response.json()
-        choices = payload["choices"]
-        message = choices[0]["message"]
-        content = normalize_http_response_content(message.get("content"))
-    except httpx.HTTPError as exc:
-        raise AgentLLMUnavailable(f"LLM enhancement unavailable: {exc}") from exc
-    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as exc:
-        raise AgentLLMUnavailable(f"LLM enhancement returned an unreadable payload: {exc}") from exc
-
-    if not content:
-        raise AgentLLMUnavailable("LLM enhancement returned an empty response.")
-
-    input_tokens, output_tokens = extract_api_usage(payload)
-    returned_model = clean_output(str(payload.get("model", "") or resolved_model)) or resolved_model
-    return AgentLLMResponse(
-        content=content,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        model=returned_model,
-    )
 
 
 def route_for_executor(executor_name: str) -> RouteSpec:

@@ -3,9 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from swallow.surface_tools.paths import route_policy_path
-
-
 DEFAULT_ROUTE_POLICY_PATH = Path(__file__).with_name("route_policy.default.json")
 
 ROUTE_MODE_ALIASES = {
@@ -144,40 +141,3 @@ def current_route_policy() -> dict[str, object]:
         "parallel_intent_hints": sorted(ROUTE_PARALLEL_INTENT_HINTS),
         "summary_fallback_route_name": SUMMARY_FALLBACK_ROUTE_NAME,
     }
-
-
-def build_route_policy_report(base_dir: Path) -> str:
-    route_policy = current_route_policy()
-    lines = [
-        "# Route Policy",
-        "",
-        f"- path: {route_policy_path(base_dir)}",
-        f"- default_path: {DEFAULT_ROUTE_POLICY_PATH}",
-        f"- summary_fallback_route_name: {route_policy['summary_fallback_route_name']}",
-        "",
-        "## Route Modes",
-    ]
-    route_mode_routes = route_policy["route_mode_routes"]
-    if isinstance(route_mode_routes, dict) and route_mode_routes:
-        for mode, route_name in sorted(route_mode_routes.items()):
-            lines.append(f"- {mode}: {route_name}")
-    else:
-        lines.append("- none")
-    lines.extend(["", "## Complexity Bias"])
-    complexity_bias_routes = route_policy["complexity_bias_routes"]
-    if isinstance(complexity_bias_routes, dict) and complexity_bias_routes:
-        for hint, route_name in sorted(complexity_bias_routes.items()):
-            lines.append(f"- {hint}: {route_name}")
-    else:
-        lines.append("- none")
-    lines.extend(
-        [
-            "",
-            "## Strategy Complexity Hints",
-            ", ".join(route_policy["strategy_complexity_hints"]) or "none",
-            "",
-            "## Parallel Intent Hints",
-            ", ".join(route_policy["parallel_intent_hints"]) or "none",
-        ]
-    )
-    return "\n".join(lines) + "\n"

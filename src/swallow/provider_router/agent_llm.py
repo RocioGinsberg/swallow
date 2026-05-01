@@ -18,7 +18,7 @@ def call_agent_llm(
     model: str | None = None,
     timeout_seconds: int | None = None,
 ) -> AgentLLMResponse:
-    from .router import invoke_completion
+    from .completion_gateway import invoke_completion
 
     return invoke_completion(prompt, system=system, model=model, timeout_seconds=timeout_seconds)
 
