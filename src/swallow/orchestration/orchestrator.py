@@ -57,7 +57,6 @@ from swallow.knowledge_retrieval.knowledge_objects import (
 from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index, build_knowledge_index_report
 from swallow.knowledge_retrieval.knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
 from swallow.knowledge_retrieval.knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from swallow.knowledge_retrieval.knowledge_suggestions import persist_executor_side_effects
 from swallow.knowledge_retrieval.knowledge_store import (
     LIBRARIAN_AGENT_WRITE_AUTHORITY,
     OPERATOR_CANONICAL_WRITE_AUTHORITY,
@@ -85,38 +84,20 @@ from swallow.orchestration.models import (
 )
 from swallow.surface_tools.paths import (
     artifacts_dir,
-    capability_assembly_path,
-    capability_manifest_path,
-    checkpoint_snapshot_path,
     canonical_registry_index_path,
     canonical_registry_path,
     canonical_reuse_policy_path,
     canonical_reuse_eval_path,
-    canonical_reuse_regression_path,
-    compatibility_path,
-    dispatch_path,
-    execution_site_path,
-    execution_fit_path,
-    execution_budget_policy_path,
     handoff_path,
     knowledge_evidence_entry_path,
     knowledge_decisions_path,
     knowledge_index_path,
     knowledge_objects_path,
     knowledge_partition_path,
-    knowledge_policy_path,
     knowledge_wiki_entry_path,
-    memory_path,
-    retry_policy_path,
-    stop_policy_path,
     task_root,
-    task_semantics_path,
     retrieval_path,
-    remote_handoff_contract_path,
-    route_path,
     state_path,
-    topology_path,
-    validation_path,
 )
 from swallow.provider_router.router import (
     apply_route_capability_profiles,
@@ -168,9 +149,20 @@ from swallow.truth_governance.store import (
     write_artifact,
 )
 from swallow.orchestration.task_semantics import build_task_semantics, normalize_retrieval_source_types
+from swallow.orchestration.artifact_writer import (
+    build_create_task_artifact_paths,
+    build_run_task_artifact_paths,
+    write_parent_executor_artifacts,
+    write_prefixed_executor_artifacts,
+)
 from swallow.orchestration.retrieval_flow import (
     build_task_retrieval_request,
     load_previous_retrieval_items,
+)
+from swallow.orchestration.subtask_flow import (
+    collect_subtask_attempt_artifact_refs,
+    collect_subtask_extra_artifacts,
+    write_subtask_attempt_artifacts,
 )
 from swallow.orchestration.task_lifecycle import (
     build_phase_checkpoint_payload,
@@ -180,20 +172,6 @@ from swallow.orchestration.task_lifecycle import (
 from swallow.orchestration.models import utc_now
 from swallow.surface_tools.workspace import resolve_path
 
-
-STANDARD_SUBTASK_ARTIFACT_NAMES = {
-    "executor_prompt.md",
-    "executor_output.md",
-    "executor_stdout.txt",
-    "executor_stderr.txt",
-}
-
-EXECUTOR_ARTIFACT_NAMES = (
-    "executor_prompt.md",
-    "executor_output.md",
-    "executor_stdout.txt",
-    "executor_stderr.txt",
-)
 
 DEBATE_MAX_ROUNDS = 3
 _BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
@@ -525,78 +503,6 @@ def _apply_librarian_side_effects(
     return state
 
 
-def _write_subtask_attempt_artifacts(
-    base_dir: Path,
-    task_id: str,
-    record: SubtaskRunRecord,
-    *,
-    attempt_number: int,
-    extra_artifacts: dict[str, str] | None = None,
-) -> None:
-    executor_result = record.executor_result or ExecutorResult(
-        executor_name="subtask-orchestrator",
-        status="failed",
-        message="Missing subtask executor result.",
-    )
-    review_gate_result = record.review_gate_result
-    prompt_with_dialect = (
-        f"dialect: {executor_result.dialect or 'plain_text'}\n\n{executor_result.prompt}"
-    )
-    prefix = f"subtask_{record.subtask_index}_attempt{attempt_number}"
-    write_artifact(base_dir, task_id, f"{prefix}_executor_prompt.md", prompt_with_dialect)
-    write_artifact(
-        base_dir,
-        task_id,
-        f"{prefix}_executor_output.md",
-        executor_result.output or executor_result.message or "(no executor output)",
-    )
-    write_artifact(base_dir, task_id, f"{prefix}_executor_stdout.txt", executor_result.stdout or "")
-    write_artifact(base_dir, task_id, f"{prefix}_executor_stderr.txt", executor_result.stderr or "")
-    if review_gate_result is not None:
-        write_artifact(
-            base_dir,
-            task_id,
-            f"{prefix}_review_gate.json",
-            json.dumps(review_gate_result.to_dict(), indent=2),
-        )
-    for artifact_name, content in sorted((extra_artifacts or {}).items()):
-        write_artifact(base_dir, task_id, f"{prefix}_{artifact_name}", content)
-
-
-def _collect_subtask_extra_artifacts(
-    subtask_base_dir: Path,
-    task_id: str,
-) -> dict[str, str]:
-    subtask_artifacts_dir = artifacts_dir(subtask_base_dir, task_id)
-    if not subtask_artifacts_dir.exists():
-        return {}
-
-    extra_artifacts: dict[str, str] = {}
-    for artifact_path in sorted(subtask_artifacts_dir.rglob("*")):
-        if not artifact_path.is_file():
-            continue
-        relative_name = artifact_path.relative_to(subtask_artifacts_dir).as_posix().replace("/", "__")
-        if relative_name in STANDARD_SUBTASK_ARTIFACT_NAMES:
-            continue
-        extra_artifacts[relative_name] = artifact_path.read_text(encoding="utf-8", errors="replace")
-    return extra_artifacts
-
-
-def _write_parent_executor_artifacts(
-    base_dir: Path,
-    state: TaskState,
-    executor_result: ExecutorResult,
-) -> None:
-    prompt_with_dialect = (
-        f"dialect: {executor_result.dialect or state.route_dialect or 'plain_text'}\n\n{executor_result.prompt}"
-    )
-    write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt_with_dialect)
-    write_artifact(base_dir, state.task_id, "executor_output.md", executor_result.output or executor_result.message)
-    write_artifact(base_dir, state.task_id, "executor_stdout.txt", executor_result.stdout)
-    write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
-    persist_executor_side_effects(base_dir, state.task_id, executor_result.side_effects)
-
-
 def _clear_review_feedback_state(state: TaskState) -> None:
     state.review_feedback_markdown = ""
     state.review_feedback_ref = ""
@@ -716,29 +622,6 @@ def _append_parent_executor_event(
     )
 
 
-def _write_prefixed_executor_artifacts(
-    base_dir: Path,
-    task_id: str,
-    *,
-    prefix: str,
-) -> list[str]:
-    written: list[str] = []
-    task_artifacts_dir = artifacts_dir(base_dir, task_id)
-    for artifact_name in EXECUTOR_ARTIFACT_NAMES:
-        source_path = task_artifacts_dir / artifact_name
-        if not source_path.exists():
-            continue
-        prefixed_name = f"{prefix}_{artifact_name}"
-        write_artifact(
-            base_dir,
-            task_id,
-            prefixed_name,
-            source_path.read_text(encoding="utf-8", errors="replace"),
-        )
-        written.append(prefixed_name)
-    return written
-
-
 def _run_binary_fallback(
     base_dir: Path,
     state: TaskState,
@@ -755,7 +638,7 @@ def _run_binary_fallback(
     primary_route_name = state.route_name
     primary_executor_name = primary_result.executor_name
     primary_failure_kind = primary_result.failure_kind
-    primary_artifacts = _write_prefixed_executor_artifacts(
+    primary_artifacts = write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,
         prefix="fallback_primary",
@@ -783,7 +666,7 @@ def _run_binary_fallback(
         original_route_name=primary_route_name,
         fallback_route_name=fallback_route.name,
     )
-    fallback_artifacts = _write_prefixed_executor_artifacts(
+    fallback_artifacts = write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,
         prefix="fallback",
@@ -839,7 +722,7 @@ async def _run_binary_fallback_async(
     primary_route_name = state.route_name
     primary_executor_name = primary_result.executor_name
     primary_failure_kind = primary_result.failure_kind
-    primary_artifacts = _write_prefixed_executor_artifacts(
+    primary_artifacts = write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,
         prefix="fallback_primary",
@@ -867,7 +750,7 @@ async def _run_binary_fallback_async(
         original_route_name=primary_route_name,
         fallback_route_name=fallback_route.name,
     )
-    fallback_artifacts = _write_prefixed_executor_artifacts(
+    fallback_artifacts = write_prefixed_executor_artifacts(
         base_dir,
         state.task_id,
         prefix="fallback",
@@ -1427,7 +1310,7 @@ def _run_subtask_attempt(
             with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
                 subtask_base_dir = Path(tmp)
                 executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, retrieval_items)
-                extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+                extra_artifacts = collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
             review_gate_result = run_review_gate(isolated_state, executor_result, card)
     except Exception as exc:  # pragma: no cover - defensive path
         executor_result = ExecutorResult(
@@ -1502,7 +1385,7 @@ async def _run_subtask_attempt_async(
                     card,
                     retrieval_items,
                 )
-                extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+                extra_artifacts = collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
             review_gate_result = await run_review_gate_async(isolated_state, executor_result, card)
     except Exception as exc:  # pragma: no cover - defensive path
         executor_result = ExecutorResult(
@@ -1917,30 +1800,6 @@ def _build_subtask_executor_result(
     )
 
 
-def _subtask_artifact_ref(task_id: str, artifact_name: str) -> str:
-    return f".swl/tasks/{task_id}/artifacts/{artifact_name}"
-
-
-def _collect_subtask_attempt_artifact_refs(
-    base_dir: Path,
-    task_id: str,
-    *,
-    subtask_index: int,
-    attempt_number: int,
-) -> list[str]:
-    artifact_root = artifacts_dir(base_dir, task_id)
-    if not artifact_root.exists():
-        return []
-
-    prefix = f"subtask_{subtask_index}_attempt{attempt_number}_"
-    artifact_names = sorted(
-        path.relative_to(artifact_root).as_posix()
-        for path in artifact_root.glob(f"{prefix}*")
-        if path.is_file()
-    )
-    return [_subtask_artifact_ref(task_id, artifact_name) for artifact_name in artifact_names]
-
-
 def _build_subtask_summary_report(
     base_dir: Path,
     task_id: str,
@@ -1970,7 +1829,7 @@ def _build_subtask_summary_report(
         executor_result = record.executor_result
         review_gate_result = record.review_gate_result
         latest_attempt = attempt_counts.get(record.card_id, 1)
-        artifact_refs = _collect_subtask_attempt_artifact_refs(
+        artifact_refs = collect_subtask_attempt_artifact_refs(
             base_dir,
             task_id,
             subtask_index=record.subtask_index,
@@ -2032,7 +1891,7 @@ def _run_subtask_orchestration(
         with tempfile.TemporaryDirectory(prefix="swallow-subtask-") as tmp:
             subtask_base_dir = Path(tmp)
             executor_result = _execute_task_card(subtask_base_dir, isolated_state, card, subtask_retrieval_items)
-            extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+            extra_artifacts = collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
             with subtask_extra_artifacts_lock:
                 subtask_extra_artifacts[card.card_id] = extra_artifacts
             return executor_result
@@ -2054,7 +1913,7 @@ def _run_subtask_orchestration(
     debate_exhausted_card_ids: list[str] = []
 
     for record in result.records:
-        _write_subtask_attempt_artifacts(
+        write_subtask_attempt_artifacts(
             base_dir,
             state.task_id,
             record,
@@ -2075,7 +1934,7 @@ def _run_subtask_orchestration(
             attempt_counts[failed_record.card_id] = 1 + len(retry_attempts)
             records_by_id[failed_record.card_id] = retry_attempts[-1][1]
             for attempt_number, retry_record, extra_artifacts in retry_attempts:
-                _write_subtask_attempt_artifacts(
+                write_subtask_attempt_artifacts(
                     base_dir,
                     state.task_id,
                     retry_record,
@@ -2136,7 +1995,7 @@ def _run_subtask_orchestration(
             budget_exhausted_card_ids=budget_exhausted_card_ids,
         ),
     )
-    _write_parent_executor_artifacts(base_dir, state, executor_result)
+    write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
     return executor_result, review_gate_result, result, bool(debate_exhausted_card_ids or budget_exhausted_card_ids)
 
@@ -2178,7 +2037,7 @@ async def _run_subtask_orchestration_async(
                 card,
                 subtask_retrieval_items,
             )
-            extra_artifacts = _collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
+            extra_artifacts = collect_subtask_extra_artifacts(subtask_base_dir, isolated_state.task_id)
         async with subtask_extra_artifacts_lock:
             subtask_extra_artifacts[card.card_id] = extra_artifacts
         return executor_result
@@ -2200,7 +2059,7 @@ async def _run_subtask_orchestration_async(
     debate_exhausted_card_ids: list[str] = []
 
     for record in result.records:
-        _write_subtask_attempt_artifacts(
+        write_subtask_attempt_artifacts(
             base_dir,
             state.task_id,
             record,
@@ -2221,7 +2080,7 @@ async def _run_subtask_orchestration_async(
             attempt_counts[failed_record.card_id] = 1 + len(retry_attempts)
             records_by_id[failed_record.card_id] = retry_attempts[-1][1]
             for attempt_number, retry_record, extra_artifacts in retry_attempts:
-                _write_subtask_attempt_artifacts(
+                write_subtask_attempt_artifacts(
                     base_dir,
                     state.task_id,
                     retry_record,
@@ -2282,7 +2141,7 @@ async def _run_subtask_orchestration_async(
             budget_exhausted_card_ids=budget_exhausted_card_ids,
         ),
     )
-    _write_parent_executor_artifacts(base_dir, state, executor_result)
+    write_parent_executor_artifacts(base_dir, state, executor_result)
     _append_parent_executor_event(base_dir, state, executor_result)
     return executor_result, review_gate_result, result, bool(debate_exhausted_card_ids or budget_exhausted_card_ids)
 
@@ -2605,41 +2464,7 @@ def create_task(
     state.executor_name = normalize_executor_name(executor_name)
     _apply_execution_topology(state, dispatch_status="not_requested")
     _apply_execution_site_contract(state)
-    state.artifact_paths = {
-        "task_semantics_json": _resolved_path_string(task_semantics_path(base_dir, task_id)),
-        "task_semantics_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "task_semantics_report.md"),
-        "knowledge_objects_json": _resolved_path_string(knowledge_objects_path(base_dir, task_id)),
-        "knowledge_objects_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md"),
-        "librarian_change_log": _resolved_path_string(artifacts_dir(base_dir, task_id) / "librarian_change_log.json"),
-        "librarian_change_log_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md"
-        ),
-        "knowledge_partition_json": _resolved_path_string(knowledge_partition_path(base_dir, task_id)),
-        "knowledge_partition_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md"),
-        "knowledge_index_json": _resolved_path_string(knowledge_index_path(base_dir, task_id)),
-        "knowledge_index_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_index_report.md"),
-        "knowledge_decisions_json": _resolved_path_string(knowledge_decisions_path(base_dir, task_id)),
-        "knowledge_decisions_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_decisions_report.md"),
-        "canonical_registry_json": _resolved_path_string(canonical_registry_path(base_dir)),
-        "canonical_registry_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "canonical_registry_report.md"),
-        "canonical_registry_index_json": _resolved_path_string(canonical_registry_index_path(base_dir)),
-        "canonical_registry_index_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "canonical_registry_index_report.md"
-        ),
-        "canonical_reuse_policy_json": _resolved_path_string(canonical_reuse_policy_path(base_dir)),
-        "canonical_reuse_policy_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md"
-        ),
-        "canonical_reuse_eval_json": _resolved_path_string(canonical_reuse_eval_path(base_dir, task_id)),
-        "canonical_reuse_eval_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "canonical_reuse_eval_report.md"),
-        "canonical_reuse_regression_json": _resolved_path_string(canonical_reuse_regression_path(base_dir, task_id)),
-        "remote_handoff_contract_json": _resolved_path_string(remote_handoff_contract_path(base_dir, task_id)),
-        "remote_handoff_contract_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md"
-        ),
-        "checkpoint_snapshot_json": _resolved_path_string(checkpoint_snapshot_path(base_dir, task_id)),
-        "checkpoint_snapshot_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md"),
-    }
+    state.artifact_paths = build_create_task_artifact_paths(base_dir, task_id)
     knowledge_partition = build_knowledge_partition(state.knowledge_objects)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
     save_state(base_dir, state)
@@ -3448,74 +3273,7 @@ async def run_task_async(
     )
 
     _set_phase(base_dir, state, "summarize")
-    state.artifact_paths = {
-        "executor_prompt": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_prompt.md"),
-        "executor_output": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_output.md"),
-        "executor_stdout": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_stdout.txt"),
-        "executor_stderr": _resolved_path_string(artifacts_dir(base_dir, task_id) / "executor_stderr.txt"),
-        "task_semantics_json": _resolved_path_string(task_semantics_path(base_dir, task_id)),
-        "task_semantics_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "task_semantics_report.md"),
-        "knowledge_objects_json": _resolved_path_string(knowledge_objects_path(base_dir, task_id)),
-        "knowledge_objects_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_objects_report.md"),
-        "librarian_change_log": _resolved_path_string(artifacts_dir(base_dir, task_id) / "librarian_change_log.json"),
-        "librarian_change_log_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md"
-        ),
-        "knowledge_partition_json": _resolved_path_string(knowledge_partition_path(base_dir, task_id)),
-        "knowledge_partition_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md"),
-        "knowledge_index_json": _resolved_path_string(knowledge_index_path(base_dir, task_id)),
-        "knowledge_index_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_index_report.md"),
-        "knowledge_policy_json": _resolved_path_string(knowledge_policy_path(base_dir, task_id)),
-        "canonical_reuse_policy_json": _resolved_path_string(canonical_reuse_policy_path(base_dir)),
-        "knowledge_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "knowledge_policy_report.md"),
-        "canonical_reuse_policy_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "canonical_reuse_policy_report.md"
-        ),
-        "summary": _resolved_path_string(artifacts_dir(base_dir, task_id) / "summary.md"),
-        "resume_note": _resolved_path_string(artifacts_dir(base_dir, task_id) / "resume_note.md"),
-        "route_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "route_report.md"),
-        "compatibility_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "compatibility_report.md"),
-        "source_grounding": _resolved_path_string(artifacts_dir(base_dir, task_id) / "source_grounding.md"),
-        "grounding_evidence_json": _resolved_path_string(artifacts_dir(base_dir, task_id) / "grounding_evidence.json"),
-        "grounding_evidence_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "grounding_evidence_report.md"),
-        "retrieval_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "retrieval_report.md"),
-        "retrieval_json": _resolved_path_string(retrieval_path(base_dir, task_id)),
-        "validation_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "validation_report.md"),
-        "compatibility_json": _resolved_path_string(compatibility_path(base_dir, task_id)),
-        "validation_json": _resolved_path_string(validation_path(base_dir, task_id)),
-        "task_memory": _resolved_path_string(memory_path(base_dir, task_id)),
-        "capability_manifest_json": _resolved_path_string(capability_manifest_path(base_dir, task_id)),
-        "capability_assembly_json": _resolved_path_string(capability_assembly_path(base_dir, task_id)),
-        "route_json": _resolved_path_string(route_path(base_dir, task_id)),
-        "topology_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "topology_report.md"),
-        "topology_json": _resolved_path_string(topology_path(base_dir, task_id)),
-        "execution_site_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "execution_site_report.md"),
-        "execution_site_json": _resolved_path_string(execution_site_path(base_dir, task_id)),
-        "dispatch_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "dispatch_report.md"),
-        "dispatch_json": _resolved_path_string(dispatch_path(base_dir, task_id)),
-        "handoff_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "handoff_report.md"),
-        "handoff_json": _resolved_path_string(handoff_path(base_dir, task_id)),
-        "remote_handoff_contract_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "remote_handoff_contract_report.md"
-        ),
-        "remote_handoff_contract_json": _resolved_path_string(remote_handoff_contract_path(base_dir, task_id)),
-        "execution_fit_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "execution_fit_report.md"),
-        "execution_fit_json": _resolved_path_string(execution_fit_path(base_dir, task_id)),
-        "retry_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "retry_policy_report.md"),
-        "retry_policy_json": _resolved_path_string(retry_policy_path(base_dir, task_id)),
-        "execution_budget_policy_report": _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "execution_budget_policy_report.md"
-        ),
-        "execution_budget_policy_json": _resolved_path_string(execution_budget_policy_path(base_dir, task_id)),
-        "stop_policy_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "stop_policy_report.md"),
-        "stop_policy_json": _resolved_path_string(stop_policy_path(base_dir, task_id)),
-        "checkpoint_snapshot_report": _resolved_path_string(artifacts_dir(base_dir, task_id) / "checkpoint_snapshot_report.md"),
-        "checkpoint_snapshot_json": _resolved_path_string(checkpoint_snapshot_path(base_dir, task_id)),
-    }
-    if multi_card_plan:
-        state.artifact_paths["subtask_summary"] = _resolved_path_string(
-            artifacts_dir(base_dir, task_id) / "subtask_summary.md"
-        )
+    state.artifact_paths = build_run_task_artifact_paths(base_dir, task_id, multi_card_plan=multi_card_plan)
     state.execution_phase = "analysis_done"
     state.last_phase_checkpoint_at = utc_now()
     save_state(base_dir, state)

@@ -13,9 +13,9 @@
 - latest_completed_slice: `Provider Router Maintainability`
 - active_track: `Architecture / Engineering`
 - active_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- active_slice: `M2 retrieval flow extraction complete`
+- active_slice: `M3 artifact writer / subtask glue extraction complete`
 - active_branch: `feat/orchestration-lifecycle-decomposition`
-- status: `m2_validation_passed_waiting_human_commit`
+- status: `m3_validation_passed_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -62,6 +62,17 @@ Codex 已完成 M2 retrieval flow extraction:
 - 未移动 `harness.py` 中的 `run_retrieval(...)` / `run_retrieval_async(...)` execution。
 - `retrieval_flow.py` 无 `save_state` / `append_event` / `orchestration.harness` / `orchestration.executor` 依赖命中。
 - 新增 focused tests 覆盖 retrieval source policy、explicit override、previous retrieval artifact loading、selective retry invalid artifact fallback。
+- M2 已由 Human 提交:
+  - `e4d0539 refactor(orchestration): extract retrieval flow`
+
+Codex 已完成 M3 artifact writer / subtask glue extraction:
+
+- 目标模块: `src/swallow/orchestration/artifact_writer.py` 与 `src/swallow/orchestration/subtask_flow.py`
+- 已抽取 artifact path map construction、小型 Orchestrator-side artifact copy helpers、窄范围 subtask attempt artifact serialization helpers。
+- 不吸收 `harness.py` summary/resume/report builders。
+- 不改变 `.swl/tasks/<task_id>/artifacts/*` 文件名。
+- 新 helper 无 `save_state` / `append_event` / `orchestration.harness` / `orchestration.executor` 依赖命中。
+- `orchestrator.py` 继续保留 task advancement、event append、subtask scheduling、fallback routing 决策。
 
 ## 当前关键文档
 
@@ -128,19 +139,37 @@ Codex 已完成 M2 retrieval flow extraction:
   - `git diff --check --no-index /dev/null src/swallow/orchestration/retrieval_flow.py` -> no whitespace warnings
   - `git diff --check --no-index /dev/null tests/unit/orchestration/test_retrieval_flow_module.py` -> no whitespace warnings
   - `rg -n "save_state|append_event|orchestration\.harness|orchestration\.executor" src/swallow/orchestration/retrieval_flow.py` -> no matches
+- **[Human]** Committed M2:
+  - `e4d0539 refactor(orchestration): extract retrieval flow`
+- **[Codex]** M3 artifact writer / subtask glue extraction implemented:
+  - added `src/swallow/orchestration/artifact_writer.py` for initial/run artifact path maps, parent executor artifact writing, and prefixed executor artifact copies
+  - added `src/swallow/orchestration/subtask_flow.py` for subtask attempt artifact writes, extra artifact collection, and subtask artifact refs
+  - updated `src/swallow/orchestration/orchestrator.py` to delegate those helper surfaces while keeping state writes, events, routing, and scheduling in Orchestrator
+  - added focused tests for artifact path stability, artifact filename preservation, subtask attempt artifacts, and helper boundary assertions
+- **[Codex]** M3 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/orchestration -q` -> `22 passed`
+  - `.venv/bin/python -m pytest tests/test_run_task_subtasks.py tests/test_subtask_orchestrator.py tests/test_review_gate.py -q` -> `27 passed`
+  - `.venv/bin/python -m pytest tests/test_web_api.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -q` -> `242 passed, 10 subtests passed`
+  - `.venv/bin/python -m pytest tests/test_consistency_audit.py -q` -> `11 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+  - `git diff --check --no-index /dev/null <new M3 files>` -> no whitespace warnings
+  - `rg -n "save_state|append_event|orchestration\.harness|orchestration\.executor" src/swallow/orchestration/artifact_writer.py src/swallow/orchestration/subtask_flow.py` -> no matches
 
 进行中:
 
-- **[Human]** M2 review / commit gate.
+- **[Human]** M3 review / commit gate.
 
 待执行:
 
-- **[Human]** Review and commit M2 if accepted.
-- **[Codex]** Start M3 artifact writer / subtask glue extraction after M2 commit.
+- **[Human]** Review and commit M3 if accepted.
+- **[Codex]** Start M4 execution attempt helper extraction after M3 commit.
 
 当前阻塞项:
 
-- Waiting for Human review / commit of M2 retrieval flow extraction.
+- Waiting for Human review / commit of M3 artifact writer / subtask glue extraction.
 
 ## Tag 状态
 
@@ -151,17 +180,17 @@ Codex 已完成 M2 retrieval flow extraction:
 
 ## 当前下一步
 
-1. **[Human]** Review M2 diff and commit if accepted.
-2. **[Codex]** Continue to M3 artifact writer / subtask glue extraction after M2 commit.
+1. **[Human]** Review M3 diff and commit if accepted.
+2. **[Codex]** Continue to M4 execution attempt helper extraction after M3 commit.
 
 ```markdown
 milestone_gate:
-- current: lto8-m2-validation-passed
+- current: lto8-m3-validation-passed
 - active_branch: feat/orchestration-lifecycle-decomposition
 - latest_main_checkpoint: 6033558 Provider Router Maintainability
 - active_track: Architecture / Engineering
 - active_phase: Orchestration Lifecycle Decomposition / LTO-8 Step 1
-- active_slice: M2 retrieval flow extraction complete
+- active_slice: M3 artifact writer / subtask glue extraction complete
 - plan: docs/plans/orchestration-lifecycle-decomposition/plan.md (revised after audit)
 - plan_audit: docs/plans/orchestration-lifecycle-decomposition/plan_audit.md (1 BLOCKER + 7 CONCERNs)
 - audit_absorbed: milestone count, save_state closure ban, harness scope, module naming, append_event boundary, apply_proposal movement boundary
@@ -172,7 +201,10 @@ milestone_gate:
 - m1_commit: 0c6545d refactor(orchestration): extract lifecycle payload helpers
 - m2_outputs: retrieval_flow.py request/loading helpers, orchestrator.py facade import and loader call, tests/unit/orchestration/test_retrieval_flow_module.py
 - m2_validation: unit orchestration `13 passed`; CLI retrieval request focused `8 passed`; full CLI `242 passed`; invariant guards `25 passed`; compileall orchestration passed; git diff --check passed; retrieval_flow forbidden dependency grep no matches
-- next_gate: Human M2 review / commit
+- m2_commit: e4d0539 refactor(orchestration): extract retrieval flow
+- m3_outputs: artifact_writer.py artifact path/copy helpers, subtask_flow.py subtask attempt artifact helpers, orchestrator.py helper delegation, focused unit tests
+- m3_validation: unit orchestration `22 passed`; subtask/review regression `27 passed`; Web API `10 passed`; full CLI `242 passed`; consistency audit `11 passed`; invariant guards `25 passed`; compileall src/swallow passed; git diff --check passed; M3 helper forbidden dependency grep no matches
+- next_gate: Human M3 review / commit
 ```
 
 ## 当前产出物
@@ -185,5 +217,9 @@ milestone_gate:
 - `tests/unit/orchestration/test_task_lifecycle_module.py`(codex, 2026-05-01, lifecycle payload parity and boundary tests)
 - `src/swallow/orchestration/retrieval_flow.py`(codex, 2026-05-01, retrieval request construction and previous retrieval artifact loading)
 - `tests/unit/orchestration/test_retrieval_flow_module.py`(codex, 2026-05-01, retrieval flow policy, selective retry fallback, and boundary tests)
+- `src/swallow/orchestration/artifact_writer.py`(codex, 2026-05-02, artifact path maps and executor artifact copy/write helpers)
+- `src/swallow/orchestration/subtask_flow.py`(codex, 2026-05-02, subtask attempt artifact write/collect/ref helpers)
+- `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-02, artifact writer path/file/boundary tests)
+- `tests/unit/orchestration/test_subtask_flow_module.py`(codex, 2026-05-02, subtask artifact serialization and boundary tests)
 - `current_state.md`(codex, 2026-05-01, post-merge recovery state for LTO-7 / LTO-8 planning gate)
-- `docs/active_context.md`(codex, 2026-05-01, active phase switched to LTO-8 M2 review / commit gate)
+- `docs/active_context.md`(codex, 2026-05-02, active phase switched to LTO-8 M3 review / commit gate)
