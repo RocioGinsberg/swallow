@@ -3,32 +3,20 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from swallow.application.queries.control_center import (
+    build_task_events_payload,
+    build_task_knowledge_payload,
+    build_task_payload,
+    build_tasks_payload,
+)
 from swallow.orchestration.models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED
 from swallow.surface_tools.paths import artifacts_dir
-from swallow.truth_governance.store import iter_task_states, load_events, load_knowledge_objects, load_state
+from swallow.truth_governance.store import load_events, load_state
 from swallow.surface_tools.workspace import resolve_path
 
 
 def _static_dir() -> Path:
     return resolve_path(Path(__file__), base=Path.cwd()).parent / "static"
-
-
-def _filter_task_states(states: list[object], focus: str) -> list[object]:
-    if focus == "all":
-        return states
-    if focus == "active":
-        return [state for state in states if state.status in {"created", "running"}]
-    if focus == "failed":
-        return [state for state in states if state.status == "failed"]
-    if focus == "needs-review":
-        return [
-            state
-            for state in states
-            if state.status == "failed" or state.phase == "summarize" or state.executor_status != "completed"
-        ]
-    if focus == "recent":
-        return states
-    return states
 
 
 def _relative_to_base(base_dir: Path, path: Path) -> str:
@@ -113,43 +101,6 @@ def _collect_artifact_index(base_dir: Path, task_id: str, artifact_paths: dict[s
     return list(indexed.values())
 
 
-def build_tasks_payload(base_dir: Path, focus: str = "all") -> dict[str, object]:
-    states = sorted(
-        iter_task_states(base_dir),
-        key=lambda state: (state.updated_at, state.task_id),
-        reverse=True,
-    )
-    filtered = _filter_task_states(states, focus)
-    return {
-        "focus": focus,
-        "count": len(filtered),
-        "tasks": [
-            {
-                "task_id": state.task_id,
-                "title": state.title,
-                "goal": state.goal,
-                "status": state.status,
-                "phase": state.phase,
-                "updated_at": state.updated_at,
-                "executor_name": state.executor_name,
-                "route_name": state.route_name,
-                "attempt_id": state.current_attempt_id,
-                "attempt_number": state.current_attempt_number,
-            }
-            for state in filtered
-        ],
-    }
-
-
-def build_task_payload(base_dir: Path, task_id: str) -> dict[str, object]:
-    return load_state(base_dir, task_id).to_dict()
-
-
-def build_task_events_payload(base_dir: Path, task_id: str) -> dict[str, object]:
-    payload = load_events(base_dir, task_id)
-    return {"task_id": task_id, "count": len(payload), "events": payload}
-
-
 def build_task_artifacts_payload(base_dir: Path, task_id: str) -> dict[str, object]:
     state = load_state(base_dir, task_id)
     artifacts = _collect_artifact_index(base_dir, task_id, state.artifact_paths)
@@ -192,11 +143,6 @@ def build_task_artifact_diff_payload(base_dir: Path, task_id: str, left_name: st
         "left": left,
         "right": right,
     }
-
-
-def build_task_knowledge_payload(base_dir: Path, task_id: str) -> dict[str, object]:
-    payload = load_knowledge_objects(base_dir, task_id)
-    return {"task_id": task_id, "count": len(payload), "knowledge_objects": payload}
 
 
 def build_task_subtask_tree_payload(base_dir: Path, task_id: str) -> dict[str, object]:
