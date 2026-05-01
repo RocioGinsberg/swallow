@@ -8,6 +8,8 @@ from pathlib import Path
 
 import httpx
 
+from swallow.provider_router import route_policy as route_policy_module
+from swallow.provider_router import route_registry as route_registry_module
 from swallow.truth_governance import sqlite_store
 from swallow.provider_router._http_helpers import (
     AgentLLMResponse,
@@ -20,7 +22,7 @@ from swallow.provider_router._http_helpers import (
     resolve_new_api_api_key,
     resolve_new_api_chat_completions_url,
 )
-from swallow.orchestration.executor import DEFAULT_EXECUTOR, normalize_executor_name
+from swallow.knowledge_retrieval.dialect_data import DEFAULT_EXECUTOR, normalize_executor_name
 from swallow.surface_tools.identity import local_actor
 from swallow.orchestration.models import RouteCapabilities, RouteSelection, RouteSpec, TaskState, TaxonomyProfile, infer_task_family, utc_now
 from swallow.surface_tools.paths import (
@@ -42,24 +44,21 @@ CAPABILITY_MATCH_FIELDS = (
     "resumable",
 )
 
-SUMMARY_FALLBACK_ROUTE_NAME = ""
+SUMMARY_FALLBACK_ROUTE_NAME = route_policy_module.SUMMARY_FALLBACK_ROUTE_NAME
 
-ROUTE_MODE_ALIASES = {
-    "": "auto",
-    "auto": "auto",
-    "live": "live",
-    "http": "http",
-    "deterministic": "deterministic",
-    "detached": "detached",
-    "offline": "offline",
-    "summary": "summary",
-}
+ROUTE_MODE_ALIASES = route_policy_module.ROUTE_MODE_ALIASES
 
-ROUTE_NAME_ALIASES: dict[str, str] = {}
-ROUTE_MODE_TO_ROUTE_NAME: dict[str, str] = {}
-ROUTE_COMPLEXITY_BIAS_ROUTES: dict[str, str] = {}
-ROUTE_STRATEGY_COMPLEXITY_HINTS: set[str] = set()
-ROUTE_PARALLEL_INTENT_HINTS: set[str] = set()
+ROUTE_NAME_ALIASES = route_policy_module.ROUTE_NAME_ALIASES
+ROUTE_MODE_TO_ROUTE_NAME = route_policy_module.ROUTE_MODE_TO_ROUTE_NAME
+ROUTE_COMPLEXITY_BIAS_ROUTES = route_policy_module.ROUTE_COMPLEXITY_BIAS_ROUTES
+ROUTE_STRATEGY_COMPLEXITY_HINTS = route_policy_module.ROUTE_STRATEGY_COMPLEXITY_HINTS
+ROUTE_PARALLEL_INTENT_HINTS = route_policy_module.ROUTE_PARALLEL_INTENT_HINTS
+
+
+def _sync_route_policy_exports() -> None:
+    global SUMMARY_FALLBACK_ROUTE_NAME
+
+    SUMMARY_FALLBACK_ROUTE_NAME = route_policy_module.SUMMARY_FALLBACK_ROUTE_NAME
 
 
 def _registered_executor_name(raw_name: str | None) -> str:
@@ -172,7 +171,7 @@ class RouteRegistry:
         return tuple(self._routes.values())
 
     def route_for_mode(self, route_mode: str) -> RouteSpec | None:
-        route_name = ROUTE_MODE_TO_ROUTE_NAME.get(route_mode)
+        route_name = route_policy_module.ROUTE_MODE_TO_ROUTE_NAME.get(route_mode)
         return self.maybe_get(route_name) if route_name else None
 
     def route_for_executor(self, executor_name: str) -> RouteSpec:
@@ -183,7 +182,7 @@ class RouteRegistry:
         for route in self.values():
             if _registered_executor_name(route.executor_name) == normalized_executor:
                 return route
-        summary = self.maybe_get(SUMMARY_FALLBACK_ROUTE_NAME)
+        summary = self.maybe_get(route_policy_module.SUMMARY_FALLBACK_ROUTE_NAME)
         if summary is not None:
             return summary
         return next(iter(self.values()))
@@ -244,7 +243,7 @@ class RouteRegistry:
             if capability_matches:
                 return _sort_routes_by_preference(capability_matches, task_family), "capability"
 
-        summary_route = self.maybe_get(SUMMARY_FALLBACK_ROUTE_NAME)
+        summary_route = self.maybe_get(route_policy_module.SUMMARY_FALLBACK_ROUTE_NAME)
         if summary_route is not None and _route_supports_task_family(summary_route, task_family):
             return [summary_route], "summary_fallback"
         supported_routes = _filter_supported_task_family(self.values(), task_family)
@@ -342,65 +341,20 @@ def _normalize_hint_set(value: object) -> set[str]:
 
 
 def normalize_route_policy_payload(payload: object) -> dict[str, object]:
-    if not isinstance(payload, dict):
-        raise ValueError("Route policy metadata must be a JSON object.")
-
-    raw_mode_routes = payload.get("route_mode_routes", {})
-    if not isinstance(raw_mode_routes, dict):
-        raise ValueError("route_mode_routes must be a JSON object.")
-    route_mode_routes: dict[str, str] = {}
-    for raw_mode, raw_route_name in raw_mode_routes.items():
-        mode = _normalize_route_mode_value(raw_mode)
-        route_name = _normalize_route_name_value(raw_route_name)
-        if mode in {"", "auto", "detached"} or not route_name:
-            continue
-        route_mode_routes[mode] = route_name
-
-    raw_complexity_routes = payload.get("complexity_bias_routes", {})
-    if not isinstance(raw_complexity_routes, dict):
-        raise ValueError("complexity_bias_routes must be a JSON object.")
-    complexity_bias_routes = {
-        str(raw_hint).strip().lower(): _normalize_route_name_value(raw_route_name)
-        for raw_hint, raw_route_name in raw_complexity_routes.items()
-        if str(raw_hint).strip() and _normalize_route_name_value(raw_route_name)
-    }
-
-    strategy_hints = _normalize_hint_set(payload.get("strategy_complexity_hints", []))
-    parallel_hints = _normalize_hint_set(payload.get("parallel_intent_hints", []))
-    summary_fallback = _normalize_route_name_value(payload.get("summary_fallback_route_name"))
-
-    return {
-        "route_mode_routes": dict(sorted(route_mode_routes.items())),
-        "complexity_bias_routes": dict(sorted(complexity_bias_routes.items())),
-        "strategy_complexity_hints": sorted(strategy_hints),
-        "parallel_intent_hints": sorted(parallel_hints),
-        "summary_fallback_route_name": summary_fallback,
-    }
+    return route_policy_module.normalize_route_policy_payload(payload)
 
 
 def load_route_policy_from_path(path: Path) -> dict[str, object]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return normalize_route_policy_payload(payload)
+    return route_policy_module.load_route_policy_from_path(path)
 
 
 def load_default_route_policy() -> dict[str, object]:
-    return load_route_policy_from_path(DEFAULT_ROUTE_POLICY_PATH)
+    return route_policy_module.load_default_route_policy()
 
 
 def _apply_route_policy_payload(route_policy: dict[str, object]) -> None:
-    global ROUTE_MODE_TO_ROUTE_NAME, ROUTE_COMPLEXITY_BIAS_ROUTES, ROUTE_STRATEGY_COMPLEXITY_HINTS
-    global ROUTE_PARALLEL_INTENT_HINTS, SUMMARY_FALLBACK_ROUTE_NAME
-
-    normalized = normalize_route_policy_payload(route_policy)
-    route_mode_routes = normalized.get("route_mode_routes", {})
-    complexity_bias_routes = normalized.get("complexity_bias_routes", {})
-    ROUTE_MODE_TO_ROUTE_NAME = dict(route_mode_routes) if isinstance(route_mode_routes, dict) else {}
-    ROUTE_COMPLEXITY_BIAS_ROUTES = (
-        dict(complexity_bias_routes) if isinstance(complexity_bias_routes, dict) else {}
-    )
-    ROUTE_STRATEGY_COMPLEXITY_HINTS = set(normalized.get("strategy_complexity_hints", []))
-    ROUTE_PARALLEL_INTENT_HINTS = set(normalized.get("parallel_intent_hints", []))
-    SUMMARY_FALLBACK_ROUTE_NAME = str(normalized.get("summary_fallback_route_name", "") or "")
+    route_policy_module._apply_route_policy_payload(route_policy)
+    _sync_route_policy_exports()
 
 
 def _route_capabilities_from_dict(payload: object) -> RouteCapabilities:
@@ -426,68 +380,19 @@ def _route_taxonomy_from_dict(payload: object) -> TaxonomyProfile:
 
 
 def route_spec_from_dict(payload: object) -> RouteSpec:
-    if not isinstance(payload, dict):
-        raise ValueError("route metadata entry must be a JSON object.")
-    route_name = _normalize_route_name_value(payload.get("name"))
-    if not route_name:
-        raise ValueError("route metadata entry requires a non-empty name.")
-    return RouteSpec(
-        name=route_name,
-        executor_name=_coerce_string(payload.get("executor_name")),
-        backend_kind=_coerce_string(payload.get("backend_kind")),
-        model_hint=_coerce_string(payload.get("model_hint")),
-        dialect_hint=_coerce_string(payload.get("dialect_hint")),
-        fallback_route_name=_normalize_route_name_value(payload.get("fallback_route_name")),
-        quality_weight=_normalize_quality_weight(payload.get("quality_weight", 1.0)),
-        task_family_scores=_normalize_task_family_scores(payload.get("task_family_scores", {})),
-        unsupported_task_types=_normalize_unsupported_task_types(payload.get("unsupported_task_types", [])),
-        executor_family=_coerce_string(payload.get("executor_family"), default="cli"),
-        execution_site=_coerce_string(payload.get("execution_site"), default="local"),
-        remote_capable=_coerce_bool(payload.get("remote_capable")),
-        transport_kind=_coerce_string(payload.get("transport_kind"), default="local_process"),
-        capabilities=_route_capabilities_from_dict(payload.get("capabilities", {})),
-        taxonomy=_route_taxonomy_from_dict(payload.get("taxonomy", {})),
-    )
+    return route_registry_module.route_spec_from_dict(payload)
 
 
 def normalize_route_registry_payload(payload: object) -> dict[str, dict[str, object]]:
-    if isinstance(payload, dict):
-        route_payloads = []
-        for route_name, route_payload in payload.items():
-            if not isinstance(route_payload, dict):
-                raise ValueError(f"Route registry entry must be an object: {route_name}")
-            merged_payload = dict(route_payload)
-            merged_payload.setdefault("name", route_name)
-            route_payloads.append(merged_payload)
-    elif isinstance(payload, list):
-        route_payloads = payload
-    else:
-        raise ValueError("Route registry metadata must be a JSON object or list.")
-
-    routes: dict[str, dict[str, object]] = {}
-    for route_payload in route_payloads:
-        route = route_spec_from_dict(route_payload)
-        if route.name in routes:
-            raise ValueError(f"Duplicate route registry entry: {route.name}")
-        routes[route.name] = route.to_dict()
-    if not routes:
-        raise ValueError("Route registry metadata must contain at least one route.")
-
-    known_route_names = set(routes)
-    for route_name, route_payload in routes.items():
-        fallback_name = _coerce_string(route_payload.get("fallback_route_name"))
-        if fallback_name and fallback_name not in known_route_names:
-            raise ValueError(f"Route {route_name} references unknown fallback route: {fallback_name}")
-    return dict(sorted(routes.items()))
+    return route_registry_module.normalize_route_registry_payload(payload)
 
 
 def load_route_registry_from_path(path: Path) -> dict[str, dict[str, object]]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return normalize_route_registry_payload(payload)
+    return route_registry_module.load_route_registry_from_path(path)
 
 
 def load_default_route_registry() -> dict[str, dict[str, object]]:
-    return load_route_registry_from_path(DEFAULT_ROUTE_REGISTRY_PATH)
+    return route_registry_module.load_default_route_registry()
 
 
 def _routes_from_registry_payload(payload: dict[str, dict[str, object]]) -> tuple[RouteSpec, ...]:
@@ -929,6 +834,8 @@ def build_route_registry_report(base_dir: Path, registry: RouteRegistry | None =
 
 
 ROUTE_REGISTRY = _build_default_route_registry()
+RouteRegistry = route_registry_module.RouteRegistry
+ROUTE_REGISTRY = route_registry_module.ROUTE_REGISTRY
 _apply_route_policy_payload(load_default_route_policy())
 _BUILTIN_ROUTE_FALLBACKS = {route.name: route.fallback_route_name for route in ROUTE_REGISTRY.values()}
 
@@ -1007,56 +914,17 @@ def apply_route_registry(base_dir: Path, registry: RouteRegistry | None = None) 
 
 
 def apply_route_policy(base_dir: Path) -> dict[str, object]:
-    route_policy = load_route_policy(base_dir)
-    _apply_route_policy_payload(route_policy)
-    return current_route_policy()
+    applied = route_policy_module.apply_route_policy(base_dir)
+    _sync_route_policy_exports()
+    return applied
 
 
 def current_route_policy() -> dict[str, object]:
-    return {
-        "route_mode_routes": dict(sorted(ROUTE_MODE_TO_ROUTE_NAME.items())),
-        "complexity_bias_routes": dict(sorted(ROUTE_COMPLEXITY_BIAS_ROUTES.items())),
-        "strategy_complexity_hints": sorted(ROUTE_STRATEGY_COMPLEXITY_HINTS),
-        "parallel_intent_hints": sorted(ROUTE_PARALLEL_INTENT_HINTS),
-        "summary_fallback_route_name": SUMMARY_FALLBACK_ROUTE_NAME,
-    }
+    return route_policy_module.current_route_policy()
 
 
 def build_route_policy_report(base_dir: Path) -> str:
-    route_policy = current_route_policy()
-    lines = [
-        "# Route Policy",
-        "",
-        f"- path: {route_policy_path(base_dir)}",
-        f"- default_path: {DEFAULT_ROUTE_POLICY_PATH}",
-        f"- summary_fallback_route_name: {route_policy['summary_fallback_route_name']}",
-        "",
-        "## Route Modes",
-    ]
-    route_mode_routes = route_policy["route_mode_routes"]
-    if isinstance(route_mode_routes, dict) and route_mode_routes:
-        for mode, route_name in sorted(route_mode_routes.items()):
-            lines.append(f"- {mode}: {route_name}")
-    else:
-        lines.append("- none")
-    lines.extend(["", "## Complexity Bias"])
-    complexity_bias_routes = route_policy["complexity_bias_routes"]
-    if isinstance(complexity_bias_routes, dict) and complexity_bias_routes:
-        for hint, route_name in sorted(complexity_bias_routes.items()):
-            lines.append(f"- {hint}: {route_name}")
-    else:
-        lines.append("- none")
-    lines.extend(
-        [
-            "",
-            "## Strategy Complexity Hints",
-            ", ".join(route_policy["strategy_complexity_hints"]) or "none",
-            "",
-            "## Parallel Intent Hints",
-            ", ".join(route_policy["parallel_intent_hints"]) or "none",
-        ]
-    )
-    return "\n".join(lines) + "\n"
+    return route_policy_module.build_route_policy_report(base_dir)
 
 
 def load_route_weights(base_dir: Path) -> dict[str, float]:
@@ -1323,7 +1191,7 @@ def _resolve_complexity_hint(state: TaskState) -> str:
 def _apply_complexity_bias(candidates: list[RouteSpec], complexity_hint: str) -> list[RouteSpec]:
     if not candidates:
         return candidates
-    preferred = ROUTE_COMPLEXITY_BIAS_ROUTES.get(complexity_hint)
+    preferred = route_policy_module.ROUTE_COMPLEXITY_BIAS_ROUTES.get(complexity_hint)
     if not preferred:
         return candidates
     return sorted(
@@ -1389,7 +1257,7 @@ def select_route(
         task_family=task_family,
     )
     if (
-        complexity_hint in ROUTE_STRATEGY_COMPLEXITY_HINTS
+        complexity_hint in route_policy_module.ROUTE_STRATEGY_COMPLEXITY_HINTS
         and executor_override is None
         and selected_mode == "auto"
         and configured_executor == DEFAULT_EXECUTOR
@@ -1417,6 +1285,6 @@ def select_route(
             "task_route_mode": state.route_mode,
             "legacy_executor_mode": os.environ.get("AIWF_EXECUTOR_MODE", ""),
             "complexity_hint": complexity_hint,
-            "parallel_intent": complexity_hint in ROUTE_PARALLEL_INTENT_HINTS,
+            "parallel_intent": complexity_hint in route_policy_module.ROUTE_PARALLEL_INTENT_HINTS,
         },
     )
