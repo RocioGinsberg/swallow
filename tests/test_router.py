@@ -144,7 +144,7 @@ class RouteRegistryTest(unittest.TestCase):
     def test_lookup_route_by_name_is_read_only_route_metadata_lookup(self) -> None:
         self.assertIs(lookup_route_by_name("http-claude"), route_by_name("http-claude"))
 
-    def test_call_agent_llm_invokes_router_completion_gateway(self) -> None:
+    def test_call_agent_llm_invokes_completion_gateway(self) -> None:
         with patch.dict(
             "os.environ",
             {
@@ -154,7 +154,10 @@ class RouteRegistryTest(unittest.TestCase):
             },
             clear=False,
         ):
-            with patch("swallow.provider_router.router.httpx.post", return_value=_FakeCompletionResponse()) as http_post:
+            with patch(
+                "swallow.provider_router.completion_gateway.httpx.post",
+                return_value=_FakeCompletionResponse(),
+            ) as http_post:
                 response = call_agent_llm("hello", system="be terse", model="explicit-model")
 
         self.assertEqual(response.content, "routed completion")

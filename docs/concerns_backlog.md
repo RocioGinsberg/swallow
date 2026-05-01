@@ -38,6 +38,7 @@ Backlog hygiene:
 | Group | Included Concerns | Current Decision | Next Trigger |
 |-------|-------------------|------------------|--------------|
 | R-observation quality edge cases | Phase 45 primary path tie-break; Phase 50 false fail verdict keyword scan; Phase 58 `generic_chat_json` / Open WebUI flat-list auto-detect | 低概率或低影响;不作为 R-entry blocker,也不预先开专项 phase | R 阶段真实样本或 eval 显示 precision / verdict / import 质量下降时,开 bugfix 或并入候选 U/Y |
+| Provider Router Split (LTO-7) follow-up | (1) `test_route_metadata_writes_only_via_apply_proposal` allowlist still names `provider_router/router.py` only — the actual `save_route_*` writers now live in `route_metadata_store.py`. Guard currently passes due to AST-name semantics, but the allowlist is misaligned with the new module topology. (2) `router.py` reaches into `_`-prefixed names in `route_policy.py` / `route_registry.py` (`_apply_route_policy_payload`, `_normalize_task_family_scores`, `_normalize_unsupported_task_types`, `_routes_from_registry_payload`). (3) `_BUILTIN_ROUTE_FALLBACKS` still lives in `router.py` despite the registry being owned by `route_registry.py`. | (1) Must fix before LTO-10 (Governance apply split), otherwise the same allowlist drift compounds. (2)/(3) hygiene-only, can be picked up on touched-surface basis. | (1) opened ticket at LTO-10 entry; (2)/(3) when next change touches `router.py` / `route_policy.py` / `route_registry.py` |
 
 ## Roadmap-Bound
 

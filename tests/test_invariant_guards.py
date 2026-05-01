@@ -567,7 +567,7 @@ def test_specialist_internal_llm_calls_go_through_router() -> None:
                     url_arg = _post_call_url_arg(node)
                     if url_arg is not None and _chat_completion_url_expression(url_arg):
                         current_function = function_stack[-1] if function_stack else ""
-                        if rel_path != "src/swallow/provider_router/router.py" or current_function != "invoke_completion":
+                        if rel_path != "src/swallow/provider_router/completion_gateway.py" or current_function != "invoke_completion":
                             violations.append(f"{rel_path}:{node.lineno} calls chat-completion HTTP directly")
                 self.generic_visit(node)
 
