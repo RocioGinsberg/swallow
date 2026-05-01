@@ -136,6 +136,23 @@ class IngestionPipelineTest(unittest.TestCase):
         self.assertIn("# Ingestion Report", report)
         self.assertIn("source_kind: external_session_ingestion", report)
         self.assertIn("dry_run: yes", report)
+        self.assertIn("hygiene_warning_count: 0", report)
+        self.assertIn("## Hygiene Warnings", report)
+        self.assertIn("- none", report)
+
+    def test_ingestion_report_warns_on_repeated_local_file_intake(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "notes.md"
+            source.write_text("# Decisions\nKeep staged review manual.", encoding="utf-8")
+
+            ingest_local_file(tmp_path, source)
+            second_result = ingest_local_file(tmp_path, source, dry_run=True)
+
+        report = build_ingestion_report(second_result)
+        self.assertIn("hygiene_warning_count: 2", report)
+        self.assertIn("repeated_source_object_id_in_registry: ingest-notes-fragment-0001", report)
+        self.assertIn("repeated_source_ref_in_registry: file://workspace/notes.md", report)
 
     def test_run_ingestion_bytes_pipeline_uses_clipboard_source_ref(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

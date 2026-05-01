@@ -12,10 +12,10 @@
 - latest_completed_phase: `Candidate R / Real-use Feedback Observation`
 - latest_completed_slice: `R1 Design Docs Observation Sample`
 - active_track: `Retrieval Quality`
-- active_phase: `Candidate U / Neural Retrieval Observability / Eval / Index Hardening`
-- active_slice: `U0 Plan Definition`
-- active_branch: `main`
-- status: `candidate_u_plan_pending`
+- active_phase: `Retrieval U-T-Y / Observability, EvidencePack, Summary Surface`
+- active_slice: `RUTY7 PR Preparation`
+- active_branch: `feat/retrieval-u-t-y`
+- status: `retrieval_u_t_y_pr_ready`
 
 ## 当前状态说明
 
@@ -44,7 +44,7 @@ R-entry design / implementation readiness has been checked against:
 - `docs/design/INTERACTION.md`
 - `docs/design/EXECUTOR_REGISTRY.md`
 
-Candidate R observation closeout is complete. The next selected implementation direction is Candidate U: retrieval observability / eval / index hardening, with Candidate T and Candidate Y kept as follow-ups.
+Candidate R observation closeout is complete. Human selected a unified retrieval implementation branch for the U -> T -> Y follow-through: retrieval observability first, EvidencePack / source resolution second, and narrow summary-route surface clarification third.
 
 ## 当前关键文档
 
@@ -60,6 +60,7 @@ Candidate R observation closeout is complete. The next selected implementation d
 10. `docs/plans/candidate-r/observations.md`
 11. `docs/plans/candidate-r/closeout.md`
 12. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
+13. `docs/plans/retrieval-u-t-y/plan.md`
 
 ## 当前推进
 
@@ -159,19 +160,75 @@ Candidate R observation closeout is complete. The next selected implementation d
 - **[Codex]** GoF-style system design guidance added:
   - `docs/engineering/GOF_PATTERN_ALIGNMENT.md` defines how Swallow should use Facade / Strategy / Command / Repository / Adapter / Value Object / State as responsibility language, not as pattern-for-pattern's-sake.
   - `docs/roadmap.md` now references Candidate AC for later coordination of AB/V/W/X/Y/Z system-design refactors.
+- **[Codex/Human]** Retrieval U-T-Y implementation branch opened:
+  - active branch: `feat/retrieval-u-t-y`
+  - scope: Candidate U first, Candidate T second, Candidate Y narrow third
+  - implementation remains gated on plan review.
+- **[Codex]** Retrieval U-T-Y plan drafted:
+  - `docs/plans/retrieval-u-t-y/plan.md`
+  - milestones cover retrieval trace/report clarity, source policy labels, regression probes, EvidencePack compatibility, source pointer resolution, summary route surface clarification, and closeout smoke.
+- **[Human/Codex]** Rerank boundary clarified for Retrieval U-T-Y:
+  - chat-completion rerank is out of scope and should be removed from retrieval.
+  - rerank must use an explicitly configured dedicated rerank model / endpoint.
+  - if no dedicated rerank configuration exists, retrieval should not rerank and should report that state instead of falling back to chat.
+- **[Codex]** Retrieval U-T-Y M1 implementation completed:
+  - removed chat-completion rerank from retrieval.
+  - added explicit dedicated HTTP rerank adapter using `SWL_RETRIEVAL_RERANK_MODEL` + `SWL_RETRIEVAL_RERANK_URL`.
+  - default behavior without dedicated rerank configuration is no rerank with `rerank_failure_reason=not_configured`.
+  - retrieval metadata/report now surface retrieval mode, adapter, embedding backend, fallback reason, rerank backend/model/configured/attempted/applied/failure, final order basis, final rank, raw score, vector distance, and rerank position.
+  - validation passed: `tests/test_retrieval_adapters.py`, `tests/test_grounding.py`, focused CLI retrieval/grounding/summary tests, `tests/test_invariant_guards.py`, compileall, full `.venv/bin/python -m pytest -q` (`624 passed, 8 deselected, 10 subtests passed`), and `git diff --check`.
+- **[Human]** M1 code committed:
+  - `bcb984d feat(retrieval): replace chat rerank with dedicated rerank adapter`
+- **[Codex]** Retrieval U-T-Y M2 implementation completed:
+  - retrieval items now receive `source_policy_label` and `source_policy_flags`.
+  - labels cover `canonical_truth`, `task_knowledge_truth`, `current_state`, `archive_note`, `observation_doc`, `repo_source`, `active_note`, and `artifact_source`.
+  - non-truth source hits are flagged as `fallback_text_hit`; archive/current-state/observation docs are flagged as `operator_context_noise`.
+  - retrieval report now includes `source_policy_warning_count`, a `Source Policy Warnings` section, and per-item source policy label/flags.
+  - source grounding now includes source policy label/flags for each retrieved source.
+  - warning coverage includes operational docs outranking canonical truth, observation-doc self-reference risk, and fallback hits without truth objects.
+  - validation passed: `tests/test_retrieval_adapters.py`, `tests/test_grounding.py`, focused CLI retrieval/grounding/summary tests, `tests/test_invariant_guards.py`, compileall, full `.venv/bin/python -m pytest -q` (`626 passed, 8 deselected, 10 subtests passed`), and `git diff --check`.
+- **[Codex]** Retrieval U-T-Y M3 implementation completed:
+  - added offline P1/P2/P3 retrieval regression probes for `apply_proposal`, LLM Path A/B/C, and Knowledge Truth boundary canonical retrieval.
+  - added staged intake hygiene warnings for duplicate source object IDs in a batch, repeated source object IDs in the registry, and repeated non-note source refs.
+  - ingestion reports now include `hygiene_warning_count` and a `Hygiene Warnings` section.
+  - validation passed: `tests/test_retrieval_adapters.py`, `tests/test_ingestion_pipeline.py`, `tests/test_grounding.py`, focused CLI retrieval/grounding/summary tests, `tests/test_invariant_guards.py`, compileall, full `.venv/bin/python -m pytest -q` (`630 passed, 8 deselected, 10 subtests passed`), and `git diff --check`.
+- **[Codex]** Retrieval U-T-Y M4 implementation completed:
+  - added `src/swallow/knowledge_retrieval/evidence_pack.py` as an EvidencePack-compatible serving view over current `RetrievalItem[]`.
+  - EvidencePack groups `primary_objects`, `canonical_objects`, `supporting_evidence`, `fallback_hits`, and `source_pointers` without creating a second Truth store or changing `retrieval.json` shape.
+  - retrieval reports now include EvidencePack counts and an EvidencePack summary section.
+  - EvidencePack infers source policy labels for legacy retrieval items that predate M2 metadata.
+- **[Codex]** Retrieval U-T-Y M5 implementation completed:
+  - SourcePointer now carries `resolved_ref`, `resolved_path`, `resolution_status`, `resolution_reason`, line span, and heading path.
+  - `file://workspace/...`, `artifact://...`, and legacy `.swl/tasks/<task>/artifacts/...` pointers are resolved through the existing filesystem RawMaterialStore where possible.
+  - `source_grounding.md` and `retrieval_report.md` surface resolved/missing/unresolved source pointer state explicitly.
+- **[Codex]** Retrieval U-T-Y M6 implementation completed:
+  - local summary executor output now declares `surface_kind: local_execution_summary`, `semantic_answer_produced: no`, and `answer_contract: run_record_not_semantic_qa`.
+  - `summary.md` now records `summary_surface_kind`, `semantic_answer_produced`, and `summary_route_boundary` so `--route-mode summary` is not mistaken for semantic QA.
+- **[Codex]** Retrieval U-T-Y M4-M6 validation completed:
+  - focused: `tests/test_evidence_pack.py`, `tests/test_retrieval_adapters.py`, `tests/test_ingestion_pipeline.py`, `tests/test_grounding.py tests/test_raw_material_store.py`, `tests/test_invariant_guards.py`, focused CLI retrieval/grounding/summary tests.
+  - compile: `.venv/bin/python -m compileall -q src/swallow`
+  - full: `.venv/bin/python -m pytest -q` -> `635 passed, 8 deselected, 10 subtests passed`
+  - hygiene: `git diff --check` passed.
+- **[Human]** Retrieval U-T-Y implementation committed:
+  - `cda56d5 docs(plan): add retrieval u-t-y plan`
+  - `bcb984d feat(retrieval): replace chat rerank with dedicated rerank adapter`
+  - `0358114 feat(retrieval): add source policy evidence pack and summary surface`
+  - `9f9764d docs(state): update retrieval u-t-y validation state`
+- **[Codex]** Retrieval U-T-Y PR material prepared:
+  - `pr.md` refreshed for this branch with context, implementation notes, test coverage, and review gate notes.
 
 进行中:
 
-- **[Codex]** Candidate U plan definition pending. No implementation should start before `docs/plans/candidate-u/plan.md` is drafted and reviewed.
+- **[Human]** Push `feat/retrieval-u-t-y`, create PR from `pr.md`, run/record review, and merge after approval.
 
 待执行:
 
-- **[Codex]** Draft `docs/plans/candidate-u/plan.md` around retrieval report clarity, fallback/env visibility, rerank score semantics, source-policy labels, staged queue hygiene, P1/P2/P3 regression probes, and the GoF-style responsibility language in `docs/engineering/GOF_PATTERN_ALIGNMENT.md`.
-- **[Human]** Review Candidate U plan before any implementation branch or code changes.
+- **[Human]** Create PR and complete merge decision.
+- **[Codex]** After merge, sync `current_state.md`, `docs/active_context.md`, and closeout state for Retrieval U-T-Y.
 
 当前阻塞项:
 
-- None for Candidate U planning. Implementation remains gated on a reviewed `docs/plans/candidate-u/plan.md`.
+- Waiting for Human PR creation / review / merge.
 
 ## Tag 状态
 
@@ -182,13 +239,15 @@ Candidate R observation closeout is complete. The next selected implementation d
 
 ## 当前下一步
 
-1. **[Codex]** Prepare `docs/plans/candidate-u/plan.md`.
-2. **[Human]** Review Candidate U plan and approve / adjust scope.
-3. **[Human]** After plan approval, decide whether to create a feature branch for Candidate U implementation.
+1. **[Human]** Commit the `pr.md` / active context PR-prep update if it should travel with the branch.
+2. **[Human]** Push `feat/retrieval-u-t-y` and create PR using `pr.md`.
+3. **[Human]** Run/record review, then merge after approval.
+4. **[Codex]** After merge, sync post-merge state and closeout.
 
 ```markdown
 milestone_gate:
-- current: candidate-u-plan-definition
+- current: retrieval-u-t-y-pr-ready
+- active_branch: feat/retrieval-u-t-y
 - previous_gate: v1.5.0 annotated tag completed on main
 - observation_sample: docs/design/
 - promoted_seed: INVARIANTS §0/§4/§5/§7/§9
@@ -202,9 +261,18 @@ milestone_gate:
 - closeout: docs/plans/candidate-r/closeout.md final
 - roadmap: Candidate U promoted to current recommended next implementation candidate
 - engineering_guidance: docs/engineering/GOF_PATTERN_ALIGNMENT.md added; Candidate AC introduced as later system-design refactor track
-- next_gate: Candidate U plan reviewed
-- proceed_to_u: planning_only
-- reason: Candidate R showed canonical reuse works, while retrieval observability / fallback clarity / rerank report semantics are the primary next bottleneck
+- m1: dedicated rerank adapter + retrieval trace/report header complete and committed (`bcb984d`)
+- m2: source policy labels + observation-noise warnings complete
+- m3: P1/P2/P3 regression probes + staged intake hygiene warnings complete
+- m4: EvidencePack compatibility view complete
+- m5: source pointer resolution complete
+- m6: summary route surface clarification complete
+- validation: full pytest `635 passed, 8 deselected, 10 subtests passed`; `git diff --check` passed
+- commits: `cda56d5`, `bcb984d`, `0358114`, `9f9764d`
+- pr_body: `pr.md`
+- next_gate: Human PR creation / review / merge
+- proceed_to_closeout: after Human merge
+- reason: U/T/Y implementation scope is committed and PR material is ready
 ```
 
 ## 当前产出物
@@ -224,6 +292,10 @@ milestone_gate:
 - `docs/plans/candidate-r/plan.md`(codex, 2026-05-01, Candidate R design-doc observation plan)
 - `docs/plans/candidate-r/observations.md`(codex, 2026-05-01, Candidate R P1/P2/P2b/P3/P3b + KNOWLEDGE dry-run/promotion observation summary)
 - `docs/plans/candidate-r/closeout.md`(codex, 2026-05-01, Candidate R closeout and next-candidate recommendation)
+- `docs/plans/retrieval-u-t-y/plan.md`(codex, 2026-05-01, unified U/T/Y retrieval implementation plan for `feat/retrieval-u-t-y`)
+- `src/swallow/knowledge_retrieval/evidence_pack.py`(codex, 2026-05-01, EvidencePack-compatible retrieval serving view and source pointers)
+- `tests/test_evidence_pack.py`(codex, 2026-05-01, EvidencePack grouping and source pointer resolution coverage)
+- `pr.md`(codex, 2026-05-01, Retrieval U-T-Y PR body draft)
 - `CLAUDE.md`(codex, 2026-05-01, Claude role narrowed to plan audit / PR review / tag evaluation)
 - `.codex/session_bootstrap.md`(codex, 2026-05-01, Codex role expanded to plan definition via `plan.md`)
 - `.agents/workflows/feature.md`(codex, 2026-05-01, feature workflow rewritten around `context_brief.md` + `plan.md` + `plan_audit.md`)
