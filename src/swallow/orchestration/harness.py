@@ -17,6 +17,7 @@ from swallow.orchestration.execution_budget_policy import (
 from swallow.orchestration.execution_fit import build_execution_fit_report, evaluate_execution_fit
 from swallow.orchestration.executor import build_failure_recommendations, run_executor
 from swallow.knowledge_retrieval.grounding import build_grounding_evidence, build_grounding_evidence_report, extract_grounding_entries
+from swallow.knowledge_retrieval.evidence_pack import build_evidence_pack
 from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index, build_knowledge_index_report
 from swallow.knowledge_retrieval.knowledge_objects import (
     summarize_canonicalization,
@@ -45,7 +46,14 @@ from swallow.orchestration.models import (
     build_telemetry_fields,
     ValidationResult,
 )
-from swallow.knowledge_retrieval.retrieval import retrieve_context, summarize_retrieval_trace, summarize_reused_knowledge
+from swallow.knowledge_retrieval.retrieval import (
+    retrieve_context,
+    source_policy_flags_for,
+    source_policy_label_for,
+    summarize_retrieval_trace,
+    summarize_reused_knowledge,
+    summarize_source_policy_warnings,
+)
 from swallow.orchestration.retry_policy import build_retry_policy_report, evaluate_retry_policy
 from swallow.orchestration.stop_policy import build_stop_policy_report, evaluate_stop_policy
 from swallow.truth_governance.store import (
@@ -263,7 +271,7 @@ def write_task_artifacts(
         base_dir,
         state.task_id,
         "source_grounding.md",
-        build_source_grounding(retrieval_items),
+        build_source_grounding(retrieval_items, workspace_root=state.workspace_root, base_dir=base_dir),
     )
     grounding_evidence = grounding_evidence_override
     if grounding_evidence is None:
@@ -285,7 +293,7 @@ def write_task_artifacts(
         base_dir,
         state.task_id,
         "retrieval_report.md",
-        build_retrieval_report(state, retrieval_items),
+        build_retrieval_report(state, retrieval_items, base_dir=base_dir),
     )
     provisional_state = replace(state, status="running")
     write_artifact(
@@ -703,19 +711,39 @@ def format_route_capabilities(capabilities: dict[str, object]) -> str:
     return ", ".join(f"{key}={capabilities.get(key)}" for key in ordered_keys if key in capabilities)
 
 
-def build_source_grounding(retrieval_items: list[RetrievalItem]) -> str:
+def build_source_grounding(
+    retrieval_items: list[RetrievalItem],
+    *,
+    workspace_root: str | Path | None = None,
+    base_dir: str | Path | None = None,
+) -> str:
     lines = ["# Source Grounding", "", "## Top Retrieved Sources"]
     if not retrieval_items:
         lines.append("- No retrieval matches were available for this run.")
         return "\n".join(lines)
 
+    evidence_pack = build_evidence_pack(retrieval_items, workspace_root=workspace_root, base_dir=base_dir)
+    source_pointers_by_reference = {pointer.reference: pointer for pointer in evidence_pack.source_pointers}
     for item in retrieval_items:
         score_context = ", ".join(f"{key}={value}" for key, value in item.score_breakdown.items()) or "none"
         matched_terms = ", ".join(item.matched_terms) or "none"
+        source_policy_label = str(item.metadata.get("source_policy_label", "") or source_policy_label_for(item))
+        source_policy_flags = item.metadata.get("source_policy_flags", source_policy_flags_for(item, source_policy_label))
+        source_policy_flag_text = ", ".join(str(flag) for flag in source_policy_flags) or "none"
+        source_pointer = source_pointers_by_reference.get(item.reference())
+        line_span = _format_line_span(source_pointer.line_start, source_pointer.line_end) if source_pointer else "none"
         lines.extend(
             [
                 f"- [{item.source_type}] {item.reference()}",
                 f"  title: {item.display_title()}",
+                f"  source_policy_label: {source_policy_label}",
+                f"  source_policy_flags: {source_policy_flag_text}",
+                f"  source_pointer_status: {source_pointer.resolution_status if source_pointer else 'unresolved'}",
+                f"  source_pointer_ref: {source_pointer.resolved_ref if source_pointer and source_pointer.resolved_ref else 'none'}",
+                f"  source_pointer_path: {source_pointer.resolved_path if source_pointer and source_pointer.resolved_path else 'none'}",
+                f"  source_pointer_reason: {source_pointer.resolution_reason if source_pointer and source_pointer.resolution_reason else 'none'}",
+                f"  line_span: {line_span}",
+                f"  heading_path: {source_pointer.heading_path if source_pointer and source_pointer.heading_path else 'none'}",
                 f"  storage_scope: {item.metadata.get('storage_scope', 'unknown')}",
                 f"  knowledge_task_relation: {item.metadata.get('knowledge_task_relation', 'n/a')}",
                 f"  canonical_id: {item.metadata.get('canonical_id', '') or 'none'}",
@@ -731,9 +759,17 @@ def build_source_grounding(retrieval_items: list[RetrievalItem]) -> str:
     return "\n".join(lines)
 
 
-def build_retrieval_report(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+def build_retrieval_report(
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    *,
+    base_dir: str | Path | None = None,
+) -> str:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
     retrieval_trace = summarize_retrieval_trace(retrieval_items)
+    source_policy_warnings = summarize_source_policy_warnings(retrieval_items)
+    evidence_pack = build_evidence_pack(retrieval_items, workspace_root=state.workspace_root, base_dir=base_dir)
+    evidence_pack_summary = evidence_pack.summary()
     lines = [
         "# Retrieval Report",
         "",
@@ -750,6 +786,12 @@ def build_retrieval_report(state: TaskState, retrieval_items: list[RetrievalItem
         f"- rerank_applied: {retrieval_trace['rerank_applied']}",
         f"- rerank_failure_reason: {retrieval_trace['rerank_failure_reason']}",
         f"- final_order_basis: {retrieval_trace['final_order_basis']}",
+        f"- source_policy_warning_count: {len(source_policy_warnings)}",
+        f"- evidence_pack_primary_object_count: {evidence_pack_summary['primary_object_count']}",
+        f"- evidence_pack_canonical_object_count: {evidence_pack_summary['canonical_object_count']}",
+        f"- evidence_pack_supporting_evidence_count: {evidence_pack_summary['supporting_evidence_count']}",
+        f"- evidence_pack_fallback_hit_count: {evidence_pack_summary['fallback_hit_count']}",
+        f"- evidence_pack_source_pointer_count: {evidence_pack_summary['source_pointer_count']}",
         f"- reused_knowledge_count: {reused_knowledge['count']}",
         f"- reused_task_knowledge_count: {reused_knowledge.get('task_knowledge_count', 0)}",
         f"- reused_canonical_registry_count: {reused_knowledge.get('canonical_registry_count', 0)}",
@@ -760,17 +802,57 @@ def build_retrieval_report(state: TaskState, retrieval_items: list[RetrievalItem
         f"- source_grounding_artifact: {state.artifact_paths.get('source_grounding', '') or 'pending'}",
         f"- task_memory_path: {state.artifact_paths.get('task_memory', '') or 'pending'}",
         "",
-        "## Top References",
+        "## Source Policy Warnings",
     ]
+    if source_policy_warnings:
+        lines.extend(f"- {warning}" for warning in source_policy_warnings)
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## EvidencePack Summary",
+            f"- primary_objects: {evidence_pack_summary['primary_object_count']}",
+            f"- canonical_objects: {evidence_pack_summary['canonical_object_count']}",
+            f"- supporting_evidence: {evidence_pack_summary['supporting_evidence_count']}",
+            f"- fallback_hits: {evidence_pack_summary['fallback_hit_count']}",
+            f"- source_pointers: {evidence_pack_summary['source_pointer_count']}",
+        ]
+    )
+    if evidence_pack.source_pointers:
+        lines.extend(["", "## EvidencePack Source Pointers"])
+        for pointer in evidence_pack.source_pointers[:8]:
+            lines.extend(
+                [
+                    f"- {pointer.reference}",
+                    f"  status: {pointer.resolution_status}",
+                    f"  resolved_ref: {pointer.resolved_ref or 'none'}",
+                    f"  resolved_path: {pointer.resolved_path or 'none'}",
+                    f"  reason: {pointer.resolution_reason or 'none'}",
+                    f"  line_span: {_format_line_span(pointer.line_start, pointer.line_end)}",
+                    f"  heading_path: {pointer.heading_path or 'none'}",
+                ]
+            )
+    lines.extend(
+        [
+            "",
+            "## Top References",
+        ]
+    )
     if not retrieval_items:
         lines.append("- No retrieval matches were available for this run.")
         return "\n".join(lines)
 
     for item in retrieval_items[:8]:
+        source_policy_label = str(item.metadata.get("source_policy_label", "") or source_policy_label_for(item))
+        source_policy_flags = item.metadata.get("source_policy_flags", source_policy_flags_for(item, source_policy_label))
+        source_policy_flag_text = ", ".join(str(flag) for flag in source_policy_flags) or "none"
         lines.extend(
             [
                 f"- [{item.source_type}] {item.reference()}",
                 f"  title: {item.display_title()}",
+                f"  source_policy_label: {source_policy_label}",
+                f"  source_policy_flags: {source_policy_flag_text}",
                 f"  final_rank: {item.metadata.get('final_rank', 'unknown')}",
                 f"  score: {item.score}",
                 f"  raw_score: {item.metadata.get('raw_score', item.score)}",
@@ -787,6 +869,14 @@ def build_retrieval_report(state: TaskState, retrieval_items: list[RetrievalItem
             ]
         )
     return "\n".join(lines)
+
+
+def _format_line_span(line_start: int, line_end: int) -> str:
+    if line_start <= 0 and line_end <= 0:
+        return "none"
+    if line_end <= 0 or line_end == line_start:
+        return f"L{line_start}"
+    return f"L{line_start}-L{line_end}"
 
 
 def build_task_memory(
@@ -1518,6 +1608,7 @@ def build_summary(
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
     knowledge_index = build_knowledge_index(state.knowledge_objects)
     canonicalization_counts = summarize_canonicalization(state.knowledge_objects)
+    summary_surface = _summary_surface_fields(state)
     lines = [
         f"# Summary for {state.task_id}",
         "",
@@ -1571,6 +1662,9 @@ def build_summary(
         f"- route_dialect: {state.route_dialect}",
         f"- route_reason: {state.route_reason}",
         f"- route_capabilities: {format_route_capabilities(state.route_capabilities)}",
+        f"- summary_surface_kind: {summary_surface['surface_kind']}",
+        f"- semantic_answer_produced: {summary_surface['semantic_answer_produced']}",
+        f"- summary_route_boundary: {summary_surface['route_boundary']}",
         f"- route_report_artifact: {state.artifact_paths.get('route_report', '') or 'pending'}",
         f"- topology_execution_site: {state.topology_execution_site}",
         f"- topology_executor_family: {state.topology_executor_family}",
@@ -1777,6 +1871,22 @@ def build_summary(
             lines.append(f"- [{finding.level}] {finding.code}: {finding.message}")
     lines.extend(["", "## Executor Output", executor_result.output or "(no executor output)"])
     return "\n".join(lines)
+
+
+def _summary_surface_fields(state: TaskState) -> dict[str, str]:
+    route_name = str(state.route_name or "").strip()
+    route_backend = str(state.route_backend or "").strip()
+    if route_name.startswith("local-summary") or route_backend.startswith("local_summary"):
+        return {
+            "surface_kind": "local_execution_summary",
+            "semantic_answer_produced": "no",
+            "route_boundary": "run_record_not_semantic_qa",
+        }
+    return {
+        "surface_kind": "executor_result",
+        "semantic_answer_produced": "unknown",
+        "route_boundary": "route_specific",
+    }
 
 
 def build_resume_note(

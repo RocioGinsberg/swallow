@@ -2856,13 +2856,127 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertIn("rerank_backend: none", retrieval_report)
         self.assertIn("rerank_configured: False", retrieval_report)
         self.assertIn("final_order_basis: raw_score", retrieval_report)
+        self.assertIn("source_policy_warning_count: 0", retrieval_report)
+        self.assertIn("evidence_pack_primary_object_count: 1", retrieval_report)
+        self.assertIn("evidence_pack_canonical_object_count: 1", retrieval_report)
+        self.assertIn("evidence_pack_fallback_hit_count: 0", retrieval_report)
+        self.assertIn("## EvidencePack Summary", retrieval_report)
+        self.assertIn("source_policy_label: canonical_truth", retrieval_report)
+        self.assertIn("source_policy_flags: primary_truth_candidate", retrieval_report)
         self.assertIn("storage_scope: canonical_registry", retrieval_report)
         self.assertIn("canonical_id: canonical-trace123-knowledge-0001", retrieval_report)
         self.assertIn("canonical_policy: reuse_visible", retrieval_report)
         self.assertIn("source_ref: chat://canonical-reuse", retrieval_report)
         self.assertIn("artifact_ref: .swl/tasks/demo/artifacts/evidence.md", retrieval_report)
         self.assertIn("storage_scope: canonical_registry", source_grounding)
+        self.assertIn("source_policy_label: canonical_truth", source_grounding)
         self.assertIn("canonical_policy: reuse_visible", source_grounding)
+
+    def test_retrieval_report_warns_when_operational_notes_outrank_canonical_truth(self) -> None:
+        state = TaskState(
+            task_id="trace123",
+            title="Trace retrieval",
+            goal="Surface retrieval noise",
+            workspace_root="/tmp/trace",
+            artifact_paths={
+                "retrieval_json": "/tmp/trace/.swl/tasks/trace123/retrieval.json",
+                "source_grounding": "/tmp/trace/.swl/tasks/trace123/artifacts/source_grounding.md",
+                "task_memory": "/tmp/trace/.swl/tasks/trace123/memory.json",
+            },
+        )
+        retrieval_items = [
+            RetrievalItem(
+                path="docs/archive_phases/phase64/design_decision.md",
+                source_type="notes",
+                score=130,
+                preview="Historical route decision.",
+                citation="docs/archive_phases/phase64/design_decision.md#L105-L138",
+                metadata={
+                    "final_rank": 1,
+                    "adapter_name": "markdown_notes",
+                    "chunk_kind": "markdown_section",
+                    "source_policy_label": "archive_note",
+                    "source_policy_flags": ["operator_context_noise", "fallback_text_hit"],
+                },
+            ),
+            RetrievalItem(
+                path=".swl/canonical_knowledge/reuse_policy.json",
+                source_type=KNOWLEDGE_SOURCE_TYPE,
+                score=99,
+                preview="Canonical LLM path boundary.",
+                citation=".swl/canonical_knowledge/reuse_policy.json#canonical-staged-090c3193",
+                metadata={
+                    "final_rank": 2,
+                    "storage_scope": "canonical_registry",
+                    "canonical_id": "canonical-staged-090c3193",
+                    "canonical_policy": "reuse_visible",
+                    "adapter_name": "canonical_registry_records",
+                    "chunk_kind": "canonical_record",
+                    "source_policy_label": "canonical_truth",
+                    "source_policy_flags": ["primary_truth_candidate"],
+                },
+            ),
+        ]
+
+        retrieval_report = build_retrieval_report(state, retrieval_items)
+
+        self.assertIn("source_policy_warning_count: 1", retrieval_report)
+        self.assertIn("evidence_pack_primary_object_count: 1", retrieval_report)
+        self.assertIn("evidence_pack_fallback_hit_count: 1", retrieval_report)
+        self.assertIn("## Source Policy Warnings", retrieval_report)
+        self.assertIn("operational_doc_outranks_canonical_truth", retrieval_report)
+        self.assertIn("source_policy_label: archive_note", retrieval_report)
+        self.assertIn("source_policy_flags: operator_context_noise, fallback_text_hit", retrieval_report)
+
+    def test_retrieval_reports_surface_resolved_source_pointers(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source_path = tmp_path / "docs" / "design" / "KNOWLEDGE.md"
+            source_path.parent.mkdir(parents=True)
+            source_path.write_text("# Knowledge\n\nEvidence body.\n", encoding="utf-8")
+            state = TaskState(
+                task_id="trace123",
+                title="Trace retrieval",
+                goal="Surface source pointers",
+                workspace_root=str(tmp_path),
+                artifact_paths={
+                    "retrieval_json": str(tmp_path / ".swl" / "tasks" / "trace123" / "retrieval.json"),
+                    "source_grounding": str(
+                        tmp_path / ".swl" / "tasks" / "trace123" / "artifacts" / "source_grounding.md"
+                    ),
+                    "task_memory": str(tmp_path / ".swl" / "tasks" / "trace123" / "memory.json"),
+                },
+            )
+            retrieval_items = [
+                RetrievalItem(
+                    path="docs/design/KNOWLEDGE.md",
+                    source_type="notes",
+                    score=12,
+                    preview="Evidence body.",
+                    citation="docs/design/KNOWLEDGE.md#L1-L3",
+                    title="Knowledge",
+                    metadata={
+                        "final_rank": 1,
+                        "line_start": 1,
+                        "line_end": 3,
+                        "title_source": "heading",
+                        "heading_level": 1,
+                    },
+                )
+            ]
+
+            retrieval_report = build_retrieval_report(state, retrieval_items, base_dir=tmp_path)
+            source_grounding = build_source_grounding(retrieval_items, workspace_root=tmp_path, base_dir=tmp_path)
+
+        self.assertIn("## EvidencePack Source Pointers", retrieval_report)
+        self.assertIn("status: resolved", retrieval_report)
+        self.assertIn("resolved_ref: file://workspace/docs/design/KNOWLEDGE.md", retrieval_report)
+        self.assertIn("resolved_path: docs/design/KNOWLEDGE.md", retrieval_report)
+        self.assertIn("line_span: L1-L3", retrieval_report)
+        self.assertIn("heading_path: Knowledge", retrieval_report)
+        self.assertIn("source_pointer_status: resolved", source_grounding)
+        self.assertIn("source_pointer_path: docs/design/KNOWLEDGE.md", source_grounding)
+        self.assertIn("line_span: L1-L3", source_grounding)
 
     def test_cli_create_marks_retrieval_eligible_knowledge_objects(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -10402,6 +10516,7 @@ class CliLifecycleTest(unittest.TestCase):
             task_dir = tmp_path / ".swl" / "tasks" / task_id
             state = json.loads((task_dir / "state.json").read_text(encoding="utf-8"))
             summary = (task_dir / "artifacts" / "summary.md").read_text(encoding="utf-8")
+            executor_output = (task_dir / "artifacts" / "executor_output.md").read_text(encoding="utf-8")
             events = [
                 json.loads(line)
                 for line in (task_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
@@ -10418,6 +10533,12 @@ class CliLifecycleTest(unittest.TestCase):
         self.assertEqual(state["route_transport_kind"], "local_process")
         self.assertEqual(state["executor_status"], "completed")
         self.assertIn("Local summary executor completed.", summary)
+        self.assertIn("summary_surface_kind: local_execution_summary", summary)
+        self.assertIn("semantic_answer_produced: no", summary)
+        self.assertIn("summary_route_boundary: run_record_not_semantic_qa", summary)
+        self.assertIn("surface_kind: local_execution_summary", executor_output)
+        self.assertIn("semantic_answer_produced: no", executor_output)
+        self.assertIn("answer_contract: run_record_not_semantic_qa", executor_output)
         self.assertEqual(events[0]["payload"]["executor_name"], "local")
         self.assertEqual(events[0]["payload"]["route_name"], "local-summary")
         run_started = next(event for event in events if event["event_type"] == "task.run_started")

@@ -83,6 +83,7 @@ TASK_ARTIFACT_MARKDOWN_NAMES = {
     "executor_output.md",
     "executor_prompt.md",
 }
+SOURCE_POLICY_NOISE_LABELS = {"archive_note", "current_state", "observation_doc"}
 logger = logging.getLogger(__name__)
 _sqlite_vec_warning_emitted = False
 _embedding_api_warning_emitted = False
@@ -434,6 +435,115 @@ def summarize_retrieval_trace(retrieval_items: list[RetrievalItem]) -> dict[str,
         "rerank_failure_reason": str(first_metadata.get("rerank_failure_reason", "") or "none"),
         "final_order_basis": str(first_metadata.get("final_order_basis", "") or "unknown"),
     }
+
+
+def source_policy_label_for(item: RetrievalItem) -> str:
+    path = item.path.replace("\\", "/").strip()
+    storage_scope = str(item.metadata.get("storage_scope", "")).strip()
+    if item.source_type == KNOWLEDGE_SOURCE_TYPE:
+        if storage_scope == "canonical_registry" or str(item.metadata.get("canonical_id", "")).strip():
+            return "canonical_truth"
+        return "task_knowledge_truth"
+    if item.source_type == ARTIFACTS_SOURCE_TYPE:
+        return "artifact_source"
+    if path in {"current_state.md", "docs/active_context.md"}:
+        return "current_state"
+    if path.startswith("docs/archive/") or path.startswith("docs/archive_phases/"):
+        return "archive_note"
+    if _is_observation_doc_path(path):
+        return "observation_doc"
+    if item.source_type == "repo":
+        return "repo_source"
+    if item.source_type == "notes":
+        return "active_note"
+    return f"{item.source_type or 'unknown'}_source"
+
+
+def source_policy_flags_for(item: RetrievalItem, label: str | None = None) -> list[str]:
+    resolved_label = label or source_policy_label_for(item)
+    flags: list[str] = []
+    if resolved_label in SOURCE_POLICY_NOISE_LABELS:
+        flags.append("operator_context_noise")
+    if resolved_label not in {"canonical_truth", "task_knowledge_truth"}:
+        flags.append("fallback_text_hit")
+    if str(item.metadata.get("knowledge_retrieval_mode", "")).strip() == "text_fallback":
+        flags.append("text_fallback_retrieval")
+    if resolved_label == "canonical_truth":
+        flags.append("primary_truth_candidate")
+    return flags
+
+
+def annotate_source_policy(items: list[RetrievalItem]) -> list[RetrievalItem]:
+    annotated_items: list[RetrievalItem] = []
+    for item in items:
+        label = source_policy_label_for(item)
+        metadata = dict(item.metadata)
+        metadata["source_policy_label"] = label
+        metadata["source_policy_flags"] = source_policy_flags_for(item, label)
+        annotated_items.append(replace(item, metadata=metadata))
+    return annotated_items
+
+
+def summarize_source_policy_warnings(retrieval_items: list[RetrievalItem]) -> list[str]:
+    warnings: list[str] = []
+    ranked_items = list(enumerate(retrieval_items, start=1))
+    canonical_ranks = [
+        _item_rank(index, item)
+        for index, item in ranked_items
+        if str(item.metadata.get("source_policy_label", source_policy_label_for(item))) == "canonical_truth"
+    ]
+    first_canonical_rank = min(canonical_ranks) if canonical_ranks else 0
+    noisy_before_canonical: list[str] = []
+    for index, item in ranked_items:
+        label = str(item.metadata.get("source_policy_label", source_policy_label_for(item)))
+        rank = _item_rank(index, item)
+        if label in SOURCE_POLICY_NOISE_LABELS and first_canonical_rank and rank < first_canonical_rank:
+            noisy_before_canonical.append(f"{label}:{item.reference()}")
+    if noisy_before_canonical:
+        warnings.append(
+            "operational_doc_outranks_canonical_truth: "
+            + ", ".join(noisy_before_canonical[:3])
+        )
+
+    observation_hits = [
+        item.reference()
+        for _index, item in ranked_items
+        if str(item.metadata.get("source_policy_label", source_policy_label_for(item))) == "observation_doc"
+    ]
+    if observation_hits:
+        warnings.append("observation_doc_self_reference_risk: " + ", ".join(observation_hits[:3]))
+
+    fallback_hits = [
+        item
+        for _index, item in ranked_items
+        if "fallback_text_hit" in list(item.metadata.get("source_policy_flags", source_policy_flags_for(item)))
+    ]
+    truth_hits = [
+        item
+        for _index, item in ranked_items
+        if str(item.metadata.get("source_policy_label", source_policy_label_for(item)))
+        in {"canonical_truth", "task_knowledge_truth"}
+    ]
+    if fallback_hits and not truth_hits:
+        warnings.append("fallback_hits_without_truth_objects: no canonical or task knowledge item is present")
+    return warnings
+
+
+def _is_observation_doc_path(path: str) -> bool:
+    if path.startswith("results/"):
+        return True
+    if not path.startswith("docs/plans/"):
+        return False
+    return path.endswith("/observations.md") or path.endswith("/closeout.md") or "/candidate-r/" in path
+
+
+def _item_rank(default_rank: int, item: RetrievalItem) -> int:
+    raw_rank = item.metadata.get("final_rank", default_rank)
+    try:
+        rank = int(raw_rank)
+    except (TypeError, ValueError):
+        return default_rank
+    return rank if rank > 0 else default_rank
 
 
 def iter_verified_knowledge_items(
@@ -1000,4 +1110,5 @@ def retrieve_context(
         query=retrieval_request.query,
         config=resolve_retrieval_rerank_config(),
     )
+    items = annotate_source_policy(items)
     return items[: retrieval_request.limit]

@@ -10,7 +10,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import swallow.knowledge_retrieval.retrieval as retrieval_module
 from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_summary
-from swallow.knowledge_retrieval.retrieval import KNOWLEDGE_SOURCE_TYPE, prepare_query_plan, rerank_retrieval_items, retrieve_context
+from swallow.knowledge_retrieval.retrieval import (
+    KNOWLEDGE_SOURCE_TYPE,
+    annotate_source_policy,
+    prepare_query_plan,
+    rerank_retrieval_items,
+    retrieve_context,
+    summarize_source_policy_warnings,
+)
 from swallow.knowledge_retrieval.retrieval_config import DEFAULT_RELATION_EXPANSION_CONFIG, RetrievalRerankConfig
 from swallow.knowledge_retrieval.retrieval_adapters import (
     DedicatedRerankAdapter,
@@ -30,6 +37,27 @@ from swallow.knowledge_retrieval.knowledge_relations import create_knowledge_rel
 from swallow.knowledge_retrieval.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, persist_wiki_entry_from_record
 from swallow.orchestration.models import RetrievalRequest
 from swallow.truth_governance.store import append_canonical_record, save_canonical_reuse_policy, save_knowledge_objects
+
+
+def _canonical_record(*, canonical_id: str, source_object_id: str, text: str) -> dict[str, object]:
+    return {
+        "canonical_id": canonical_id,
+        "canonical_key": f"task-object:regression:{source_object_id}",
+        "source_task_id": "regression",
+        "source_object_id": source_object_id,
+        "promoted_at": "2026-05-01T00:00:00+00:00",
+        "promoted_by": "test",
+        "decision_note": "",
+        "decision_ref": f".swl/tasks/regression/knowledge_decisions.jsonl#{source_object_id}",
+        "artifact_ref": "",
+        "source_ref": "file://workspace/docs/design/INVARIANTS.md",
+        "text": text,
+        "evidence_status": "source_only",
+        "canonical_stage": "canonical",
+        "canonical_status": "active",
+        "superseded_by": "",
+        "superseded_at": "",
+    }
 
 
 class RetrievalAdaptersTest(unittest.TestCase):
@@ -264,6 +292,39 @@ class RetrievalAdaptersTest(unittest.TestCase):
         self.assertEqual([item.path for item in reranked], ["notes.md", "truth.md"])
         self.assertFalse(reranked[0].metadata["rerank_configured"])
         self.assertEqual(reranked[0].metadata["rerank_failure_reason"], "not_configured")
+
+    def test_source_policy_labels_archive_noise_before_canonical_truth(self) -> None:
+        items = annotate_source_policy(
+            [
+                retrieval_module.RetrievalItem(
+                    path="docs/archive_phases/phase64/design_decision.md",
+                    source_type="notes",
+                    score=100,
+                    preview="Historical phase note.",
+                    citation="docs/archive_phases/phase64/design_decision.md#L1",
+                    metadata={"final_rank": 1},
+                ),
+                retrieval_module.RetrievalItem(
+                    path=".swl/canonical_knowledge/reuse_policy.json",
+                    source_type=KNOWLEDGE_SOURCE_TYPE,
+                    score=90,
+                    preview="Canonical truth.",
+                    citation=".swl/canonical_knowledge/reuse_policy.json#canonical-1",
+                    metadata={
+                        "final_rank": 2,
+                        "storage_scope": "canonical_registry",
+                        "canonical_id": "canonical-1",
+                    },
+                ),
+            ]
+        )
+
+        self.assertEqual(items[0].metadata["source_policy_label"], "archive_note")
+        self.assertIn("operator_context_noise", items[0].metadata["source_policy_flags"])
+        self.assertIn("fallback_text_hit", items[0].metadata["source_policy_flags"])
+        self.assertEqual(items[1].metadata["source_policy_label"], "canonical_truth")
+        warnings = summarize_source_policy_warnings(items)
+        self.assertTrue(any("operational_doc_outranks_canonical_truth" in warning for warning in warnings))
 
     def test_build_api_embedding_reads_openai_compatible_response(self) -> None:
         class _FakeResponse:
@@ -816,6 +877,122 @@ class RetrievalAdaptersTest(unittest.TestCase):
         expanded = next(item for item in items if item.metadata.get("expansion_source") == "relation")
         self.assertEqual(expanded.metadata["storage_scope"], "canonical_registry")
         self.assertEqual(expanded.metadata["knowledge_object_id"], "knowledge-b")
+
+    def test_regression_p1_apply_proposal_boundary_prefers_canonical_truth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            canonical_records = [
+                _canonical_record(
+                    canonical_id="canonical-apply-proposal",
+                    source_object_id="invariants-apply-proposal",
+                    text=(
+                        "apply_proposal is the unique write entry for canonical knowledge, "
+                        "route metadata, and policy. Executors cannot write Truth directly."
+                    ),
+                ),
+                _canonical_record(
+                    canonical_id="canonical-noise",
+                    source_object_id="invariants-noise",
+                    text="Task lifecycle state remains controlled by Orchestrator and Operator.",
+                ),
+            ]
+            for record in canonical_records:
+                append_canonical_record(tmp_path, record)
+            save_canonical_reuse_policy(tmp_path, build_canonical_reuse_summary(canonical_records))
+
+            with patch(
+                "swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search",
+                side_effect=EmbeddingAPIUnavailable("offline regression"),
+            ):
+                items = retrieve_context(
+                    tmp_path,
+                    query="apply_proposal boundary executors cannot write truth directly",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    limit=4,
+                )
+
+        self.assertEqual(items[0].chunk_id, "canonical-apply-proposal")
+        self.assertEqual(items[0].metadata["source_policy_label"], "canonical_truth")
+        self.assertEqual(items[0].metadata["knowledge_retrieval_mode"], "text_fallback")
+
+    def test_regression_p2_llm_call_paths_prefers_canonical_truth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            canonical_records = [
+                _canonical_record(
+                    canonical_id="canonical-llm-paths",
+                    source_object_id="invariants-llm-paths",
+                    text=(
+                        "LLM calls only have three paths: Controlled HTTP, Agent Black-box, "
+                        "and Specialist Internal. Controlled HTTP and Specialist Internal go through Provider Router; "
+                        "Agent Black-box does not."
+                    ),
+                ),
+                _canonical_record(
+                    canonical_id="canonical-guards",
+                    source_object_id="invariants-guards",
+                    text="Invariant guard tests protect task state, route metadata, and policy writes.",
+                ),
+            ]
+            for record in canonical_records:
+                append_canonical_record(tmp_path, record)
+            save_canonical_reuse_policy(tmp_path, build_canonical_reuse_summary(canonical_records))
+
+            with patch(
+                "swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search",
+                side_effect=EmbeddingAPIUnavailable("offline regression"),
+            ):
+                items = retrieve_context(
+                    tmp_path,
+                    query="Distinguish Controlled HTTP Agent Black-box Specialist Internal Provider Router",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    limit=4,
+                )
+
+        self.assertEqual(items[0].chunk_id, "canonical-llm-paths")
+        self.assertEqual(items[0].metadata["source_policy_label"], "canonical_truth")
+
+    def test_regression_p3_knowledge_truth_boundary_prefers_canonical_truth(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            canonical_records = [
+                _canonical_record(
+                    canonical_id="canonical-knowledge-truth",
+                    source_object_id="knowledge-truth-layer",
+                    text=(
+                        "Knowledge Truth Layer answers whether a knowledge object is valid, "
+                        "where it came from, which stage it is in, whether reuse is allowed, "
+                        "and whether it has been superseded."
+                    ),
+                ),
+                _canonical_record(
+                    canonical_id="canonical-raw-material",
+                    source_object_id="raw-material-layer",
+                    text="Raw Material Layer answers where bytes come from and is storage abstracted.",
+                ),
+                _canonical_record(
+                    canonical_id="canonical-evidencepack",
+                    source_object_id="evidencepack",
+                    text="EvidencePack carries primary objects, canonical objects, supporting evidence, fallback hits, and source pointers.",
+                ),
+            ]
+            for record in canonical_records:
+                append_canonical_record(tmp_path, record)
+            save_canonical_reuse_policy(tmp_path, build_canonical_reuse_summary(canonical_records))
+
+            with patch(
+                "swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search",
+                side_effect=EmbeddingAPIUnavailable("offline regression"),
+            ):
+                items = retrieve_context(
+                    tmp_path,
+                    query="Knowledge Truth Layer valid stage reuse superseded raw material evidencepack source pointers",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    limit=4,
+                )
+
+        self.assertEqual(items[0].chunk_id, "canonical-knowledge-truth")
+        self.assertTrue(all(item.metadata["source_policy_label"] == "canonical_truth" for item in items[:3]))
 
     def test_retrieve_context_uses_vector_adapter_for_canonical_reuse_items(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -14,7 +14,7 @@ from swallow.knowledge_retrieval.raw_material import (
     resolve_raw_material,
     source_ref_for_file,
 )
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, submit_staged_candidate
+from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
 from swallow.surface_tools.workspace import resolve_path
 from .filters import ExtractedFragment, filter_conversation_turns
 from .parsers import (
@@ -43,6 +43,7 @@ class IngestionPipelineResult:
     turns: list[ConversationTurn] = field(default_factory=list)
     fragments: list[ExtractedFragment] = field(default_factory=list)
     staged_candidates: list[StagedCandidate] = field(default_factory=list)
+    hygiene_warnings: list[str] = field(default_factory=list)
     dry_run: bool = False
 
 
@@ -70,6 +71,7 @@ def run_ingestion_pipeline(
         taxonomy_role=taxonomy_role,
         taxonomy_memory_authority=taxonomy_memory_authority,
     )
+    hygiene_warnings = build_staged_hygiene_warnings(base_dir, staged_candidates)
 
     persisted_candidates = staged_candidates
     if not dry_run:
@@ -85,6 +87,7 @@ def run_ingestion_pipeline(
         turns=turns,
         fragments=fragments,
         staged_candidates=persisted_candidates,
+        hygiene_warnings=hygiene_warnings,
         dry_run=dry_run,
     )
 
@@ -112,6 +115,7 @@ def run_ingestion_bytes_pipeline(
         taxonomy_role=taxonomy_role,
         taxonomy_memory_authority=taxonomy_memory_authority,
     )
+    hygiene_warnings = build_staged_hygiene_warnings(base_dir, staged_candidates)
 
     persisted_candidates = staged_candidates
     if not dry_run:
@@ -123,6 +127,7 @@ def run_ingestion_bytes_pipeline(
         turns=turns,
         fragments=fragments,
         staged_candidates=persisted_candidates,
+        hygiene_warnings=hygiene_warnings,
         dry_run=dry_run,
     )
 
@@ -160,6 +165,7 @@ def ingest_local_file(
         for index, text in enumerate(candidate_texts, start=1)
         if text.strip()
     ]
+    hygiene_warnings = build_staged_hygiene_warnings(base_dir, staged_candidates)
 
     persisted_candidates = staged_candidates
     if not dry_run:
@@ -169,6 +175,7 @@ def ingest_local_file(
         source_path=source_ref,
         detected_format=_resolve_local_file_format(resolved_source),
         staged_candidates=persisted_candidates,
+        hygiene_warnings=hygiene_warnings,
         dry_run=dry_run,
     )
 
@@ -198,12 +205,14 @@ def ingest_operator_note(
         taxonomy_role=taxonomy_role,
         taxonomy_memory_authority=taxonomy_memory_authority,
     )
+    hygiene_warnings = build_staged_hygiene_warnings(base_dir, [candidate])
 
     persisted_candidate = candidate if dry_run else submit_staged_candidate(base_dir, candidate)
     return IngestionPipelineResult(
         source_path="note://operator",
         detected_format="operator_note",
         staged_candidates=[persisted_candidate],
+        hygiene_warnings=hygiene_warnings,
         dry_run=dry_run,
     )
 
@@ -233,6 +242,55 @@ def build_staged_candidates(
             )
         )
     return candidates
+
+
+def build_staged_hygiene_warnings(base_dir: Path, staged_candidates: list[StagedCandidate]) -> list[str]:
+    warnings: list[str] = []
+    source_object_counts: dict[str, int] = {}
+    for candidate in staged_candidates:
+        source_object_id = candidate.source_object_id.strip()
+        if not source_object_id:
+            continue
+        source_object_counts[source_object_id] = source_object_counts.get(source_object_id, 0) + 1
+    duplicate_batch_ids = sorted(
+        source_object_id for source_object_id, count in source_object_counts.items() if count > 1
+    )
+    if duplicate_batch_ids:
+        warnings.append("duplicate_source_object_id_in_batch: " + ", ".join(duplicate_batch_ids[:5]))
+
+    existing_candidates = load_staged_candidates(base_dir)
+    existing_source_object_ids = {
+        candidate.source_object_id.strip()
+        for candidate in existing_candidates
+        if candidate.source_object_id.strip()
+    }
+    repeated_object_ids = sorted(
+        {
+            candidate.source_object_id.strip()
+            for candidate in staged_candidates
+            if candidate.source_object_id.strip() in existing_source_object_ids
+        }
+    )
+    if repeated_object_ids:
+        warnings.append("repeated_source_object_id_in_registry: " + ", ".join(repeated_object_ids[:5]))
+
+    existing_source_refs = {
+        candidate.source_ref.strip()
+        for candidate in existing_candidates
+        if candidate.source_ref.strip() and not candidate.source_ref.strip().startswith("note://")
+    }
+    repeated_source_refs = sorted(
+        {
+            candidate.source_ref.strip()
+            for candidate in staged_candidates
+            if candidate.source_ref.strip()
+            and not candidate.source_ref.strip().startswith("note://")
+            and candidate.source_ref.strip() in existing_source_refs
+        }
+    )
+    if repeated_source_refs:
+        warnings.append("repeated_source_ref_in_registry: " + ", ".join(repeated_source_refs[:5]))
+    return warnings
 
 
 def parse_local_file(source_bytes: bytes, *, source_name: str) -> list[str]:
@@ -297,9 +355,20 @@ def build_ingestion_report(result: IngestionPipelineResult) -> str:
         f"- fragments: {len(result.fragments)}",
         f"- dry_run: {'yes' if result.dry_run else 'no'}",
         f"- staged_candidates: {len(result.staged_candidates)}",
+        f"- hygiene_warning_count: {len(result.hygiene_warnings)}",
         "",
-        "## Candidates",
+        "## Hygiene Warnings",
     ]
+    if result.hygiene_warnings:
+        lines.extend(f"- {warning}" for warning in result.hygiene_warnings)
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Candidates",
+        ]
+    )
     if not result.staged_candidates:
         lines.append("- no extracted candidates")
         return "\n".join(lines)
