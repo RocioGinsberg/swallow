@@ -13,9 +13,9 @@
 - latest_completed_slice: `Facade-first orchestrator helper extraction`
 - active_track: `Architecture / Engineering`
 - active_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
-- active_slice: `M1 application command seed complete`
+- active_slice: `M2 meta optimizer read-only split complete`
 - active_branch: `feat/surface-cli-meta-optimizer-split`
-- status: `lto9_m1_application_commands_complete_waiting_human_commit`
+- status: `lto9_m2_meta_optimizer_split_complete_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -26,6 +26,7 @@
 Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订后的 plan / audit / state docs:
 
 - `e692408 docs(plan): revise surface split plan after audit`
+- `3fe4109 refactor(surface): seed application proposal commands`
 
 `docs/roadmap.md` 已由 Human / roadmap update 切到下一阶段 ticket:
 
@@ -44,7 +45,14 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
 当前代码事实:
 
 - `src/swallow/surface_tools/cli.py` 仍承担 parser construction、command dispatch、task/knowledge/route/proposal/audit/synthesis/serve 等多组 surface 逻辑；M1 已让 `meta-optimize` / `proposal review` / `proposal apply` dispatch 调用 application commands，但尚未进入 M3 adapter split。
-- `src/swallow/surface_tools/meta_optimizer.py` 仍承载 telemetry snapshot、proposal generation、proposal bundle IO、review、apply facade、report 与 executor adapter；M1 已让 `apply_reviewed_optimization_proposals(...)` 兼容函数委托到 application command。
+- `src/swallow/surface_tools/meta_optimizer.py` 已收缩为约 50 行 compatibility facade，继续 re-export 既有 public imports。
+- Meta-Optimizer read-only path 已拆分:
+  - `meta_optimizer_snapshot.py`: telemetry scan / snapshot construction。
+  - `meta_optimizer_proposals.py`: deterministic proposal generation and route weight extraction。
+  - `meta_optimizer_reports.py`: snapshot / review / application report rendering。
+  - `meta_optimizer_agent.py`: MetaOptimizerAgent / MetaOptimizerExecutor / `run_meta_optimizer(...)`。
+  - `meta_optimizer_lifecycle.py`: proposal bundle / review record artifact IO and compatibility apply facade。
+  - `meta_optimizer_models.py`: shared records, constants, and serialization helpers。
 - `src/swallow/surface_tools/web/api.py` 约 374 行，已有 `application/queries/control_center.py` 只读 query pilot，但写命令层尚未系统收口。
 - `src/swallow/application/commands/` 已建立 M1 种子:
   - `meta_optimizer.py` 提供 structured run command result。
@@ -98,15 +106,31 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
   - `.venv/bin/python -m pytest tests/test_cli.py -k "proposal or meta_optimizer or route_capabilities or route_weights or serve" -q` -> `11 passed, 231 deselected`
   - `.venv/bin/python -m compileall -q src/swallow` -> passed
   - `git diff --check` -> passed
+- **[Human]** Committed M1:
+  - `3fe4109 refactor(surface): seed application proposal commands`
+- **[Codex]** Completed M2 Meta-Optimizer read-only split:
+  - split snapshot, proposal generation, report rendering, lifecycle artifact IO, and agent/run entry into focused modules
+  - kept `swallow.surface_tools.meta_optimizer` as a compatibility facade
+  - added persistent source-text boundary tests for read-only Meta-Optimizer modules
+  - added `meta_optimizer_agent.py` to execution-plane invariant guard scanning
+- **[Codex]** M2 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/surface_tools/test_meta_optimizer_boundary.py -q` -> `4 passed`
+  - `.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` -> `19 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -k "proposal or meta_optimizer or route_capabilities or route_weights or serve" -q` -> `11 passed, 231 deselected`
+  - `.venv/bin/python -m pytest tests/unit/application -q` -> `3 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+  - manual `rg -n "apply_proposal|save_state|_apply_metadata_change|save_route_registry|save_route_policy|save_route_weights|save_route_capability_profiles" src/swallow/surface_tools/meta_optimizer_*.py` -> no matches
 
 进行中:
 
-- None. M1 is ready for Human milestone review / commit.
+- None. M2 is ready for Human milestone review / commit.
 
 待执行:
 
-- **[Human]** Review and commit M1 implementation if accepted.
-- **[Codex]** After Human confirms M1 commit, start M2 Meta-Optimizer read-only module split.
+- **[Human]** Review and commit M2 implementation if accepted.
+- **[Codex]** After Human confirms M2 commit, start M3 CLI command-family adapter split.
 
 当前阻塞项:
 
@@ -120,24 +144,26 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
 
 ## 当前下一步
 
-1. **[Human]** Review and commit M1 implementation if accepted.
-2. **[Codex]** After commit confirmation, start M2 Meta-Optimizer read-only module split.
+1. **[Human]** Review and commit M2 implementation if accepted.
+2. **[Codex]** After commit confirmation, start M3 CLI command-family adapter split.
 
 ```markdown
 milestone_gate:
-- current: lto9-m1-application-commands-complete-waiting-human-commit
+- current: lto9-m2-meta-optimizer-split-complete-waiting-human-commit
 - active_branch: feat/surface-cli-meta-optimizer-split
 - latest_main_checkpoint: 9ee9cc8 docs(state): update roadmap
 - planning_commit: e692408 docs(plan): revise surface split plan after audit
+- m1_commit: 3fe4109 refactor(surface): seed application proposal commands
 - active_track: Architecture / Engineering
 - active_phase: Surface / CLI / Meta Optimizer Split / LTO-9 Step 1
-- active_slice: M1 application command seed complete
+- active_slice: M2 meta optimizer read-only split complete
 - roadmap: docs/roadmap.md current ticket Surface / CLI / Meta Optimizer split
 - plan: docs/plans/surface-cli-meta-optimizer-split/plan.md
 - plan_audit: docs/plans/surface-cli-meta-optimizer-split/plan_audit.md
 - audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed
 - m1_validation: unit application `3 passed`; meta optimizer focused `3 passed`; proposal CLI focused `2 passed`; invariant guards `25 passed`; full meta optimizer `19 passed`; focused CLI selector `11 passed`; compileall passed; git diff --check passed
-- next_gate: Human M1 milestone review and commit
+- m2_validation: boundary test `4 passed`; meta optimizer `19 passed`; invariant guards `25 passed`; focused CLI selector `11 passed`; unit application `3 passed`; compileall passed; git diff --check passed; read-only mutation API rg no matches
+- next_gate: Human M2 milestone review and commit
 ```
 
 ## 当前产出物
@@ -151,4 +177,12 @@ milestone_gate:
 - `tests/unit/application/test_command_boundaries.py`(codex, 2026-05-02, terminal formatting and proposal writer boundary checks)
 - `src/swallow/surface_tools/cli.py`(codex, 2026-05-02, M1 dispatch delegation to application commands)
 - `src/swallow/surface_tools/meta_optimizer.py`(codex, 2026-05-02, compatibility apply function delegates to application command)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-9 M1 complete and waiting Human milestone commit)
+- `src/swallow/surface_tools/meta_optimizer_models.py`(codex, 2026-05-02, shared Meta-Optimizer records and constants)
+- `src/swallow/surface_tools/meta_optimizer_snapshot.py`(codex, 2026-05-02, read-only telemetry scan and snapshot construction)
+- `src/swallow/surface_tools/meta_optimizer_proposals.py`(codex, 2026-05-02, deterministic optimization proposal generation)
+- `src/swallow/surface_tools/meta_optimizer_reports.py`(codex, 2026-05-02, Meta-Optimizer report rendering)
+- `src/swallow/surface_tools/meta_optimizer_lifecycle.py`(codex, 2026-05-02, proposal bundle/review artifact lifecycle and compatibility apply facade)
+- `src/swallow/surface_tools/meta_optimizer_agent.py`(codex, 2026-05-02, read-only MetaOptimizerAgent / executor adapter and run entry)
+- `tests/unit/surface_tools/test_meta_optimizer_boundary.py`(codex, 2026-05-02, persistent read-only boundary tests)
+- `tests/test_invariant_guards.py`(codex, 2026-05-02, include meta_optimizer_agent.py in execution-plane guard)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-9 M2 complete and waiting Human milestone commit)

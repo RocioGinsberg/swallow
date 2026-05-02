@@ -63,6 +63,7 @@ EXECUTION_PLANE_FILES = {
     "src/swallow/surface_tools/quality_reviewer.py",
     "src/swallow/surface_tools/consistency_reviewer.py",
     "src/swallow/surface_tools/meta_optimizer.py",
+    "src/swallow/surface_tools/meta_optimizer_agent.py",
     "src/swallow/knowledge_retrieval/ingestion/pipeline.py",
 }
 TASK_STATE_WRITE_CALLS = {"save_state"}
