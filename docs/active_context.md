@@ -13,15 +13,19 @@
 - latest_completed_slice: `governance.py 642 → 45 行 facade + handler 模块化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-9 Step 2 — broad CLI command-family migration`
-- active_slice: `context_brief produced; awaiting Codex plan.md`
+- active_slice: `plan_audit concerns absorbed; awaiting Human Plan Gate`
 - active_branch: `main`
-- status: `lto9_step2_context_brief_ready`
+- status: `lto9_step2_plan_ready_for_human_gate`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`,工作树干净。LTO-10 已合并到主线:
+当前 git 分支为 `main`,当前工作树包含本轮计划文档改动。当前 HEAD 为:
 
-- `b3f7f43 Governance Apply Handler Maintainability` (HEAD)
+- `86a1fcb docs(state) update roadmap and context`
+
+LTO-10 已合并到主线:
+
+- `b3f7f43 Governance Apply Handler Maintainability`
 
 LTO-10 完整事实与 milestone 细节见 `docs/plans/governance-apply-handler-split/closeout.md`(本文不复制)。
 
@@ -74,7 +78,9 @@ LTO-7 long-running follow-ups(仍开放):
 12. `docs/plans/governance-apply-handler-split/closeout.md`
 13. `docs/plans/governance-apply-handler-split/review_comments.md`
 14. `docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md`
-15. `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`
+15. `docs/plans/surface-cli-meta-optimizer-split-step2/plan.md`
+16. `docs/plans/surface-cli-meta-optimizer-split-step2/plan_audit.md`
+17. `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`
 
 ## 当前推进
 
@@ -98,6 +104,23 @@ LTO-7 long-running follow-ups(仍开放):
 - **[Claude]** `docs/roadmap.md` Direction Gate 后轻量校正:
   - §一 baseline "下一阶段" 改为 "LTO-9 Step 2 → LTO-8 Step 2"。
   - §三 当前 ticket 改为 LTO-9 Step 2;下一选择 LTO-8 Step 2;候选 Wiki Compiler / 其他。
+- **[Codex]** 起草 LTO-9 Step 2 `plan.md`(307 行,基于 brief §9 在 plan §"Scope Decisions From context_brief.md §9" 显式作答 6 条 open question;5 milestone:M1 baseline / M2 governance-adjacent / M3 knowledge / M4 task writes / M5 task reads + cleanup)。
+- **[Claude / design-auditor]** Produced plan audit:
+  - `docs/plans/surface-cli-meta-optimizer-split-step2/plan_audit.md`
+  - verdict: `has-concerns`, 0 blockers / 5 concerns
+  - 三条具体代码级 concern 经独立交叉验证:`canonical-reuse-evaluate` 实际是 task subparser(M4 仍合理);`stage-reject` 直调 `update_staged_candidate`(line 2566)非 `apply_proposal`;`apply-suggestions` 直调 `apply_relation_suggestions` → `create_knowledge_relation`(line 2618)非 `apply_proposal`。
+- **[Claude]** Plan audit concerns 概览(均非 blocker):
+  - CONCERN-1 (M4): `canonical-reuse-evaluate` 与 `consistency-audit` brief 分类为读、plan 放 M4 写 — 加一句 confirm M4 placement 防止 Codex 实施期重新分类。
+  - CONCERN-2 (M3): `stage-reject` 调 `update_staged_candidate` 不走 `apply_proposal`;M3 boundary test prohibit 列表未明确该名字,需 explicit permit-or-prohibit 决策。
+  - CONCERN-3 (M3): `apply-suggestions` 通过 `apply_relation_suggestions` 内部调 `create_knowledge_relation`;M3 prohibit 列表未涵盖,同 CONCERN-2 路径处理。
+  - CONCERN-4 (M2): `apply_proposal` 从 `cli.py` 移到 `application/commands/*` 的 same-commit rule 未显式声明;两段提交会留 silent gap;同时 `test_invariant_guards.py` allowlist 须同 commit 更新。
+  - CONCERN-5 (M2–M5 process): "baseline tests pass on pre-migration code" gate 只在 M1 acceptance 出现,M2–M5 应各自带一句话同纪律(对应自己 family 的 baseline);Step 1 同纪律。
+- **[Codex]** 已吸收 5 条 plan audit concern 到 `plan.md`:
+  - 新增 `Plan Audit Absorption` 节,逐条记录 C-1..C-5 resolution。
+  - M2 acceptance 加入 `apply_proposal` callsite 迁移与 invariant guard allowlist / assertion 同 commit 规则。
+  - M2–M5 acceptance 均加入对应 family 的 pre-migration characterization gate。
+  - M3 scope / acceptance 显式说明 `stage-reject` 与 `apply-suggestions` 不是 `apply_proposal` flow,并定义允许的 high-level staged / relation helper 边界。
+  - M4 scope 显式说明 `canonical-reuse-evaluate` / `consistency-audit` 放入 task write/control milestone 的理由。
 
 进行中:
 
@@ -105,13 +128,12 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Codex]** 起草 LTO-9 Step 2 `plan.md`(基于 `docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md`,目标路径 `docs/plans/surface-cli-meta-optimizer-split-step2/plan.md`)。
-- **[Claude / design-auditor]** plan.md 产出后 plan audit。
 - **[Human]** Plan Gate。
+- **[Human]** Plan Gate 通过后切 `feat/surface-cli-meta-optimizer-split-step2` 并提交最终 plan / audit / state 文档。
 
 当前阻塞项:
 
-- 无 blocker。等待 Codex plan.md 起草。
+- 等待 Human Plan Gate 审批 `plan.md`。
 
 ## Tag 状态
 
@@ -121,9 +143,9 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Codex]** 起草 `docs/plans/surface-cli-meta-optimizer-split-step2/plan.md`(LTO-9 Step 2 — broad CLI command-family migration);可参考 `context_brief.md §9` 列的 6 条 open question 在 plan 内显式作答。
-2. **[Claude / design-auditor]** plan.md 产出后 plan audit。
-3. **[Human]** Plan Gate;通过后切 `feat/surface-cli-meta-optimizer-split-step2`(或 Codex 推荐其他名)。
+1. **[Human]** Plan Gate;通过后切 `feat/surface-cli-meta-optimizer-split-step2`。
+2. **[Human]** 提交最终 plan / audit / active_context 文档。
+3. **[Codex]** Plan Gate 通过且 feature branch 就绪后开始 M1。
 
 ```markdown
 plan_gate:
@@ -131,15 +153,18 @@ plan_gate:
 - merge_commit: b3f7f43 Governance Apply Handler Maintainability
 - active_branch: main
 - active_phase: LTO-9 Step 2 — broad CLI command-family migration
-- active_slice: context_brief produced; awaiting Codex plan.md
+- active_slice: plan_audit concerns absorbed; awaiting Human Plan Gate
 - direction_decided: LTO-9 Step 2 first, then LTO-8 Step 2 (cluster C closure)
 - roadmap: docs/roadmap.md current ticket = LTO-9 Step 2; next choice = LTO-8 Step 2
 - context_brief: docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md (170 lines)
+- plan: docs/plans/surface-cli-meta-optimizer-split-step2/plan.md (307 lines)
+- plan_audit: docs/plans/surface-cli-meta-optimizer-split-step2/plan_audit.md
+- audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed in plan.md
 - companion_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines, ready for LTO-8 Step 2)
 - closeout (prior phase): docs/plans/governance-apply-handler-split/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns; 1 withdrawn
 - tag_decision: defer v1.6.0 until LTO-9 Step 2 + LTO-8 Step 2 both land (cluster C closure)
-- next_gate: Codex plan.md → Claude plan_audit → Human Plan Gate
+- next_gate: Human Plan Gate → branch creation → M1
 ```
 
 ## 当前产出物
@@ -148,5 +173,7 @@ plan_gate:
 - `docs/plans/governance-apply-handler-split/closeout.md`(codex, 2026-05-02, LTO-10 closeout final)
 - `docs/plans/governance-apply-handler-split/review_comments.md`(claude, 2026-05-02, recommend-merge;0 blockers / 2 non-blocking concerns;1 withdrawn)
 - `docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-9 Step 2 事实盘点)
+- `docs/plans/surface-cli-meta-optimizer-split-step2/plan.md`(codex, 2026-05-02, LTO-9 Step 2 broad CLI command-family migration plan;已吸收 plan audit 5 条 concern)
+- `docs/plans/surface-cli-meta-optimizer-split-step2/plan_audit.md`(claude/design-auditor, 2026-05-02, has-concerns, 0 blockers / 5 concerns)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-8 Step 2 事实盘点;LTO-9 Step 2 完成后启用)
-- `docs/active_context.md`(claude, 2026-05-02, Direction Gate 后切到 LTO-9 Step 2;等待 Codex plan.md)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-9 Step 2 plan_audit concern 吸收后切到 Human Plan Gate)
