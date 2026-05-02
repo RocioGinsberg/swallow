@@ -138,9 +138,7 @@ retrieval_eval.py
 
 ### Provider Router
 
-`router.py` should converge toward a compatibility facade over focused route modules.
-
-Target direction:
+`router.py` 已收敛为 6 个聚焦模块上的 compatibility facade(LTO-7 Step 1 已落地)。当前形态:
 
 ```text
 route_registry.py
@@ -151,11 +149,13 @@ completion_gateway.py
 route_reports.py
 ```
 
+后续在该边界上的工作走 touched-surface caller migration,不再是 target shape 收敛。
+
 ### Orchestration
 
 `orchestrator.py` remains the Control Plane owner. Extraction must not give helper services independent state-advancement authority.
 
-Target direction:
+LTO-8 Step 1 已抽出以下 6 个聚焦模块,但 `orchestrator.py` 的进一步减重和 `harness.py`(2077 行)的拆分仍是后续 step:
 
 ```text
 task_lifecycle.py
@@ -183,7 +183,7 @@ apply_policy.py
 
 ## 6. Migration Discipline
 
-Use these rules when implementing candidates `V/W/X/Y/Z/AB`:
+Use these rules when implementing 簇 C subtracks(`LTO-7` / `LTO-8` / `LTO-9` / `LTO-10`)or其它 facade-first 重构:
 
 - Prefer facade-first migration before file moves.
 - Preserve current public imports until callers have migrated.
