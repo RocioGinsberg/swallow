@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from swallow.truth_governance.apply_canonical import _apply_canonical
 from swallow.truth_governance.apply_policy import _apply_policy
+from swallow.truth_governance.apply_outbox import _emit_event
 from swallow.truth_governance.apply_route_metadata import _apply_route_metadata
 from swallow.truth_governance.governance_models import ApplyResult, OperatorToken, ProposalTarget
 from swallow.truth_governance.proposal_registry import (
@@ -42,7 +43,3 @@ def apply_proposal(
 
     _emit_event(operator_token, target, result)
     return result
-
-
-def _emit_event(_operator_token: OperatorToken, _target: ProposalTarget, _result: ApplyResult) -> None:
-    """Reserved for durable governance audit events once the event repository exists."""

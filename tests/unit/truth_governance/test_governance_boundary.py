@@ -53,6 +53,7 @@ def test_apply_handlers_own_repository_write_logic() -> None:
     canonical_source = _source("truth_governance/apply_canonical.py")
     route_source = _source("truth_governance/apply_route_metadata.py")
     policy_source = _source("truth_governance/apply_policy.py")
+    outbox_source = _source("truth_governance/apply_outbox.py")
 
     for token in (
         "KnowledgeRepo",
@@ -64,6 +65,9 @@ def test_apply_handlers_own_repository_write_logic() -> None:
     ):
         assert token not in governance_source
 
+    assert "def _emit_event" not in governance_source
+    assert "def _emit_event" in outbox_source
+    assert "apply_proposal" not in outbox_source
     assert "KnowledgeRepo" in canonical_source
     assert "_promote_canonical" in canonical_source
     assert "RouteRepo" in route_source
