@@ -63,6 +63,7 @@ EXECUTION_PLANE_FILES = {
     "src/swallow/surface_tools/quality_reviewer.py",
     "src/swallow/surface_tools/consistency_reviewer.py",
     "src/swallow/surface_tools/meta_optimizer.py",
+    "src/swallow/surface_tools/meta_optimizer_agent.py",
     "src/swallow/knowledge_retrieval/ingestion/pipeline.py",
 }
 TASK_STATE_WRITE_CALLS = {"save_state"}
@@ -206,16 +207,37 @@ def test_canonical_write_only_via_apply_proposal() -> None:
 
 
 def test_route_metadata_writes_only_via_apply_proposal() -> None:
+    """Route metadata writes are owned by the physical store and called by RouteRepo.
+
+    `provider_router/router.py` remains allowlisted only as a legacy
+    compatibility facade exposing wrapper functions for older imports; it is
+    not the canonical physical writer owner.
+    """
+
+    protected_writers = {
+        "save_route_registry",
+        "save_route_policy",
+        "save_route_weights",
+        "save_route_capability_profiles",
+    }
+    route_repo_tree = ast.parse(
+        (SRC_ROOT / "truth_governance" / "truth" / "route.py").read_text(encoding="utf-8"),
+        filename="src/swallow/truth_governance/truth/route.py",
+    )
+    route_metadata_store_imports = {
+        alias.name
+        for node in ast.walk(route_repo_tree)
+        if isinstance(node, ast.ImportFrom) and node.module == "swallow.provider_router.route_metadata_store"
+        for alias in node.names
+    }
+    assert protected_writers <= route_metadata_store_imports
+
     violations = _find_protected_writer_uses(
-        protected_names={
-            "save_route_registry",
-            "save_route_policy",
-            "save_route_weights",
-            "save_route_capability_profiles",
-        },
+        protected_names=protected_writers,
         allowed_files={
-            "src/swallow/truth_governance/truth/route.py",
-            "src/swallow/provider_router/router.py",
+            "src/swallow/provider_router/route_metadata_store.py",  # physical route metadata writer owner
+            "src/swallow/provider_router/router.py",  # legacy compatibility facade wrappers
+            "src/swallow/truth_governance/truth/route.py",  # governance repository caller
         },
     )
 
@@ -282,7 +304,8 @@ def test_only_apply_proposal_calls_private_writers() -> None:
         allowed_files={
             "src/swallow/truth_governance/store.py",
             "src/swallow/knowledge_retrieval/knowledge_store.py",
-            "src/swallow/provider_router/router.py",
+            "src/swallow/provider_router/route_metadata_store.py",  # physical route metadata writer owner
+            "src/swallow/provider_router/router.py",  # legacy compatibility facade wrappers
             "src/swallow/surface_tools/consistency_audit.py",
             "src/swallow/surface_tools/mps_policy_store.py",
             "src/swallow/truth_governance/truth/knowledge.py",
@@ -333,6 +356,7 @@ def test_no_module_outside_governance_imports_store_writes() -> None:
         "src/swallow/surface_tools/consistency_audit.py",
         "src/swallow/knowledge_retrieval/knowledge_store.py",
         "src/swallow/surface_tools/mps_policy_store.py",
+        "src/swallow/provider_router/route_metadata_store.py",
         "src/swallow/provider_router/router.py",
         "src/swallow/truth_governance/store.py",
         "src/swallow/truth_governance/truth/knowledge.py",
