@@ -8,23 +8,21 @@ from swallow.provider_router.router import (
     normalize_route_name,
     route_by_name,
 )
+from swallow.truth_governance.apply_canonical import _apply_canonical
+from swallow.truth_governance.apply_policy import _apply_policy
 from swallow.truth_governance.governance_models import ApplyResult, OperatorToken, ProposalTarget
 from swallow.truth_governance.proposal_registry import (
     DuplicateProposalError,
-    is_mps_policy_proposal,
     load_mps_policy,
     load_proposal_artifact,
     register_canonical_proposal,
     register_mps_policy_proposal,
     register_policy_proposal,
     register_route_metadata_proposal,
-    require_canonical_proposal,
-    require_mps_policy_proposal,
-    require_policy_proposal,
     require_route_metadata_proposal,
     validate_target,
 )
-from swallow.truth_governance.truth import KnowledgeRepo, PolicyRepo, RouteRepo
+from swallow.truth_governance.truth import RouteRepo
 
 logger = logging.getLogger(__name__)
 
@@ -55,28 +53,6 @@ def apply_proposal(
 
     _emit_event(operator_token, target, result)
     return result
-
-
-def _apply_canonical(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
-    proposal = require_canonical_proposal(proposal)
-
-    applied_writes = KnowledgeRepo()._promote_canonical(
-        base_dir=proposal.base_dir,
-        canonical_record=proposal.canonical_record,
-        write_authority=proposal.write_authority,
-        mirror_files=proposal.mirror_files,
-        persist_wiki=proposal.persist_wiki,
-        persist_wiki_first=proposal.persist_wiki_first,
-        refresh_derived=proposal.refresh_derived,
-    )
-    canonical_id = str(proposal.canonical_record.get("canonical_id", "")).strip()
-    return ApplyResult(
-        proposal_id=proposal_id,
-        target=ProposalTarget.CANONICAL_KNOWLEDGE,
-        success=True,
-        detail=f"canonical_applied canonical_id={canonical_id or '-'}",
-        applied_writes=applied_writes,
-    )
 
 
 def _apply_route_metadata(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
@@ -376,41 +352,6 @@ def _apply_route_review_metadata(proposal: object, *, proposal_id: str) -> Apply
         detail=f"route_review_applied review_id={review_record.review_id}",
         applied_writes=("route_weights", "route_capability_profiles", "optimization_proposal_application"),
         payload=(application_record, application_path),
-    )
-
-
-def _apply_policy(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
-    if is_mps_policy_proposal(proposal):
-        proposal = require_mps_policy_proposal(proposal)
-        applied_write, policy_path = PolicyRepo()._apply_policy_change(
-            base_dir=proposal.base_dir,
-            mps_kind=proposal.kind,
-            mps_value=proposal.value,
-            proposal_id=proposal_id,
-        )
-        return ApplyResult(
-            proposal_id=proposal_id,
-            target=ProposalTarget.POLICY,
-            success=True,
-            detail=f"mps_policy_applied kind={proposal.kind} path={policy_path}",
-            applied_writes=(applied_write,),
-            payload=policy_path,
-        )
-
-    proposal = require_policy_proposal(proposal)
-
-    applied_write, policy_path = PolicyRepo()._apply_policy_change(
-        base_dir=proposal.base_dir,
-        audit_trigger_policy=proposal.audit_trigger_policy,
-        proposal_id=proposal_id,
-    )
-    return ApplyResult(
-        proposal_id=proposal_id,
-        target=ProposalTarget.POLICY,
-        success=True,
-        detail=f"policy_applied path={policy_path}",
-        applied_writes=(applied_write,),
-        payload=policy_path,
     )
 
 

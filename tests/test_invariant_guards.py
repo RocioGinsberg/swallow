@@ -332,9 +332,21 @@ def test_mps_policy_writes_via_apply_proposal() -> None:
     assert '".swl"' not in source
 
 
-def test_only_governance_calls_repository_write_methods() -> None:
+def test_canonical_and_policy_handlers_own_repository_write_methods() -> None:
     violations = _find_protected_writer_uses(
-        protected_names={"_promote_canonical", "_apply_metadata_change", "_apply_policy_change"},
+        protected_names={"_promote_canonical", "_apply_policy_change"},
+        allowed_files={
+            "src/swallow/truth_governance/apply_canonical.py",
+            "src/swallow/truth_governance/apply_policy.py",
+        },
+    )
+
+    assert violations == []
+
+
+def test_route_metadata_handler_owns_repository_write_methods() -> None:
+    violations = _find_protected_writer_uses(
+        protected_names={"_apply_metadata_change"},
         allowed_files={"src/swallow/truth_governance/governance.py"},
     )
 
