@@ -13,15 +13,15 @@
 - latest_completed_slice: `CLI command-family adapters + Meta-Optimizer read-only split + application command/query seed`
 - active_track: `Architecture / Engineering`
 - active_phase: `Governance Apply Handler Split / LTO-10`
-- active_slice: `M1 baseline + proposal registry extraction complete`
+- active_slice: `M2 canonical + policy handler extraction complete`
 - active_branch: `feat/governance-apply-handler-split`
-- status: `lto10_m1_complete_waiting_human_commit`
+- status: `lto10_m2_complete_waiting_human_commit`
 
 ## 当前状态说明
 
 当前 git 分支为 `feat/governance-apply-handler-split`。LTO-9 Step 1 已合并到主线,当前 feature branch 从 LTO-10 planning commit 开始:
 
-- `2183137 docs(plan): governance-apply-handler-split` (planning docs committed; feature branch HEAD)
+- `2183137 docs(plan): governance-apply-handler-split` (planning docs committed; feature branch base commit)
 - `f22d5d6 docs(state): update roadmap`
 - `21c1884 Surface / Meta Optimizer Modularity`
 - `824551a docs(state): mark surface split ready to merge`
@@ -29,7 +29,11 @@
 
 LTO-9 Step 1 完整事实与 milestone 细节见 `docs/plans/surface-cli-meta-optimizer-split/closeout.md`(本文不复制)。
 
-Human 已提交 planning docs、通过 Plan Gate 并切换到 `feat/governance-apply-handler-split`。Codex 已完成 M1:
+Human 已提交 planning docs、通过 Plan Gate 并切换到 `feat/governance-apply-handler-split`。M1 已由 Human 提交:
+
+- `34c2c42 refactor(governance): extract proposal registry`
+
+Codex 已完成 M1:
 
 - create `tests/unit/truth_governance/test_governance_boundary.py`
 - extract proposal registry / payload ownership behind `governance.py`
@@ -122,6 +126,18 @@ LTO-7 follow-up 状态:
   - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
   - `.venv/bin/python -m compileall -q src/swallow` -> passed
   - `git diff --check` -> passed
+- **[Codex]** Completed M2 canonical + policy handler extraction:
+  - added `src/swallow/truth_governance/apply_canonical.py` as the only current canonical repository private-writer caller.
+  - added `src/swallow/truth_governance/apply_policy.py` as the only current policy repository private-writer caller.
+  - kept route metadata repository private-writer ownership in `governance.py` until M3.
+  - split `tests/test_invariant_guards.py` writer ownership guards so canonical/policy and route metadata have separate allowlists.
+- **[Codex]** M2 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/truth_governance/test_governance_boundary.py -q` -> `4 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `26 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
 
 进行中:
 
@@ -129,11 +145,11 @@ LTO-7 follow-up 状态:
 
 待执行:
 
-- **[Human]** 审查 M1 并执行 milestone commit。
+- **[Human]** 审查 M2 后执行 milestone commit。
 
 当前阻塞项:
 
-- 等待 Human 审查并提交 M1 milestone。
+- 无。
 
 ## Tag 状态
 
@@ -143,8 +159,8 @@ LTO-7 follow-up 状态:
 
 ## 当前下一步
 
-1. **[Human]** 审查 M1 后执行 milestone commit。
-2. **[Codex]** Human commit 后进入 M2 canonical / policy handler extraction。
+1. **[Human]** 审查 M2 后执行 milestone commit。
+2. **[Codex]** 在 Human commit 后进入 M3 route metadata handler extraction。
 
 ```markdown
 plan_gate:
@@ -152,7 +168,7 @@ plan_gate:
 - merge_commit: 21c1884 Surface / Meta Optimizer Modularity
 - active_branch: feat/governance-apply-handler-split
 - active_phase: Governance Apply Handler Split / LTO-10
-- active_slice: M1 baseline + proposal registry extraction complete
+- active_slice: M2 canonical + policy handler extraction complete
 - roadmap: docs/roadmap.md current ticket = Governance apply handler split (LTO-10)
 - plan: docs/plans/governance-apply-handler-split/plan.md
 - plan_audit: docs/plans/governance-apply-handler-split/plan_audit.md
@@ -161,7 +177,8 @@ plan_gate:
 - review (prior phase): recommendation merge; 0 blockers; 2 non-blocking deferred concerns
 - lto7_followup: CONCERN-1 resolved in LTO-9 Step 1 M4; CONCERN-2/3 still open in concerns_backlog
 - tag_decision: defer v1.6.0 until LTO-10 + LTO-8 Step 2 land
-- next_gate: Human M1 commit
+- latest_milestone_commit: 34c2c42 refactor(governance): extract proposal registry
+- next_gate: Human M2 milestone commit
 ```
 
 ## 当前产出物
@@ -174,6 +191,9 @@ plan_gate:
 - `current_state.md`(codex, 2026-05-02, LTO-10 plan audit concerns absorbed recovery checkpoint)
 - `src/swallow/truth_governance/governance_models.py`(codex, 2026-05-02, M1 public governance record types)
 - `src/swallow/truth_governance/proposal_registry.py`(codex, 2026-05-02, M1 proposal payload registry ownership)
-- `src/swallow/truth_governance/governance.py`(codex, 2026-05-02, M1 public facade delegates proposal registry)
-- `tests/unit/truth_governance/test_governance_boundary.py`(codex, 2026-05-02, M1 boundary tests)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-10 M1 complete;waiting Human milestone commit)
+- `src/swallow/truth_governance/apply_canonical.py`(codex, 2026-05-02, M2 canonical apply handler)
+- `src/swallow/truth_governance/apply_policy.py`(codex, 2026-05-02, M2 policy apply handler)
+- `src/swallow/truth_governance/governance.py`(codex, 2026-05-02, M2 public facade delegates canonical / policy handlers; route handler remains for M3)
+- `tests/unit/truth_governance/test_governance_boundary.py`(codex, 2026-05-02, M2 boundary tests)
+- `tests/test_invariant_guards.py`(codex, 2026-05-02, M2 private writer ownership guard split)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-10 M2 complete;waiting Human milestone commit)
