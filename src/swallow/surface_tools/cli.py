@@ -46,6 +46,8 @@ from swallow.knowledge_retrieval.ingestion.pipeline import (
     run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
+from swallow.application.commands.meta_optimizer import run_meta_optimizer_command
+from swallow.application.commands.proposals import apply_reviewed_proposals_command, review_proposals_command
 from swallow.knowledge_retrieval.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
 from swallow.truth_governance.governance import (
     OperatorToken,
@@ -68,9 +70,6 @@ from swallow.surface_tools.meta_optimizer import (
     build_optimization_proposal_application_report,
     build_optimization_proposal_review_report,
     extract_route_weight_proposals_from_report,
-    load_optimization_proposal_review,
-    review_optimization_proposals,
-    run_meta_optimizer,
 )
 from swallow.knowledge_retrieval.knowledge_objects import summarize_canonicalization
 from swallow.knowledge_retrieval.knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
@@ -104,7 +103,6 @@ from swallow.surface_tools.paths import (
     handoff_path,
     knowledge_decisions_path,
     knowledge_index_path,
-    latest_optimization_proposal_bundle_path,
     knowledge_partition_path,
     knowledge_policy_path,
     memory_path,
@@ -2634,38 +2632,33 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "meta-optimize":
-        _snapshot, artifact_path, report = run_meta_optimizer(base_dir, last_n=args.last_n)
-        print(report, end="")
-        print(f"artifact: {artifact_path}")
-        print(f"proposal_bundle: {latest_optimization_proposal_bundle_path(base_dir)}")
+        result = run_meta_optimizer_command(base_dir, last_n=args.last_n)
+        print(result.report, end="")
+        print(f"artifact: {result.artifact_path}")
+        print(f"proposal_bundle: {result.proposal_bundle_path}")
         return 0
 
     if args.command == "proposal" and args.proposal_command == "review":
-        review_record, record_path = review_optimization_proposals(
+        result = review_proposals_command(
             base_dir,
             resolve_path(args.proposal_file),
             decision=args.decision,
             proposal_ids=list(args.proposal_ids or []),
             note=args.note,
         )
-        print(build_optimization_proposal_review_report(review_record), end="")
-        print(f"record: {record_path}")
+        print(build_optimization_proposal_review_report(result.review_record), end="")
+        print(f"record: {result.record_path}")
         return 0
 
     if args.command == "proposal" and args.proposal_command == "apply":
         review_path = resolve_path(args.review_file)
-        review_record = load_optimization_proposal_review(review_path)
-        proposal_id = register_route_metadata_proposal(
-            base_dir=base_dir,
-            proposal_id=review_record.review_id or review_path.stem,
-            review_path=review_path,
+        result = apply_reviewed_proposals_command(
+            base_dir,
+            review_path,
+            proposal_id_strategy="review_id",
         )
-        result = apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
-        if not isinstance(result.payload, tuple) or len(result.payload) != 2:
-            raise RuntimeError("Route metadata apply result did not include an application record payload.")
-        application_record, record_path = result.payload
-        print(build_optimization_proposal_application_report(application_record), end="")
-        print(f"record: {record_path}")
+        print(build_optimization_proposal_application_report(result.application_record), end="")
+        print(f"record: {result.record_path}")
         return 0
 
     if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "show":

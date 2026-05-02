@@ -20,7 +20,6 @@ from swallow.orchestration.models import (
     TaskState,
     utc_now,
 )
-from swallow.truth_governance.governance import OperatorToken, ProposalTarget, apply_proposal, register_route_metadata_proposal
 from swallow.surface_tools.paths import (
     latest_optimization_proposal_bundle_path,
     optimization_proposal_bundle_path,
@@ -1159,20 +1158,10 @@ def apply_reviewed_optimization_proposals(
     base_dir: Path,
     review_path: Path,
 ) -> tuple[OptimizationProposalApplicationRecord, Path]:
-    review_record = load_optimization_proposal_review(review_path)
-    proposal_id = f"{review_record.review_id or review_path.stem}-apply-{time.time_ns():x}"
-    register_route_metadata_proposal(
-        base_dir=base_dir,
-        proposal_id=proposal_id,
-        review_path=review_path,
-    )
-    result = apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
-    if not isinstance(result.payload, tuple) or len(result.payload) != 2:
-        raise RuntimeError("Route metadata apply result did not include an application record payload.")
-    application_record, application_path = result.payload
-    if not isinstance(application_record, OptimizationProposalApplicationRecord) or not isinstance(application_path, Path):
-        raise RuntimeError("Route metadata apply result payload has an unexpected shape.")
-    return application_record, application_path
+    from swallow.application.commands.proposals import apply_reviewed_proposals_command
+
+    result = apply_reviewed_proposals_command(base_dir, review_path)
+    return result.application_record, result.record_path
 
 
 def build_optimization_proposal_application_report(

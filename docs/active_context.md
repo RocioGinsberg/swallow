@@ -13,15 +13,19 @@
 - latest_completed_slice: `Facade-first orchestrator helper extraction`
 - active_track: `Architecture / Engineering`
 - active_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
-- active_slice: `plan revised after audit`
-- active_branch: `main`
-- status: `lto9_plan_revised_after_audit_waiting_human_gate`
+- active_slice: `M1 application command seed complete`
+- active_branch: `feat/surface-cli-meta-optimizer-split`
+- status: `lto9_m1_application_commands_complete_waiting_human_commit`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-8 Step 1 已合并到主线，当前主线 checkpoint:
+当前 git 分支为 `feat/surface-cli-meta-optimizer-split`。LTO-8 Step 1 已合并到主线，当前 main checkpoint:
 
 - `9ee9cc8 docs(state): update roadmap`
+
+Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订后的 plan / audit / state docs:
+
+- `e692408 docs(plan): revise surface split plan after audit`
 
 `docs/roadmap.md` 已由 Human / roadmap update 切到下一阶段 ticket:
 
@@ -39,10 +43,12 @@
 
 当前代码事实:
 
-- `src/swallow/surface_tools/cli.py` 约 3790 行，仍承担 parser construction、command dispatch、task/knowledge/route/proposal/audit/synthesis/serve 等多组 surface 逻辑。
-- `src/swallow/surface_tools/meta_optimizer.py` 约 1320 行，仍同时承载 telemetry snapshot、proposal generation、proposal bundle IO、review、apply、report 与 executor adapter。
+- `src/swallow/surface_tools/cli.py` 仍承担 parser construction、command dispatch、task/knowledge/route/proposal/audit/synthesis/serve 等多组 surface 逻辑；M1 已让 `meta-optimize` / `proposal review` / `proposal apply` dispatch 调用 application commands，但尚未进入 M3 adapter split。
+- `src/swallow/surface_tools/meta_optimizer.py` 仍承载 telemetry snapshot、proposal generation、proposal bundle IO、review、apply facade、report 与 executor adapter；M1 已让 `apply_reviewed_optimization_proposals(...)` 兼容函数委托到 application command。
 - `src/swallow/surface_tools/web/api.py` 约 374 行，已有 `application/queries/control_center.py` 只读 query pilot，但写命令层尚未系统收口。
-- `src/swallow/application/` 当前只有 query pilot；`application/commands/` 尚未建立。
+- `src/swallow/application/commands/` 已建立 M1 种子:
+  - `meta_optimizer.py` 提供 structured run command result。
+  - `proposals.py` 提供 proposal review/apply command result，并通过 `register_route_metadata_proposal` + `apply_proposal` 进入治理边界。
 
 ## 当前关键文档
 
@@ -75,19 +81,36 @@
   - `docs/plans/surface-cli-meta-optimizer-split/plan_audit.md`
   - verdict: `has-concerns`, 0 blockers / 5 concerns
 - **[Codex]** Revised `plan.md` to absorb all 5 concerns before Human Plan Gate.
+- **[Human]** Approved Plan Gate, created `feat/surface-cli-meta-optimizer-split`, and committed planning docs:
+  - `e692408 docs(plan): revise surface split plan after audit`
+- **[Codex]** Completed M1 application command seed:
+  - added `src/swallow/application/commands/`
+  - moved CLI `meta-optimize` / `proposal review` / `proposal apply` dispatch to application commands
+  - kept terminal formatting in CLI and report builders
+  - added source-text boundary tests for application command modules
+- **[Codex]** M1 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/application/test_command_boundaries.py -q` -> `2 passed`
+  - `.venv/bin/python -m pytest tests/unit/application -q` -> `3 passed`
+  - `.venv/bin/python -m pytest tests/test_meta_optimizer.py -k "review_and_apply" -q` -> `3 passed, 16 deselected`
+  - `.venv/bin/python -m pytest tests/test_cli.py -k "proposal_review_and_apply_cli_flow or proposal_apply_cli_persists_route_capability_profile" -q` -> `2 passed, 240 deselected`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` -> `19 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -k "proposal or meta_optimizer or route_capabilities or route_weights or serve" -q` -> `11 passed, 231 deselected`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
 
 进行中:
 
-- None. Revised LTO-9 plan is waiting for Human Plan Gate.
+- None. M1 is ready for Human milestone review / commit.
 
 待执行:
 
-- **[Human]** Review revised plan + audit and decide Plan Gate.
-- **[Human]** After Plan Gate, create implementation branch `feat/surface-cli-meta-optimizer-split`.
+- **[Human]** Review and commit M1 implementation if accepted.
+- **[Codex]** After Human confirms M1 commit, start M2 Meta-Optimizer read-only module split.
 
 当前阻塞项:
 
-- 无实现 blocker。实现尚未开始；等待 Human Plan Gate。
+- 无 blocker。
 
 ## Tag 状态
 
@@ -97,24 +120,24 @@
 
 ## 当前下一步
 
-1. **[Human]** Review revised `plan.md` + `plan_audit.md` and decide Plan Gate.
-2. **[Human]** If approved, create `feat/surface-cli-meta-optimizer-split` from `main`.
-3. **[Codex]** After branch switch and gate approval, start M1 implementation.
+1. **[Human]** Review and commit M1 implementation if accepted.
+2. **[Codex]** After commit confirmation, start M2 Meta-Optimizer read-only module split.
 
 ```markdown
-planning_gate:
-- current: lto9-plan-revised-after-audit-waiting-human-gate
-- active_branch: main
+milestone_gate:
+- current: lto9-m1-application-commands-complete-waiting-human-commit
+- active_branch: feat/surface-cli-meta-optimizer-split
 - latest_main_checkpoint: 9ee9cc8 docs(state): update roadmap
+- planning_commit: e692408 docs(plan): revise surface split plan after audit
 - active_track: Architecture / Engineering
 - active_phase: Surface / CLI / Meta Optimizer Split / LTO-9 Step 1
-- active_slice: plan revised after audit
+- active_slice: M1 application command seed complete
 - roadmap: docs/roadmap.md current ticket Surface / CLI / Meta Optimizer split
-- recommended_implementation_branch: feat/surface-cli-meta-optimizer-split
 - plan: docs/plans/surface-cli-meta-optimizer-split/plan.md
 - plan_audit: docs/plans/surface-cli-meta-optimizer-split/plan_audit.md
 - audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed
-- next_gate: Human Plan Gate
+- m1_validation: unit application `3 passed`; meta optimizer focused `3 passed`; proposal CLI focused `2 passed`; invariant guards `25 passed`; full meta optimizer `19 passed`; focused CLI selector `11 passed`; compileall passed; git diff --check passed
+- next_gate: Human M1 milestone review and commit
 ```
 
 ## 当前产出物
@@ -122,4 +145,10 @@ planning_gate:
 - `docs/roadmap.md`(roadmap-updater/Human, 2026-05-02, LTO-8 Step 1 done and LTO-9 current ticket)
 - `docs/plans/surface-cli-meta-optimizer-split/plan.md`(codex, 2026-05-02, LTO-9 Step 1 plan revised after audit)
 - `docs/plans/surface-cli-meta-optimizer-split/plan_audit.md`(claude/design-auditor, 2026-05-02, 0 blockers / 5 concerns)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-9 plan revised after audit and waiting Human Plan Gate)
+- `src/swallow/application/commands/__init__.py`(codex, 2026-05-02, application command package seed)
+- `src/swallow/application/commands/meta_optimizer.py`(codex, 2026-05-02, structured meta optimizer command result)
+- `src/swallow/application/commands/proposals.py`(codex, 2026-05-02, proposal review/apply application commands)
+- `tests/unit/application/test_command_boundaries.py`(codex, 2026-05-02, terminal formatting and proposal writer boundary checks)
+- `src/swallow/surface_tools/cli.py`(codex, 2026-05-02, M1 dispatch delegation to application commands)
+- `src/swallow/surface_tools/meta_optimizer.py`(codex, 2026-05-02, compatibility apply function delegates to application command)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-9 M1 complete and waiting Human milestone commit)
