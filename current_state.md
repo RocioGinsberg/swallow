@@ -24,18 +24,23 @@
 - latest_executed_public_tag: `v1.5.0`
 - pending_release_tag: `none`
 - current_working_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
-- checkpoint_type: `lto9_plan_revised_after_audit_waiting_human_gate`
-- active_branch: `main`
+- checkpoint_type: `lto9_step1_review_complete_merge_ready`
+- active_branch: `feat/surface-cli-meta-optimizer-split`
 - last_checked: `2026-05-02`
 
 说明:
 
-- LTO-8 Step 1 已合并到 `main`，`docs/roadmap.md` 已更新为 LTO-8 Step 1 done / LTO-9 current ticket；当前 main checkpoint 为 `9ee9cc8 docs(state): update roadmap`。
-- 当前工作阶段为 `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`。
-- Codex 已产出并按 audit 修订 `docs/plans/surface-cli-meta-optimizer-split/plan.md`。
-- Claude/design-auditor 已产出 `docs/plans/surface-cli-meta-optimizer-split/plan_audit.md`，结论为 `has-concerns`，0 blockers / 5 concerns；Codex 已将 5 条 concern 吸收到 plan。
-- 本阶段计划范围是 behavior-preserving surface decomposition: CLI command family adapter split、Meta Optimizer read-only path vs Operator proposal apply/review split、application/commands seed，以及 LTO-7 route metadata guard allowlist drift fix。
-- 当前等待 Human Plan Gate；实现尚未开始。
+- LTO-8 Step 1 已合并到 `main`，`docs/roadmap.md` 已更新为 LTO-8 Step 1 done / LTO-9 current ticket；当前 main checkpoint 仍为 `9ee9cc8 docs(state): update roadmap`。
+- 当前工作分支为 `feat/surface-cli-meta-optimizer-split`，LTO-9 Step 1 implementation 与 PR review 已完成，当前处于可 merge 状态。
+- Codex 已完成 M1-M5:
+  - M1 application command seed for proposal / meta-optimizer operator paths。
+  - M2 Meta-Optimizer read-only module split。
+  - M3 focused CLI command adapter split for `meta-optimize`、`proposal review/apply`、`route weights show/apply`、`route capabilities show/update`。
+  - M4 Control Center read-only query tightening and LTO-7 route metadata guard allowlist drift fix。
+  - M5 compatibility audit、same-process route metadata CLI proposal id collision fix、closeout / PR draft。
+- `docs/plans/surface-cli-meta-optimizer-split/closeout.md` and `pr.md` are prepared.
+- Claude PR review has been produced at `docs/plans/surface-cli-meta-optimizer-split/review_comments.md` with recommendation: `merge`.
+- Review recorded 0 blockers and 2 non-blocking follow-up concerns; both are deferred/tracked, not merge blockers.
 - 最新已执行公开 tag 仍为 `v1.5.0`; annotated tag 指向 `bc8abb1 docs(release): sync v1.5.0 release docs`。
 
 ---
@@ -44,17 +49,18 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `main`
+- active_branch: `feat/surface-cli-meta-optimizer-split`
 - active_track: `Architecture / Engineering`
 - active_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
-- active_slice: `plan revised after audit`
-- workflow_status: `lto9_plan_revised_after_audit_waiting_human_gate`
+- active_slice: `M5 closeout complete`
+- workflow_status: `lto9_step1_review_complete_merge_ready`
 
 下一步:
 
-1. Human reviews revised `plan.md` + `plan_audit.md` and decides Plan Gate.
-2. If approved, Human creates `feat/surface-cli-meta-optimizer-split` from `main`.
-3. Codex starts M1 implementation only after branch switch and gate approval.
+1. Human commits review/closeout state material if accepted.
+2. Human creates / updates PR using `pr.md`.
+3. Human merges when satisfied.
+4. After merge, Codex syncs `current_state.md` / `docs/active_context.md`; roadmap-updater should then update `docs/roadmap.md`.
 
 ---
 
@@ -70,14 +76,15 @@
 6. `docs/roadmap.md`
 7. `docs/plans/surface-cli-meta-optimizer-split/plan.md`
 8. `docs/plans/surface-cli-meta-optimizer-split/plan_audit.md`
-9. `docs/design/INVARIANTS.md`
-10. `docs/design/INTERACTION.md`
-11. `docs/design/SELF_EVOLUTION.md`
-12. `docs/engineering/CODE_ORGANIZATION.md`
-13. `docs/engineering/TEST_ARCHITECTURE.md`
-14. `docs/concerns_backlog.md`
-15. `docs/plans/orchestration-lifecycle-decomposition/closeout.md`
-16. `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`
+9. `docs/plans/surface-cli-meta-optimizer-split/closeout.md`
+10. `docs/plans/surface-cli-meta-optimizer-split/review_comments.md`
+11. `pr.md`
+12. `docs/design/INVARIANTS.md`
+13. `docs/design/INTERACTION.md`
+14. `docs/design/SELF_EVOLUTION.md`
+15. `docs/engineering/CODE_ORGANIZATION.md`
+16. `docs/engineering/TEST_ARCHITECTURE.md`
+17. `docs/concerns_backlog.md`
 
 ---
 
@@ -89,31 +96,29 @@
 git status --short --branch
 git branch --show-current
 git show --no-patch --decorate --oneline HEAD
-sed -n '1,260p' docs/plans/surface-cli-meta-optimizer-split/plan.md
+sed -n '1,260p' docs/active_context.md
+sed -n '1,260p' docs/plans/surface-cli-meta-optimizer-split/closeout.md
 ```
 
-本轮是 docs-only planning update，不要求跑 pytest。
-
-后续实现阶段计划中的基础 gate:
+LTO-9 Step 1 final validation already passed:
 
 ```bash
-.venv/bin/python -m pytest tests/test_meta_optimizer.py -q
-.venv/bin/python -m pytest tests/unit/application/test_command_boundaries.py -q
-.venv/bin/python -m pytest tests/unit/surface_tools/test_meta_optimizer_boundary.py -q
-.venv/bin/python -m pytest tests/integration/cli -q
-.venv/bin/python -m pytest tests/test_cli.py -k "proposal or meta_optimizer or route_capabilities or route_weights or serve" -q
-.venv/bin/python -m pytest tests/test_web_api.py -q
-.venv/bin/python -m pytest tests/test_invariant_guards.py -q
+.venv/bin/python -m pytest -q
+# 696 passed, 8 deselected, 10 subtests passed
+
 .venv/bin/python -m compileall -q src/swallow
+# passed
+
 git diff --check
+# passed
 ```
 
 ---
 
 ## 当前已知边界
 
-- 不在 `main` 上做 LTO-9 代码实现；`main` 当前只承载 plan / audit gate。
-- plan + audit + Human Gate 通过后，Human 先创建 `feat/surface-cli-meta-optimizer-split`。
+- 不在 `main` 上做 LTO-9 代码实现；当前实现位于 `feat/surface-cli-meta-optimizer-split`。
+- Claude review 已完成并建议 merge；合并前只需 Human PR decision。
 - 不改变 CLI 命令名、flag、exit code、输出格式。
 - 不改变 `docs/design/*.md` 设计语义。
 - 不改变 `apply_proposal` 唯一写入入口。
@@ -125,15 +130,16 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前只建议提交 LTO-9 revised plan / audit / state docs:
+当前建议提交 review / closeout 状态材料:
 
 ```bash
-git add docs/plans/surface-cli-meta-optimizer-split/plan.md \
-  docs/plans/surface-cli-meta-optimizer-split/plan_audit.md \
+git add docs/plans/surface-cli-meta-optimizer-split/closeout.md \
+  docs/plans/surface-cli-meta-optimizer-split/review_comments.md \
+  docs/concerns_backlog.md \
   docs/active_context.md \
   current_state.md
 
-git commit -m "docs(plan): revise surface split plan after audit"
+git commit -m "docs(state): mark surface split ready to merge"
 ```
 
 ---
@@ -149,7 +155,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 LTO-9 planning phase 不要求 live HTTP / API-key dependent test。
+当前 LTO-9 Step 1 closeout 不要求 live HTTP / API-key dependent test。
 
 ---
 
@@ -161,7 +167,7 @@ docker compose ps
 cd /home/rocio/projects/swallow
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
-sed -n '1,260p' docs/plans/surface-cli-meta-optimizer-split/plan.md
+sed -n '1,260p' docs/plans/surface-cli-meta-optimizer-split/closeout.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
