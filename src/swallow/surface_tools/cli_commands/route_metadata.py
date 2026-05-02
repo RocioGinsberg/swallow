@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from swallow.provider_router.router import (
@@ -17,6 +18,11 @@ from swallow.truth_governance.governance import (
     apply_proposal,
     register_route_metadata_proposal,
 )
+
+
+def _unique_cli_proposal_id(prefix: str, identity: str) -> str:
+    normalized_identity = identity.strip() or "unknown"
+    return f"{prefix}:{normalized_identity}:{time.time_ns():x}"
 
 
 def handle_route_metadata_command(base_dir: Path, args: object) -> int | None:
@@ -61,7 +67,7 @@ def _handle_route_weights_command(base_dir: Path, args: object) -> int | None:
     }
     proposal_id = register_route_metadata_proposal(
         base_dir=base_dir,
-        proposal_id=f"route-weights:{proposal_path.name}",
+        proposal_id=_unique_cli_proposal_id("route-weights", proposal_path.name),
         route_weights=persisted_weights,
     )
     apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
@@ -137,7 +143,7 @@ def _handle_route_capabilities_command(base_dir: Path, args: object) -> int | No
     }
     proposal_id = register_route_metadata_proposal(
         base_dir=base_dir,
-        proposal_id=f"route-capabilities:{route_name}",
+        proposal_id=_unique_cli_proposal_id("route-capabilities", route_name),
         route_capability_profiles=profiles,
     )
     apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
