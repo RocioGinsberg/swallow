@@ -13,6 +13,8 @@ from swallow.provider_router.router import (
     apply_route_policy,
     apply_route_weights,
     route_metadata_snapshot,
+)
+from swallow.provider_router.route_metadata_store import (
     save_route_capability_profiles,
     save_route_registry,
     save_route_policy,

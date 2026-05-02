@@ -13,9 +13,9 @@
 - latest_completed_slice: `Facade-first orchestrator helper extraction`
 - active_track: `Architecture / Engineering`
 - active_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
-- active_slice: `M3 CLI command-family adapter split complete`
+- active_slice: `M4 guard allowlist fix and query tightening complete`
 - active_branch: `feat/surface-cli-meta-optimizer-split`
-- status: `lto9_m3_cli_adapter_split_complete_waiting_human_commit`
+- status: `lto9_m4_guard_query_complete_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -28,6 +28,7 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
 - `e692408 docs(plan): revise surface split plan after audit`
 - `3fe4109 refactor(surface): seed application proposal commands`
 - `5ad381f refactor(surface): split meta optimizer read-only modules`
+- `6b479aa refactor(cli): extract proposal and route command adapters`
 
 `docs/roadmap.md` 已由 Human / roadmap update 切到下一阶段 ticket:
 
@@ -55,7 +56,8 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
   - `meta_optimizer_agent.py`: MetaOptimizerAgent / MetaOptimizerExecutor / `run_meta_optimizer(...)`。
   - `meta_optimizer_lifecycle.py`: proposal bundle / review record artifact IO and compatibility apply facade。
   - `meta_optimizer_models.py`: shared records, constants, and serialization helpers。
-- `src/swallow/surface_tools/web/api.py` 约 374 行，已有 `application/queries/control_center.py` 只读 query pilot，但写命令层尚未系统收口。
+- `src/swallow/surface_tools/web/api.py` 已在 M4 收缩为 FastAPI adapter，Control Center 只读 payload builders 由 `application/queries/control_center.py` 承载。
+- `src/swallow/truth_governance/truth/route.py` 已直接调用 `provider_router/route_metadata_store.py` 中的 route metadata physical writers；`provider_router/router.py` 的 writer wrappers 仅作为 legacy compatibility facade 保留并在 guard 注释中显式说明。
 - `src/swallow/application/commands/` 已建立 M1 种子:
   - `meta_optimizer.py` 提供 structured run command result。
   - `proposals.py` 提供 proposal review/apply command result，并通过 `register_route_metadata_proposal` + `apply_proposal` 进入治理边界。
@@ -141,15 +143,28 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
   - `.venv/bin/python -m compileall -q src/swallow` -> passed
   - `git diff --check` -> passed
   - new-file `git diff --check --no-index /dev/null <new M3 files>` -> no whitespace warnings
+- **[Human]** Committed M3:
+  - `6b479aa refactor(cli): extract proposal and route command adapters`
+- **[Codex]** Completed M4 guard allowlist fix and query tightening:
+  - M4 go/no-go result: query tightening proceeded; moved read-only Control Center artifact / subtask tree / execution timeline payload builders into `application/queries/control_center.py` without changing HTTP route behavior or adding write endpoints.
+  - updated route metadata guard allowlists to name `provider_router/route_metadata_store.py` as the physical writer owner.
+  - updated `truth_governance/truth/route.py` to import route metadata physical writers directly from `route_metadata_store.py`.
+  - documented `provider_router/router.py` as a legacy compatibility wrapper exception in guard comments.
+- **[Codex]** M4 validation passed:
+  - `.venv/bin/python -m pytest tests/test_web_api.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
 
 进行中:
 
-- None. M3 is ready for Human milestone review / commit.
+- None. M4 is ready for Human milestone review / commit.
 
 待执行:
 
-- **[Human]** Review and commit M3 implementation if accepted.
-- **[Codex]** After Human confirms M3 commit, start M4 guard allowlist fix and optional-if-safe Control Center query tightening.
+- **[Human]** Review and commit M4 implementation if accepted.
+- **[Codex]** After Human confirms M4 commit, start M5 facade cleanup, compatibility audit, closeout / PR gate.
 
 当前阻塞项:
 
@@ -163,20 +178,21 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
 
 ## 当前下一步
 
-1. **[Human]** Review and commit M3 implementation if accepted.
-2. **[Codex]** After commit confirmation, start M4 guard allowlist fix and optional-if-safe Control Center query tightening.
+1. **[Human]** Review and commit M4 implementation if accepted.
+2. **[Codex]** After commit confirmation, start M5 facade cleanup, compatibility audit, closeout / PR gate.
 
 ```markdown
 milestone_gate:
-- current: lto9-m3-cli-adapter-split-complete-waiting-human-commit
+- current: lto9-m4-guard-query-complete-waiting-human-commit
 - active_branch: feat/surface-cli-meta-optimizer-split
 - latest_main_checkpoint: 9ee9cc8 docs(state): update roadmap
 - planning_commit: e692408 docs(plan): revise surface split plan after audit
 - m1_commit: 3fe4109 refactor(surface): seed application proposal commands
 - m2_commit: 5ad381f refactor(surface): split meta optimizer read-only modules
+- m3_commit: 6b479aa refactor(cli): extract proposal and route command adapters
 - active_track: Architecture / Engineering
 - active_phase: Surface / CLI / Meta Optimizer Split / LTO-9 Step 1
-- active_slice: M3 CLI command-family adapter split complete
+- active_slice: M4 guard allowlist fix and query tightening complete
 - roadmap: docs/roadmap.md current ticket Surface / CLI / Meta Optimizer split
 - plan: docs/plans/surface-cli-meta-optimizer-split/plan.md
 - plan_audit: docs/plans/surface-cli-meta-optimizer-split/plan_audit.md
@@ -185,7 +201,9 @@ milestone_gate:
 - m2_validation: boundary test `4 passed`; meta optimizer `19 passed`; invariant guards `25 passed`; focused CLI selector `11 passed`; unit application `3 passed`; compileall passed; git diff --check passed; read-only mutation API rg no matches
 - m3_baseline: pre-extraction integration CLI characterization `4 passed`
 - m3_validation: integration CLI `5 passed`; focused CLI selector `11 passed`; meta optimizer `19 passed`; unit application/surface `7 passed`; invariant guards `25 passed`; compileall passed; git diff --check passed; new-file whitespace checks no warnings
-- next_gate: Human M3 milestone review and commit
+- m4_go_no_go: query tightening proceeded; moved read-only Control Center payload builders to application queries without HTTP response shape changes or write surface expansion
+- m4_validation: web API `10 passed`; invariant guards `25 passed`; sqlite truth regression `21 passed`; compileall passed; git diff --check passed
+- next_gate: Human M4 milestone review and commit
 ```
 
 ## 当前产出物
@@ -214,4 +232,8 @@ milestone_gate:
 - `tests/integration/cli/test_meta_optimizer_commands.py`(codex, 2026-05-02, meta-optimize stdout/stderr/exit-code characterization)
 - `tests/integration/cli/test_proposal_commands.py`(codex, 2026-05-02, proposal review/apply stdout/stderr/exit-code characterization)
 - `tests/integration/cli/test_route_commands.py`(codex, 2026-05-02, route weights/capabilities stdout/stderr/exit-code characterization)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-9 M3 complete and waiting Human milestone commit)
+- `src/swallow/application/queries/control_center.py`(codex, 2026-05-02, M4 Control Center read-only payload builders)
+- `src/swallow/surface_tools/web/api.py`(codex, 2026-05-02, M4 FastAPI adapter after query tightening)
+- `src/swallow/truth_governance/truth/route.py`(codex, 2026-05-02, M4 direct import of route metadata physical writers)
+- `tests/test_invariant_guards.py`(codex, 2026-05-02, M4 route metadata writer allowlist ownership guard)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-9 M4 complete and waiting Human milestone commit)
