@@ -13,27 +13,31 @@
 - latest_completed_slice: `CLI command-family adapters + Meta-Optimizer read-only split + application command/query seed`
 - active_track: `Architecture / Engineering`
 - active_phase: `Governance Apply Handler Split / LTO-10`
-- active_slice: `plan revised after audit; awaiting Human Plan Gate`
-- active_branch: `main`
-- status: `lto10_plan_audit_concerns_absorbed_pending_human_gate`
+- active_slice: `PR review complete; recommend-merge; 2 non-blocking concerns`
+- active_branch: `feat/governance-apply-handler-split`
+- status: `lto10_review_complete_recommend_merge`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-9 Step 1 已合并到主线,最新 main checkpoint:
+当前 git 分支为 `feat/governance-apply-handler-split`。LTO-9 Step 1 已合并到主线,当前 feature branch 从 LTO-10 planning commit 开始:
 
-- `21c1884 Surface / Meta Optimizer Modularity` (HEAD)
+- `2183137 docs(plan): governance-apply-handler-split` (planning docs committed; feature branch base commit)
+- `f22d5d6 docs(state): update roadmap`
+- `21c1884 Surface / Meta Optimizer Modularity`
 - `824551a docs(state): mark surface split ready to merge`
 - `4b66ad2 fix(cli): make route metadata proposal ids unique`
 
 LTO-9 Step 1 完整事实与 milestone 细节见 `docs/plans/surface-cli-meta-optimizer-split/closeout.md`(本文不复制)。
 
-当前工作树包含 LTO-10 planning / state 文档改动,尚未提交:
+Human 已提交 planning docs、通过 Plan Gate 并切换到 `feat/governance-apply-handler-split`。M1 已由 Human 提交:
 
-- `docs/roadmap.md`(roadmap-updater / Claude post-merge update)
-- `docs/active_context.md`(本文)
-- `current_state.md`
-- `docs/plans/governance-apply-handler-split/plan.md`
-- `docs/plans/governance-apply-handler-split/plan_audit.md`(claude/design-auditor, has-concerns, 0 blockers / 5 concerns)
+- `34c2c42 refactor(governance): extract proposal registry`
+
+Codex 已完成 M1:
+
+- create `tests/unit/truth_governance/test_governance_boundary.py`
+- extract proposal registry / payload ownership behind `governance.py`
+- preserve public imports from `swallow.truth_governance.governance`
 
 `docs/roadmap.md` 已由 `roadmap-updater` subagent + Claude 主线 post-merge 增量更新:
 
@@ -70,6 +74,9 @@ LTO-7 follow-up 状态:
 13. `docs/plans/surface-cli-meta-optimizer-split/review_comments.md`
 14. `docs/plans/governance-apply-handler-split/plan.md`
 15. `docs/plans/governance-apply-handler-split/plan_audit.md`
+16. `docs/plans/governance-apply-handler-split/closeout.md`
+17. `pr.md`
+18. `docs/plans/governance-apply-handler-split/review_comments.md`
 
 ## 当前推进
 
@@ -108,6 +115,78 @@ LTO-7 follow-up 状态:
   - CONCERN-3: Boundary Rules / M2 / M3 明确 private writer guard allowlist 与 handler move 同 commit 更新。
   - CONCERN-4: M3 acceptance 明确 4 条 route rollback / post-commit artifact gate tests。
   - CONCERN-5: M1 / M5 明确 `governance_models.py` record-only cycle-breaker source-text boundary。
+- **[Human]** Committed LTO-10 planning docs and switched to `feat/governance-apply-handler-split`:
+  - `2183137 docs(plan): governance-apply-handler-split`
+- **[Codex]** Completed M1 baseline + proposal registry extraction:
+  - added `src/swallow/truth_governance/governance_models.py` for public cycle-breaking record types.
+  - added `src/swallow/truth_governance/proposal_registry.py` for proposal payload records, pending repo ownership, registration, lookup, validation, and typed proposal accessors.
+  - kept `src/swallow/truth_governance/governance.py` as the public facade for existing imports.
+  - added `tests/unit/truth_governance/test_governance_boundary.py`.
+- **[Codex]** M1 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/truth_governance/test_governance_boundary.py -q` -> `3 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+- **[Codex]** Completed M2 canonical + policy handler extraction:
+  - added `src/swallow/truth_governance/apply_canonical.py` as the only current canonical repository private-writer caller.
+  - added `src/swallow/truth_governance/apply_policy.py` as the only current policy repository private-writer caller.
+  - kept route metadata repository private-writer ownership in `governance.py` until M3.
+  - split `tests/test_invariant_guards.py` writer ownership guards so canonical/policy and route metadata have separate allowlists.
+- **[Codex]** M2 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/truth_governance/test_governance_boundary.py -q` -> `4 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `26 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+- **[Codex]** Completed M3 route metadata handler extraction:
+  - move direct route metadata apply behavior into `src/swallow/truth_governance/apply_route_metadata.py`.
+  - move reviewed Meta-Optimizer route proposal apply behavior into the same handler module.
+  - import reviewed-route helpers directly from owning LTO-9 submodules rather than through `swallow.surface_tools.meta_optimizer`.
+- **[Codex]** M3 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/truth_governance/test_governance_boundary.py -q` -> `5 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py::test_route_metadata_transaction_rolls_back_sqlite_audit_and_in_memory tests/test_phase65_sqlite_truth.py::test_route_metadata_transaction_rolls_back_when_audit_insert_fails_after_insert tests/test_phase65_sqlite_truth.py::test_route_metadata_commit_survives_caller_exception_after_commit tests/test_phase65_sqlite_truth.py::test_route_review_artifact_write_failure_logs_warning_after_sqlite_commit -q` -> `4 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `26 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+- **[Codex]** Completed M4 apply envelope / outbox helper tightening:
+  - extract `_emit_event(...)` semantics into `src/swallow/truth_governance/apply_outbox.py`.
+  - keep `apply_proposal(...)` as the single public mutation entry with no schema or durable outbox change.
+- **[Codex]** M4 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/truth_governance/test_governance_boundary.py -q` -> `5 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `26 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+- **[Codex]** Completed M5 facade cleanup / compatibility audit / closeout:
+  - confirmed `src/swallow/truth_governance/governance.py` is a 45-line public facade with no bulky private handler definitions.
+  - prepared `docs/plans/governance-apply-handler-split/closeout.md`.
+  - prepared root `pr.md` for Human PR creation / update.
+- **[Codex]** M5 final validation passed:
+  - `.venv/bin/python -m pytest -q` -> `702 passed, 8 deselected, 10 subtests passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+- **[Claude]** Completed PR review:
+  - `docs/plans/governance-apply-handler-split/review_comments.md`
+  - verdict: `recommend-merge`
+  - 0 blockers / 2 non-blocking concerns(原 SKILL.md 删除 blocker 经 Human 确认 skill 已过时无用,撤销为 WITHDRAWN 注记)
+  - 独立复跑校验:focused gate `62 passed`;full pytest `702 passed, 8 deselected, 10 subtests passed`;compileall + `git diff --check` clean
+  - 5 条 plan_audit concern 在代码层面均有对应实现/守卫(逐条交叉验证),public surface 与不变量边界保持
+- **[Claude]** PR review 关键发现:
+  - **[WITHDRAWN]** 提交 `f05c645` 删除 `.claude/skills/model-review/SKILL.md`(-134 行),最初按 scope 纪律标为 blocker;经 Human 确认该 skill 已过时无用,删除为 intentional,WITHDRAWN 后无需恢复。
+  - **[CONCERN-1]** 提交 `9018e25` 标题为 "extract route metadata handler" 但 diff 是 M4 outbox 抽出;消息错配,代码本身正确,建议合并前重写消息或在合并 commit 中说明。
+  - **[CONCERN-2]** `apply_outbox.py` 当前为 7 行 no-op 占位文件;与 plan_audit 给出的 M4 narrowing 授权一致,本期 PR 内保留;未来若 outbox 仍未落地,可在后续阶段折回 `governance.py` 并将限制记入 concerns_backlog。
+- **[Human]** 确认 `.claude/skills/model-review/SKILL.md` 删除为 intentional(skill 已过时无用),WITHDRAWN BLOCKER-1。
+- **[Codex]** Absorbed review for phase closeout:
+  - no code changes required.
+  - `docs/plans/governance-apply-handler-split/closeout.md` now records the recommend-merge review result and concern handling.
+  - `pr.md` now includes review status, independent validation, and the `9018e25` commit-message note for PR / merge body use.
+  - `current_state.md` now points to review complete / recommend-merge as the recovery checkpoint.
 
 进行中:
 
@@ -115,39 +194,43 @@ LTO-7 follow-up 状态:
 
 待执行:
 
-- **[Human]** Plan Gate。
+- **[Human]** 可选: 在合并前 rebase 重写 `9018e25` 的提交消息为 `refactor(governance): extract apply envelope outbox helper`,或在 PR 合并 commit body 中注明 `9018e25` 实际属于 M4 而非 M3。
+- **[Human]** 完成 closeout / review 状态 commit、PR 创建/更新、合并决策。
+- **[Codex]** Merge 后做 post-merge state sync,触发 `roadmap-updater` 增量更新 LTO-10 完成。
 
 当前阻塞项:
 
-- 等待 Human Plan Gate 审批 `docs/plans/governance-apply-handler-split/plan.md`。
+- 无 blocker。
 
 ## Tag 状态
 
 - 最新已执行 tag: `v1.5.0`
 - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
-- 当前结论: 不为 LTO-9 Step 1 单独打 tag。延续既有 Cluster C 收敛策略 — 待 LTO-10 完成、LTO-8 Step 2 / `harness.py` 拆分推进后,再评估 `v1.6.0`。理由:LTO-9 Step 1 是 behavior-preserving 重构,无外部能力增量;Cluster C 仍有两条 subtrack 未收敛,合并打 tag 更合理。
+- 当前结论: 不为 LTO-9 Step 1 或 LTO-10 单独打 tag。延续既有 Cluster C 收敛策略 — 待 LTO-8 Step 2 / `harness.py` 拆分、LTO-9 Step 2 等后续收敛后,再评估 `v1.6.0`。理由:LTO-10 是 behavior-preserving 重构,无外部能力增量;Cluster C 仍有后续 subtrack 未收敛,合并打 tag 更合理。
 
 ## 当前下一步
 
-1. **[Human]** Plan Gate 决定是否进入实现;通过后从 `main` 切 `feat/governance-apply-handler-split`。
-2. **[Codex]** Plan Gate 通过且分支切换后,从 M1 开始实现。
+1. **[Human]** 可选地清理 `9018e25` 的错配 commit 消息(CONCERN-1)。
+2. **[Human]** 完成 closeout / review 状态 commit,创建/更新 PR(基于 `pr.md`),并决定合并。
+3. **[Codex]** Merge 后做 post-merge state sync,触发 `roadmap-updater` 增量更新 LTO-10 完成、advance 当前 ticket(LTO-9 Step 2 或 LTO-8 Step 2,由 Human 决策)。
 
 ```markdown
-plan_gate:
+review_gate:
 - latest_completed_phase: Surface / CLI / Meta Optimizer Split / LTO-9 Step 1
-- merge_commit: 21c1884 Surface / Meta Optimizer Modularity
-- active_branch: main
+- merge_commit (prior): 21c1884 Surface / Meta Optimizer Modularity
+- active_branch: feat/governance-apply-handler-split
 - active_phase: Governance Apply Handler Split / LTO-10
-- active_slice: plan revised after audit; awaiting Human Plan Gate
+- active_slice: PR review complete; recommend-merge; 0 blockers / 2 non-blocking concerns
 - roadmap: docs/roadmap.md current ticket = Governance apply handler split (LTO-10)
 - plan: docs/plans/governance-apply-handler-split/plan.md
 - plan_audit: docs/plans/governance-apply-handler-split/plan_audit.md
 - audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed
-- closeout (prior phase): docs/plans/surface-cli-meta-optimizer-split/closeout.md (status final)
-- review (prior phase): recommendation merge; 0 blockers; 2 non-blocking deferred concerns
+- closeout: docs/plans/governance-apply-handler-split/closeout.md (status final)
+- review: verdict recommend-merge; 0 blockers; 2 non-blocking concerns; 1 withdrawn (SKILL.md deletion confirmed intentional)
+- review_validation: focused 62 passed; full pytest 702 passed, 8 deselected, 10 subtests passed; compileall + git diff --check clean
 - lto7_followup: CONCERN-1 resolved in LTO-9 Step 1 M4; CONCERN-2/3 still open in concerns_backlog
-- tag_decision: defer v1.6.0 until LTO-10 + LTO-8 Step 2 land
-- next_gate: Human Plan Gate → branch creation
+- tag_decision: defer v1.6.0 until later Cluster C convergence (for example LTO-8 Step 2 / LTO-9 Step 2)
+- next_gate: Human closeout/review state commit → PR create/update → merge decision
 ```
 
 ## 当前产出物
@@ -157,5 +240,17 @@ plan_gate:
 - `docs/plans/surface-cli-meta-optimizer-split/review_comments.md`(claude, 2026-05-02, recommendation merge; 0 blockers; 2 non-blocking concerns)
 - `docs/plans/governance-apply-handler-split/plan.md`(codex, 2026-05-02, LTO-10 plan revised after audit)
 - `docs/plans/governance-apply-handler-split/plan_audit.md`(claude/design-auditor, 2026-05-02, has-concerns, 0 blockers / 5 concerns)
-- `current_state.md`(codex, 2026-05-02, LTO-10 plan audit concerns absorbed recovery checkpoint)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-10 plan revised after audit;waiting Human Plan Gate)
+- `current_state.md`(codex, 2026-05-02, LTO-10 review complete; recommend-merge; waiting Human PR / merge decision)
+- `src/swallow/truth_governance/governance_models.py`(codex, 2026-05-02, M1 public governance record types)
+- `src/swallow/truth_governance/proposal_registry.py`(codex, 2026-05-02, M1 proposal payload registry ownership)
+- `src/swallow/truth_governance/apply_canonical.py`(codex, 2026-05-02, M2 canonical apply handler)
+- `src/swallow/truth_governance/apply_policy.py`(codex, 2026-05-02, M2 policy apply handler)
+- `src/swallow/truth_governance/apply_route_metadata.py`(codex, 2026-05-02, M3 route metadata apply handler)
+- `src/swallow/truth_governance/apply_outbox.py`(codex, 2026-05-02, M4 outbox helper)
+- `src/swallow/truth_governance/governance.py`(codex, 2026-05-02, M4 public facade imports outbox helper)
+- `tests/unit/truth_governance/test_governance_boundary.py`(codex, 2026-05-02, M4 boundary tests)
+- `tests/test_invariant_guards.py`(codex, 2026-05-02, M3 private writer ownership guard split)
+- `docs/plans/governance-apply-handler-split/closeout.md`(codex, 2026-05-02, LTO-10 closeout final)
+- `docs/plans/governance-apply-handler-split/review_comments.md`(claude, 2026-05-02, verdict recommend-merge;0 blockers / 2 non-blocking concerns;1 withdrawn)
+- `pr.md`(codex, 2026-05-02, LTO-10 PR draft updated with review result; ignored by git unless force-added)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-10 review absorbed;recommend-merge;waiting Human PR / merge decision)
