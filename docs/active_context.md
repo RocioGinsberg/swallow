@@ -12,10 +12,10 @@
 - latest_completed_phase: `Governance Apply Handler Split / LTO-10`
 - latest_completed_slice: `governance.py 642 → 45 行 facade + handler 模块化`
 - active_track: `Architecture / Engineering`
-- active_phase: `awaiting Human direction (next subtrack TBD)`
-- active_slice: `direction gate; LTO-8 Step 2 vs LTO-9 Step 2 vs other`
+- active_phase: `LTO-9 Step 2 — broad CLI command-family migration`
+- active_slice: `context_brief produced; awaiting Codex plan.md`
 - active_branch: `main`
-- status: `cluster_c_first_pass_complete_awaiting_direction`
+- status: `lto9_step2_context_brief_ready`
 
 ## 当前状态说明
 
@@ -27,18 +27,22 @@ LTO-10 完整事实与 milestone 细节见 `docs/plans/governance-apply-handler-
 
 **簇 C 四金刚 LTO-7 / 8 / 9 / 10 第一遍已完成**(LTO-7 Provider Router facade、LTO-8 Step 1 orchestrator 6 模块、LTO-9 Step 1 CLI / Meta-Optimizer 拆分、LTO-10 governance apply handler 模块化)。这是项目级别的一个里程碑,但 LTO-8 / LTO-9 各有 Step 2 待启动。
 
-`docs/roadmap.md` 已由 `roadmap-updater` post-merge 增量更新:
+`docs/roadmap.md` 已由 `roadmap-updater` post-merge 增量更新,Human Direction Gate 后再做轻量校正:
 
-- §一 baseline "当前重构状态" 反映簇 C 第一遍完成,下一阶段 LTO-8 Step 2 / LTO-9 Step 2 候选,具体由 Human 决策。
-- §二 簇 C LTO-10 行标 "已完成",列出 facade reduction 与 deferred 项(reviewed-route 内部拆分、durable outbox)。
-- §三 当前 ticket 切换为 "LTO-8 Step 2 / LTO-9 Step 2(待 Human 决策)";Wiki Compiler 维持 "下一选择" 层级。
+- §一 baseline "当前重构状态" 反映簇 C 第一遍完成;下一阶段定为 **LTO-9 Step 2 → LTO-8 Step 2**(簇 C 终结)。
+- §二 簇 C LTO-10 行标 "已完成"。
+- §三 当前 ticket: **LTO-9 Step 2 — broad CLI command-family migration**(LTO-9/LTO-5 收口);下一选择: LTO-8 Step 2 — `harness.py` 拆分(含 event-kind allowlist 新设计点)。
 - §五 LTO-10 顺位行标 "已完成"。
 
-候选下阶段(待 Human 决策,见 `docs/roadmap.md §三`):
+**Direction 决定理由**(Human + Claude 讨论后定):
 
-- **LTO-8 Step 2**:`harness.py`(2077 行)拆分 + 进一步 `orchestrator.py` 减重。
-- **LTO-9 Step 2**:广泛 task / knowledge / artifact CLI 命令族迁移 + `application/commands` 写命令完整迁移 + FastAPI 写路由模式。
-- 其他可能性:Wiki Compiler 启动(LTO-1)、Test Architecture 收口(LTO-4)、Knowledge Plane 命名整理(LTO-6)、代码卫生独立 audit phase(memory 中已记的 Phase 65 后启动决策)。
+- LTO-9 Step 2 没有新 invariant 设计点,纯机械应用 Step 1 已建立的 adapter / application command 模板;完成后 LTO-5(application/commands 写命令)实质收口。
+- LTO-8 Step 2 的 `write_task_artifacts` 9 个 sequential `append_event` 拆分需要 event-kind allowlist 设计 — 是 Step 2 新 invariant 设计点,不只是机械拆分。把它留到最后,让它成为"重构封口 + 簇 C 完全终结"的高密度 phase。
+- `v1.6.0` cut 时机:LTO-9 Step 2 merge 后 vs LTO-8 Step 2 merge 后,默认 defer 到簇 C 完全终结(LTO-8 Step 2 完成)。
+
+候选下下阶段:
+
+- **LTO-8 Step 2**:`harness.py` 拆分 + 进一步 `orchestrator.py` 减重 + event-kind allowlist 设计点。Brief 已就绪:`docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(335 行)。
 
 LTO-10 Deferred(已记 closeout / roadmap §二):
 
@@ -69,6 +73,8 @@ LTO-7 long-running follow-ups(仍开放):
 11. `docs/concerns_backlog.md`
 12. `docs/plans/governance-apply-handler-split/closeout.md`
 13. `docs/plans/governance-apply-handler-split/review_comments.md`
+14. `docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md`
+15. `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`
 
 ## 当前推进
 
@@ -78,9 +84,20 @@ LTO-7 long-running follow-ups(仍开放):
 - **[Claude / roadmap-updater]** `docs/roadmap.md` post-merge 增量更新:
   - §一 baseline "当前重构状态" 反映簇 C 第一遍完成。
   - §二 簇 C LTO-10 行标 "已完成"。
-  - §三 当前 ticket 切换为 "LTO-8 Step 2 / LTO-9 Step 2(待 Human 决策)"。
+  - §三 当前 ticket 初版 "LTO-8 Step 2 / LTO-9 Step 2(待 Human 决策)"。
   - §五 LTO-10 顺位标 "已完成"。
 - **[Claude]** Tag 评估:见下文 Tag 状态。
+- **[Claude / context-analyst x2]** 并行产出两份事实型 brief 帮助 Direction Gate:
+  - `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(335 行;LTO-8 Step 2)
+  - `docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md`(170 行;LTO-9 Step 2)
+  - 关键事实:
+    - `harness.py` 2077 行,12 个 `append_event` callsite,9 处集中在 `write_task_artifacts` pipeline,需要 event-kind allowlist 新设计点。
+    - `cli.py` 3653 行;task 家族 ~800+800+650 ≈ 2250 行,**task 家族写命令不走 `apply_proposal` 路径**(直接调 orchestrator),application/commands 用更简单非 proposal 模式。
+    - 两份估算均为 4–5 milestone 独立 phase,**无法合并为一个收尾 phase**(违反 §三 "不允许多条簇 C subtrack 合并到同一个 PR")。
+- **[Human]** Direction Gate 决策:**先 LTO-9 Step 2,后 LTO-8 Step 2**(簇 C 终结)。
+- **[Claude]** `docs/roadmap.md` Direction Gate 后轻量校正:
+  - §一 baseline "下一阶段" 改为 "LTO-9 Step 2 → LTO-8 Step 2"。
+  - §三 当前 ticket 改为 LTO-9 Step 2;下一选择 LTO-8 Step 2;候选 Wiki Compiler / 其他。
 
 进行中:
 
@@ -88,45 +105,48 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Direction Gate:在 LTO-8 Step 2 / LTO-9 Step 2 / 其他 LTO 之间决策下阶段。
-- 决策后:Codex 起草下阶段 plan.md(可选先 `context-analyst` subagent 产 context_brief);Claude/design-auditor plan audit;Human Plan Gate。
+- **[Codex]** 起草 LTO-9 Step 2 `plan.md`(基于 `docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md`,目标路径 `docs/plans/surface-cli-meta-optimizer-split-step2/plan.md`)。
+- **[Claude / design-auditor]** plan.md 产出后 plan audit。
+- **[Human]** Plan Gate。
 
 当前阻塞项:
 
-- 无 blocker。等待 Human Direction Gate。
+- 无 blocker。等待 Codex plan.md 起草。
 
 ## Tag 状态
 
 - 最新已执行 tag: `v1.5.0`
 - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
-- 当前结论: **可以考虑评估 `v1.6.0` cut**。理由:簇 C 四金刚第一遍已完成,这是 architecture cluster 级别的里程碑;Provider Router / Orchestration Step 1 / CLI&Meta-Optimizer Step 1 / Governance handler 拆分构成可观察的内部能力增量(`apply_proposal` 仍是唯一 mutation entry,facade-first 纪律已固化)。
-- 替代结论(默认): 继续 defer 到 LTO-8 Step 2 / LTO-9 Step 2 之一完成,合并打 `v1.6.0`,信号更聚焦。
-- 决定权:Human;两种都合理。Claude 倾向轻微偏向 **defer 一轮**:LTO-8 Step 2 是 cluster C 真正的核心痛点(harness.py 2077 行未拆),把它纳入 v1.6.0 的"重构封口"叙事更完整;只是若 Human 想为四金刚第一遍单独打里程碑 tag 也合理。
+- 当前结论: defer `v1.6.0` 到簇 C 完全终结后再 cut。理由:LTO-9 Step 2 完成后 LTO-5 实质收口、LTO-8 Step 2 完成后簇 C 真正封口;两 phase 一起作为 `v1.6.0` 内容,信号比"四金刚第一遍"更聚焦。
 
 ## 当前下一步
 
-1. **[Human]** Direction Gate: 选择下阶段(LTO-8 Step 2 / LTO-9 Step 2 / 其他 LTO / Wiki Compiler 启动)+ 决定 `v1.6.0` 现在 cut 还是再等一轮。
-2. **[Codex]** 决策后起草下阶段 plan.md(可选先 context-analyst 产 context_brief)。
-3. **[Claude / design-auditor]** plan.md 产出后 plan audit。
-4. **[Human]** Plan Gate。
+1. **[Codex]** 起草 `docs/plans/surface-cli-meta-optimizer-split-step2/plan.md`(LTO-9 Step 2 — broad CLI command-family migration);可参考 `context_brief.md §9` 列的 6 条 open question 在 plan 内显式作答。
+2. **[Claude / design-auditor]** plan.md 产出后 plan audit。
+3. **[Human]** Plan Gate;通过后切 `feat/surface-cli-meta-optimizer-split-step2`(或 Codex 推荐其他名)。
 
 ```markdown
-direction_gate:
+plan_gate:
 - latest_completed_phase: Governance Apply Handler Split / LTO-10
 - merge_commit: b3f7f43 Governance Apply Handler Maintainability
 - active_branch: main
-- cluster_c_first_pass: complete (LTO-7, LTO-8 Step 1, LTO-9 Step 1, LTO-10)
-- candidates_for_next_phase: LTO-8 Step 2 (harness.py decomposition) | LTO-9 Step 2 (broad CLI command-family migration) | other LTO
-- roadmap: docs/roadmap.md current ticket = LTO-8 Step 2 / LTO-9 Step 2 (Human decision pending)
-- closeout: docs/plans/governance-apply-handler-split/closeout.md (status final)
-- review: recommend-merge; 0 blockers; 2 non-blocking concerns; 1 withdrawn
-- tag_decision: v1.6.0 evaluation pending Human direction (cut now for cluster-C first-pass milestone, or defer until LTO-8/9 Step 2)
-- next_gate: Human direction → Codex plan.md → Claude plan_audit → Human Plan Gate
+- active_phase: LTO-9 Step 2 — broad CLI command-family migration
+- active_slice: context_brief produced; awaiting Codex plan.md
+- direction_decided: LTO-9 Step 2 first, then LTO-8 Step 2 (cluster C closure)
+- roadmap: docs/roadmap.md current ticket = LTO-9 Step 2; next choice = LTO-8 Step 2
+- context_brief: docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md (170 lines)
+- companion_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines, ready for LTO-8 Step 2)
+- closeout (prior phase): docs/plans/governance-apply-handler-split/closeout.md (status final)
+- review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns; 1 withdrawn
+- tag_decision: defer v1.6.0 until LTO-9 Step 2 + LTO-8 Step 2 both land (cluster C closure)
+- next_gate: Codex plan.md → Claude plan_audit → Human Plan Gate
 ```
 
 ## 当前产出物
 
-- `docs/roadmap.md`(claude/roadmap-updater, 2026-05-02, post-merge LTO-10 完成 + cluster C 第一遍完成 + LTO-8/9 Step 2 候选)
+- `docs/roadmap.md`(claude/roadmap-updater + claude 主线, 2026-05-02, post-merge LTO-10 完成 + Direction Gate 决定 LTO-9 Step 2 当前 ticket)
 - `docs/plans/governance-apply-handler-split/closeout.md`(codex, 2026-05-02, LTO-10 closeout final)
 - `docs/plans/governance-apply-handler-split/review_comments.md`(claude, 2026-05-02, recommend-merge;0 blockers / 2 non-blocking concerns;1 withdrawn)
-- `docs/active_context.md`(claude, 2026-05-02, post-merge state synced;awaiting Direction Gate;tag 评估记录)
+- `docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-9 Step 2 事实盘点)
+- `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-8 Step 2 事实盘点;LTO-9 Step 2 完成后启用)
+- `docs/active_context.md`(claude, 2026-05-02, Direction Gate 后切到 LTO-9 Step 2;等待 Codex plan.md)

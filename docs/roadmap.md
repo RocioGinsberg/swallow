@@ -27,7 +27,7 @@ status: living-document
 | **检索基础设施** | Retrieval U-T-Y 已落地:dedicated rerank boundary、retrieval trace、source policy warnings、EvidencePack compatibility view、RawMaterialStore-backed source pointer resolution、summary route boundary |
 | **治理边界** | `apply_proposal`、SQLite-primary truth、Path A/B/C、§9 guard suite 均已实现到稳定基线 |
 | **Agent 体系** | 4 Specialist + 2 Validator 独立生命周期已落地;具体品牌绑定见 `docs/design/EXECUTOR_REGISTRY.md` |
-| **当前重构状态** | **簇 C 四金刚 LTO-7/8/9/10 第一遍已完成**:LTO-7 Provider Router facade 化、LTO-8 Step 1 orchestrator.py 6 个聚焦模块化、LTO-9 Step 1 CLI / Meta-Optimizer 拆分、LTO-10 governance apply handler 模块化。LTO-8 / LTO-9 各有后续 step 待启动。下一阶段:LTO-8 Step 2(`harness.py` 拆分)/ LTO-9 Step 2(广泛 CLI 命令族迁移)候选,具体由 Human 决策。 |
+| **当前重构状态** | **簇 C 四金刚 LTO-7/8/9/10 第一遍已完成**:LTO-7 Provider Router facade 化、LTO-8 Step 1 orchestrator.py 6 个聚焦模块化、LTO-9 Step 1 CLI / Meta-Optimizer 拆分、LTO-10 governance apply handler 模块化。LTO-8 / LTO-9 各有后续 step 待启动。下一阶段:LTO-9 Step 2(广泛 CLI 命令族迁移 + LTO-5 写命令收口);其后 LTO-8 Step 2(`harness.py` 拆分,含 event-kind allowlist 新设计点)作为簇 C 终结。 |
 | **工程纪律** | 长期编码 / 重构遵循 `docs/engineering/CODE_ORGANIZATION.md`(分层 / facade-first / migration discipline)+ `docs/engineering/GOF_PATTERN_ALIGNMENT.md`(facade / strategy / repository / adapter / value object / state / pipeline 等 pattern 仅作为 responsibility language)+ `docs/engineering/TEST_ARCHITECTURE.md`(分层测试 / TDD harness) |
 
 ---
@@ -91,9 +91,9 @@ status: living-document
 
 | 优先级 | Ticket | 对应长期目标 | 状态 / Gate | 默认下一步 |
 |--------|--------|--------------|-------------|------------|
-| 当前 | **LTO-8 Step 2 / LTO-9 Step 2**(待 Human 决策) | LTO-8 / LTO-9 | LTO-10 merge 后 | LTO-8 Step 2:`harness.py` 拆分 + 进一步 `orchestrator.py` 减重;LTO-9 Step 2:task/knowledge/artifact CLI 命令族迁移 |
-| 下一选择 | Wiki Compiler draft workflow | LTO-1 / LTO-2 | 地基稳定后 | 先设计 prompt pack / staged draft / review gate |
-| 候选 | 其他 LTO | - | - | - |
+| 当前 | **LTO-9 Step 2 — broad CLI command-family migration** | LTO-9 / LTO-5 | LTO-10 merge 后 | task / knowledge / artifact CLI 命令族迁移 + `application/commands` 写命令完整化(LTO-5 收口);可能首次引入 FastAPI 写路由(新设计点) |
+| 下一选择 | **LTO-8 Step 2 — `harness.py` 拆分** | LTO-8 | LTO-9 Step 2 merge 后 | `harness.py` 2077 行 + 进一步 `orchestrator.py` 减重;`write_task_artifacts` 内 9 个 sequential `append_event` 拆分需要 event-kind allowlist 设计(新 invariant 设计点) |
+| 候选 | Wiki Compiler draft workflow / 其他 LTO | LTO-1 / LTO-2 / 其他 | 簇 C 完全终结后 | 先设计 prompt pack / staged draft / review gate |
 
 ---
 
