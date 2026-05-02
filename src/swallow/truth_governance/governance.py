@@ -1,239 +1,32 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
-from enum import Enum
-from pathlib import Path
-from typing import Literal
 
-from swallow.knowledge_retrieval.knowledge_plane import LIBRARIAN_AGENT_WRITE_AUTHORITY
-from swallow.orchestration.models import AuditTriggerPolicy
 from swallow.provider_router.router import (
     load_route_capability_profiles,
     load_route_weights,
-    normalize_route_policy_payload,
-    normalize_route_registry_payload,
     normalize_route_name,
     route_by_name,
 )
-from swallow.truth_governance.truth import DuplicateProposalError, KnowledgeRepo, PendingProposalRepo, PolicyRepo, RouteRepo
+from swallow.truth_governance.governance_models import ApplyResult, OperatorToken, ProposalTarget
+from swallow.truth_governance.proposal_registry import (
+    DuplicateProposalError,
+    is_mps_policy_proposal,
+    load_mps_policy,
+    load_proposal_artifact,
+    register_canonical_proposal,
+    register_mps_policy_proposal,
+    register_policy_proposal,
+    register_route_metadata_proposal,
+    require_canonical_proposal,
+    require_mps_policy_proposal,
+    require_policy_proposal,
+    require_route_metadata_proposal,
+    validate_target,
+)
+from swallow.truth_governance.truth import KnowledgeRepo, PolicyRepo, RouteRepo
 
-OperatorSource = Literal["cli", "system_auto", "librarian_side_effect"]
-_VALID_OPERATOR_SOURCES = {"cli", "system_auto", "librarian_side_effect"}
-
-
-class ProposalTarget(Enum):
-    CANONICAL_KNOWLEDGE = "canonical_knowledge"
-    ROUTE_METADATA = "route_metadata"
-    POLICY = "policy"
-
-
-@dataclass(frozen=True)
-class OperatorToken:
-    """Source marker for governance writes.
-
-    This intentionally carries no actor identity in Phase 61. Adding source
-    values changes the governance boundary and must go through a design phase.
-    """
-
-    source: OperatorSource
-    reason: str | None = None
-
-    def __post_init__(self) -> None:
-        if self.source not in _VALID_OPERATOR_SOURCES:
-            expected = ", ".join(sorted(_VALID_OPERATOR_SOURCES))
-            raise ValueError(f"Invalid operator token source: {self.source!r}. Expected one of: {expected}")
-
-
-@dataclass(frozen=True)
-class ApplyResult:
-    proposal_id: str
-    target: ProposalTarget
-    success: bool
-    detail: str
-    applied_writes: tuple[str, ...] = ()
-    payload: object | None = None
-
-
-@dataclass(frozen=True)
-class _CanonicalProposal:
-    base_dir: Path
-    canonical_record: dict[str, object]
-    write_authority: str
-    mirror_files: bool
-    persist_wiki: bool
-    persist_wiki_first: bool
-    refresh_derived: bool
-
-
-@dataclass(frozen=True)
-class _RouteMetadataProposal:
-    base_dir: Path
-    route_registry: dict[str, dict[str, object]] | None = None
-    route_policy: dict[str, object] | None = None
-    route_weights: dict[str, float] | None = None
-    route_capability_profiles: dict[str, dict[str, object]] | None = None
-    review_path: Path | None = None
-
-
-@dataclass(frozen=True)
-class _PolicyProposal:
-    base_dir: Path
-    audit_trigger_policy: AuditTriggerPolicy
-
-
-@dataclass(frozen=True)
-class _MpsPolicyProposal:
-    base_dir: Path
-    kind: str
-    value: int
-
-
-_PENDING_PROPOSALS = PendingProposalRepo()
 logger = logging.getLogger(__name__)
-
-
-def register_canonical_proposal(
-    *,
-    base_dir: Path,
-    proposal_id: str,
-    canonical_record: dict[str, object],
-    write_authority: str = LIBRARIAN_AGENT_WRITE_AUTHORITY,
-    mirror_files: bool = True,
-    persist_wiki: bool = True,
-    persist_wiki_first: bool = True,
-    refresh_derived: bool = False,
-) -> str:
-    """Register a canonical proposal payload for the next apply call.
-
-    Current canonical callers construct the canonical record in memory instead
-    of persisting a proposal artifact. This compatibility adapter keeps the
-    public `apply_proposal(proposal_id, operator_token, target)` signature
-    stable while the repository still lacks a durable proposal artifact layer.
-    """
-
-    normalized_id = proposal_id.strip()
-    if not normalized_id:
-        raise ValueError("proposal_id must be a non-empty string.")
-    return _PENDING_PROPOSALS.register(
-        ProposalTarget.CANONICAL_KNOWLEDGE,
-        normalized_id,
-        _CanonicalProposal(
-            base_dir=base_dir,
-            canonical_record=dict(canonical_record),
-            write_authority=write_authority,
-            mirror_files=mirror_files,
-            persist_wiki=persist_wiki,
-            persist_wiki_first=persist_wiki_first,
-            refresh_derived=refresh_derived,
-        ),
-    )
-
-
-def register_route_metadata_proposal(
-    *,
-    base_dir: Path,
-    proposal_id: str,
-    route_registry: dict[str, dict[str, object]] | None = None,
-    route_policy: dict[str, object] | None = None,
-    route_weights: dict[str, float] | None = None,
-    route_capability_profiles: dict[str, dict[str, object]] | None = None,
-    review_path: Path | None = None,
-) -> str:
-    normalized_id = proposal_id.strip()
-    if not normalized_id:
-        raise ValueError("proposal_id must be a non-empty string.")
-    if review_path is not None and (
-        route_registry is not None
-        or route_policy is not None
-        or route_weights is not None
-        or route_capability_profiles is not None
-    ):
-        raise ValueError("review_path proposals cannot also carry direct route metadata payloads.")
-    if (
-        review_path is None
-        and route_registry is None
-        and route_policy is None
-        and route_weights is None
-        and route_capability_profiles is None
-    ):
-        raise ValueError(
-            "route metadata proposal requires route_registry, route_policy, route_weights, "
-            "route_capability_profiles, or review_path."
-        )
-
-    copied_registry = normalize_route_registry_payload(route_registry) if route_registry is not None else None
-    copied_policy = normalize_route_policy_payload(route_policy) if route_policy is not None else None
-    copied_profiles = None
-    if route_capability_profiles is not None:
-        copied_profiles = {
-            route_name: dict(profile)
-            for route_name, profile in route_capability_profiles.items()
-        }
-    return _PENDING_PROPOSALS.register(
-        ProposalTarget.ROUTE_METADATA,
-        normalized_id,
-        _RouteMetadataProposal(
-            base_dir=base_dir,
-            route_registry=copied_registry,
-            route_policy=copied_policy,
-            route_weights=dict(route_weights) if route_weights is not None else None,
-            route_capability_profiles=copied_profiles,
-            review_path=review_path,
-        ),
-    )
-
-
-def register_policy_proposal(
-    *,
-    base_dir: Path,
-    proposal_id: str,
-    audit_trigger_policy: AuditTriggerPolicy,
-) -> str:
-    normalized_id = proposal_id.strip()
-    if not normalized_id:
-        raise ValueError("proposal_id must be a non-empty string.")
-    if not isinstance(audit_trigger_policy, AuditTriggerPolicy):
-        raise TypeError("audit_trigger_policy must be an AuditTriggerPolicy.")
-    return _PENDING_PROPOSALS.register(
-        ProposalTarget.POLICY,
-        normalized_id,
-        _PolicyProposal(
-            base_dir=base_dir,
-            audit_trigger_policy=AuditTriggerPolicy.from_dict(audit_trigger_policy.to_dict()),
-        ),
-    )
-
-
-def register_mps_policy_proposal(
-    *,
-    base_dir: Path,
-    proposal_id: str,
-    kind: str,
-    value: int,
-) -> str:
-    from swallow.surface_tools.mps_policy_store import normalize_mps_policy_kind, validate_mps_policy_value
-
-    normalized_id = proposal_id.strip()
-    if not normalized_id:
-        raise ValueError("proposal_id must be a non-empty string.")
-    normalized_kind = normalize_mps_policy_kind(kind)
-    normalized_value = validate_mps_policy_value(normalized_kind, value)
-    return _PENDING_PROPOSALS.register(
-        ProposalTarget.POLICY,
-        normalized_id,
-        _MpsPolicyProposal(
-            base_dir=base_dir,
-            kind=normalized_kind,
-            value=normalized_value,
-        ),
-    )
-
-
-def load_mps_policy(base_dir: Path, kind: str) -> int | None:
-    from swallow.surface_tools.mps_policy_store import read_mps_policy
-
-    return read_mps_policy(base_dir, kind)
 
 
 def apply_proposal(
@@ -248,8 +41,8 @@ def apply_proposal(
     if not isinstance(target, ProposalTarget):
         raise TypeError("target must be a ProposalTarget.")
 
-    proposal = _load_proposal_artifact(proposal_id, target)
-    _validate_target(proposal, target)
+    proposal = load_proposal_artifact(proposal_id, target)
+    validate_target(proposal, target)
 
     if target == ProposalTarget.CANONICAL_KNOWLEDGE:
         result = _apply_canonical(proposal, operator_token, proposal_id=proposal_id)
@@ -264,25 +57,8 @@ def apply_proposal(
     return result
 
 
-def _load_proposal_artifact(proposal_id: str, target: ProposalTarget) -> object:
-    normalized_id = proposal_id.strip()
-    if not normalized_id:
-        raise ValueError("proposal_id must be a non-empty string.")
-    return _PENDING_PROPOSALS.load(target, normalized_id)
-
-
-def _validate_target(proposal: object, target: ProposalTarget) -> None:
-    if target == ProposalTarget.CANONICAL_KNOWLEDGE and not isinstance(proposal, _CanonicalProposal):
-        raise TypeError("canonical proposal payload is invalid.")
-    if target == ProposalTarget.ROUTE_METADATA and not isinstance(proposal, _RouteMetadataProposal):
-        raise TypeError("route metadata proposal payload is invalid.")
-    if target == ProposalTarget.POLICY and not isinstance(proposal, (_PolicyProposal, _MpsPolicyProposal)):
-        raise TypeError("policy proposal payload is invalid.")
-
-
 def _apply_canonical(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
-    if not isinstance(proposal, _CanonicalProposal):
-        raise TypeError("canonical proposal payload is invalid.")
+    proposal = require_canonical_proposal(proposal)
 
     applied_writes = KnowledgeRepo()._promote_canonical(
         base_dir=proposal.base_dir,
@@ -304,8 +80,7 @@ def _apply_canonical(proposal: object, _operator_token: OperatorToken, *, propos
 
 
 def _apply_route_metadata(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
-    if not isinstance(proposal, _RouteMetadataProposal):
-        raise TypeError("route metadata proposal payload is invalid.")
+    proposal = require_route_metadata_proposal(proposal)
     if proposal.review_path is not None:
         return _apply_route_review_metadata(proposal, proposal_id=proposal_id)
 
@@ -327,7 +102,8 @@ def _apply_route_metadata(proposal: object, _operator_token: OperatorToken, *, p
     )
 
 
-def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_id: str) -> ApplyResult:
+def _apply_route_review_metadata(proposal: object, *, proposal_id: str) -> ApplyResult:
+    proposal = require_route_metadata_proposal(proposal)
     from swallow.surface_tools.meta_optimizer import (
         OptimizationProposalApplicationRecord,
         ProposalApplicationEntry,
@@ -604,7 +380,8 @@ def _apply_route_review_metadata(proposal: _RouteMetadataProposal, *, proposal_i
 
 
 def _apply_policy(proposal: object, _operator_token: OperatorToken, *, proposal_id: str) -> ApplyResult:
-    if isinstance(proposal, _MpsPolicyProposal):
+    if is_mps_policy_proposal(proposal):
+        proposal = require_mps_policy_proposal(proposal)
         applied_write, policy_path = PolicyRepo()._apply_policy_change(
             base_dir=proposal.base_dir,
             mps_kind=proposal.kind,
@@ -620,8 +397,7 @@ def _apply_policy(proposal: object, _operator_token: OperatorToken, *, proposal_
             payload=policy_path,
         )
 
-    if not isinstance(proposal, _PolicyProposal):
-        raise TypeError("policy proposal payload is invalid.")
+    proposal = require_policy_proposal(proposal)
 
     applied_write, policy_path = PolicyRepo()._apply_policy_change(
         base_dir=proposal.base_dir,

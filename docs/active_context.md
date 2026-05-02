@@ -13,27 +13,27 @@
 - latest_completed_slice: `CLI command-family adapters + Meta-Optimizer read-only split + application command/query seed`
 - active_track: `Architecture / Engineering`
 - active_phase: `Governance Apply Handler Split / LTO-10`
-- active_slice: `plan revised after audit; awaiting Human Plan Gate`
-- active_branch: `main`
-- status: `lto10_plan_audit_concerns_absorbed_pending_human_gate`
+- active_slice: `M1 baseline + proposal registry extraction complete`
+- active_branch: `feat/governance-apply-handler-split`
+- status: `lto10_m1_complete_waiting_human_commit`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-9 Step 1 已合并到主线,最新 main checkpoint:
+当前 git 分支为 `feat/governance-apply-handler-split`。LTO-9 Step 1 已合并到主线,当前 feature branch 从 LTO-10 planning commit 开始:
 
-- `21c1884 Surface / Meta Optimizer Modularity` (HEAD)
+- `2183137 docs(plan): governance-apply-handler-split` (planning docs committed; feature branch HEAD)
+- `f22d5d6 docs(state): update roadmap`
+- `21c1884 Surface / Meta Optimizer Modularity`
 - `824551a docs(state): mark surface split ready to merge`
 - `4b66ad2 fix(cli): make route metadata proposal ids unique`
 
 LTO-9 Step 1 完整事实与 milestone 细节见 `docs/plans/surface-cli-meta-optimizer-split/closeout.md`(本文不复制)。
 
-当前工作树包含 LTO-10 planning / state 文档改动,尚未提交:
+Human 已提交 planning docs、通过 Plan Gate 并切换到 `feat/governance-apply-handler-split`。Codex 已完成 M1:
 
-- `docs/roadmap.md`(roadmap-updater / Claude post-merge update)
-- `docs/active_context.md`(本文)
-- `current_state.md`
-- `docs/plans/governance-apply-handler-split/plan.md`
-- `docs/plans/governance-apply-handler-split/plan_audit.md`(claude/design-auditor, has-concerns, 0 blockers / 5 concerns)
+- create `tests/unit/truth_governance/test_governance_boundary.py`
+- extract proposal registry / payload ownership behind `governance.py`
+- preserve public imports from `swallow.truth_governance.governance`
 
 `docs/roadmap.md` 已由 `roadmap-updater` subagent + Claude 主线 post-merge 增量更新:
 
@@ -108,6 +108,20 @@ LTO-7 follow-up 状态:
   - CONCERN-3: Boundary Rules / M2 / M3 明确 private writer guard allowlist 与 handler move 同 commit 更新。
   - CONCERN-4: M3 acceptance 明确 4 条 route rollback / post-commit artifact gate tests。
   - CONCERN-5: M1 / M5 明确 `governance_models.py` record-only cycle-breaker source-text boundary。
+- **[Human]** Committed LTO-10 planning docs and switched to `feat/governance-apply-handler-split`:
+  - `2183137 docs(plan): governance-apply-handler-split`
+- **[Codex]** Completed M1 baseline + proposal registry extraction:
+  - added `src/swallow/truth_governance/governance_models.py` for public cycle-breaking record types.
+  - added `src/swallow/truth_governance/proposal_registry.py` for proposal payload records, pending repo ownership, registration, lookup, validation, and typed proposal accessors.
+  - kept `src/swallow/truth_governance/governance.py` as the public facade for existing imports.
+  - added `tests/unit/truth_governance/test_governance_boundary.py`.
+- **[Codex]** M1 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/truth_governance/test_governance_boundary.py -q` -> `3 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
 
 进行中:
 
@@ -115,11 +129,11 @@ LTO-7 follow-up 状态:
 
 待执行:
 
-- **[Human]** Plan Gate。
+- **[Human]** 审查 M1 并执行 milestone commit。
 
 当前阻塞项:
 
-- 等待 Human Plan Gate 审批 `docs/plans/governance-apply-handler-split/plan.md`。
+- 等待 Human 审查并提交 M1 milestone。
 
 ## Tag 状态
 
@@ -129,16 +143,16 @@ LTO-7 follow-up 状态:
 
 ## 当前下一步
 
-1. **[Human]** Plan Gate 决定是否进入实现;通过后从 `main` 切 `feat/governance-apply-handler-split`。
-2. **[Codex]** Plan Gate 通过且分支切换后,从 M1 开始实现。
+1. **[Human]** 审查 M1 后执行 milestone commit。
+2. **[Codex]** Human commit 后进入 M2 canonical / policy handler extraction。
 
 ```markdown
 plan_gate:
 - latest_completed_phase: Surface / CLI / Meta Optimizer Split / LTO-9 Step 1
 - merge_commit: 21c1884 Surface / Meta Optimizer Modularity
-- active_branch: main
+- active_branch: feat/governance-apply-handler-split
 - active_phase: Governance Apply Handler Split / LTO-10
-- active_slice: plan revised after audit; awaiting Human Plan Gate
+- active_slice: M1 baseline + proposal registry extraction complete
 - roadmap: docs/roadmap.md current ticket = Governance apply handler split (LTO-10)
 - plan: docs/plans/governance-apply-handler-split/plan.md
 - plan_audit: docs/plans/governance-apply-handler-split/plan_audit.md
@@ -147,7 +161,7 @@ plan_gate:
 - review (prior phase): recommendation merge; 0 blockers; 2 non-blocking deferred concerns
 - lto7_followup: CONCERN-1 resolved in LTO-9 Step 1 M4; CONCERN-2/3 still open in concerns_backlog
 - tag_decision: defer v1.6.0 until LTO-10 + LTO-8 Step 2 land
-- next_gate: Human Plan Gate → branch creation
+- next_gate: Human M1 commit
 ```
 
 ## 当前产出物
@@ -158,4 +172,8 @@ plan_gate:
 - `docs/plans/governance-apply-handler-split/plan.md`(codex, 2026-05-02, LTO-10 plan revised after audit)
 - `docs/plans/governance-apply-handler-split/plan_audit.md`(claude/design-auditor, 2026-05-02, has-concerns, 0 blockers / 5 concerns)
 - `current_state.md`(codex, 2026-05-02, LTO-10 plan audit concerns absorbed recovery checkpoint)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-10 plan revised after audit;waiting Human Plan Gate)
+- `src/swallow/truth_governance/governance_models.py`(codex, 2026-05-02, M1 public governance record types)
+- `src/swallow/truth_governance/proposal_registry.py`(codex, 2026-05-02, M1 proposal payload registry ownership)
+- `src/swallow/truth_governance/governance.py`(codex, 2026-05-02, M1 public facade delegates proposal registry)
+- `tests/unit/truth_governance/test_governance_boundary.py`(codex, 2026-05-02, M1 boundary tests)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-10 M1 complete;waiting Human milestone commit)
