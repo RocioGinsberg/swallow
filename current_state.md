@@ -24,7 +24,7 @@
 - latest_executed_public_tag: `v1.5.0`
 - pending_release_tag: `none`
 - current_working_phase: `Governance Apply Handler Split / LTO-10`
-- checkpoint_type: `lto10_m3_complete_waiting_human_commit`
+- checkpoint_type: `lto10_m4_complete_waiting_human_commit`
 - active_branch: `feat/governance-apply-handler-split`
 - last_checked: `2026-05-02`
 
@@ -34,7 +34,7 @@
 - `docs/roadmap.md` 已完成 post-merge factual update，当前 ticket 已切换为 `Governance apply handler split` / LTO-10。
 - LTO-10 `plan.md` 已由 Codex 起草并根据 `plan_audit.md` 吸收 5 条 concern: `docs/plans/governance-apply-handler-split/plan.md`。
 - `docs/plans/governance-apply-handler-split/plan_audit.md` 已产出，结论为 `has-concerns`, 0 blockers / 5 concerns；5 条 concern 已吸收到 plan。
-- Human 已完成 M1 / M2 milestone commit，Codex 已完成并验证 M3 route metadata handler extraction，当前等待 Human 审查并执行 M3 milestone commit。
+- Human 已完成 M1 / M2 / M3 milestone commit，Codex 已完成并验证 M4 apply envelope / outbox helper tightening，当前等待 Human 审查并执行 M4 milestone commit。
 - 最新已执行公开 tag 仍为 `v1.5.0`; annotated tag 指向 `bc8abb1 docs(release): sync v1.5.0 release docs`。
 - 当前 tag 策略: 不为 LTO-9 Step 1 单独打 tag，待 LTO-10 与后续 Cluster C 收敛后再评估 `v1.6.0`。
 
@@ -47,13 +47,13 @@
 - active_branch: `feat/governance-apply-handler-split`
 - active_track: `Architecture / Engineering`
 - active_phase: `Governance Apply Handler Split / LTO-10`
-- active_slice: `M3 route metadata handler extraction complete`
-- workflow_status: `lto10_m3_complete_waiting_human_commit`
+- active_slice: `M4 apply envelope / outbox helper tightening complete`
+- workflow_status: `lto10_m4_complete_waiting_human_commit`
 
 下一步:
 
-1. Human 审查 M3 后执行 milestone commit。
-2. Codex 在 Human commit 后进入 M4 apply envelope / outbox helper tightening。
+1. Human 审查 M4 后执行 milestone commit。
+2. Codex 在 Human commit 后进入 M5 facade cleanup / closeout。
 
 ---
 
@@ -106,7 +106,7 @@ git diff --check
 # passed
 ```
 
-M3 focused validation 已通过；进入 M4 前先等待 Human milestone commit。
+M4 focused validation 已通过；进入 M5 前先等待 Human milestone commit。
 
 ---
 
