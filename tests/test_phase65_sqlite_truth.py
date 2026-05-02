@@ -446,8 +446,8 @@ def test_route_review_artifact_write_failure_logs_warning_after_sqlite_commit(
         review_path=review_path,
     )
 
-    with patch("swallow.surface_tools.meta_optimizer._write_json", side_effect=OSError("disk full")):
-        with caplog.at_level("WARNING", logger="swallow.truth_governance.governance"):
+    with patch("swallow.surface_tools.meta_optimizer_lifecycle._write_json", side_effect=OSError("disk full")):
+        with caplog.at_level("WARNING", logger="swallow.truth_governance.apply_route_metadata"):
             result = apply_proposal(
                 "route-review-artifact-failure",
                 OperatorToken(source="cli"),

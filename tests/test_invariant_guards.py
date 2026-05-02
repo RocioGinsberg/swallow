@@ -347,7 +347,7 @@ def test_canonical_and_policy_handlers_own_repository_write_methods() -> None:
 def test_route_metadata_handler_owns_repository_write_methods() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"_apply_metadata_change"},
-        allowed_files={"src/swallow/truth_governance/governance.py"},
+        allowed_files={"src/swallow/truth_governance/apply_route_metadata.py"},
     )
 
     assert violations == []

@@ -51,15 +51,34 @@ def test_proposal_registry_owns_pending_payload_records() -> None:
 def test_apply_handlers_own_repository_write_logic() -> None:
     governance_source = _source("truth_governance/governance.py")
     canonical_source = _source("truth_governance/apply_canonical.py")
+    route_source = _source("truth_governance/apply_route_metadata.py")
     policy_source = _source("truth_governance/apply_policy.py")
 
-    for token in ("KnowledgeRepo", "PolicyRepo", "_promote_canonical", "_apply_policy_change"):
+    for token in (
+        "KnowledgeRepo",
+        "RouteRepo",
+        "PolicyRepo",
+        "_promote_canonical",
+        "_apply_metadata_change",
+        "_apply_policy_change",
+    ):
         assert token not in governance_source
 
     assert "KnowledgeRepo" in canonical_source
     assert "_promote_canonical" in canonical_source
+    assert "RouteRepo" in route_source
+    assert "_apply_metadata_change" in route_source
     assert "PolicyRepo" in policy_source
     assert "_apply_policy_change" in policy_source
+
+
+def test_route_metadata_handler_imports_meta_optimizer_owning_submodules() -> None:
+    route_source = _source("truth_governance/apply_route_metadata.py")
+
+    assert "swallow.surface_tools.meta_optimizer import" not in route_source
+    assert "swallow.surface_tools.meta_optimizer_models" in route_source
+    assert "swallow.surface_tools.meta_optimizer_proposals" in route_source
+    assert "meta_optimizer_lifecycle" in route_source
 
 
 def test_governance_models_is_record_only_cycle_breaker() -> None:
