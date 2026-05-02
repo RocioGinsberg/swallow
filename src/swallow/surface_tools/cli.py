@@ -46,8 +46,6 @@ from swallow.knowledge_retrieval.ingestion.pipeline import (
     run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
-from swallow.application.commands.meta_optimizer import run_meta_optimizer_command
-from swallow.application.commands.proposals import apply_reviewed_proposals_command, review_proposals_command
 from swallow.knowledge_retrieval.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
 from swallow.truth_governance.governance import (
     OperatorToken,
@@ -66,11 +64,9 @@ from swallow.knowledge_retrieval.knowledge_relations import (
     delete_knowledge_relation,
     list_knowledge_relations,
 )
-from swallow.surface_tools.meta_optimizer import (
-    build_optimization_proposal_application_report,
-    build_optimization_proposal_review_report,
-    extract_route_weight_proposals_from_report,
-)
+from swallow.surface_tools.cli_commands.meta_optimizer import handle_meta_optimize_command
+from swallow.surface_tools.cli_commands.proposals import handle_proposal_command
+from swallow.surface_tools.cli_commands.route_metadata import handle_route_metadata_command
 from swallow.knowledge_retrieval.knowledge_objects import summarize_canonicalization
 from swallow.knowledge_retrieval.knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from swallow.knowledge_retrieval.knowledge_suggestions import apply_relation_suggestions, build_relation_suggestion_application_report
@@ -124,12 +120,8 @@ from swallow.provider_router.router import (
     apply_route_policy,
     apply_route_registry,
     apply_route_weights,
-    build_route_capability_profiles_report,
     build_route_policy_report,
     build_route_registry_report,
-    build_route_weights_report,
-    current_route_weights,
-    load_route_capability_profiles,
     load_route_policy_from_path,
     route_by_name,
     select_route,
@@ -2631,35 +2623,13 @@ def main(argv: list[str] | None = None) -> int:
         print(format_knowledge_migration_summary(migrate_file_knowledge_to_sqlite(base_dir, dry_run=args.dry_run)))
         return 0
 
-    if args.command == "meta-optimize":
-        result = run_meta_optimizer_command(base_dir, last_n=args.last_n)
-        print(result.report, end="")
-        print(f"artifact: {result.artifact_path}")
-        print(f"proposal_bundle: {result.proposal_bundle_path}")
-        return 0
+    meta_optimize_result = handle_meta_optimize_command(base_dir, args)
+    if meta_optimize_result is not None:
+        return meta_optimize_result
 
-    if args.command == "proposal" and args.proposal_command == "review":
-        result = review_proposals_command(
-            base_dir,
-            resolve_path(args.proposal_file),
-            decision=args.decision,
-            proposal_ids=list(args.proposal_ids or []),
-            note=args.note,
-        )
-        print(build_optimization_proposal_review_report(result.review_record), end="")
-        print(f"record: {result.record_path}")
-        return 0
-
-    if args.command == "proposal" and args.proposal_command == "apply":
-        review_path = resolve_path(args.review_file)
-        result = apply_reviewed_proposals_command(
-            base_dir,
-            review_path,
-            proposal_id_strategy="review_id",
-        )
-        print(build_optimization_proposal_application_report(result.application_record), end="")
-        print(f"record: {result.record_path}")
-        return 0
+    proposal_result = handle_proposal_command(base_dir, args)
+    if proposal_result is not None:
+        return proposal_result
 
     if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "show":
         print(build_audit_trigger_policy_report(load_audit_trigger_policy(base_dir)), end="")
@@ -2816,109 +2786,9 @@ def main(argv: list[str] | None = None) -> int:
         print(build_route_policy_report(base_dir), end="")
         return 0
 
-    if args.command == "route" and args.route_command == "weights" and args.route_weights_command == "show":
-        print(build_route_weights_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "weights" and args.route_weights_command == "apply":
-        proposal_path = resolve_path(args.proposal_file)
-        proposals = extract_route_weight_proposals_from_report(proposal_path.read_text(encoding="utf-8"))
-        if not proposals:
-            raise ValueError(f"No route_weight proposals found in {proposal_path}")
-
-        updated_weights = current_route_weights()
-        for proposal in proposals:
-            route_name = str(proposal.route_name or "").strip()
-            if not route_name:
-                continue
-            if route_by_name(route_name) is None:
-                raise ValueError(f"Unknown route in proposal file: {route_name}")
-            updated_weights[route_name] = float(proposal.suggested_weight or 1.0)
-
-        persisted_weights = {
-            route_name: weight
-            for route_name, weight in updated_weights.items()
-            if abs(weight - 1.0) > 1e-9
-        }
-        proposal_id = register_route_metadata_proposal(
-            base_dir=base_dir,
-            proposal_id=f"route-weights:{proposal_path.name}",
-            route_weights=persisted_weights,
-        )
-        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
-        print(build_route_weights_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "capabilities" and args.route_capabilities_command == "show":
-        print(build_route_capability_profiles_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "capabilities" and args.route_capabilities_command == "update":
-        route_name = args.route_name.strip()
-        if not route_name:
-            raise ValueError("route_name must be a non-empty route name.")
-        if route_by_name(route_name) is None:
-            raise ValueError(f"Unknown route: {route_name}")
-
-        profiles = load_route_capability_profiles(base_dir)
-        profile = dict(profiles.get(route_name, {}))
-        task_family_scores = dict(profile.get("task_family_scores", {}))
-        unsupported_task_types = {
-            str(item).strip().lower()
-            for item in profile.get("unsupported_task_types", [])
-            if str(item).strip()
-        }
-
-        updated = False
-        if args.task_type is not None or args.score is not None:
-            if args.task_type is None or args.score is None:
-                raise ValueError("--task-type and --score must be provided together.")
-            task_type = args.task_type.strip().lower()
-            if not task_type:
-                raise ValueError("--task-type must be a non-empty task family.")
-            if args.score < 0:
-                raise ValueError("--score must be non-negative.")
-            task_family_scores[task_type] = float(args.score)
-            unsupported_task_types.discard(task_type)
-            updated = True
-
-        if args.clear_task_type is not None:
-            task_type = args.clear_task_type.strip().lower()
-            if not task_type:
-                raise ValueError("--clear-task-type must be a non-empty task family.")
-            task_family_scores.pop(task_type, None)
-            updated = True
-
-        for task_type in args.mark_unsupported:
-            normalized_task_type = task_type.strip().lower()
-            if not normalized_task_type:
-                raise ValueError("--mark-unsupported must contain non-empty task families.")
-            unsupported_task_types.add(normalized_task_type)
-            task_family_scores.pop(normalized_task_type, None)
-            updated = True
-
-        for task_type in args.clear_unsupported:
-            normalized_task_type = task_type.strip().lower()
-            if not normalized_task_type:
-                raise ValueError("--clear-unsupported must contain non-empty task families.")
-            unsupported_task_types.discard(normalized_task_type)
-            updated = True
-
-        if not updated:
-            raise ValueError("No route capability profile changes requested.")
-
-        profiles[route_name] = {
-            "task_family_scores": task_family_scores,
-            "unsupported_task_types": sorted(unsupported_task_types),
-        }
-        proposal_id = register_route_metadata_proposal(
-            base_dir=base_dir,
-            proposal_id=f"route-capabilities:{route_name}",
-            route_capability_profiles=profiles,
-        )
-        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
-        print(build_route_capability_profiles_report(base_dir), end="")
-        return 0
+    route_metadata_result = handle_route_metadata_command(base_dir, args)
+    if route_metadata_result is not None:
+        return route_metadata_result
 
     if args.command == "route" and args.route_command == "select":
         apply_route_registry(base_dir)

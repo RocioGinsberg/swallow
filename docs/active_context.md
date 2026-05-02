@@ -13,9 +13,9 @@
 - latest_completed_slice: `Facade-first orchestrator helper extraction`
 - active_track: `Architecture / Engineering`
 - active_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
-- active_slice: `M2 meta optimizer read-only split complete`
+- active_slice: `M3 CLI command-family adapter split complete`
 - active_branch: `feat/surface-cli-meta-optimizer-split`
-- status: `lto9_m2_meta_optimizer_split_complete_waiting_human_commit`
+- status: `lto9_m3_cli_adapter_split_complete_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -27,6 +27,7 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
 
 - `e692408 docs(plan): revise surface split plan after audit`
 - `3fe4109 refactor(surface): seed application proposal commands`
+- `5ad381f refactor(surface): split meta optimizer read-only modules`
 
 `docs/roadmap.md` 已由 Human / roadmap update 切到下一阶段 ticket:
 
@@ -44,7 +45,8 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
 
 当前代码事实:
 
-- `src/swallow/surface_tools/cli.py` 仍承担 parser construction、command dispatch、task/knowledge/route/proposal/audit/synthesis/serve 等多组 surface 逻辑；M1 已让 `meta-optimize` / `proposal review` / `proposal apply` dispatch 调用 application commands，但尚未进入 M3 adapter split。
+- `src/swallow/surface_tools/cli.py` 仍保留 public `main` / `build_parser` 兼容入口；M3 已将 `meta-optimize`、`proposal review/apply`、`route weights show/apply`、`route capabilities show/update` dispatch 委托到 `surface_tools/cli_commands/` adapters。
+- M3 未迁移 `route registry` / `route policy` / `route select`，这些仍留在 `cli.py`，避免扩大 route command migration。
 - `src/swallow/surface_tools/meta_optimizer.py` 已收缩为约 50 行 compatibility facade，继续 re-export 既有 public imports。
 - Meta-Optimizer read-only path 已拆分:
   - `meta_optimizer_snapshot.py`: telemetry scan / snapshot construction。
@@ -122,15 +124,32 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
   - `.venv/bin/python -m compileall -q src/swallow` -> passed
   - `git diff --check` -> passed
   - manual `rg -n "apply_proposal|save_state|_apply_metadata_change|save_route_registry|save_route_policy|save_route_weights|save_route_capability_profiles" src/swallow/surface_tools/meta_optimizer_*.py` -> no matches
+- **[Human]** Committed M2:
+  - `5ad381f refactor(surface): split meta optimizer read-only modules`
+- **[Codex]** Completed M3 CLI command-family adapter split:
+  - added pre-extraction characterization tests under `tests/integration/cli/` for all in-scope commands
+  - verified baseline before moving dispatch code: `.venv/bin/python -m pytest tests/integration/cli/test_meta_optimizer_commands.py tests/integration/cli/test_proposal_commands.py tests/integration/cli/test_route_commands.py -q` -> `4 passed`
+  - added `src/swallow/surface_tools/cli_commands/`
+  - moved dispatch/output adapters for `swl meta-optimize`, `swl proposal review`, `swl proposal apply`, `swl route weights show/apply`, and `swl route capabilities show/update`
+  - kept `swallow.surface_tools.cli.main` and `build_parser` compatible
+- **[Codex]** M3 validation passed:
+  - `.venv/bin/python -m pytest tests/integration/cli -q` -> `5 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -k "proposal or meta_optimizer or route_capabilities or route_weights or serve" -q` -> `11 passed, 231 deselected`
+  - `.venv/bin/python -m pytest tests/test_meta_optimizer.py -q` -> `19 passed`
+  - `.venv/bin/python -m pytest tests/unit/application tests/unit/surface_tools -q` -> `7 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `25 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+  - new-file `git diff --check --no-index /dev/null <new M3 files>` -> no whitespace warnings
 
 进行中:
 
-- None. M2 is ready for Human milestone review / commit.
+- None. M3 is ready for Human milestone review / commit.
 
 待执行:
 
-- **[Human]** Review and commit M2 implementation if accepted.
-- **[Codex]** After Human confirms M2 commit, start M3 CLI command-family adapter split.
+- **[Human]** Review and commit M3 implementation if accepted.
+- **[Codex]** After Human confirms M3 commit, start M4 guard allowlist fix and optional-if-safe Control Center query tightening.
 
 当前阻塞项:
 
@@ -144,26 +163,29 @@ Human 已批准 Plan Gate，创建并切换到实现分支，且已提交修订�
 
 ## 当前下一步
 
-1. **[Human]** Review and commit M2 implementation if accepted.
-2. **[Codex]** After commit confirmation, start M3 CLI command-family adapter split.
+1. **[Human]** Review and commit M3 implementation if accepted.
+2. **[Codex]** After commit confirmation, start M4 guard allowlist fix and optional-if-safe Control Center query tightening.
 
 ```markdown
 milestone_gate:
-- current: lto9-m2-meta-optimizer-split-complete-waiting-human-commit
+- current: lto9-m3-cli-adapter-split-complete-waiting-human-commit
 - active_branch: feat/surface-cli-meta-optimizer-split
 - latest_main_checkpoint: 9ee9cc8 docs(state): update roadmap
 - planning_commit: e692408 docs(plan): revise surface split plan after audit
 - m1_commit: 3fe4109 refactor(surface): seed application proposal commands
+- m2_commit: 5ad381f refactor(surface): split meta optimizer read-only modules
 - active_track: Architecture / Engineering
 - active_phase: Surface / CLI / Meta Optimizer Split / LTO-9 Step 1
-- active_slice: M2 meta optimizer read-only split complete
+- active_slice: M3 CLI command-family adapter split complete
 - roadmap: docs/roadmap.md current ticket Surface / CLI / Meta Optimizer split
 - plan: docs/plans/surface-cli-meta-optimizer-split/plan.md
 - plan_audit: docs/plans/surface-cli-meta-optimizer-split/plan_audit.md
 - audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed
 - m1_validation: unit application `3 passed`; meta optimizer focused `3 passed`; proposal CLI focused `2 passed`; invariant guards `25 passed`; full meta optimizer `19 passed`; focused CLI selector `11 passed`; compileall passed; git diff --check passed
 - m2_validation: boundary test `4 passed`; meta optimizer `19 passed`; invariant guards `25 passed`; focused CLI selector `11 passed`; unit application `3 passed`; compileall passed; git diff --check passed; read-only mutation API rg no matches
-- next_gate: Human M2 milestone review and commit
+- m3_baseline: pre-extraction integration CLI characterization `4 passed`
+- m3_validation: integration CLI `5 passed`; focused CLI selector `11 passed`; meta optimizer `19 passed`; unit application/surface `7 passed`; invariant guards `25 passed`; compileall passed; git diff --check passed; new-file whitespace checks no warnings
+- next_gate: Human M3 milestone review and commit
 ```
 
 ## 当前产出物
@@ -185,4 +207,11 @@ milestone_gate:
 - `src/swallow/surface_tools/meta_optimizer_agent.py`(codex, 2026-05-02, read-only MetaOptimizerAgent / executor adapter and run entry)
 - `tests/unit/surface_tools/test_meta_optimizer_boundary.py`(codex, 2026-05-02, persistent read-only boundary tests)
 - `tests/test_invariant_guards.py`(codex, 2026-05-02, include meta_optimizer_agent.py in execution-plane guard)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-9 M2 complete and waiting Human milestone commit)
+- `src/swallow/surface_tools/cli_commands/__init__.py`(codex, 2026-05-02, CLI command adapter package seed)
+- `src/swallow/surface_tools/cli_commands/meta_optimizer.py`(codex, 2026-05-02, `swl meta-optimize` adapter)
+- `src/swallow/surface_tools/cli_commands/proposals.py`(codex, 2026-05-02, `swl proposal review/apply` adapters)
+- `src/swallow/surface_tools/cli_commands/route_metadata.py`(codex, 2026-05-02, route weights/capabilities adapters)
+- `tests/integration/cli/test_meta_optimizer_commands.py`(codex, 2026-05-02, meta-optimize stdout/stderr/exit-code characterization)
+- `tests/integration/cli/test_proposal_commands.py`(codex, 2026-05-02, proposal review/apply stdout/stderr/exit-code characterization)
+- `tests/integration/cli/test_route_commands.py`(codex, 2026-05-02, route weights/capabilities stdout/stderr/exit-code characterization)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-9 M3 complete and waiting Human milestone commit)
