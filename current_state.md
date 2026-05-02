@@ -24,8 +24,8 @@
 - latest_executed_public_tag: `v1.5.0`
 - pending_release_tag: `none`
 - current_working_phase: `Governance Apply Handler Split / LTO-10`
-- checkpoint_type: `lto10_plan_audit_concerns_absorbed_pending_human_gate`
-- active_branch: `main`
+- checkpoint_type: `lto10_m3_complete_waiting_human_commit`
+- active_branch: `feat/governance-apply-handler-split`
 - last_checked: `2026-05-02`
 
 说明:
@@ -34,7 +34,7 @@
 - `docs/roadmap.md` 已完成 post-merge factual update，当前 ticket 已切换为 `Governance apply handler split` / LTO-10。
 - LTO-10 `plan.md` 已由 Codex 起草并根据 `plan_audit.md` 吸收 5 条 concern: `docs/plans/governance-apply-handler-split/plan.md`。
 - `docs/plans/governance-apply-handler-split/plan_audit.md` 已产出，结论为 `has-concerns`, 0 blockers / 5 concerns；5 条 concern 已吸收到 plan。
-- 当前仍处于 Human Plan Gate 前；尚未通过 Plan Gate，不应在 `main` 上开始实现。
+- Human 已完成 M1 / M2 milestone commit，Codex 已完成并验证 M3 route metadata handler extraction，当前等待 Human 审查并执行 M3 milestone commit。
 - 最新已执行公开 tag 仍为 `v1.5.0`; annotated tag 指向 `bc8abb1 docs(release): sync v1.5.0 release docs`。
 - 当前 tag 策略: 不为 LTO-9 Step 1 单独打 tag，待 LTO-10 与后续 Cluster C 收敛后再评估 `v1.6.0`。
 
@@ -44,17 +44,16 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `main`
+- active_branch: `feat/governance-apply-handler-split`
 - active_track: `Architecture / Engineering`
 - active_phase: `Governance Apply Handler Split / LTO-10`
-- active_slice: `plan revised after audit; awaiting Human Plan Gate`
-- workflow_status: `lto10_plan_audit_concerns_absorbed_pending_human_gate`
+- active_slice: `M3 route metadata handler extraction complete`
+- workflow_status: `lto10_m3_complete_waiting_human_commit`
 
 下一步:
 
-1. Human 执行 Plan Gate。
-2. Plan Gate 通过后，Human 从 `main` 创建 `feat/governance-apply-handler-split`。
-3. Codex 在 feature branch 上从 M1 开始实现。
+1. Human 审查 M3 后执行 milestone commit。
+2. Codex 在 Human commit 后进入 M4 apply envelope / outbox helper tightening。
 
 ---
 
@@ -107,13 +106,13 @@ git diff --check
 # passed
 ```
 
-LTO-10 planning docs are markdown-only; implementation validation is not yet required.
+M3 focused validation 已通过；进入 M4 前先等待 Human milestone commit。
 
 ---
 
 ## 当前已知边界
 
-- 不在 `main` 上做 LTO-10 代码实现；Plan Gate 通过后再切 `feat/governance-apply-handler-split`。
+- 不在 `main` 上做 LTO-10 代码实现；当前实现已在 `feat/governance-apply-handler-split` 上推进。
 - 不改变 `apply_proposal` 唯一写入入口。
 - 不新增 public mutation entry、proposal target kind、schema migration、FastAPI write API、CLI surface 扩张、auth/multi-user、remote worker、Planner/DAG 或 Wiki Compiler 工作。
 - 不改变 Provider Router route selection / route default / fallback behavior。

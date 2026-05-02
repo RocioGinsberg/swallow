@@ -13,9 +13,9 @@
 - latest_completed_slice: `CLI command-family adapters + Meta-Optimizer read-only split + application command/query seed`
 - active_track: `Architecture / Engineering`
 - active_phase: `Governance Apply Handler Split / LTO-10`
-- active_slice: `M2 canonical + policy handler extraction complete`
+- active_slice: `M3 route metadata handler extraction complete`
 - active_branch: `feat/governance-apply-handler-split`
-- status: `lto10_m2_complete_waiting_human_commit`
+- status: `lto10_m3_complete_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -138,6 +138,18 @@ LTO-7 follow-up 状态:
   - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
   - `.venv/bin/python -m compileall -q src/swallow` -> passed
   - `git diff --check` -> passed
+- **[Codex]** Completed M3 route metadata handler extraction:
+  - move direct route metadata apply behavior into `src/swallow/truth_governance/apply_route_metadata.py`.
+  - move reviewed Meta-Optimizer route proposal apply behavior into the same handler module.
+  - import reviewed-route helpers directly from owning LTO-9 submodules rather than through `swallow.surface_tools.meta_optimizer`.
+- **[Codex]** M3 validation passed:
+  - `.venv/bin/python -m pytest tests/unit/truth_governance/test_governance_boundary.py -q` -> `5 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q` -> `10 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py::test_route_metadata_transaction_rolls_back_sqlite_audit_and_in_memory tests/test_phase65_sqlite_truth.py::test_route_metadata_transaction_rolls_back_when_audit_insert_fails_after_insert tests/test_phase65_sqlite_truth.py::test_route_metadata_commit_survives_caller_exception_after_commit tests/test_phase65_sqlite_truth.py::test_route_review_artifact_write_failure_logs_warning_after_sqlite_commit -q` -> `4 passed`
+  - `.venv/bin/python -m pytest tests/test_phase65_sqlite_truth.py -q` -> `21 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `26 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
 
 进行中:
 
@@ -145,7 +157,7 @@ LTO-7 follow-up 状态:
 
 待执行:
 
-- **[Human]** 审查 M2 后执行 milestone commit。
+- **[Human]** 审查 M3 后执行 milestone commit。
 
 当前阻塞项:
 
@@ -159,8 +171,8 @@ LTO-7 follow-up 状态:
 
 ## 当前下一步
 
-1. **[Human]** 审查 M2 后执行 milestone commit。
-2. **[Codex]** 在 Human commit 后进入 M3 route metadata handler extraction。
+1. **[Human]** 审查 M3 后执行 milestone commit。
+2. **[Codex]** 在 Human commit 后进入 M4 apply envelope / outbox helper tightening。
 
 ```markdown
 plan_gate:
@@ -168,7 +180,7 @@ plan_gate:
 - merge_commit: 21c1884 Surface / Meta Optimizer Modularity
 - active_branch: feat/governance-apply-handler-split
 - active_phase: Governance Apply Handler Split / LTO-10
-- active_slice: M2 canonical + policy handler extraction complete
+- active_slice: M3 route metadata handler extraction complete
 - roadmap: docs/roadmap.md current ticket = Governance apply handler split (LTO-10)
 - plan: docs/plans/governance-apply-handler-split/plan.md
 - plan_audit: docs/plans/governance-apply-handler-split/plan_audit.md
@@ -177,8 +189,8 @@ plan_gate:
 - review (prior phase): recommendation merge; 0 blockers; 2 non-blocking deferred concerns
 - lto7_followup: CONCERN-1 resolved in LTO-9 Step 1 M4; CONCERN-2/3 still open in concerns_backlog
 - tag_decision: defer v1.6.0 until LTO-10 + LTO-8 Step 2 land
-- latest_milestone_commit: 34c2c42 refactor(governance): extract proposal registry
-- next_gate: Human M2 milestone commit
+- latest_milestone_commit: 5e90b73 docs(state): mark governance handler split M2 complete
+- next_gate: Human M3 milestone commit
 ```
 
 ## 当前产出物
@@ -188,12 +200,13 @@ plan_gate:
 - `docs/plans/surface-cli-meta-optimizer-split/review_comments.md`(claude, 2026-05-02, recommendation merge; 0 blockers; 2 non-blocking concerns)
 - `docs/plans/governance-apply-handler-split/plan.md`(codex, 2026-05-02, LTO-10 plan revised after audit)
 - `docs/plans/governance-apply-handler-split/plan_audit.md`(claude/design-auditor, 2026-05-02, has-concerns, 0 blockers / 5 concerns)
-- `current_state.md`(codex, 2026-05-02, LTO-10 plan audit concerns absorbed recovery checkpoint)
+- `current_state.md`(codex, 2026-05-02, LTO-10 M2 complete / M3 in progress recovery checkpoint)
 - `src/swallow/truth_governance/governance_models.py`(codex, 2026-05-02, M1 public governance record types)
 - `src/swallow/truth_governance/proposal_registry.py`(codex, 2026-05-02, M1 proposal payload registry ownership)
 - `src/swallow/truth_governance/apply_canonical.py`(codex, 2026-05-02, M2 canonical apply handler)
 - `src/swallow/truth_governance/apply_policy.py`(codex, 2026-05-02, M2 policy apply handler)
-- `src/swallow/truth_governance/governance.py`(codex, 2026-05-02, M2 public facade delegates canonical / policy handlers; route handler remains for M3)
-- `tests/unit/truth_governance/test_governance_boundary.py`(codex, 2026-05-02, M2 boundary tests)
-- `tests/test_invariant_guards.py`(codex, 2026-05-02, M2 private writer ownership guard split)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-10 M2 complete;waiting Human milestone commit)
+- `src/swallow/truth_governance/apply_route_metadata.py`(codex, 2026-05-02, M3 route metadata apply handler)
+- `src/swallow/truth_governance/governance.py`(codex, 2026-05-02, M3 public facade delegates canonical / route / policy handlers)
+- `tests/unit/truth_governance/test_governance_boundary.py`(codex, 2026-05-02, M3 boundary tests)
+- `tests/test_invariant_guards.py`(codex, 2026-05-02, M3 private writer ownership guard split)
+- `docs/active_context.md`(codex, 2026-05-02, LTO-10 M3 complete;waiting Human milestone commit)
