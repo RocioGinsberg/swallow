@@ -19,27 +19,23 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `Provider Router Split / LTO-7 Step 1`
-- latest_main_checkpoint: `6033558 Provider Router Maintainability`
+- latest_main_checkpoint_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
+- latest_main_checkpoint: `9ee9cc8 docs(state): update roadmap`
 - latest_executed_public_tag: `v1.5.0`
 - pending_release_tag: `none`
-- current_working_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- checkpoint_type: `lto8_pr_review_pass_waiting_human_merge`
-- active_branch: `feat/orchestration-lifecycle-decomposition`
+- current_working_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
+- checkpoint_type: `lto9_plan_revised_after_audit_waiting_human_gate`
+- active_branch: `main`
 - last_checked: `2026-05-02`
 
 说明:
 
-- LTO-7 Provider Router Split 已合并到 `main`，merge checkpoint 为 `6033558 Provider Router Maintainability`。
-- `docs/roadmap.md` 已更新为 LTO-7 completed / LTO-8 current ticket。
-- 当前工作阶段为 `Orchestration Lifecycle Decomposition / LTO-8 Step 1`。
-- Codex 已起草并根据 audit 修订 `docs/plans/orchestration-lifecycle-decomposition/plan.md`。
-- Claude plan audit 已产出在 `docs/plans/orchestration-lifecycle-decomposition/plan_audit.md`，结论为 1 BLOCKER + 7 CONCERNs。
-- Audit BLOCKER 已通过计划修订吸收：milestone 数量从 6 降到 5，原 M6 closeout / PR gate 折进 M5 与 Completion Conditions。
-- Human Plan Gate 已通过，M1-M5 均已由 Human 提交。
-- Claude PR review 已完成，结论为 merge，3 个 non-blocking concerns 已记录到 `docs/concerns_backlog.md`。
-- Codex 已同步 closeout / `current_state.md` / `docs/active_context.md` / `pr.md` 收口状态。
-- 当前等待 Human 提交或更新 PR 并执行 merge。
+- LTO-8 Step 1 已合并到 `main`，`docs/roadmap.md` 已更新为 LTO-8 Step 1 done / LTO-9 current ticket；当前 main checkpoint 为 `9ee9cc8 docs(state): update roadmap`。
+- 当前工作阶段为 `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`。
+- Codex 已产出并按 audit 修订 `docs/plans/surface-cli-meta-optimizer-split/plan.md`。
+- Claude/design-auditor 已产出 `docs/plans/surface-cli-meta-optimizer-split/plan_audit.md`，结论为 `has-concerns`，0 blockers / 5 concerns；Codex 已将 5 条 concern 吸收到 plan。
+- 本阶段计划范围是 behavior-preserving surface decomposition: CLI command family adapter split、Meta Optimizer read-only path vs Operator proposal apply/review split、application/commands seed，以及 LTO-7 route metadata guard allowlist drift fix。
+- 当前等待 Human Plan Gate；实现尚未开始。
 - 最新已执行公开 tag 仍为 `v1.5.0`; annotated tag 指向 `bc8abb1 docs(release): sync v1.5.0 release docs`。
 
 ---
@@ -48,18 +44,17 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `feat/orchestration-lifecycle-decomposition`
+- active_branch: `main`
 - active_track: `Architecture / Engineering`
-- active_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- active_slice: `PR review complete; awaiting Human merge decision`
-- workflow_status: `pr_review_pass_with_3_concerns_recommend_merge`
+- active_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
+- active_slice: `plan revised after audit`
+- workflow_status: `lto9_plan_revised_after_audit_waiting_human_gate`
 
 下一步:
 
-1. Human commits or updates the review / closeout docs if needed, then uses `pr.md` to update the PR.
-2. Human decides whether to merge the PR.
-3. After merge, Codex syncs post-merge state and roadmap factual update.
-4. If merge happens, roadmap-updater should mark LTO-8 as Step 1 done, not fully complete.
+1. Human reviews revised `plan.md` + `plan_audit.md` and decides Plan Gate.
+2. If approved, Human creates `feat/surface-cli-meta-optimizer-split` from `main`.
+3. Codex starts M1 implementation only after branch switch and gate approval.
 
 ---
 
@@ -73,19 +68,16 @@
 4. `docs/active_context.md`
 5. `current_state.md`
 6. `docs/roadmap.md`
-7. `docs/plans/orchestration-lifecycle-decomposition/plan.md`
-8. `docs/plans/orchestration-lifecycle-decomposition/plan_audit.md`
+7. `docs/plans/surface-cli-meta-optimizer-split/plan.md`
+8. `docs/plans/surface-cli-meta-optimizer-split/plan_audit.md`
 9. `docs/design/INVARIANTS.md`
-10. `docs/design/ORCHESTRATION.md`
-11. `docs/design/HARNESS.md`
+10. `docs/design/INTERACTION.md`
+11. `docs/design/SELF_EVOLUTION.md`
 12. `docs/engineering/CODE_ORGANIZATION.md`
 13. `docs/engineering/TEST_ARCHITECTURE.md`
-14. `docs/plans/provider-router-split/closeout.md`
-15. `docs/plans/provider-router-split/review_comments.md`
-16. `docs/concerns_backlog.md`
-17. `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`
-18. `docs/plans/orchestration-lifecycle-decomposition/closeout.md`
-19. `pr.md`
+14. `docs/concerns_backlog.md`
+15. `docs/plans/orchestration-lifecycle-decomposition/closeout.md`
+16. `docs/plans/orchestration-lifecycle-decomposition/review_comments.md`
 
 ---
 
@@ -97,58 +89,52 @@
 git status --short --branch
 git branch --show-current
 git show --no-patch --decorate --oneline HEAD
-git log --oneline --decorate -8
+sed -n '1,260p' docs/plans/surface-cli-meta-optimizer-split/plan.md
 ```
 
-LTO-8 implementation validation and PR review completed with:
+本轮是 docs-only planning update，不要求跑 pytest。
+
+后续实现阶段计划中的基础 gate:
 
 ```bash
-git status --short --branch
-git diff --check
-.venv/bin/python -m pytest tests/unit/orchestration -q
-.venv/bin/python -m pytest tests/test_librarian_executor.py -q
+.venv/bin/python -m pytest tests/test_meta_optimizer.py -q
+.venv/bin/python -m pytest tests/unit/application/test_command_boundaries.py -q
+.venv/bin/python -m pytest tests/unit/surface_tools/test_meta_optimizer_boundary.py -q
+.venv/bin/python -m pytest tests/integration/cli -q
+.venv/bin/python -m pytest tests/test_cli.py -k "proposal or meta_optimizer or route_capabilities or route_weights or serve" -q
+.venv/bin/python -m pytest tests/test_web_api.py -q
 .venv/bin/python -m pytest tests/test_invariant_guards.py -q
-.venv/bin/python -m pytest tests/test_cli.py -k "knowledge or canonical_reuse or librarian" -q
-.venv/bin/python -m pytest tests/test_review_gate.py -q
 .venv/bin/python -m compileall -q src/swallow
-.venv/bin/python -m pytest -q
+git diff --check
 ```
-
-Final default pytest result: `686 passed, 8 deselected, 10 subtests passed`.
 
 ---
 
 ## 当前已知边界
 
-- 不在 `main` 上做 LTO-8 代码实现。
-- 不把 LTO-9 Surface / Meta Optimizer 或 LTO-10 Governance 合并进本 phase。
+- 不在 `main` 上做 LTO-9 代码实现；`main` 当前只承载 plan / audit gate。
+- plan + audit + Human Gate 通过后，Human 先创建 `feat/surface-cli-meta-optimizer-split`。
+- 不改变 CLI 命令名、flag、exit code、输出格式。
 - 不改变 `docs/design/*.md` 设计语义。
-- 不改变 Control Plane 权限；helper module 不得成为第二个 Orchestrator。
-- 不改变 Path A/B/C 语义。
-- 不改变 route selection / Provider Router behavior。
-- 不引入 schema migration、真实模型调用要求、远端 worker 或 Planner/DAG。
-- `run_task` / `run_task_async` / `create_task` 仍由 `swallow.orchestration.orchestrator` 公开承载。
-- `_apply_librarian_side_effects(...)` 与任何 direct `apply_proposal` caller 仍留在 `orchestrator.py`。
-- `knowledge_flow.py` 不依赖 `save_state` / `append_event` / `apply_proposal` / `orchestration.harness` / `orchestration.executor`。
-- LTO-8 Step 1 仍是分解里的第一步，`orchestrator.py` 后续还会继续收缩，但不会把控制权移出 Orchestrator。
+- 不改变 `apply_proposal` 唯一写入入口。
+- 不改变 Provider Router route selection / route default behavior。
+- 不引入 schema migration、FastAPI write API、UI 扩张、auth/multi-user、远端 worker 或 Planner/DAG。
+- MetaOptimizer specialist path 必须保持 read-only / proposal-producing；Operator proposal review/apply 才能进入 governance command path。
 
 ---
 
 ## 当前建议提交范围
 
-M5 implementation 已提交到 `fe31d72`。当前只建议提交 review / closeout 状态材料:
+当前只建议提交 LTO-9 revised plan / audit / state docs:
 
 ```bash
-git add docs/plans/orchestration-lifecycle-decomposition/closeout.md \
-  docs/plans/orchestration-lifecycle-decomposition/review_comments.md \
-  docs/concerns_backlog.md \
+git add docs/plans/surface-cli-meta-optimizer-split/plan.md \
+  docs/plans/surface-cli-meta-optimizer-split/plan_audit.md \
   docs/active_context.md \
   current_state.md
 
-git commit -m "docs(state): close orchestration lifecycle review"
+git commit -m "docs(plan): revise surface split plan after audit"
 ```
-
-`pr.md` has been updated as the local PR body draft, but it is ignored by git in this repository; do not include it in the commit unless Human explicitly wants to force-add it.
 
 ---
 
@@ -163,7 +149,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 LTO-8 implementation phase 不要求 live HTTP / API-key dependent test。
+当前 LTO-9 planning phase 不要求 live HTTP / API-key dependent test。
 
 ---
 
@@ -175,8 +161,7 @@ docker compose ps
 cd /home/rocio/projects/swallow
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
-sed -n '1,260p' docs/plans/orchestration-lifecycle-decomposition/plan.md
-sed -n '1,260p' docs/plans/orchestration-lifecycle-decomposition/closeout.md
+sed -n '1,260p' docs/plans/surface-cli-meta-optimizer-split/plan.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
