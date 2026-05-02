@@ -13,15 +13,15 @@
 - latest_completed_slice: `governance.py 642 → 45 行 facade + handler 模块化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-9 Step 2 — broad CLI command-family migration`
-- active_slice: `plan_audit concerns absorbed; awaiting Human Plan Gate`
-- active_branch: `main`
-- status: `lto9_step2_plan_ready_for_human_gate`
+- active_slice: `M1 baseline characterization tests complete; awaiting Human review/commit`
+- active_branch: `refactor/cli_command_family_migration`
+- status: `lto9_step2_m1_complete_awaiting_commit`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`,当前工作树包含本轮计划文档改动。当前 HEAD 为:
+当前 git 分支为 `refactor/cli_command_family_migration`,工作树进入 LTO-9 Step 2 实现阶段。当前 HEAD 为:
 
-- `86a1fcb docs(state) update roadmap and context`
+- `b80d3b8 docs(plan): add LTO-9 Step 2 plan`
 
 LTO-10 已合并到主线:
 
@@ -121,6 +121,8 @@ LTO-7 long-running follow-ups(仍开放):
   - M2–M5 acceptance 均加入对应 family 的 pre-migration characterization gate。
   - M3 scope / acceptance 显式说明 `stage-reject` 与 `apply-suggestions` 不是 `apply_proposal` flow,并定义允许的 high-level staged / relation helper 边界。
   - M4 scope 显式说明 `canonical-reuse-evaluate` / `consistency-audit` 放入 task write/control milestone 的理由。
+- **[Human]** Plan Gate 已通过,并已提交最终 plan / audit / state 文档:
+  - `b80d3b8 docs(plan): add LTO-9 Step 2 plan`
 
 进行中:
 
@@ -128,12 +130,12 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Plan Gate。
-- **[Human]** Plan Gate 通过后切 `feat/surface-cli-meta-optimizer-split-step2` 并提交最终 plan / audit / state 文档。
+- **[Human]** 审查并提交 M1 baseline characterization tests。
+- **[Codex]** Human 提交 M1 后进入 M2 governance-adjacent small families。
 
 当前阻塞项:
 
-- 等待 Human Plan Gate 审批 `plan.md`。
+- 无 blocker。
 
 ## Tag 状态
 
@@ -143,17 +145,16 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** Plan Gate;通过后切 `feat/surface-cli-meta-optimizer-split-step2`。
-2. **[Human]** 提交最终 plan / audit / active_context 文档。
-3. **[Codex]** Plan Gate 通过且 feature branch 就绪后开始 M1。
+1. **[Human]** 审查并提交 M1 baseline characterization tests。
+2. **[Codex]** Human 提交 M1 后进入 M2。
 
 ```markdown
 plan_gate:
 - latest_completed_phase: Governance Apply Handler Split / LTO-10
 - merge_commit: b3f7f43 Governance Apply Handler Maintainability
-- active_branch: main
+- active_branch: refactor/cli_command_family_migration
 - active_phase: LTO-9 Step 2 — broad CLI command-family migration
-- active_slice: plan_audit concerns absorbed; awaiting Human Plan Gate
+- active_slice: M1 baseline characterization tests complete; awaiting Human review/commit
 - direction_decided: LTO-9 Step 2 first, then LTO-8 Step 2 (cluster C closure)
 - roadmap: docs/roadmap.md current ticket = LTO-9 Step 2; next choice = LTO-8 Step 2
 - context_brief: docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md (170 lines)
@@ -164,7 +165,7 @@ plan_gate:
 - closeout (prior phase): docs/plans/governance-apply-handler-split/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns; 1 withdrawn
 - tag_decision: defer v1.6.0 until LTO-9 Step 2 + LTO-8 Step 2 both land (cluster C closure)
-- next_gate: Human Plan Gate → branch creation → M1
+- next_gate: Human review / commit → M2
 ```
 
 ## 当前产出物
@@ -177,3 +178,22 @@ plan_gate:
 - `docs/plans/surface-cli-meta-optimizer-split-step2/plan_audit.md`(claude/design-auditor, 2026-05-02, has-concerns, 0 blockers / 5 concerns)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-8 Step 2 事实盘点;LTO-9 Step 2 完成后启用)
 - `docs/active_context.md`(codex, 2026-05-02, LTO-9 Step 2 plan_audit concern 吸收后切到 Human Plan Gate)
+- `tests/integration/cli/test_audit_commands.py`(codex, 2026-05-02, M1 audit policy CLI characterization)
+- `tests/integration/cli/test_knowledge_commands.py`(codex, 2026-05-02, M1 knowledge stage/promote/reject/ingest characterization)
+- `tests/integration/cli/test_route_family_commands.py`(codex, 2026-05-02, M1 route registry/policy/select characterization)
+- `tests/integration/cli/test_task_commands.py`(codex, 2026-05-02, M1 task create/list/acknowledge characterization)
+- `tests/integration/cli/test_synthesis_commands.py`(codex, 2026-05-02, M1 synthesis run/stage characterization expanded)
+- `tests/unit/application/test_command_boundaries.py`(codex, 2026-05-02, M1 planned application command boundary scaffolding)
+
+## 当前验证结果
+
+```bash
+.venv/bin/python -m pytest tests/unit/application/test_command_boundaries.py tests/integration/cli/test_audit_commands.py tests/integration/cli/test_knowledge_commands.py tests/integration/cli/test_route_family_commands.py tests/integration/cli/test_synthesis_commands.py tests/integration/cli/test_task_commands.py -q
+# 15 passed
+
+.venv/bin/python -m pytest tests/integration/cli tests/unit/application/test_command_boundaries.py -q
+# 19 passed
+
+git diff --check
+# passed
+```

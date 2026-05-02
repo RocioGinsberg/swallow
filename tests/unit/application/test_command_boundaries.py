@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -8,10 +9,57 @@ COMMAND_MODULES = (
     "application/commands/proposals.py",
     "application/commands/meta_optimizer.py",
 )
+PLANNED_COMMAND_MODULES = (
+    "application/commands/route_metadata.py",
+    "application/commands/policies.py",
+    "application/commands/ingestion.py",
+    "application/commands/knowledge.py",
+    "application/commands/tasks.py",
+)
+MODULE_PRIVATE_WRITER_TOKENS = {
+    "application/commands/proposals.py": (
+        "route_metadata_store",
+        "save_route_registry",
+        "save_route_policy",
+        "save_route_weights",
+        "save_route_capability_profiles",
+        "_apply_metadata_change",
+    ),
+    "application/commands/route_metadata.py": (
+        "route_metadata_store",
+        "save_route_registry",
+        "save_route_policy",
+        "save_route_weights",
+        "save_route_capability_profiles",
+        "_apply_metadata_change",
+    ),
+    "application/commands/policies.py": (
+        "save_audit_trigger_policy",
+        "save_mps_policy",
+        "_apply_policy_change",
+    ),
+    "application/commands/knowledge.py": (
+        "append_canonical_record",
+        "persist_wiki_entry_from_record",
+        "_promote_canonical",
+    ),
+    "application/commands/tasks.py": (
+        "save_state",
+        "_promote_canonical",
+        "_apply_metadata_change",
+        "_apply_policy_change",
+    ),
+}
+TASK_SQL_WRITE_RE = re.compile(r"\b(INSERT|UPDATE|DELETE|REPLACE)\b", re.IGNORECASE)
 
 
 def _source(relative_path: str) -> str:
     return (SRC_ROOT / relative_path).read_text(encoding="utf-8")
+
+
+def _existing_command_modules() -> tuple[str, ...]:
+    optional_modules = tuple(relative_path for relative_path in PLANNED_COMMAND_MODULES if (SRC_ROOT / relative_path).exists())
+    return COMMAND_MODULES + optional_modules
 
 
 def test_application_command_modules_do_not_format_terminal_output() -> None:
@@ -28,25 +76,31 @@ def test_application_command_modules_do_not_format_terminal_output() -> None:
         "sys.stdout",
         "sys.stderr",
     )
-    for relative_path in COMMAND_MODULES:
+    for relative_path in _existing_command_modules():
         source = _source(relative_path)
         violations = [token for token in forbidden_tokens if token in source]
         assert violations == [], f"{relative_path} must not own terminal formatting: {violations}"
 
 
-def test_proposal_commands_use_governance_boundary_not_route_store_writers() -> None:
+def test_command_modules_do_not_reference_private_writers_unless_explicitly_allowed() -> None:
+    for relative_path in _existing_command_modules():
+        source = _source(relative_path)
+        forbidden_tokens = MODULE_PRIVATE_WRITER_TOKENS.get(relative_path, ())
+        violations = [token for token in forbidden_tokens if token in source]
+        assert violations == [], f"{relative_path} references private writer tokens: {violations}"
+
+
+def test_task_command_module_does_not_embed_direct_sql_mutation_when_present() -> None:
+    relative_path = "application/commands/tasks.py"
+    path = SRC_ROOT / relative_path
+    if not path.exists():
+        return
+    matches = sorted(set(TASK_SQL_WRITE_RE.findall(_source(relative_path))))
+    assert matches == [], f"{relative_path} embeds direct SQL mutation strings: {matches}"
+
+
+def test_proposal_commands_use_governance_boundary() -> None:
     source = _source("application/commands/proposals.py")
 
     assert "register_route_metadata_proposal(" in source
     assert "apply_proposal(" in source
-
-    forbidden_tokens = (
-        "route_metadata_store",
-        "save_route_registry",
-        "save_route_policy",
-        "save_route_weights",
-        "save_route_capability_profiles",
-        "_apply_metadata_change",
-    )
-    violations = [token for token in forbidden_tokens if token in source]
-    assert violations == []
