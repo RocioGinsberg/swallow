@@ -27,7 +27,7 @@ status: living-document
 | **检索基础设施** | Retrieval U-T-Y 已落地:dedicated rerank boundary、retrieval trace、source policy warnings、EvidencePack compatibility view、RawMaterialStore-backed source pointer resolution、summary route boundary |
 | **治理边界** | `apply_proposal`、SQLite-primary truth、Path A/B/C、§9 guard suite 均已实现到稳定基线 |
 | **Agent 体系** | 4 Specialist + 2 Validator 独立生命周期已落地;具体品牌绑定见 `docs/design/EXECUTOR_REGISTRY.md` |
-| **当前重构状态** | 簇 C 已完成 LTO-7(Provider Router facade 化)+ LTO-8 Step 1(`orchestrator.py` 抽出 6 个聚焦模块,Control Plane 保留,facade 减重 ~14%);LTO-8 后续 step 与 `harness.py` 拆分待启动;下一阶段:LTO-9 Surface / CLI / Meta Optimizer 模块化 |
+| **当前重构状态** | 簇 C 已完成 LTO-7(Provider Router facade 化)+ LTO-8 Step 1(`orchestrator.py` 抽出 6 个聚焦模块,Control Plane 保留,facade 减重 ~14%)+ LTO-9 Step 1(CLI 命令族适配器、Meta-Optimizer 只读拆分、application/commands 种子、Control Center 查询移迁、LTO-7 allowlist 差漂修复);LTO-8 后续 step 与 `harness.py` 拆分待启动;下一阶段:LTO-10 Governance apply handler 拆分 |
 | **工程纪律** | 长期编码 / 重构遵循 `docs/engineering/CODE_ORGANIZATION.md`(分层 / facade-first / migration discipline)+ `docs/engineering/GOF_PATTERN_ALIGNMENT.md`(facade / strategy / repository / adapter / value object / state / pipeline 等 pattern 仅作为 responsibility language)+ `docs/engineering/TEST_ARCHITECTURE.md`(分层测试 / TDD harness) |
 
 ---
@@ -58,7 +58,7 @@ status: living-document
 |----|----------|----------|------------|----------------|
 | **LTO-3** | Architecture Recomposition Program | Program plan 存在;first branch 完成 helper seed、Knowledge Plane facade、narrow Control Center query pilot;后续 subtrack 需单独 gate | closeout / PR;再选择 Provider Router、Orchestration、Surface、Governance 或 broad test/application/knowledge follow-up | `docs/plans/architecture-recomposition/plan.md` |
 | **LTO-4** | Test Architecture / TDD Harness | 已有 `tests/helpers` seed 与首批 layered tests;root tests 与 `test_cli.py` 仍偏聚合 | touched-surface test split、builders/assertions、guard helper 收敛、collect-only + full pytest gate | `docs/engineering/TEST_ARCHITECTURE.md` |
-| **LTO-5** | Interface / Application Boundary | Control Center read-only query pilot 已完成;CLI/FastAPI/write commands/repository ports 尚未系统收口 | application commands、CLI/FastAPI adapters、HTTP route schemas、local SQLite repository ports | `INTERACTION.md`, `CODE_ORGANIZATION.md` |
+| **LTO-5** | Interface / Application Boundary | Control Center read-only query pilot 已完成(LTO-9 Step 1 移迁到 `application/queries/`);proposal/meta-optimizer application commands seed 已建立;CLI/FastAPI adapters for in-scope commands 已建立(LTO-9 Step 1);write 命令完整迁移与 repository ports 尚未系统收口 | 更广的 CLI 命令族迁移(task/knowledge/artifact families)、FastAPI 写路由模式、HTTP 路由模式、local SQLite repository ports | `INTERACTION.md`, `CODE_ORGANIZATION.md` |
 | **LTO-6** | Knowledge Plane API Simplification | `knowledge_plane.py` facade 已添加并迁移少量上层 imports;内部命名和更广调用面仍未完成 | touched-callsite facade migration、内部 lifecycle/projection 命名整理 | `KNOWLEDGE.md`, `CODE_ORGANIZATION.md` |
 
 ### 簇 C:子系统解耦四金刚(下一阶段主战场)
@@ -69,9 +69,9 @@ status: living-document
 
 | ID | 长期目标 | 当前状态 | 下一类增量 | 工程锚点 |
 |----|----------|----------|------------|----------------|
-| **LTO-7** | Provider Router Maintainability | `router.py` 现为 6 个聚焦模块上的 facade:registry / policy / metadata-store / selection / completion-gateway / reports;Path A/C 边界清晰,不依赖 orchestration.executor | 可选 touched-surface caller 直接导入聚焦模块代替 `router.py`;3 个 LTO-7 followup concerns 记录在 `docs/concerns_backlog.md` | `PROVIDER_ROUTER.md` |
+| **LTO-7** | Provider Router Maintainability | `router.py` 现为 6 个聚焦模块上的 facade:registry / policy / metadata-store / selection / completion-gateway / reports;Path A/C 边界清晰,不依赖 orchestration.executor。**LTO-9 Step 1 消化 CONCERN-1**:route metadata guard allowlist 现明确指定 `provider_router/route_metadata_store.py` 为物理写入者,`router.py` 仅作为 legacy compatibility facade,加入正向断言保证导入路径一致性。| 可选 touched-surface caller 直接导入聚焦模块代替 `router.py`;CONCERN-2 / CONCERN-3(私有名字泄露、fallback 所有权)记录在 `docs/concerns_backlog.md` 并保持开放,仅在相关表面被修改时合并 | `PROVIDER_ROUTER.md` |
 | **LTO-8** | Orchestration Lifecycle Decomposition | **Step 1 已完成**:`orchestrator.py` 抽出 6 个聚焦模块(`task_lifecycle / retrieval_flow / artifact_writer / subtask_flow / execution_attempts / knowledge_flow`),Control Plane authority 保留在 `orchestrator.py`;facade 减重 ~14%(3853 → 3331)。`harness.py`(2077 行)未拆,作为后续 step | `harness.py` decomposition;further `orchestrator.py` reduction;debate-loop closure pattern design follow-up(defer to LTO-11) | `ORCHESTRATION.md`, `HARNESS.md` |
-| **LTO-9** | Surface / Meta Optimizer Modularity | Summary route boundary 已澄清;CLI / meta optimizer 文件仍偏聚合 | CLI command family split、proposal lifecycle modules、report/parser alignment | `INTERACTION.md`, `SELF_EVOLUTION.md` |
+| **LTO-9** | Surface / Meta Optimizer Modularity | **Step 1 已完成**:Meta-Optimizer 只读路径拆分为聚焦模块(`meta_optimizer_{snapshot,proposals,reports,lifecycle,agent,models}.py`),facade 减重 1320 → ~50 行;CLI 命令族适配器提取(`cli_commands/{meta_optimizer,proposals,route_metadata}.py`);application/commands 种子建立(proposals/meta-optimizer);Control Center 只读查询迁至 `application/queries/`;LTO-7 route metadata guard allowlist 差漂修复。`cli.py` 3790 → 3653 行(~4%)。| CLI 广泛命令族迁移(task/knowledge/artifact families 延迟到后续 step);proposal 生命周期与报告解析对齐;5 条路由子命令(registry/policy/select)仍在 `cli.py` 按设计保留 | `INTERACTION.md`, `SELF_EVOLUTION.md` |
 | **LTO-10** | Governance Apply Handler Maintainability | `apply_proposal` 唯一入口稳定;私有 canonical / route / policy apply 分支可读性继续下降 | 私有 handler 模块化、transaction envelope、audit/outbox helpers;不暴露新 public mutation entry | `INVARIANTS.md`, `DATA_MODEL.md` |
 
 ### 簇 D:远端 / 休眠
@@ -91,9 +91,9 @@ status: living-document
 
 | 优先级 | Ticket | 对应长期目标 | 状态 / Gate | 默认下一步 |
 |--------|--------|--------------|-------------|------------|
-| 当前 | **Surface / CLI / Meta Optimizer split** | LTO-9 + LTO-5 | LTO-8 merge 后 | CLI command family split + meta optimizer proposal lifecycle modules;借此把 application/commands 真正拉起来;同时吸纳 LTO-7 follow-up CONCERN-1(`test_route_metadata_writes_only_via_apply_proposal` allowlist drift fix) |
-| 下一选择 | **Governance apply handler split** | LTO-10 | LTO-9 merge 后 | 私有 canonical / route / policy handler 模块化;`apply_proposal` 仍是唯一公共 mutation entry |
-| 候选(地基稳定后) | Wiki Compiler draft workflow | LTO-1 / LTO-2 | 簇 C 收敛后再启动 | 先设计 prompt pack / staged draft / review gate |
+| 当前 | **Governance apply handler split** | LTO-10 | LTO-9 merge 后 | 私有 canonical / route / policy handler 模块化;`apply_proposal` 仍是唯一公共 mutation entry;transaction envelope / audit outbox helpers |
+| 下一选择 | Wiki Compiler draft workflow | LTO-1 / LTO-2 | LTO-10 merge 后 | 先设计 prompt pack / staged draft / review gate;或继续 LTO-9 Step 2(广泛 CLI 命令族迁移) |
+| 候选(地基稳定后) | LTO-9 Step 2 / LTO-8 harness split | LTO-9 / LTO-8 | 簇 C 内部后续 | LTO-9 Step 2:task/knowledge/artifact CLI 命令族迁移;LTO-8 Step 2:`harness.py` 拆分 + 后续 `orchestrator.py` 减重 |
 
 ---
 
@@ -123,7 +123,7 @@ status: living-document
 |------|----------|----------|
 | 第 1 | **LTO-7 Provider Router**(已完成) | 1422 行单文件,target shape 已在 `CODE_ORGANIZATION §5.2` 画好;Path A/C invariant 边界清晰,blast radius 最小;作为 facade-first 纪律的 warm-up phase 风险最低 |
 | 第 2 | **LTO-8 Orchestration lifecycle**(Step 1 已完成,后续 step 待启动) | 痛点最大(orchestrator+harness ~6k 行),但 invariant 敏感度也最高(Control only in Orchestrator / Operator);先靠 LTO-7 把执行肌肉建立起来,再动这块;helper 不可拿到状态推进权。Step 1 完成 6 个编排聚焦模块提取,留 ~14% facade 减重空间与 harness 迁移作为后续 step |
-| 第 3 | **LTO-9 Surface / CLI / Meta Optimizer** | cli.py 3790 + meta_optimizer 1320,以 behavior-preserving 拆分为主;借此同时把 LTO-5(application/commands)从 read-only query pilot 推进到写命令;invariant 敏感度最低 |
+| 第 3 | **LTO-9 Surface / CLI / Meta Optimizer**(Step 1 已完成,后续 step 待启动) | cli.py 3790 + meta_optimizer 1320,以 behavior-preserving 拆分为主;借此同时把 LTO-5(application/commands)从 read-only query pilot 推进到写命令;invariant 敏感度最低。Step 1 完成 Meta-Optimizer 聚焦模块、CLI 命令适配器、application/commands seed、Control Center 查询迁移;留余额给后续 step 推进广泛命令族迁移 |
 | 第 4 | **LTO-10 Governance apply handler** | Truth write path 最敏感,放最后;`apply_proposal` 仍是唯一公共 mutation entry;前面三轮巩固 facade-first 纪律后再做手术刀级拆分 |
 
 ### 跨阶段排序依据
