@@ -19,29 +19,24 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `Orchestration Lifecycle Decomposition / LTO-8 Step 1`
-- latest_main_checkpoint: `9ee9cc8 docs(state): update roadmap`
+- latest_main_checkpoint_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
+- latest_main_checkpoint: `21c1884 Surface / Meta Optimizer Modularity`
 - latest_executed_public_tag: `v1.5.0`
 - pending_release_tag: `none`
-- current_working_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
-- checkpoint_type: `lto9_step1_review_complete_merge_ready`
-- active_branch: `feat/surface-cli-meta-optimizer-split`
+- current_working_phase: `Governance Apply Handler Split / LTO-10`
+- checkpoint_type: `lto10_plan_audit_concerns_absorbed_pending_human_gate`
+- active_branch: `main`
 - last_checked: `2026-05-02`
 
 说明:
 
-- LTO-8 Step 1 已合并到 `main`，`docs/roadmap.md` 已更新为 LTO-8 Step 1 done / LTO-9 current ticket；当前 main checkpoint 仍为 `9ee9cc8 docs(state): update roadmap`。
-- 当前工作分支为 `feat/surface-cli-meta-optimizer-split`，LTO-9 Step 1 implementation 与 PR review 已完成，当前处于可 merge 状态。
-- Codex 已完成 M1-M5:
-  - M1 application command seed for proposal / meta-optimizer operator paths。
-  - M2 Meta-Optimizer read-only module split。
-  - M3 focused CLI command adapter split for `meta-optimize`、`proposal review/apply`、`route weights show/apply`、`route capabilities show/update`。
-  - M4 Control Center read-only query tightening and LTO-7 route metadata guard allowlist drift fix。
-  - M5 compatibility audit、same-process route metadata CLI proposal id collision fix、closeout / PR draft。
-- `docs/plans/surface-cli-meta-optimizer-split/closeout.md` and `pr.md` are prepared.
-- Claude PR review has been produced at `docs/plans/surface-cli-meta-optimizer-split/review_comments.md` with recommendation: `merge`.
-- Review recorded 0 blockers and 2 non-blocking follow-up concerns; both are deferred/tracked, not merge blockers.
+- LTO-9 Step 1 已合并到 `main`，最新 HEAD 为 `21c1884 Surface / Meta Optimizer Modularity`。
+- `docs/roadmap.md` 已完成 post-merge factual update，当前 ticket 已切换为 `Governance apply handler split` / LTO-10。
+- LTO-10 `plan.md` 已由 Codex 起草并根据 `plan_audit.md` 吸收 5 条 concern: `docs/plans/governance-apply-handler-split/plan.md`。
+- `docs/plans/governance-apply-handler-split/plan_audit.md` 已产出，结论为 `has-concerns`, 0 blockers / 5 concerns；5 条 concern 已吸收到 plan。
+- 当前仍处于 Human Plan Gate 前；尚未通过 Plan Gate，不应在 `main` 上开始实现。
 - 最新已执行公开 tag 仍为 `v1.5.0`; annotated tag 指向 `bc8abb1 docs(release): sync v1.5.0 release docs`。
+- 当前 tag 策略: 不为 LTO-9 Step 1 单独打 tag，待 LTO-10 与后续 Cluster C 收敛后再评估 `v1.6.0`。
 
 ---
 
@@ -49,18 +44,17 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `feat/surface-cli-meta-optimizer-split`
+- active_branch: `main`
 - active_track: `Architecture / Engineering`
-- active_phase: `Surface / CLI / Meta Optimizer Split / LTO-9 Step 1`
-- active_slice: `M5 closeout complete`
-- workflow_status: `lto9_step1_review_complete_merge_ready`
+- active_phase: `Governance Apply Handler Split / LTO-10`
+- active_slice: `plan revised after audit; awaiting Human Plan Gate`
+- workflow_status: `lto10_plan_audit_concerns_absorbed_pending_human_gate`
 
 下一步:
 
-1. Human commits review/closeout state material if accepted.
-2. Human creates / updates PR using `pr.md`.
-3. Human merges when satisfied.
-4. After merge, Codex syncs `current_state.md` / `docs/active_context.md`; roadmap-updater should then update `docs/roadmap.md`.
+1. Human 执行 Plan Gate。
+2. Plan Gate 通过后，Human 从 `main` 创建 `feat/governance-apply-handler-split`。
+3. Codex 在 feature branch 上从 M1 开始实现。
 
 ---
 
@@ -74,17 +68,17 @@
 4. `docs/active_context.md`
 5. `current_state.md`
 6. `docs/roadmap.md`
-7. `docs/plans/surface-cli-meta-optimizer-split/plan.md`
-8. `docs/plans/surface-cli-meta-optimizer-split/plan_audit.md`
-9. `docs/plans/surface-cli-meta-optimizer-split/closeout.md`
-10. `docs/plans/surface-cli-meta-optimizer-split/review_comments.md`
-11. `pr.md`
-12. `docs/design/INVARIANTS.md`
-13. `docs/design/INTERACTION.md`
-14. `docs/design/SELF_EVOLUTION.md`
-15. `docs/engineering/CODE_ORGANIZATION.md`
-16. `docs/engineering/TEST_ARCHITECTURE.md`
-17. `docs/concerns_backlog.md`
+7. `docs/plans/governance-apply-handler-split/plan.md`
+8. `docs/plans/governance-apply-handler-split/plan_audit.md`
+9. `docs/design/INVARIANTS.md`
+10. `docs/design/DATA_MODEL.md`
+11. `docs/design/SELF_EVOLUTION.md`
+12. `docs/design/INTERACTION.md`
+13. `docs/engineering/CODE_ORGANIZATION.md`
+14. `docs/engineering/GOF_PATTERN_ALIGNMENT.md`
+15. `docs/engineering/TEST_ARCHITECTURE.md`
+16. `docs/plans/surface-cli-meta-optimizer-split/closeout.md`
+17. `docs/plans/surface-cli-meta-optimizer-split/review_comments.md`
 
 ---
 
@@ -96,11 +90,11 @@
 git status --short --branch
 git branch --show-current
 git show --no-patch --decorate --oneline HEAD
-sed -n '1,260p' docs/active_context.md
-sed -n '1,260p' docs/plans/surface-cli-meta-optimizer-split/closeout.md
+sed -n '1,220p' docs/active_context.md
+sed -n '1,260p' docs/plans/governance-apply-handler-split/plan.md
 ```
 
-LTO-9 Step 1 final validation already passed:
+LTO-9 Step 1 final validation already passed before merge:
 
 ```bash
 .venv/bin/python -m pytest -q
@@ -113,34 +107,36 @@ git diff --check
 # passed
 ```
 
+LTO-10 planning docs are markdown-only; implementation validation is not yet required.
+
 ---
 
 ## 当前已知边界
 
-- 不在 `main` 上做 LTO-9 代码实现；当前实现位于 `feat/surface-cli-meta-optimizer-split`。
-- Claude review 已完成并建议 merge；合并前只需 Human PR decision。
-- 不改变 CLI 命令名、flag、exit code、输出格式。
-- 不改变 `docs/design/*.md` 设计语义。
+- 不在 `main` 上做 LTO-10 代码实现；Plan Gate 通过后再切 `feat/governance-apply-handler-split`。
 - 不改变 `apply_proposal` 唯一写入入口。
-- 不改变 Provider Router route selection / route default behavior。
-- 不引入 schema migration、FastAPI write API、UI 扩张、auth/multi-user、远端 worker 或 Planner/DAG。
-- MetaOptimizer specialist path 必须保持 read-only / proposal-producing；Operator proposal review/apply 才能进入 governance command path。
+- 不新增 public mutation entry、proposal target kind、schema migration、FastAPI write API、CLI surface 扩张、auth/multi-user、remote worker、Planner/DAG 或 Wiki Compiler 工作。
+- 不改变 Provider Router route selection / route default / fallback behavior。
+- 不改变 route / policy / canonical 写入语义；本轮目标是 private handler maintainability。
+- `docs/design/*.md` 设计语义不在本轮实现中修改。
 
 ---
 
 ## 当前建议提交范围
 
-当前建议提交 review / closeout 状态材料:
+当前建议提交 LTO-10 planning / state material（由 Human 决定是否包含已更新的 roadmap）:
 
 ```bash
-git add docs/plans/surface-cli-meta-optimizer-split/closeout.md \
-  docs/plans/surface-cli-meta-optimizer-split/review_comments.md \
-  docs/concerns_backlog.md \
+git add docs/roadmap.md \
   docs/active_context.md \
-  current_state.md
+  current_state.md \
+  docs/plans/governance-apply-handler-split/plan.md \
+  docs/plans/governance-apply-handler-split/plan_audit.md
 
-git commit -m "docs(state): mark surface split ready to merge"
+git commit -m "docs(plan): add governance apply handler split plan"
 ```
+
+如希望严格拆分来源，也可将 `docs/roadmap.md` 单独提交为 `docs(state): update roadmap after surface split`，再提交 plan/state 文档。
 
 ---
 
@@ -155,7 +151,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 LTO-9 Step 1 closeout 不要求 live HTTP / API-key dependent test。
+当前 LTO-10 planning 不要求 live HTTP / API-key dependent test。
 
 ---
 
@@ -167,7 +163,7 @@ docker compose ps
 cd /home/rocio/projects/swallow
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
-sed -n '1,260p' docs/plans/surface-cli-meta-optimizer-split/closeout.md
+sed -n '1,260p' docs/plans/governance-apply-handler-split/plan.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
