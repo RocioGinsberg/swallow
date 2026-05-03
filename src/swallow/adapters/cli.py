@@ -42,14 +42,14 @@ from swallow.application.commands.knowledge import build_stage_promote_preflight
 from swallow.knowledge_retrieval.knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
 )
-from swallow.surface_tools.cli_commands.audit import handle_audit_command
-from swallow.surface_tools.cli_commands.knowledge import handle_knowledge_command
-from swallow.surface_tools.cli_commands.meta_optimizer import handle_meta_optimize_command
-from swallow.surface_tools.cli_commands.proposals import handle_proposal_command
-from swallow.surface_tools.cli_commands.route import handle_route_command
-from swallow.surface_tools.cli_commands.route_metadata import handle_route_metadata_command
-from swallow.surface_tools.cli_commands.synthesis import handle_synthesis_command
-from swallow.surface_tools.cli_commands.tasks import handle_task_read_command, handle_task_write_command
+from swallow.adapters.cli_commands.audit import handle_audit_command
+from swallow.adapters.cli_commands.knowledge import handle_knowledge_command
+from swallow.adapters.cli_commands.meta_optimizer import handle_meta_optimize_command
+from swallow.adapters.cli_commands.proposals import handle_proposal_command
+from swallow.adapters.cli_commands.route import handle_route_command
+from swallow.adapters.cli_commands.route_metadata import handle_route_metadata_command
+from swallow.adapters.cli_commands.synthesis import handle_synthesis_command
+from swallow.adapters.cli_commands.tasks import handle_task_read_command, handle_task_write_command
 from swallow.knowledge_retrieval.knowledge_objects import summarize_canonicalization
 from swallow.knowledge_retrieval.knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from swallow.surface_tools.mps_policy_store import MPS_POLICY_KINDS
@@ -2219,7 +2219,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "serve":
         try:
-            from .web.server import serve_control_center
+            from .http.server import serve_control_center
 
             serve_control_center(base_dir, host=args.host, port=args.port)
         except RuntimeError as exc:

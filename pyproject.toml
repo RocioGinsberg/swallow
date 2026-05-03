@@ -24,7 +24,7 @@ vec = [
 ]
 
 [project.scripts]
-swl = "swallow.surface_tools.cli:main"
+swl = "swallow.adapters.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

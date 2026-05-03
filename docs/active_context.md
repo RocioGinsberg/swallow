@@ -8,14 +8,14 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Interface / Application Boundary`
-- latest_completed_phase: `LTO-13 — FastAPI Local Web UI Write Surface`
-- latest_completed_slice: `LTO-13 merged; roadmap updated for post-LTO-13 + ADR D1-D6`
-- active_track: `Release / Tag`
-- active_phase: `v1.7.0 release docs / tag preparation`
-- active_slice: `D5 Adapter Discipline doc shipped (lightweight cross-audited); ready for D4 Phase A`
+- latest_completed_track: `Release / Tag`
+- latest_completed_phase: `v1.7.0 tag`
+- latest_completed_slice: `LTO-13 tagged; D5 Adapter Discipline doc shipped`
+- active_track: `Adapter / Service Boundary Cleanup`
+- active_phase: `D4 Phase A — Adapter Boundary Cleanup`
+- active_slice: `pure import-path rename complete; full validation passed`
 - active_branch: `main`
-- status: `d5_complete_ready_for_d4_phase_a`
+- status: `d4_phase_a_validated`
 
 ## 当前状态说明
 
@@ -110,20 +110,20 @@ LTO-7 long-running follow-ups(仍开放):
   - 元规则建议:plan §Design Decisions 新增 **Framework-Default Principle** —— FastAPI/Pydantic/uvicorn 提供的任何能力默认使用框架原语,自写需书面理由。这条规则若早立,R3 的 6 项发现都不会出现。
 - **[Human]** Plan Gate 通过并切至 `feat/lto-13-fastapi-local-web-ui-write-surface`。
 - **[Codex]** 完成 LTO-13 实现:
-  - 新增 `surface_tools/web/schemas.py` 作为 FastAPI/Pydantic request schema,仅在 `create_fastapi_app()` 内部导入。
-  - `surface_tools/web/http_models.py` 收敛为 response/path helper,不承担 body coercion。
+  - 新增 `adapters/http/schemas.py` 作为 FastAPI/Pydantic request schema,仅在 `create_fastapi_app()` 内部导入。
+  - `adapters/http/http_models.py` 收敛为 response/path helper,不承担 body coercion。
   - `web/api.py` 新增 task lifecycle、staged knowledge promote/reject、proposal review/apply `POST` routes,全部通过 `application.commands.*`。
   - `index.html` 新增最小 operator action controls,写入后刷新后端 read model。
   - `tests/integration/http/test_web_write_routes.py` 覆盖 task write、knowledge write、proposal relative path bridge 和 path rejection。
   - `test_ui_backend_only_calls_governance_functions` 增加 `apply_proposal` / `create_task` / `run_task` 禁止项。
   - `pyproject.toml` dev optional dependency 增加 FastAPI。
-- **[Codex]** 已处理 plan_audit 第 6 个 concern(Pydantic / DTO 决策拆分):修订 plan §Design Decisions 与实现,保留 `api.py` 顶层 import 不依赖 FastAPI/Pydantic 的硬约束;请求体验证改为 `surface_tools/web/schemas.py` 内的 scoped Pydantic models;沿用 FastAPI 默认 `422` + 字段级 detail,`api.py` 只映射 400/404/409 等 Swallow 语义错误。
+- **[Codex]** 已处理 plan_audit 第 6 个 concern(Pydantic / DTO 决策拆分):修订 plan §Design Decisions 与实现,保留 `api.py` 顶层 import 不依赖 FastAPI/Pydantic 的硬约束;请求体验证改为 `adapters/http/schemas.py` 内的 scoped Pydantic models;沿用 FastAPI 默认 `422` + 字段级 detail,`api.py` 只映射 400/404/409 等 Swallow 语义错误。
 - **[Codex]** 验证通过:`tests/integration/http/test_web_write_routes.py` 7 passed; Web/API/Invariant/Application boundary focused gates 48 passed; `compileall -q src/swallow`; `git diff --check`; full pytest `741 passed, 8 deselected`。
 - **[Codex]** 已吸收 plan_audit Round 2 + Round 3 新增问题到 `plan.md`:新增 Framework-Default Principle;明确 long-running routes 采用 accept-long-request contract;要求 backend action eligibility;固定统一 success envelope + Pydantic response models;禁止 Web promote `force`;要求 loopback-only serve guard;要求 `Depends` / centralized exception handlers / typed error mapping,并把自写 response converter、`WebRequestError` mirror、message-string status classifier、`globals().update` bridge 列为需清理项。
 - **[Codex]** 已完成 Round 2 / Round 3 实现 follow-up:
-  - `surface_tools/web/schemas.py` 同时持有 request + response Pydantic models;所有新写路由声明 `response_model=` 并返回统一 `{"ok": true, "data": ...}` envelope。
-  - `surface_tools/web/api.py` 使用 FastAPI `Depends` 读取 `base_dir`,用集中 `@app.exception_handler` 映射 `FileNotFoundError` / `UnknownStagedCandidateError` / `StagePromotePreflightError` / `TaskActionBlockedError` / `ValueError`;删除 `globals().update`,删除 `_status_for_value_error` message-prefix mapping。
-  - 删除 `surface_tools/web/http_models.py`;新增 `dependencies.py` / `exceptions.py` 承接 adapter dependency 与 typed blocked action。
+  - `adapters/http/schemas.py` 同时持有 request + response Pydantic models;所有新写路由声明 `response_model=` 并返回统一 `{"ok": true, "data": ...}` envelope。
+  - `adapters/http/api.py` 使用 FastAPI `Depends` 读取 `base_dir`,用集中 `@app.exception_handler` 映射 `FileNotFoundError` / `UnknownStagedCandidateError` / `StagePromotePreflightError` / `TaskActionBlockedError` / `ValueError`;删除 `globals().update`,删除 `_status_for_value_error` message-prefix mapping。
+  - 删除 `adapters/http/http_models.py`;新增 `dependencies.py` / `exceptions.py` 承接 adapter dependency 与 typed blocked action。
   - `application/queries/control_center.py` 为 task read payload 增加 backend-derived `action_eligibility`。
   - Web staged promote schema 移除 `force`;server 增加 loopback-only host guard;static UI 使用 eligibility 控制 task action buttons 并为 long-running action 显示 pending state。
   - 新增/更新 HTTP、Web API、server safety tests。
@@ -133,11 +133,11 @@ LTO-7 long-running follow-ups(仍开放):
   - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md`(implementation closeout draft;Claude review 后再 final)
   - `./pr.md`(PR body draft;Review section 等待 `review_comments.md`)
 - **[Claude]** 完成 PR review,产出 `docs/plans/lto-13-fastapi-local-web-ui-write-surface/review_comments.md`:**recommend-merge**;0 blockers / 1 concern / 2 nits。逐项核验 14 项 plan_audit findings(R1 5+1 nit + Pydantic + R2 4+2 + R3 5+1)全部吸收,无静默回归。
-  - C1 [concern] `surface_tools/web/schemas.py:12` 直接 import `swallow.knowledge_retrieval.staged_knowledge.StagedCandidate`,违反 Direction 决定中"避免直接 reach `knowledge_retrieval.*`"约束;放大 `ARCHITECTURE_DECISIONS.md §3.1 D1` 偏离;建议 application 层增加 `StagedCandidate` 公共导出,3 行修复。
+  - C1 [concern] `adapters/http/schemas.py:12` 直接 import `swallow.knowledge_retrieval.staged_knowledge.StagedCandidate`,违反 Direction 决定中"避免直接 reach `knowledge_retrieval.*`"约束;放大 `ARCHITECTURE_DECISIONS.md §3.1 D1` 偏离;建议 application 层增加 `StagedCandidate` 公共导出,3 行修复。
   - N1 [nit] `api.py:35-36` `_static_dir()` 用 `Path.cwd()` 作为 `resolve_path` 的 base,实际是 dead-arg 因为 `__file__` 已是 absolute;建议简化为 `Path(__file__).resolve().parent / "static"`。
   - N2 [nit] `tests/integration/http/test_web_write_routes.py:53-56` 通过 `executor_name="local"` 跑真实任务到完成,对 local executor success 契约敏感;留待 D2 driven port 落地后切换到 stub。
 - **[Codex]** 已处理 review:
-  - C1 fixed: `StagedCandidate` 从 `application.commands.knowledge` 公共导出,`surface_tools/web/schemas.py` 不再直接 import `knowledge_retrieval.*`。
+  - C1 fixed: `StagedCandidate` 从 `application.commands.knowledge` 公共导出,`adapters/http/schemas.py` 不再直接 import `knowledge_retrieval.*`。
   - N1 fixed: `_static_dir()` 改为 `Path(__file__).parent / "static"`,避免 `Path.cwd()` dead base 且不触发 `Path.resolve()` invariant guard。
   - N2 acknowledged/deferred:保留真实 local executor HTTP integration 覆盖,等 D2 driven ports 后再切到 command-boundary stub。
   - Post-review validation:focused Web/Application/Invariant gate `59 passed`;`compileall -q src/swallow`;`git diff --check`;full pytest `745 passed, 8 deselected`。
@@ -167,13 +167,18 @@ LTO-7 long-running follow-ups(仍开放):
   - 产出 `docs/engineering/ADAPTER_DISCIPLINE.md`(~178 行 → revision 后),六条规则(§1 Framework-Default Principle / §2 Adapter Forbidden Zone / §3 模块布局 / §4 Surface-identity / §5 错误映射)+ §6 worked examples 把 LTO-13 audit Round 1-3 + post-merge follow-up 共 16 项 concerns(R1 5+1 nit + Pydantic + R2 4+2 + R3 5+1 + C1 + N1)逐项映射到规则。
   - design-auditor subagent 完成轻量交叉审,verdict = approve-with-fixes;两个 must-fix(TL;DR 14→16 计数、`errors.py` vs `exceptions.py` 命名冲突)+ 两个建议性改进(R2-6 多标签、§4 dated callout)全部已吸收。
   - User 决定 D5 不走完整 plan / plan_audit / review / closeout 流程,直接产出文档(纯文档 phase 风险低,以省流程换实际收益)。
-- **[Codex / 主线]** 启动 **D4 Phase A** —— 纯 import-path rename:`surface_tools/cli/` → `adapters/cli/`、`surface_tools/web/` → `adapters/http/`。无逻辑改动,blast radius 小。同时更新 `tests/test_invariant_guards.py` 中 `surface_tools/web/` 路径引用、所有 callers 的 `from swallow.surface_tools...` import 路径、`pyproject.toml` `swl` entry point 等。
+- **[Codex / 主线]** 完成 **D4 Phase A** —— 纯 import-path rename:`surface_tools/cli.py` + `surface_tools/cli_commands/` → `adapters/cli.py` + `adapters/cli_commands/`、`surface_tools/web/` → `adapters/http/`。无逻辑改动。
+  - `pyproject.toml` `swl` entry point 改为 `swallow.adapters.cli:main`。
+  - Runtime/test callers 已切到 `swallow.adapters.cli` / `swallow.adapters.http`。
+  - `tests/test_invariant_guards.py` 和 `tests/unit/application/test_command_boundaries.py` 路径引用已同步到 `src/swallow/adapters/...`。
+  - `docs/engineering/ADAPTER_DISCIPLINE.md` worked examples 与 `docs/engineering/ARCHITECTURE_DECISIONS.md` D4 描述已同步新路径。
+  - 验证通过:`compileall -q src/swallow`;`git diff --check`;runtime old-path scan clean;focused CLI/Web/Invariant/Application gate `316 passed`;full pytest `745 passed, 8 deselected`。
 - **[Codex / 主线]** D4 Phase A 落定后启动 **D1 / LTO-6 Knowledge Plane Facade Solidification**:替换 `knowledge_plane.py` 50 个 re-export → 6-10 个领域方法,~10 处 application/truth_governance import 切换,6 个 knowledge_retrieval 子模块 `_internal` 化。
 - **[Claude]** Roadmap 第二轮简化已落地(post-v1.7.0-tag),删除簇 C step 级历史,§五 跨阶段排序依据 8 条精简为 4 条;Roadmap 现 171 行。`ARCHITECTURE_DECISIONS.md` 与 `ADAPTER_DISCIPLINE.md` 都 untracked,等下次 commit 一起落。
 
 当前阻塞项:
 
-- 无 blocker。LTO-13 已 merge + v1.7.0 tagged;roadmap + ADR + ADAPTER_DISCIPLINE 三份长期文档都已起草;等待 D4 Phase A 启动。
+- 无 blocker。D4 Phase A 纯 import-path rename 已完成并通过全量验证。
 
 ## Tag 状态
 
@@ -185,23 +190,21 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 release docs:`README.md` / `current_state.md` / `docs/active_context.md`。
-2. **[Human]** 执行 `git tag -a v1.7.0 -m "v1.7.0 local web write surface"`。
-3. **[Codex]** tag 完成后同步 tag 状态,再进入下一 phase planning;当前 roadmap 推荐起点为 D5 Adapter Discipline Codification。
+1. **[Human]** 审阅并提交 D4 Phase A rename diff。
+2. **[Human / Codex]** 后续按 roadmap 进入 D1 / LTO-6 Knowledge Plane Facade Solidification。
 
 ```markdown
 direction_gate:
-- latest_completed_phase: LTO-13 — FastAPI Local Web UI Write Surface
+- latest_completed_phase: v1.7.0 tag
 - merge_commit: 4ea7a9d FastAPI Local Web UI Write Surface
-- latest_release_tag: v1.6.0 at 0e6215a docs(release): sync v1.6.0 release docs
-- pending_release_tag: v1.7.0
+- latest_release_tag: v1.7.0 at 2156d4a docs(release): sync v1.7.0 release docs
 - active_branch: main
-- active_phase: v1.7.0 release docs / tag preparation
-- active_slice: release docs synced; awaiting Human commit and tag
+- active_phase: D4 Phase A — Adapter Boundary Cleanup
+- active_slice: pure import-path rename complete; full validation passed
 - cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
 - structural_changes_this_round: LTO-13 relocated 簇 C → 簇 B (interface boundary nature, not cluster C continuation); cluster C subheading dropped "+ 接续"; v1.6.0 tag decision marked executed
 - direction_decided: do LTO-13 directly; LTO-5 / LTO-6 do not block LTO-13 (application/commands is the buffer layer)
-- roadmap: docs/roadmap.md current ticket = v1.7.0 release docs / tag preparation; next startup = D5 Adapter Discipline Codification
+- roadmap: docs/roadmap.md current ticket = D4 Phase A Adapter Boundary Cleanup; next startup = D1 / LTO-6 Knowledge Plane Facade Solidification
 - closeout (prior phase): docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns (both absorbed)
 - new_invariants_landed: helper-side append_event allowlist (12 telemetry kinds + 2 disallowed) registered in INVARIANTS.md §9
@@ -209,7 +212,8 @@ direction_gate:
 - implementation_commit: d4c25ac feat(web): harden local write API surface
 - pr_materials: docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md + ./pr.md + review_comments.md
 - review_outcome: recommend-merge; 14/14 audit findings absorbed; C1 and N1 fixed; N2 deferred to D2 driven ports
-- next_gate: Human release docs commit + annotated tag
+- d4_validation: compileall passed; diff check passed; runtime old-path scan clean; focused CLI/Web/Invariant/Application gate 316 passed; full pytest 745 passed, 8 deselected
+- next_gate: Human D4 Phase A commit
 ```
 
 ## 当前产出物
@@ -221,8 +225,9 @@ direction_gate:
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md`(codex, 2026-05-03, final closeout;review concern addressed)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/review_comments.md`(claude, 2026-05-03, **recommend-merge**;14/14 plan_audit findings absorbed;0 blockers / 1 concern (C1 schemas.py knowledge_retrieval 越界) / 2 nits)
 - `./pr.md`(codex, 2026-05-03, PR body;review outcome synced)
-- `src/swallow/surface_tools/web/api.py` / `schemas.py` / `dependencies.py` / `exceptions.py` / `server.py` / `static/index.html`(codex, 2026-05-03, LTO-13 write surface implementation;milestone commit `d4c25ac`)
+- `src/swallow/adapters/http/api.py` / `schemas.py` / `dependencies.py` / `exceptions.py` / `server.py` / `static/index.html`(codex, 2026-05-03, LTO-13 write surface implementation;milestone commit `d4c25ac`)
 - `tests/integration/http/test_web_write_routes.py` + Web/guard test updates(codex, 2026-05-03, LTO-13 HTTP write coverage)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`(codex, 2026-05-03, LTO-8 Step 2 closeout final)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`(claude, 2026-05-03, recommend-merge;0 blockers / 2 non-blocking concerns)
-- `README.md` / `current_state.md` / `docs/active_context.md`(codex, 2026-05-03, `v1.7.0` release docs synced;awaiting Human commit + annotated tag)
+- `src/swallow/adapters/cli.py` / `adapters/cli_commands/` / `adapters/http/`(codex, 2026-05-03, D4 Phase A adapter path rename)
+- `pyproject.toml` + tests(codex, 2026-05-03, D4 Phase A caller / guard path sync)

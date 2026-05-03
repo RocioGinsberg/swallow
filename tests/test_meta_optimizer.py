@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.surface_tools.cli import main
+from swallow.adapters.cli import main
 from swallow.surface_tools.meta_optimizer import (
     MetaOptimizerAgent,
     MetaOptimizerExecutor,

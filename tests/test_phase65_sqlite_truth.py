@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from swallow.surface_tools.cli import main
+from swallow.adapters.cli import main
 from swallow.surface_tools.consistency_audit import load_audit_trigger_policy
 from swallow.truth_governance.governance import (
     OperatorToken,

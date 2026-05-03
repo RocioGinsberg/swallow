@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.surface_tools.cli import build_stage_promote_preflight_notices, main
+from swallow.adapters.cli import build_stage_promote_preflight_notices, main
 from swallow.orchestration.compatibility import build_compatibility_report, evaluate_route_compatibility
 from swallow.surface_tools.capabilities import (
     DEFAULT_CAPABILITY_MANIFEST,
@@ -6365,7 +6365,7 @@ class CliLifecycleTest(unittest.TestCase):
             stdout = StringIO()
 
             with patch(
-                "swallow.surface_tools.cli._read_clipboard_bytes",
+                "swallow.adapters.cli._read_clipboard_bytes",
                 return_value=json.dumps([{"role": "user", "content": "Decision: keep it simple."}]).encode("utf-8"),
             ):
                 with redirect_stdout(stdout):
@@ -6397,7 +6397,7 @@ class CliLifecycleTest(unittest.TestCase):
             stdout = StringIO()
 
             with patch(
-                "swallow.surface_tools.cli._read_clipboard_bytes",
+                "swallow.adapters.cli._read_clipboard_bytes",
                 return_value=b"# Constraints\nConstraint: clipboard path is supplemental.",
             ):
                 with redirect_stdout(stdout):
@@ -7439,7 +7439,7 @@ class CliLifecycleTest(unittest.TestCase):
     def test_doctor_executor_missing_binary_returns_nonzero(self) -> None:
         stdout = StringIO()
         with patch("swallow.surface_tools.doctor.shutil.which", return_value=None):
-            with patch("swallow.surface_tools.cli.diagnose_cli_agents", return_value=(1, [])):
+            with patch("swallow.adapters.cli.diagnose_cli_agents", return_value=(1, [])):
                 with redirect_stdout(stdout):
                     exit_code = main(["doctor", "executor"])
         self.assertNotEqual(exit_code, 0)
@@ -7458,7 +7458,7 @@ class CliLifecycleTest(unittest.TestCase):
         )
         with patch("swallow.surface_tools.doctor.shutil.which", return_value="/usr/bin/aider"):
             with patch("swallow.surface_tools.doctor.subprocess.run", return_value=completed):
-                with patch("swallow.surface_tools.cli.diagnose_cli_agents", return_value=(0, [])):
+                with patch("swallow.adapters.cli.diagnose_cli_agents", return_value=(0, [])):
                     with redirect_stdout(stdout):
                         exit_code = main(["doctor", "executor"])
         self.assertEqual(exit_code, 0)
@@ -7469,9 +7469,9 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_executor_includes_cli_agent_probe_results(self) -> None:
         stdout = StringIO()
-        with patch("swallow.surface_tools.cli.diagnose_executor", return_value=(0, object())):
+        with patch("swallow.adapters.cli.diagnose_executor", return_value=(0, object())):
             with patch(
-                "swallow.surface_tools.cli.diagnose_cli_agents",
+                "swallow.adapters.cli.diagnose_cli_agents",
                 return_value=(
                     0,
                     [
@@ -7492,7 +7492,7 @@ class CliLifecycleTest(unittest.TestCase):
                     ],
                 ),
             ):
-                with patch("swallow.surface_tools.cli.format_executor_doctor_result", return_value="executor-ok\ncli_agents:\n- codex: ok"):
+                with patch("swallow.adapters.cli.format_executor_doctor_result", return_value="executor-ok\ncli_agents:\n- codex: ok"):
                     with redirect_stdout(stdout):
                         exit_code = main(["doctor", "executor"])
 
@@ -7501,13 +7501,13 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_without_subcommand_runs_executor_and_stack_checks(self) -> None:
         stdout = StringIO()
-        with patch("swallow.surface_tools.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
-            with patch("swallow.surface_tools.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
-                with patch("swallow.surface_tools.cli.format_executor_doctor_result", return_value="executor-ok"):
-                    with patch("swallow.surface_tools.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
-                        with patch("swallow.surface_tools.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
-                            with patch("swallow.surface_tools.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
-                                with patch("swallow.surface_tools.cli.format_local_stack_doctor_result", return_value="stack-ok"):
+        with patch("swallow.adapters.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
+            with patch("swallow.adapters.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
+                with patch("swallow.adapters.cli.format_executor_doctor_result", return_value="executor-ok"):
+                    with patch("swallow.adapters.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
+                        with patch("swallow.adapters.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
+                            with patch("swallow.adapters.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
+                                with patch("swallow.adapters.cli.format_local_stack_doctor_result", return_value="stack-ok"):
                                     with redirect_stdout(stdout):
                                         exit_code = main(["doctor"])
         self.assertEqual(exit_code, 0)
@@ -7519,12 +7519,12 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_skip_stack_only_runs_executor_check(self) -> None:
         stdout = StringIO()
-        with patch("swallow.surface_tools.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
-            with patch("swallow.surface_tools.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
-                with patch("swallow.surface_tools.cli.format_executor_doctor_result", return_value="executor-ok"):
-                    with patch("swallow.surface_tools.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
-                        with patch("swallow.surface_tools.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
-                            with patch("swallow.surface_tools.cli.diagnose_local_stack") as mocked_stack:
+        with patch("swallow.adapters.cli.diagnose_executor", return_value=(0, object())) as mocked_executor:
+            with patch("swallow.adapters.cli.diagnose_cli_agents", return_value=(0, [])) as mocked_cli_agents:
+                with patch("swallow.adapters.cli.format_executor_doctor_result", return_value="executor-ok"):
+                    with patch("swallow.adapters.cli.diagnose_sqlite_store", return_value=(0, object())) as mocked_sqlite:
+                        with patch("swallow.adapters.cli.format_sqlite_doctor_result", return_value="sqlite-ok"):
+                            with patch("swallow.adapters.cli.diagnose_local_stack") as mocked_stack:
                                 with redirect_stdout(stdout):
                                     exit_code = main(["doctor", "--skip-stack"])
         self.assertEqual(exit_code, 0)
@@ -7537,8 +7537,8 @@ class CliLifecycleTest(unittest.TestCase):
     def test_doctor_sqlite_subcommand_runs_sqlite_check_only(self) -> None:
         stdout = StringIO()
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("swallow.surface_tools.cli.diagnose_executor") as mocked_executor:
-                with patch("swallow.surface_tools.cli.diagnose_local_stack") as mocked_stack:
+            with patch("swallow.adapters.cli.diagnose_executor") as mocked_executor:
+                with patch("swallow.adapters.cli.diagnose_local_stack") as mocked_stack:
                     with redirect_stdout(stdout):
                         exit_code = main(["--base-dir", tmp, "doctor", "sqlite"])
         self.assertEqual(exit_code, 0)
@@ -7550,9 +7550,9 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_stack_subcommand_runs_stack_check_only(self) -> None:
         stdout = StringIO()
-        with patch("swallow.surface_tools.cli.diagnose_executor") as mocked_executor:
-            with patch("swallow.surface_tools.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
-                with patch("swallow.surface_tools.cli.format_local_stack_doctor_result", return_value="stack-ok"):
+        with patch("swallow.adapters.cli.diagnose_executor") as mocked_executor:
+            with patch("swallow.adapters.cli.diagnose_local_stack", return_value=(0, object())) as mocked_stack:
+                with patch("swallow.adapters.cli.format_local_stack_doctor_result", return_value="stack-ok"):
                     with redirect_stdout(stdout):
                         exit_code = main(["doctor", "stack"])
         self.assertEqual(exit_code, 0)
@@ -10048,7 +10048,7 @@ class CliLifecycleTest(unittest.TestCase):
     def test_cli_serve_dispatches_to_control_center_server(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
-            with patch("swallow.surface_tools.web.server.serve_control_center") as serve_mock:
+            with patch("swallow.adapters.http.server.serve_control_center") as serve_mock:
                 self.assertEqual(main(["--base-dir", str(tmp_path), "serve", "--host", "127.0.0.1", "--port", "8123"]), 0)
 
         serve_mock.assert_called_once_with(tmp_path.resolve(), host="127.0.0.1", port=8123)
@@ -10059,7 +10059,7 @@ class CliLifecycleTest(unittest.TestCase):
             stdout = StringIO()
 
             with patch(
-                "swallow.surface_tools.web.server.serve_control_center",
+                "swallow.adapters.http.server.serve_control_center",
                 side_effect=RuntimeError("FastAPI is required for `swl serve`."),
             ):
                 with redirect_stdout(stdout):

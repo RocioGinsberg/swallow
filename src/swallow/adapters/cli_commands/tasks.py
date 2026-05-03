@@ -236,7 +236,7 @@ def handle_task_read_command(base_dir: Path, args: object) -> int | None:
 
 
 def _cli():
-    return import_module("swallow.surface_tools.cli")
+    return import_module("swallow.adapters.cli")
 
 
 def _handle_task_list(base_dir: Path, args: object) -> int:

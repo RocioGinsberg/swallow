@@ -12,7 +12,7 @@ from swallow.orchestration.orchestrator import create_task, run_task
 from swallow.orchestration.models import Event
 from swallow.surface_tools.paths import task_root
 from swallow.truth_governance.store import append_event, load_state, save_state
-from swallow.surface_tools.web.api import (
+from swallow.adapters.http.api import (
     build_task_artifact_diff_payload,
     build_task_artifact_payload,
     build_task_artifacts_payload,
@@ -43,8 +43,8 @@ class WebApiPayloadsTest(unittest.TestCase):
             Path(__file__).resolve().parents[1]
             / "src"
             / "swallow"
-            / "surface_tools"
-            / "web"
+            / "adapters"
+            / "http"
             / "static"
             / "index.html"
         )

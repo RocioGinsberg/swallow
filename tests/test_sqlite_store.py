@@ -31,7 +31,7 @@ from swallow.truth_governance.store import (
     save_knowledge_objects,
     save_state,
 )
-from swallow.surface_tools.web.api import build_task_events_payload, build_tasks_payload
+from swallow.adapters.http.api import build_task_events_payload, build_tasks_payload
 
 
 def _sqlite_state(task_id: str = "sqlite-task") -> TaskState:

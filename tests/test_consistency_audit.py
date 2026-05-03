@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.surface_tools.cli import main
+from swallow.adapters.cli import main
 from swallow.surface_tools.consistency_audit import (
     evaluate_audit_trigger,
     load_audit_trigger_policy,

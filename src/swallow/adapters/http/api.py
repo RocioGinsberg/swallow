@@ -28,7 +28,7 @@ from swallow.application.queries.control_center import (
     build_task_subtask_tree_payload,
     build_tasks_payload,
 )
-from swallow.surface_tools.web.exceptions import TaskActionBlockedError
+from swallow.adapters.http.exceptions import TaskActionBlockedError
 
 
 def _static_dir() -> Path:
@@ -76,8 +76,8 @@ def create_fastapi_app(base_dir: Path):
         from fastapi import Depends, FastAPI, Request
         from fastapi.responses import FileResponse, JSONResponse
         from fastapi.staticfiles import StaticFiles
-        from swallow.surface_tools.web.dependencies import get_base_dir, resolve_workspace_relative_file
-        from swallow.surface_tools.web.schemas import (
+        from swallow.adapters.http.dependencies import get_base_dir, resolve_workspace_relative_file
+        from swallow.adapters.http.schemas import (
             CandidateEnvelope,
             CreateTaskRequest,
             ProposalApplyEnvelope,

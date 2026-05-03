@@ -126,7 +126,7 @@ def test_policy_commands_use_governance_boundary_when_present() -> None:
 
 
 def test_m2_governance_apply_calls_moved_out_of_cli() -> None:
-    source = _source("surface_tools/cli.py")
+    source = _source("adapters/cli.py")
 
     assert "register_policy_proposal(" not in source
     assert "register_mps_policy_proposal(" not in source
@@ -146,7 +146,7 @@ def test_knowledge_commands_use_governance_boundary_when_present() -> None:
 
 
 def test_m3_knowledge_apply_call_moved_out_of_cli() -> None:
-    source = _source("surface_tools/cli.py")
+    source = _source("adapters/cli.py")
 
     assert "register_canonical_proposal(" not in source
     assert "ProposalTarget.CANONICAL_KNOWLEDGE" not in source
@@ -172,7 +172,7 @@ def test_task_commands_wrap_orchestrator_when_present() -> None:
 
 
 def test_m4_task_write_calls_moved_out_of_cli() -> None:
-    source = _source("surface_tools/cli.py")
+    source = _source("adapters/cli.py")
 
     for token in (
         "create_task(",

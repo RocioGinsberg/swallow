@@ -142,18 +142,18 @@ LTO-13 audit Round 1-3(`docs/plans/lto-13-fastapi-local-web-ui-write-surface/pla
 
 | Concern ID | 违规规则 | 一句话教训 | 修复实例(可参照) |
 |---|---|---|---|
-| R1-1 | §2 #6(不许重新声明 application 字段集) | `workspace_root` 是 Truth 层 invariant,adapter 不能从 client 接收;用 `extra="forbid"` 拒绝 | `surface_tools/web/schemas.py` `WebRequestModel` `extra="forbid"` |
+| R1-1 | §2 #6(不许重新声明 application 字段集) | `workspace_root` 是 Truth 层 invariant,adapter 不能从 client 接收;用 `extra="forbid"` 拒绝 | `adapters/http/schemas.py` `WebRequestModel` `extra="forbid"` |
 | R1-2 | §2 #5(不许直接 reach domain) | proposal `Path` 参数桥接走 application 公共 helper(workspace-relative path resolve),不能让 adapter 自己拼路径 | `dependencies.py` `resolve_workspace_relative_file()` |
 | R1-3 | §1(framework-default) | dev 依赖必须在 `pyproject.toml` 声明,否则测试环境 ImportError 静默 skip | `pyproject.toml [project.optional-dependencies] dev` 加 `fastapi` |
 | R1-4 | §2 #5 + §1 | guard test 必须**显式列出** application boundary 之外的禁止 import / call;`apply_proposal` / `create_task` / `run_task` 都加进去 | `tests/test_invariant_guards.py` `UI_FORBIDDEN_WRITE_CALLS` |
 | R1-5 | §4(surface-identity) | `OperatorToken.source` 暂时与 `cli` 共用;新增 `web` 值是单独 phase | `application/commands/*.py` 调用 governance 时硬编码 `source="cli"`(2026-05-03 状态) |
-| R1-Pyd | §1(framework-default) | "禁用 Pydantic" 把硬约束(顶层 import)与工具选型(schema 校验)耦合;Pydantic 随 FastAPI dev extras 自动装,实际不省依赖,只换来手写 coercion;请求体 schema 用 Pydantic | `surface_tools/web/schemas.py` Pydantic models |
-| R2-1 | §1 + §2 #4 | 长跑路由必须**显式选择** sync 阻塞 vs fire-and-poll;LTO-13 选择 accept-long-request,UI 显示 pending 状态防重复提交;不能默认沉默 | `surface_tools/web/static/index.html` `pendingTaskAction` 状态 |
+| R1-Pyd | §1(framework-default) | "禁用 Pydantic" 把硬约束(顶层 import)与工具选型(schema 校验)耦合;Pydantic 随 FastAPI dev extras 自动装,实际不省依赖,只换来手写 coercion;请求体 schema 用 Pydantic | `adapters/http/schemas.py` Pydantic models |
+| R2-1 | §1 + §2 #4 | 长跑路由必须**显式选择** sync 阻塞 vs fire-and-poll;LTO-13 选择 accept-long-request,UI 显示 pending 状态防重复提交;不能默认沉默 | `adapters/http/static/index.html` `pendingTaskAction` 状态 |
 | R2-2 | §2 #1(不许编 state machine) | UI 按钮可见性必须由 backend `action_eligibility` 字段驱动,不能在 JS 里 if/else 判 status/phase | `application/queries/control_center.py` `build_task_action_eligibility()` |
-| R2-3 | §1(framework-default,response_model) | 所有写路由必须声明 `response_model=`,响应 schema 在 OpenAPI 中可见;统一 envelope `{"ok": true, "data": ...}` | `surface_tools/web/schemas.py` `TaskEnvelope` 等 |
-| R2-4 | §2 #1 + §3 | 安全相关 bypass(force / admin override / etc.)默认不暴露在 HTTP / MCP 等远端表面;CLI 保留逃生口;UI 想暴露需独立 confirmation UX phase | `surface_tools/web/schemas.py` `StageDecisionRequest` 不含 `force` 字段 + `extra="forbid"` |
-| R2-5 | §3(adapter 模块布局,server.py) | 无认证写表面**必须在进程启动前**强制 loopback-only;非 loopback host 抛 RuntimeError | `surface_tools/web/server.py` `validate_loopback_host()` |
-| R2-6 | §1 + §5(error 映射) | command result dataclass 字段不对称是 application 层事实(理想状态 application 应该 raise typed exception 而非返回 blocked field);adapter 用 typed exception 同化两类 blocked,不依赖 result 字段对称。**长期看 application 层应该统一 raise**,LTO-13 选择在 adapter 层吸收作为权宜 | `surface_tools/web/api.py` `_task_acknowledge_or_raise` 合成 `blocked_kind="acknowledge"` |
+| R2-3 | §1(framework-default,response_model) | 所有写路由必须声明 `response_model=`,响应 schema 在 OpenAPI 中可见;统一 envelope `{"ok": true, "data": ...}` | `adapters/http/schemas.py` `TaskEnvelope` 等 |
+| R2-4 | §2 #1 + §3 | 安全相关 bypass(force / admin override / etc.)默认不暴露在 HTTP / MCP 等远端表面;CLI 保留逃生口;UI 想暴露需独立 confirmation UX phase | `adapters/http/schemas.py` `StageDecisionRequest` 不含 `force` 字段 + `extra="forbid"` |
+| R2-5 | §3(adapter 模块布局,server.py) | 无认证写表面**必须在进程启动前**强制 loopback-only;非 loopback host 抛 RuntimeError | `adapters/http/server.py` `validate_loopback_host()` |
+| R2-6 | §1 + §5(error 映射) | command result dataclass 字段不对称是 application 层事实(理想状态 application 应该 raise typed exception 而非返回 blocked field);adapter 用 typed exception 同化两类 blocked,不依赖 result 字段对称。**长期看 application 层应该统一 raise**,LTO-13 选择在 adapter 层吸收作为权宜 | `adapters/http/api.py` `_task_acknowledge_or_raise` 合成 `blocked_kind="acknowledge"` |
 | R3-1 | §1 + §3 | 删除自写 response 转换器(`http_models.py`);Pydantic envelope + `response_model=` 唯一路径 | LTO-13 final 实现;`http_models.py` 已删 |
 | R3-2 | §1 + §5 | `@app.exception_handler` 集中映射;每路由 ≤10 行,无 try/except | `api.py:104-122` 5 个集中 handler |
 | R3-3 | §1(framework-default) | 不重复发明 `HTTPException`;adapter-内部 typed exception 仅用于"无法直接表达 HTTP 语义"的领域级阻断(如 `TaskActionBlockedError` 携带结构化 detail) | `exceptions.py` 仅保留 `TaskActionBlockedError` |

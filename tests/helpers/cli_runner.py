@@ -22,7 +22,7 @@ def run_cli(
     *args: str,
     main_func: Callable[[list[str]], int] | None = None,
 ) -> CliRun:
-    from swallow.surface_tools.cli import main as cli_main
+    from swallow.adapters.cli import main as cli_main
 
     runner = main_func or cli_main
     stdout = StringIO()

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from swallow.surface_tools.web.server import validate_loopback_host
+from swallow.adapters.http.server import validate_loopback_host
 
 
 def test_validate_loopback_host_accepts_loopback_aliases() -> None:

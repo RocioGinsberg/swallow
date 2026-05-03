@@ -43,7 +43,7 @@ Layout, in Hexagonal vocabulary:
 ```text
             ┌─────────────────────────────────────────────────┐
             │  Driving adapters                               │
-            │    surface_tools/cli/   surface_tools/web/      │
+            │      adapters/cli       adapters/http       │
             │    (future) MCP server, desktop shell           │
             └────────────────────────┬────────────────────────┘
                                      │ calls driving ports
@@ -217,8 +217,8 @@ Each deviation lists: **what is wrong**, **why it persists**, **what the repair 
 
 | File / package | Hexagonal classification |
 |---|---|
-| `surface_tools/cli/` | Driving adapter |
-| `surface_tools/web/` | Driving adapter |
+| `adapters/cli.py` + `adapters/cli_commands/` | Driving adapter |
+| `adapters/http/` | Driving adapter |
 | `surface_tools/consistency_audit.py` | Application service (a use case) |
 | `surface_tools/meta_optimizer.py` | Application service (a use case) |
 | `surface_tools/paths.py`, `surface_tools/workspace.py` | Application infrastructure (workspace conventions) |
@@ -229,7 +229,7 @@ The name "surface_tools" predates the Hexagonal vocabulary and groups by "things
 
 **Repair direction**: Three independent renames, each a small pure-structural phase:
 
-1. **Phase A (easy)**: `surface_tools/cli/` → `adapters/cli/`; `surface_tools/web/` → `adapters/http/`. Pure import-path update.
+1. **Phase A (easy)**: `surface_tools/cli.py` + `surface_tools/cli_commands/` → `adapters/cli.py` + `adapters/cli_commands/`; `surface_tools/web/` → `adapters/http/`. Pure import-path update.
 2. **Phase B (medium)**: `surface_tools/{consistency_audit,meta_optimizer}.py` → `application/services/` (or absorb into existing `application/commands/` if they have a single entry point each).
 3. **Phase C (medium)**: `surface_tools/{paths,workspace}.py` → `application/infrastructure/` (or top-level `infrastructure/` if more driven adapters move there in D2 / D3).
 

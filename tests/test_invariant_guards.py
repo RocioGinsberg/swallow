@@ -549,21 +549,21 @@ def test_route_override_only_set_by_operator() -> None:
             if isinstance(node, ast.Assign | ast.AnnAssign):
                 targets = node.targets if isinstance(node, ast.Assign) else [node.target]
                 for target in targets:
-                    if "route_override_hint" in _target_names(target) and rel_path != "src/swallow/surface_tools/cli.py":
+                    if "route_override_hint" in _target_names(target) and rel_path != "src/swallow/adapters/cli.py":
                         violations.append(f"{rel_path}:{node.lineno} writes route_override_hint")
             elif isinstance(node, ast.Call):
                 for keyword in node.keywords:
                     if keyword.arg == "executor_override" and rel_path not in {
-                        "src/swallow/surface_tools/cli.py",
+                        "src/swallow/adapters/cli.py",
                         "src/swallow/application/commands/route_metadata.py",
-                        "src/swallow/surface_tools/cli_commands/route.py",
+                        "src/swallow/adapters/cli_commands/route.py",
                         "src/swallow/provider_router/router.py",
                     }:
                         violations.append(f"{rel_path}:{keyword.lineno} sets executor_override")
                     if keyword.arg == "route_mode_override" and rel_path not in {
-                        "src/swallow/surface_tools/cli.py",
+                        "src/swallow/adapters/cli.py",
                         "src/swallow/application/commands/route_metadata.py",
-                        "src/swallow/surface_tools/cli_commands/route.py",
+                        "src/swallow/adapters/cli_commands/route.py",
                         "src/swallow/orchestration/orchestrator.py",
                         "src/swallow/provider_router/router.py",
                     }:
@@ -829,7 +829,7 @@ def test_artifact_path_resolved_from_id_only(tmp_path: Path) -> None:
 
 def test_ui_backend_only_calls_governance_functions() -> None:
     violations: list[str] = []
-    for path in sorted((SRC_ROOT / "surface_tools" / "web").rglob("*.py")):
+    for path in sorted((SRC_ROOT / "adapters" / "http").rglob("*.py")):
         rel_path = _relative(path)
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
         for node in ast.walk(tree):
