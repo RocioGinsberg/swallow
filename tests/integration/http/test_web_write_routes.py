@@ -6,7 +6,11 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from swallow.application.commands.meta_optimizer import run_meta_optimizer_command
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
+from swallow.knowledge_retrieval.knowledge_plane import (
+    StagedCandidate,
+    list_staged_knowledge as load_staged_candidates,
+    submit_staged_knowledge as submit_staged_candidate,
+)
 from swallow.provider_router.router import load_route_weights, route_by_name
 from swallow.surface_tools.paths import canonical_registry_path, latest_optimization_proposal_bundle_path, route_weights_path
 from swallow.adapters.http.api import create_fastapi_app

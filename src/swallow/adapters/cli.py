@@ -9,19 +9,29 @@ from datetime import datetime
 from pathlib import Path
 
 from swallow._io_helpers import read_json_lines_or_empty, read_json_list_or_empty, read_json_or_empty, read_json_strict
-from swallow.knowledge_retrieval.canonical_reuse_eval import (
+from swallow.knowledge_retrieval.knowledge_plane import (
+    KNOWLEDGE_RELATION_TYPES,
+    StagedCandidate,
     build_canonical_reuse_evaluation_report,
     build_canonical_reuse_evaluation_summary,
     build_canonical_reuse_regression_current,
     build_canonical_reuse_regression_report,
-    compare_canonical_reuse_regression,
-)
-from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_report
-from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
-from swallow.knowledge_retrieval.canonical_registry import (
+    build_canonical_reuse_report,
     build_canonical_registry_index_report,
     build_canonical_registry_report,
+    build_ingestion_report,
+    build_ingestion_summary,
+    build_knowledge_decisions_report,
+    build_review_queue,
+    build_review_queue_report,
+    compare_canonical_reuse_regression,
+    ingest_operator_note,
+    list_staged_knowledge as load_staged_candidates,
+    run_knowledge_ingestion_bytes_pipeline as run_ingestion_bytes_pipeline,
+    run_knowledge_ingestion_pipeline as run_ingestion_pipeline,
+    summarize_canonicalization,
 )
+from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
 from swallow.surface_tools.doctor import (
     diagnose_cli_agents,
     diagnose_executor,
@@ -31,17 +41,7 @@ from swallow.surface_tools.doctor import (
     format_local_stack_doctor_result,
     format_sqlite_doctor_result,
 )
-from swallow.knowledge_retrieval.ingestion.pipeline import (
-    build_ingestion_report,
-    build_ingestion_summary,
-    ingest_operator_note,
-    run_ingestion_bytes_pipeline,
-    run_ingestion_pipeline,
-)
 from swallow.application.commands.knowledge import build_stage_promote_preflight_notices
-from swallow.knowledge_retrieval.knowledge_relations import (
-    KNOWLEDGE_RELATION_TYPES,
-)
 from swallow.adapters.cli_commands.audit import handle_audit_command
 from swallow.adapters.cli_commands.knowledge import handle_knowledge_command
 from swallow.adapters.cli_commands.meta_optimizer import handle_meta_optimize_command
@@ -50,8 +50,6 @@ from swallow.adapters.cli_commands.route import handle_route_command
 from swallow.adapters.cli_commands.route_metadata import handle_route_metadata_command
 from swallow.adapters.cli_commands.synthesis import handle_synthesis_command
 from swallow.adapters.cli_commands.tasks import handle_task_read_command, handle_task_write_command
-from swallow.knowledge_retrieval.knowledge_objects import summarize_canonicalization
-from swallow.knowledge_retrieval.knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from swallow.surface_tools.mps_policy_store import MPS_POLICY_KINDS
 from swallow.orchestration.orchestrator import run_task
 from swallow.surface_tools.paths import (
@@ -83,7 +81,6 @@ from swallow.surface_tools.paths import (
     route_path,
     topology_path,
 )
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates
 from swallow.truth_governance.sqlite_store import get_schema_status
 from swallow.surface_tools.workspace import resolve_path
 from swallow.provider_router.router import (

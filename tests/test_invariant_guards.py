@@ -64,7 +64,7 @@ EXECUTION_PLANE_FILES = {
     "src/swallow/surface_tools/consistency_reviewer.py",
     "src/swallow/surface_tools/meta_optimizer.py",
     "src/swallow/surface_tools/meta_optimizer_agent.py",
-    "src/swallow/knowledge_retrieval/ingestion/pipeline.py",
+    "src/swallow/knowledge_retrieval/_internal_ingestion_pipeline.py",
 }
 TASK_STATE_WRITE_CALLS = {"save_state"}
 TASK_SQL_WRITE_RE = re.compile(r"\b(INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO\s+)?(?:tasks|task_records)\b", re.IGNORECASE)
@@ -241,7 +241,8 @@ def test_canonical_write_only_via_apply_proposal() -> None:
         allowed_files={
             "src/swallow/truth_governance/truth/knowledge.py",
             "src/swallow/truth_governance/store.py",
-            "src/swallow/knowledge_retrieval/knowledge_store.py",
+            "src/swallow/knowledge_retrieval/knowledge_plane.py",  # facade wrapper; governance still owns promotion
+            "src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
         },
     )
 
@@ -345,7 +346,8 @@ def test_only_apply_proposal_calls_private_writers() -> None:
         },
         allowed_files={
             "src/swallow/truth_governance/store.py",
-            "src/swallow/knowledge_retrieval/knowledge_store.py",
+            "src/swallow/knowledge_retrieval/knowledge_plane.py",  # facade wrapper; governance still owns promotion
+            "src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
             "src/swallow/provider_router/route_metadata_store.py",  # physical route metadata writer owner
             "src/swallow/provider_router/router.py",  # legacy compatibility facade wrappers
             "src/swallow/surface_tools/consistency_audit.py",
@@ -408,7 +410,7 @@ def test_no_module_outside_governance_imports_store_writes() -> None:
     }
     allowed_files = {
         "src/swallow/surface_tools/consistency_audit.py",
-        "src/swallow/knowledge_retrieval/knowledge_store.py",
+        "src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
         "src/swallow/surface_tools/mps_policy_store.py",
         "src/swallow/provider_router/route_metadata_store.py",
         "src/swallow/provider_router/router.py",

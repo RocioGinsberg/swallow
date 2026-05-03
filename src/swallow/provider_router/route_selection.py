@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from swallow.knowledge_retrieval.dialect_data import DEFAULT_EXECUTOR, normalize_executor_name
+from swallow.knowledge_retrieval.knowledge_plane import DEFAULT_EXECUTOR, normalize_executor_name
 from swallow.orchestration.models import RouteSelection, RouteSpec, TaskState, infer_task_family
 from swallow.provider_router import route_policy as route_policy_module
 from swallow.provider_router import route_registry as route_registry_module

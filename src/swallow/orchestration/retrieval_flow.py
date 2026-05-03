@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import Callable
 
 from swallow._io_helpers import read_json_strict
-from swallow.knowledge_retrieval.retrieval import build_retrieval_request, retrieve_context, summarize_reused_knowledge
+from swallow.knowledge_retrieval.knowledge_plane import (
+    build_retrieval_request,
+    retrieve_knowledge_context as retrieve_context,
+    summarize_reused_knowledge,
+)
 from swallow.orchestration.models import (
     EVENT_RETRIEVAL_COMPLETED,
     Event,

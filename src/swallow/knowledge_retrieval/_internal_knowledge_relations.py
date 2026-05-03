@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from uuid import uuid4
 
-from swallow.knowledge_retrieval.canonical_registry import resolve_knowledge_object_id
+from swallow.knowledge_retrieval._internal_canonical_registry import resolve_knowledge_object_id
 from swallow.orchestration.models import utc_now
 from swallow.truth_governance.sqlite_store import SqliteTaskStore
 

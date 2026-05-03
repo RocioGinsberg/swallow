@@ -6,8 +6,8 @@ from swallow._io_helpers import read_json_lines_strict_or_empty
 from swallow.knowledge_retrieval.knowledge_plane import (
     build_canonical_registry_index,
     build_canonical_reuse_summary,
+    persist_wiki_entry_from_canonical_record,
 )
-from swallow.knowledge_retrieval.knowledge_store import persist_wiki_entry_from_record
 from swallow.surface_tools.paths import canonical_registry_path
 from swallow.truth_governance.store import append_canonical_record, save_canonical_registry_index, save_canonical_reuse_policy
 
@@ -26,7 +26,7 @@ class KnowledgeRepo:
     ) -> tuple[str, ...]:
         applied_writes: list[str] = []
         if persist_wiki and persist_wiki_first:
-            persist_wiki_entry_from_record(
+            persist_wiki_entry_from_canonical_record(
                 base_dir,
                 canonical_record,
                 mirror_files=mirror_files,
@@ -38,7 +38,7 @@ class KnowledgeRepo:
         applied_writes.append("canonical_registry")
 
         if persist_wiki and not persist_wiki_first:
-            persist_wiki_entry_from_record(
+            persist_wiki_entry_from_canonical_record(
                 base_dir,
                 canonical_record,
                 mirror_files=mirror_files,

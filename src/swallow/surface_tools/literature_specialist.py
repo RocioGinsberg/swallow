@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
+from swallow.knowledge_retrieval.knowledge_plane import KNOWLEDGE_RELATION_TYPES
 from swallow.provider_router.agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
-from swallow.knowledge_retrieval.knowledge_relations import KNOWLEDGE_RELATION_TYPES
 from swallow.orchestration.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
 from swallow.surface_tools.workspace import resolve_path
 

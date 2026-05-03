@@ -5,7 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from swallow.knowledge_retrieval import canonical_registry as _canonical_registry
+from swallow.knowledge_retrieval import _internal_canonical_registry as _canonical_registry
+from swallow.knowledge_retrieval import _internal_ingestion_pipeline as _ingestion_pipeline
+from swallow.knowledge_retrieval import _internal_knowledge_relations as _knowledge_relations
+from swallow.knowledge_retrieval import _internal_knowledge_store as _knowledge_store
+from swallow.knowledge_retrieval import _internal_knowledge_suggestions as _knowledge_suggestions
+from swallow.knowledge_retrieval import _internal_staged_knowledge as _staged_knowledge
 from swallow.knowledge_retrieval import canonical_reuse as _canonical_reuse
 from swallow.knowledge_retrieval import canonical_reuse_eval as _canonical_reuse_eval
 from swallow.knowledge_retrieval import dialect_data as _dialect_data
@@ -15,14 +20,9 @@ from swallow.knowledge_retrieval import knowledge_index as _knowledge_index
 from swallow.knowledge_retrieval import knowledge_objects as _knowledge_objects
 from swallow.knowledge_retrieval import knowledge_partition as _knowledge_partition
 from swallow.knowledge_retrieval import knowledge_policy as _knowledge_policy
-from swallow.knowledge_retrieval import knowledge_relations as _knowledge_relations
 from swallow.knowledge_retrieval import knowledge_review as _knowledge_review
-from swallow.knowledge_retrieval import knowledge_store as _knowledge_store
-from swallow.knowledge_retrieval import knowledge_suggestions as _knowledge_suggestions
 from swallow.knowledge_retrieval import retrieval as _retrieval
-from swallow.knowledge_retrieval import staged_knowledge as _staged_knowledge
 from swallow.knowledge_retrieval.dialect_adapters import ClaudeXMLDialect, FIMDialect
-from swallow.knowledge_retrieval.ingestion import pipeline as _ingestion_pipeline
 from swallow.orchestration.models import RetrievalItem, RetrievalRequest, TaskState
 
 StagedCandidate = _staged_knowledge.StagedCandidate
@@ -39,6 +39,8 @@ TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY = _knowledge_store.TEST_FIXTURE_CANONICAL
 KNOWLEDGE_RELATION_TYPES = _knowledge_relations.KNOWLEDGE_RELATION_TYPES
 EXTERNAL_SESSION_SOURCE_KIND = _ingestion_pipeline.EXTERNAL_SESSION_SOURCE_KIND
 DEFAULT_EXECUTOR = _dialect_data.DEFAULT_EXECUTOR
+ARTIFACTS_SOURCE_TYPE = _retrieval.ARTIFACTS_SOURCE_TYPE
+KNOWLEDGE_SOURCE_TYPE = _retrieval.KNOWLEDGE_SOURCE_TYPE
 
 
 def list_staged_knowledge(base_dir: Path) -> list[StagedCandidate]:
@@ -649,6 +651,22 @@ def retrieve_knowledge_context(
 
 def summarize_reused_knowledge(retrieval_items: list[RetrievalItem]) -> dict[str, Any]:
     return _retrieval.summarize_reused_knowledge(retrieval_items)
+
+
+def summarize_retrieval_trace(retrieval_items: list[RetrievalItem]) -> dict[str, Any]:
+    return _retrieval.summarize_retrieval_trace(retrieval_items)
+
+
+def source_policy_label_for(item: RetrievalItem) -> str:
+    return _retrieval.source_policy_label_for(item)
+
+
+def source_policy_flags_for(item: RetrievalItem, label: str | None = None) -> list[str]:
+    return _retrieval.source_policy_flags_for(item, label)
+
+
+def summarize_source_policy_warnings(retrieval_items: list[RetrievalItem]) -> list[str]:
+    return _retrieval.summarize_source_policy_warnings(retrieval_items)
 
 
 def build_evidence_pack(

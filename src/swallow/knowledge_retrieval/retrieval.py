@@ -10,7 +10,7 @@ from typing import Any
 
 from swallow._io_helpers import read_json_or_empty
 from swallow.knowledge_retrieval.canonical_reuse import is_canonical_reuse_visible
-from swallow.knowledge_retrieval.knowledge_store import iter_file_knowledge_task_ids, load_task_knowledge_view
+from swallow.knowledge_retrieval._internal_knowledge_store import iter_file_knowledge_task_ids, load_task_knowledge_view
 from swallow.knowledge_retrieval.knowledge_objects import is_retrieval_reuse_ready
 from swallow.orchestration.models import RetrievalItem, RetrievalRequest
 from swallow.surface_tools.paths import canonical_reuse_policy_path

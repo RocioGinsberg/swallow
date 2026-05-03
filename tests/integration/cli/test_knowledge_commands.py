@@ -3,7 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
+from swallow.knowledge_retrieval.knowledge_plane import (
+    StagedCandidate,
+    list_staged_knowledge as load_staged_candidates,
+    submit_staged_knowledge as submit_staged_candidate,
+)
 from swallow.surface_tools.paths import canonical_registry_path
 from tests.helpers.cli_runner import run_cli
 

@@ -7,16 +7,16 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.knowledge_retrieval.ingestion.pipeline import (
+from swallow.knowledge_retrieval.knowledge_plane import (
     EXTERNAL_SESSION_SOURCE_KIND,
     build_ingestion_report,
     build_ingestion_summary,
     ingest_operator_note,
     ingest_local_file,
-    run_ingestion_bytes_pipeline,
-    run_ingestion_pipeline,
+    list_staged_knowledge as load_staged_candidates,
+    run_knowledge_ingestion_bytes_pipeline as run_ingestion_bytes_pipeline,
+    run_knowledge_ingestion_pipeline as run_ingestion_pipeline,
 )
-from swallow.knowledge_retrieval.staged_knowledge import load_staged_candidates
 
 
 class IngestionPipelineTest(unittest.TestCase):

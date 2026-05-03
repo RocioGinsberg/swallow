@@ -99,4 +99,4 @@ def test_route_selection_module_does_not_import_orchestration_executor() -> None
     source = Path(route_selection.__file__).read_text(encoding="utf-8")
 
     assert "swallow.orchestration.executor" not in source
-    assert "swallow.knowledge_retrieval.dialect_data" in source
+    assert "swallow.knowledge_retrieval.knowledge_plane" in source

@@ -6,6 +6,26 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from swallow._io_helpers import read_json_lines_strict_or_empty
+from swallow.knowledge_retrieval.knowledge_plane import (
+    apply_knowledge_decision,
+    build_canonical_record,
+    build_canonical_registry_index,
+    build_canonical_registry_index_report,
+    build_canonical_registry_report,
+    build_canonical_reuse_report,
+    build_canonical_reuse_summary,
+    build_knowledge_decisions_report,
+    build_knowledge_index,
+    build_knowledge_index_report,
+    build_knowledge_objects,
+    build_knowledge_partition,
+    build_knowledge_partition_report,
+    canonicalization_status_for,
+    summarize_canonicalization,
+    summarize_knowledge_evidence,
+    summarize_knowledge_reuse,
+    summarize_knowledge_stages,
+)
 from swallow.knowledge_retrieval.raw_material import (
     FilesystemRawMaterialStore,
     InvalidRawMaterialRef,
@@ -13,23 +33,6 @@ from swallow.knowledge_retrieval.raw_material import (
     parse_source_ref_scheme,
     source_ref_for_file,
 )
-from swallow.knowledge_retrieval.canonical_registry import (
-    build_canonical_record,
-    build_canonical_registry_index,
-    build_canonical_registry_index_report,
-    build_canonical_registry_report,
-)
-from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
-from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index, build_knowledge_index_report
-from swallow.knowledge_retrieval.knowledge_objects import (
-    canonicalization_status_for,
-    summarize_canonicalization,
-    summarize_knowledge_evidence,
-    summarize_knowledge_reuse,
-    summarize_knowledge_stages,
-)
-from swallow.knowledge_retrieval.knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
-from swallow.knowledge_retrieval.knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
 from swallow.orchestration.models import (
     ExecutorResult,
     LIBRARIAN_MEMORY_AUTHORITY,

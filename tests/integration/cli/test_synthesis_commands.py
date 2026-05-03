@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from swallow.knowledge_retrieval.staged_knowledge import load_staged_candidates
+from swallow.knowledge_retrieval.knowledge_plane import list_staged_knowledge as load_staged_candidates
 from swallow.orchestration.orchestrator import create_task
 from swallow.orchestration.models import ExecutorResult
 from swallow.surface_tools.mps_policy_store import read_mps_policy

@@ -7,11 +7,6 @@ from typing import Iterable
 from uuid import uuid4
 
 from swallow.surface_tools.identity import local_actor
-from swallow.knowledge_retrieval.knowledge_store import (
-    enforce_canonical_knowledge_write_authority,
-    normalize_task_knowledge_view,
-    split_task_knowledge_view,
-)
 from swallow.orchestration.models import Event, TaskState, utc_now
 from swallow.surface_tools.paths import app_root, artifacts_dir, swallow_db_path, task_root, tasks_root
 
@@ -499,6 +494,12 @@ class SqliteTaskStore:
         *,
         write_authority: str = "task-state",
     ) -> list[dict[str, object]]:
+        from swallow.knowledge_retrieval.knowledge_plane import (
+            enforce_canonical_knowledge_write_authority,
+            normalize_task_knowledge_view,
+            split_task_knowledge_view,
+        )
+
         self._ensure_layout(base_dir, task_id)
         normalized_view = normalize_task_knowledge_view(knowledge_objects)
         enforce_canonical_knowledge_write_authority(normalized_view, write_authority=write_authority)
@@ -566,6 +567,8 @@ class SqliteTaskStore:
         return normalized_view
 
     def load_task_knowledge_view(self, base_dir: Path, task_id: str) -> list[dict[str, object]]:
+        from swallow.knowledge_retrieval.knowledge_plane import normalize_task_knowledge_view
+
         connection = self._connect_existing(base_dir)
         if connection is None:
             return []

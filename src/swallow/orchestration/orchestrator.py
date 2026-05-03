@@ -13,21 +13,32 @@ from uuid import uuid4
 
 from swallow._io_helpers import read_json_lines_strict_or_empty, read_json_or_empty, read_json_strict
 from swallow.surface_tools.capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
-from swallow.knowledge_retrieval.canonical_registry import (
+from swallow.knowledge_retrieval.knowledge_plane import (
+    LIBRARIAN_AGENT_WRITE_AUTHORITY,
+    OPERATOR_CANONICAL_WRITE_AUTHORITY,
+    apply_knowledge_decision,
     build_canonical_record,
     build_canonical_registry_index,
     build_canonical_registry_index_report,
     build_canonical_registry_report,
-)
-from swallow.knowledge_retrieval.canonical_reuse_eval import (
     build_canonical_reuse_evaluation_record,
     build_canonical_reuse_evaluation_report,
     build_canonical_reuse_regression_baseline,
     build_canonical_reuse_evaluation_summary,
+    build_canonical_reuse_report,
+    build_canonical_reuse_summary,
+    build_grounding_evidence,
+    build_knowledge_decisions_report,
+    build_knowledge_index,
+    build_knowledge_index_report,
+    build_knowledge_objects,
+    build_knowledge_partition,
+    build_knowledge_partition_report,
+    extract_grounding_entries,
     match_retrieval_items_for_citations,
+    persist_task_knowledge_view,
     resolve_canonical_reuse_citations,
 )
-from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_report, build_canonical_reuse_summary
 from swallow.provider_router.capability_enforcement import CapabilityConstraint, enforce_capability_constraints
 from swallow.surface_tools.consistency_audit import (
     evaluate_audit_trigger,
@@ -39,21 +50,11 @@ from swallow.provider_router.cost_estimation import estimate_cost
 from swallow.orchestration.execution_budget_policy import evaluate_token_cost_budget, normalize_token_cost_limit
 from swallow.orchestration.executor import normalize_executor_name, resolve_dialect_name, resolve_executor
 from swallow.orchestration.dispatch_policy import validate_handoff_semantics, validate_taxonomy_dispatch
-from swallow.knowledge_retrieval.grounding import build_grounding_evidence, extract_grounding_entries
 from swallow.orchestration.harness import (
     build_remote_handoff_contract_record,
     build_remote_handoff_contract_report,
     run_retrieval,
     write_task_artifacts,
-)
-from swallow.knowledge_retrieval.knowledge_objects import build_knowledge_objects
-from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index, build_knowledge_index_report
-from swallow.knowledge_retrieval.knowledge_partition import build_knowledge_partition, build_knowledge_partition_report
-from swallow.knowledge_retrieval.knowledge_review import apply_knowledge_decision, build_knowledge_decisions_report
-from swallow.knowledge_retrieval.knowledge_store import (
-    LIBRARIAN_AGENT_WRITE_AUTHORITY,
-    OPERATOR_CANONICAL_WRITE_AUTHORITY,
-    persist_task_knowledge_view,
 )
 from swallow.truth_governance.governance import OperatorToken, ProposalTarget, apply_proposal, register_canonical_proposal
 from swallow.surface_tools.librarian_executor import (

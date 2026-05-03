@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
+from swallow.knowledge_retrieval.knowledge_plane import StagedCandidate, list_staged_knowledge, submit_staged_knowledge
 from swallow.orchestration.models import Event
 from swallow.orchestration.synthesis import load_synthesis_config, run_synthesis
 from swallow.surface_tools.paths import artifacts_dir
@@ -62,7 +62,7 @@ def stage_synthesis_command(base_dir: Path, *, task_id: str) -> SynthesisStageCo
     duplicate = next(
         (
             candidate
-            for candidate in load_staged_candidates(base_dir)
+            for candidate in list_staged_knowledge(base_dir)
             if candidate.source_task_id == normalized_task_id
             and candidate.source_object_id == config_id
             and candidate.status == "pending"
@@ -83,7 +83,7 @@ def stage_synthesis_command(base_dir: Path, *, task_id: str) -> SynthesisStageCo
         taxonomy_role="",
         taxonomy_memory_authority="",
     )
-    persisted = submit_staged_candidate(base_dir, candidate)
+    persisted = submit_staged_knowledge(base_dir, candidate)
     append_event(
         base_dir,
         Event(

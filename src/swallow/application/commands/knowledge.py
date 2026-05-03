@@ -4,18 +4,19 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from swallow._io_helpers import read_json_lines_or_empty
-from swallow.knowledge_retrieval.canonical_registry import build_staged_canonical_key
-from swallow.knowledge_retrieval.ingestion.pipeline import IngestionPipelineResult, ingest_local_file
-from swallow.knowledge_retrieval.knowledge_relations import (
-    create_knowledge_relation,
-    delete_knowledge_relation,
-)
-from swallow.knowledge_retrieval.knowledge_store import (
+from swallow.knowledge_retrieval.knowledge_plane import (
+    IngestionPipelineResult,
     OPERATOR_CANONICAL_WRITE_AUTHORITY,
+    StagedCandidate,
+    apply_relation_suggestions,
+    build_staged_canonical_key,
+    create_knowledge_relation,
+    decide_staged_knowledge,
+    delete_knowledge_relation,
+    ingest_local_file,
+    list_staged_knowledge,
     migrate_file_knowledge_to_sqlite,
 )
-from swallow.knowledge_retrieval.knowledge_suggestions import apply_relation_suggestions
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, update_staged_candidate
 from swallow.surface_tools.paths import canonical_registry_path
 from swallow.truth_governance.governance import (
     OperatorToken,
@@ -64,7 +65,7 @@ class UnknownStagedCandidateError(ValueError):
 
 def resolve_stage_candidate(base_dir: Path, candidate_id: str) -> StagedCandidate:
     normalized_id = candidate_id.strip()
-    for candidate in load_staged_candidates(base_dir):
+    for candidate in list_staged_knowledge(base_dir):
         if candidate.candidate_id == normalized_id:
             return candidate
     raise UnknownStagedCandidateError(f"Unknown staged candidate: {normalized_id}")
@@ -176,7 +177,7 @@ def promote_stage_candidate_command(
     decision_note = note.strip()
     if refined_text.strip():
         decision_note = f"{decision_note} [refined]".strip() if decision_note else "[refined]"
-    updated = update_staged_candidate(
+    updated = decide_staged_knowledge(
         base_dir,
         candidate.candidate_id,
         "promoted",
@@ -199,7 +200,7 @@ def reject_stage_candidate_command(base_dir: Path, candidate_id: str, *, note: s
     candidate = resolve_stage_candidate(base_dir, candidate_id)
     if candidate.status != "pending":
         raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
-    return update_staged_candidate(
+    return decide_staged_knowledge(
         base_dir,
         candidate.candidate_id,
         "rejected",

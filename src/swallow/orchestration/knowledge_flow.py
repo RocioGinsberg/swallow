@@ -4,14 +4,15 @@ import json
 
 from pathlib import Path
 
-from swallow.knowledge_retrieval.knowledge_objects import (
+from swallow.knowledge_retrieval.knowledge_plane import (
     canonicalization_status_for,
+    normalize_task_knowledge_view,
+    split_task_knowledge_view,
     summarize_canonicalization,
     summarize_knowledge_evidence,
     summarize_knowledge_reuse,
     summarize_knowledge_stages,
 )
-from swallow.knowledge_retrieval.knowledge_store import normalize_task_knowledge_view, split_task_knowledge_view
 from swallow.surface_tools.paths import (
     knowledge_evidence_entry_path,
     knowledge_objects_path,

@@ -3,7 +3,11 @@ from __future__ import annotations
 import asyncio
 from pathlib import Path
 
-from swallow.knowledge_retrieval.ingestion.pipeline import build_ingestion_report, build_ingestion_summary, run_ingestion_pipeline
+from swallow.knowledge_retrieval.knowledge_plane import (
+    build_ingestion_report,
+    build_ingestion_summary,
+    run_knowledge_ingestion_pipeline as run_ingestion_pipeline,
+)
 from swallow.orchestration.models import ExecutorResult, TaskCard, TaskState
 
 

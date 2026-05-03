@@ -7,9 +7,9 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.knowledge_retrieval.canonical_registry import build_canonical_record
-from swallow.knowledge_retrieval.knowledge_relations import (
+from swallow.knowledge_retrieval.knowledge_plane import (
     KNOWLEDGE_RELATION_TYPES,
+    build_canonical_record,
     create_knowledge_relation,
     delete_knowledge_relation,
     list_knowledge_relations,

@@ -12,7 +12,10 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.orchestration.execution_budget_policy import calculate_task_token_cost
-from swallow.knowledge_retrieval.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
+from swallow.knowledge_retrieval.knowledge_plane import (
+    TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+    migrate_file_knowledge_to_sqlite,
+)
 from swallow.surface_tools.meta_optimizer import build_meta_optimizer_snapshot
 from swallow.orchestration.models import Event, TaskState
 from swallow.orchestration.orchestrator import create_task, run_task
