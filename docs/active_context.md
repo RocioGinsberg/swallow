@@ -13,9 +13,9 @@
 - latest_completed_slice: `D4 Phase A merged; LTO-6 direction confirmed (Functional facade + 一次清)`
 - active_track: `Architecture / Knowledge Plane`
 - active_phase: `LTO-6 — Knowledge Plane Facade Solidification`
-- active_slice: `direction confirmed; awaiting plan kickoff (Codex)`
+- active_slice: `plan_audit absorbed; awaiting Human plan gate`
 - active_branch: `main`
-- status: `lto6_direction_confirmed_ready_for_plan`
+- status: `lto6_plan_audit_absorbed`
 
 ## 当前状态说明
 
@@ -178,6 +178,12 @@ LTO-7 long-running follow-ups(仍开放):
   - 移除 §三 D5 / D4 Phase A 的 "已完成 ticket" 留底(按 §六 维护规则归档到 git log);
   - §三 加 v1.8.0 节点说明(Wiki Compiler 第一阶段后 cut);
   - §五 推荐顺序更新到 "...→ D5 + D4 Phase A(done)→ LTO-6 → Wiki Compiler(v1.8.0)→ 后续"。
+- **[Codex]** 已吸收 LTO-6 `plan_audit.md` 7 个 concerns + 2 个 nits 到 `plan.md`:
+  - 拆掉 `build_knowledge_projection` / `serve_knowledge_context` / `load_task_knowledge` 类 omnibus 方案,改为显式领域函数;不再硬卡 raw export count,但禁止 selector/mode flag。
+  - 将 M2 internal rename 与 M3 caller migration 明确为同一原子实现 gate,避免中间 commit/compileall 断裂。
+  - 明确 `ingestion/__init__.py` 不再 re-export pipeline,`run_knowledge_ingestion_pipeline` 进入 facade。
+  - 补齐未分类 imports 的迁移矩阵,包括 `artifact_writer.py`、`harness.py`、`adapters/cli.py`、`truth_governance/sqlite_store.py`、`surface_tools/librarian_executor.py` 等。
+  - M4 guard scope 扩为 production source 默认只能经 `knowledge_plane`,并要求同步 `_internal_knowledge_store.py` invariant allowlist。
 
 进行中:
 
@@ -185,14 +191,12 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Codex]** 启动 LTO-6 plan kickoff:依据本节"LTO-6 方向决议"产出 `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`,含 6-10 个 facade 领域函数命名提议、24 个 import 切换 mapping、6 个子模块 `_internal_` 命名方案、guard test 扩展规格、milestone 切片设计。
-- **[Claude / design-auditor]** Codex plan 产出后执行 plan_audit gate。
 - **[Human]** Plan Gate 通过后切 `feat/lto-6-knowledge-plane-facade-solidification` 分支。
 - **[Codex]** 实现;**[Claude]** PR review;**[Human]** merge gate。
 
 当前阻塞项:
 
-- 无 blocker。D4 Phase A 已 merge 到 main;LTO-6 方向决议完成;等待 Codex 启动 LTO-6 plan。
+- 无 blocker。LTO-6 plan_audit 已产出并由 Codex 吸收到 `plan.md`;等待 Human plan gate。
 
 ## Tag 状态
 
@@ -204,21 +208,21 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 D4 Phase A rename diff。
-2. **[Human / Codex]** 后续按 roadmap 进入 D1 / LTO-6 Knowledge Plane Facade Solidification。
+1. **[Human]** Plan Gate 通过后切 `feat/lto-6-knowledge-plane-facade-solidification` 分支。
+2. **[Codex]** 按更新后的 LTO-6 plan 开始实现。
 
 ```markdown
 direction_gate:
-- latest_completed_phase: v1.7.0 tag
+- latest_completed_phase: D4 Phase A — Adapter Boundary Cleanup
 - merge_commit: 4ea7a9d FastAPI Local Web UI Write Surface
 - latest_release_tag: v1.7.0 at 2156d4a docs(release): sync v1.7.0 release docs
 - active_branch: main
-- active_phase: D4 Phase A — Adapter Boundary Cleanup
-- active_slice: pure import-path rename complete; full validation passed
+- active_phase: LTO-6 — Knowledge Plane Facade Solidification
+- active_slice: plan_audit absorbed; awaiting Human plan gate
 - cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
 - structural_changes_this_round: LTO-13 relocated 簇 C → 簇 B (interface boundary nature, not cluster C continuation); cluster C subheading dropped "+ 接续"; v1.6.0 tag decision marked executed
 - direction_decided: do LTO-13 directly; LTO-5 / LTO-6 do not block LTO-13 (application/commands is the buffer layer)
-- roadmap: docs/roadmap.md current ticket = D4 Phase A Adapter Boundary Cleanup; next startup = D1 / LTO-6 Knowledge Plane Facade Solidification
+- roadmap: docs/roadmap.md current ticket = LTO-6 Knowledge Plane Facade Solidification; next startup = Wiki Compiler 第一阶段
 - closeout (prior phase): docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns (both absorbed)
 - new_invariants_landed: helper-side append_event allowlist (12 telemetry kinds + 2 disallowed) registered in INVARIANTS.md §9
@@ -227,11 +231,15 @@ direction_gate:
 - pr_materials: docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md + ./pr.md + review_comments.md
 - review_outcome: recommend-merge; 14/14 audit findings absorbed; C1 and N1 fixed; N2 deferred to D2 driven ports
 - d4_validation: compileall passed; diff check passed; runtime old-path scan clean; focused CLI/Web/Invariant/Application gate 316 passed; full pytest 745 passed, 8 deselected
-- next_gate: Human D4 Phase A commit
+- lto6_plan: docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md (status review; plan_audit concerns absorbed)
+- lto6_plan_audit: docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md (has-concerns; 0 blockers / 7 concerns / 2 nits)
+- next_gate: Human plan gate
 ```
 
 ## 当前产出物
 
+- `docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns;0 blockers / 7 concerns / 2 nits;重点:`build_knowledge_projection` god-function risk、`serve_knowledge_context` Callable injection、M2+M3 compileall gap、unclassified imports 26 处、M4 guard insufficiency、invariant guard allowlist staleness)
+- `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`(codex, 2026-05-03, LTO-6 phase plan;Functional facade + one-shot migration + `_internal_*` module internalization + guard/test strategy;plan_audit 7 concerns + 2 nits absorbed)
 - `docs/roadmap.md`(claude, 2026-05-03, post-LTO-13 增量更新:LTO-13 标完成、LTO-5 重定义为 Driven Ports Rollout、LTO-6 重定义为 Knowledge Plane Facade Solidification 主动化、新增 D5/D4 Phase A independent phase tickets、§五 顺序更新)
 - `docs/engineering/ARCHITECTURE_DECISIONS.md`(claude, 2026-05-03, 草稿;架构身份 = Hexagonal + 当前模式清单 + 6 项已识别偏离 D1-D6;待与 LTO-13 closeout 一起提交)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan.md`(codex, 2026-05-03, LTO-13 phase plan; Round 1 / Pydantic follow-up / Round 2 / Round 3 audit concerns absorbed)
