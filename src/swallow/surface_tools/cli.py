@@ -1096,7 +1096,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     synthesis_policy_set_parser = synthesis_policy_subparsers.add_parser(
         "set",
-        help="Update an MPS policy value via apply_proposal.",
+        help="Update an MPS policy value (governed write).",
     )
     synthesis_policy_set_parser.add_argument(
         "--kind",

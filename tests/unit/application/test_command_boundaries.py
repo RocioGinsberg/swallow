@@ -8,12 +8,9 @@ SRC_ROOT = Path(__file__).resolve().parents[3] / "src" / "swallow"
 COMMAND_MODULES = (
     "application/commands/proposals.py",
     "application/commands/meta_optimizer.py",
-)
-PLANNED_COMMAND_MODULES = (
     "application/commands/route_metadata.py",
     "application/commands/policies.py",
     "application/commands/synthesis.py",
-    "application/commands/ingestion.py",
     "application/commands/knowledge.py",
     "application/commands/tasks.py",
 )
@@ -60,8 +57,7 @@ def _source(relative_path: str) -> str:
 
 
 def _existing_command_modules() -> tuple[str, ...]:
-    optional_modules = tuple(relative_path for relative_path in PLANNED_COMMAND_MODULES if (SRC_ROOT / relative_path).exists())
-    return COMMAND_MODULES + optional_modules
+    return COMMAND_MODULES
 
 
 def test_application_command_modules_do_not_format_terminal_output() -> None:

@@ -4874,7 +4874,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             stdout = StringIO()
-            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
+            with patch("swallow.application.commands.tasks.run_task") as run_task_mock:
                 run_task_mock.return_value = TaskState(
                     task_id=task_id,
                     title="Retry allowed",
@@ -4916,7 +4916,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             stdout = StringIO()
-            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
+            with patch("swallow.application.commands.tasks.run_task") as run_task_mock:
                 with redirect_stdout(stdout):
                     self.assertEqual(main(["--base-dir", str(tmp_path), "task", "retry", task_id]), 1)
 
@@ -4956,7 +4956,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             stdout = StringIO()
-            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
+            with patch("swallow.application.commands.tasks.run_task") as run_task_mock:
                 run_task_mock.return_value = TaskState(
                     task_id=task_id,
                     title="Resume allowed",
@@ -5003,7 +5003,7 @@ class CliLifecycleTest(unittest.TestCase):
             )
 
             stdout = StringIO()
-            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
+            with patch("swallow.application.commands.tasks.run_task") as run_task_mock:
                 with redirect_stdout(stdout):
                     self.assertEqual(main(["--base-dir", str(tmp_path), "task", "resume", task_id]), 1)
 
@@ -5175,7 +5175,7 @@ class CliLifecycleTest(unittest.TestCase):
             (task_root / "state.json").write_text(json.dumps(state.to_dict(), indent=2) + "\n", encoding="utf-8")
 
             stdout = StringIO()
-            with patch("swallow.surface_tools.cli.run_task") as run_task_mock:
+            with patch("swallow.application.commands.tasks.run_task") as run_task_mock:
                 run_task_mock.return_value = TaskState(
                     task_id=task_id,
                     title="Rerun task",
