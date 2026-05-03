@@ -8,14 +8,14 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Release / Tag`
-- latest_completed_phase: `v1.7.0 tag`
-- latest_completed_slice: `LTO-13 tagged; D5 Adapter Discipline doc shipped`
-- active_track: `Adapter / Service Boundary Cleanup`
-- active_phase: `D4 Phase A — Adapter Boundary Cleanup`
-- active_slice: `pure import-path rename complete; full validation passed`
+- latest_completed_track: `Adapter / Service Boundary Cleanup`
+- latest_completed_phase: `D4 Phase A — Adapter Boundary Cleanup (rename surface_tools → adapters)`
+- latest_completed_slice: `D4 Phase A merged; LTO-6 direction confirmed (Functional facade + 一次清)`
+- active_track: `Architecture / Knowledge Plane`
+- active_phase: `LTO-6 — Knowledge Plane Facade Solidification`
+- active_slice: `direction confirmed; awaiting plan kickoff (Codex)`
 - active_branch: `main`
-- status: `d4_phase_a_validated`
+- status: `lto6_direction_confirmed_ready_for_plan`
 
 ## 当前状态说明
 
@@ -156,15 +156,8 @@ LTO-7 long-running follow-ups(仍开放):
   - `README.md` Release Snapshot 更新为 `v1.7.0 local Web Control Center write surface`。
   - `current_state.md` 更新为 `v1_7_0_release_docs_ready_for_tag`。
   - `docs/active_context.md` 更新为 release docs / tag preparation 状态。
-
-进行中:
-
-- 无。
-
-待执行:
-
 - **[Claude]** D5 Adapter Discipline Codification 已落地(2026-05-03):
-  - 产出 `docs/engineering/ADAPTER_DISCIPLINE.md`(~178 行 → revision 后),六条规则(§1 Framework-Default Principle / §2 Adapter Forbidden Zone / §3 模块布局 / §4 Surface-identity / §5 错误映射)+ §6 worked examples 把 LTO-13 audit Round 1-3 + post-merge follow-up 共 16 项 concerns(R1 5+1 nit + Pydantic + R2 4+2 + R3 5+1 + C1 + N1)逐项映射到规则。
+  - 产出 `docs/engineering/ADAPTER_DISCIPLINE.md`(~178 行 → revision 后),六条规则(§1 Framework-Default Principle / §2 Adapter Forbidden Zone / §3 模块布局 / §4 Surface-identity / §5 错误映射)+ §6 worked examples 把 LTO-13 audit Round 1-3 + post-merge follow-up 共 16 项 concerns 逐项映射到规则。
   - design-auditor subagent 完成轻量交叉审,verdict = approve-with-fixes;两个 must-fix(TL;DR 14→16 计数、`errors.py` vs `exceptions.py` 命名冲突)+ 两个建议性改进(R2-6 多标签、§4 dated callout)全部已吸收。
   - User 决定 D5 不走完整 plan / plan_audit / review / closeout 流程,直接产出文档(纯文档 phase 风险低,以省流程换实际收益)。
 - **[Codex / 主线]** 完成 **D4 Phase A** —— 纯 import-path rename:`surface_tools/cli.py` + `surface_tools/cli_commands/` → `adapters/cli.py` + `adapters/cli_commands/`、`surface_tools/web/` → `adapters/http/`。无逻辑改动。
@@ -173,12 +166,33 @@ LTO-7 long-running follow-ups(仍开放):
   - `tests/test_invariant_guards.py` 和 `tests/unit/application/test_command_boundaries.py` 路径引用已同步到 `src/swallow/adapters/...`。
   - `docs/engineering/ADAPTER_DISCIPLINE.md` worked examples 与 `docs/engineering/ARCHITECTURE_DECISIONS.md` D4 描述已同步新路径。
   - 验证通过:`compileall -q src/swallow`;`git diff --check`;runtime old-path scan clean;focused CLI/Web/Invariant/Application gate `316 passed`;full pytest `745 passed, 8 deselected`。
-- **[Codex / 主线]** D4 Phase A 落定后启动 **D1 / LTO-6 Knowledge Plane Facade Solidification**:替换 `knowledge_plane.py` 50 个 re-export → 6-10 个领域方法,~10 处 application/truth_governance import 切换,6 个 knowledge_retrieval 子模块 `_internal` 化。
-- **[Claude]** Roadmap 第二轮简化已落地(post-v1.7.0-tag),删除簇 C step 级历史,§五 跨阶段排序依据 8 条精简为 4 条;Roadmap 现 171 行。`ARCHITECTURE_DECISIONS.md` 与 `ADAPTER_DISCIPLINE.md` 都 untracked,等下次 commit 一起落。
+  - Merged to `main` at `7450953 refactor(adapters): move cli and http driving adapters`(前序 `d67c2ad docs(engineering): adapter discipline + architecture decisions`)。
+- **[Claude]** LTO-6 方向决议(2026-05-03,Human + Claude 讨论后定):
+  - **facade 形态 = Functional facade**(模块级 6-10 个领域函数,不引入 class + DI);理由 = class 形态会迫使 24 个调用方改函数签名,与 LTO-5 driven port rollout 耦合,过度提前。
+  - **执行节奏 = 一次清**;理由 = 24 个 import 都是机械替换,grep+sed 即可;guard test 在 PR 时强制完整性;三轮分批反而引入"双形态共存"混淆期。
+  - **24 个绕过点核实**(2026-05-03 grep):application 5、orchestration 7、provider_router 2、surface_tools 4、adapters 2、truth_governance 3,加测试若干。比 ADR §3.1 当时估算的"~10 处"高 2x。
+  - **Wiki Compiler 是硬 prerequisite**:LTO-6 必须在 Wiki Compiler(LTO-1)前落地,否则 Wiki Compiler 实施时会大量调用 knowledge layer,扩大 barrel 调用面后再迁移成本翻倍。
+  - **v1.8.0 节点 = Wiki Compiler 第一阶段落地后**(类似 LTO-13 → v1.7.0 关系;LTO-6 + 任何 D4 Phase B/C 都是 plumbing,本身用户不可见,不单独 cut)。
+- **[Claude]** Roadmap 第三轮更新(post-D4-Phase-A + LTO-6 方向决议)已落地(roadmap.md 172 行):
+  - §三 §五 §二 LTO-6 行同步全部新规格(Functional facade + 一次清 + 24 个文件实测数);
+  - 移除 §三 D5 / D4 Phase A 的 "已完成 ticket" 留底(按 §六 维护规则归档到 git log);
+  - §三 加 v1.8.0 节点说明(Wiki Compiler 第一阶段后 cut);
+  - §五 推荐顺序更新到 "...→ D5 + D4 Phase A(done)→ LTO-6 → Wiki Compiler(v1.8.0)→ 后续"。
+
+进行中:
+
+- 无。
+
+待执行:
+
+- **[Codex]** 启动 LTO-6 plan kickoff:依据本节"LTO-6 方向决议"产出 `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`,含 6-10 个 facade 领域函数命名提议、24 个 import 切换 mapping、6 个子模块 `_internal_` 命名方案、guard test 扩展规格、milestone 切片设计。
+- **[Claude / design-auditor]** Codex plan 产出后执行 plan_audit gate。
+- **[Human]** Plan Gate 通过后切 `feat/lto-6-knowledge-plane-facade-solidification` 分支。
+- **[Codex]** 实现;**[Claude]** PR review;**[Human]** merge gate。
 
 当前阻塞项:
 
-- 无 blocker。D4 Phase A 纯 import-path rename 已完成并通过全量验证。
+- 无 blocker。D4 Phase A 已 merge 到 main;LTO-6 方向决议完成;等待 Codex 启动 LTO-6 plan。
 
 ## Tag 状态
 
