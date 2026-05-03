@@ -13,9 +13,9 @@
 - latest_completed_slice: `v1.6.0 tagged; cluster C fully closed`
 - active_track: `Interface / Application Boundary`
 - active_phase: `LTO-13 — FastAPI Local Web UI Write Surface`
-- active_slice: `Round 2 / Round 3 implementation follow-up complete; awaiting human review / commit`
+- active_slice: `review concerns addressed; roadmap updated for post-LTO-13 + ADR D1-D6; ready for Human merge gate`
 - active_branch: `feat/lto-13-fastapi-local-web-ui-write-surface`
-- status: `lto13_round2_round3_followup_validated`
+- status: `lto13_ready_for_merge_gate_with_roadmap_synced`
 
 ## 当前状态说明
 
@@ -123,6 +123,28 @@ LTO-7 long-running follow-ups(仍开放):
   - Web staged promote schema 移除 `force`;server 增加 loopback-only host guard;static UI 使用 eligibility 控制 task action buttons 并为 long-running action 显示 pending state。
   - 新增/更新 HTTP、Web API、server safety tests。
 - **[Codex]** Round 2 / Round 3 follow-up 验证通过:HTTP write tests 9 passed; Web/server tests 12 passed; invariant/application boundary 38 passed; control_center query unit 1 passed; CLI tests 242 passed; `compileall -q src/swallow`; `git diff --check`; full pytest `745 passed, 8 deselected`。
+- **[Human]** 已提交实现 milestone:`d4c25ac feat(web): harden local write API surface`。
+- **[Codex]** 补齐 PR / closeout 材料:
+  - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md`(implementation closeout draft;Claude review 后再 final)
+  - `./pr.md`(PR body draft;Review section 等待 `review_comments.md`)
+- **[Claude]** 完成 PR review,产出 `docs/plans/lto-13-fastapi-local-web-ui-write-surface/review_comments.md`:**recommend-merge**;0 blockers / 1 concern / 2 nits。逐项核验 14 项 plan_audit findings(R1 5+1 nit + Pydantic + R2 4+2 + R3 5+1)全部吸收,无静默回归。
+  - C1 [concern] `surface_tools/web/schemas.py:12` 直接 import `swallow.knowledge_retrieval.staged_knowledge.StagedCandidate`,违反 Direction 决定中"避免直接 reach `knowledge_retrieval.*`"约束;放大 `ARCHITECTURE_DECISIONS.md §3.1 D1` 偏离;建议 application 层增加 `StagedCandidate` 公共导出,3 行修复。
+  - N1 [nit] `api.py:35-36` `_static_dir()` 用 `Path.cwd()` 作为 `resolve_path` 的 base,实际是 dead-arg 因为 `__file__` 已是 absolute;建议简化为 `Path(__file__).resolve().parent / "static"`。
+  - N2 [nit] `tests/integration/http/test_web_write_routes.py:53-56` 通过 `executor_name="local"` 跑真实任务到完成,对 local executor success 契约敏感;留待 D2 driven port 落地后切换到 stub。
+- **[Codex]** 已处理 review:
+  - C1 fixed: `StagedCandidate` 从 `application.commands.knowledge` 公共导出,`surface_tools/web/schemas.py` 不再直接 import `knowledge_retrieval.*`。
+  - N1 fixed: `_static_dir()` 改为 `Path(__file__).parent / "static"`,避免 `Path.cwd()` dead base 且不触发 `Path.resolve()` invariant guard。
+  - N2 acknowledged/deferred:保留真实 local executor HTTP integration 覆盖,等 D2 driven ports 后再切到 command-boundary stub。
+  - Post-review validation:focused Web/Application/Invariant gate `59 passed`;`compileall -q src/swallow`;`git diff --check`;full pytest `745 passed, 8 deselected`。
+  - `closeout.md` 更新为 `status: final`;`./pr.md` Review 段已同步 review 结论与 post-review validation。
+- **[Claude]** Roadmap 增量更新(post-LTO-13 + ADR D1-D6 框架):
+  - §一 baseline `当前重构状态` 升级到 "簇 C 完全终结 + LTO-13 接口边界首次落地";新增 `架构身份` 行(Hexagonal + 6 项偏离 D1-D6)。
+  - §二 簇 B 描述更新:LTO-5 重定义为 **Driven Ports Rollout**(N phases,首推 `TaskStorePort`);LTO-6 重定义为 **Knowledge Plane Facade Solidification**(主动收口,而非 touched-surface 慢推);LTO-13 行标已完成,列出全部 R1-R3 吸收点。
+  - §三 近期队列重写:LTO-13(收口中)→ **D5 Adapter Discipline Codification** → **D4 Phase A 重命名 surface_tools/{cli,web} → adapters/{cli,http}** → **D1 Knowledge Plane Facade Solidification(=LTO-6)**。明确 D2/D6/D3 默认 deferred。
+  - §四 加 **v1.7.0 Tag 决策**(待 LTO-13 merge 后评估)。
+  - §五 推荐顺序更新到 "...→ LTO-13 → D5 → D4 Phase A → D1/LTO-6 → 后续";新增"LTO-13 后续工程纪律 phase 顺序"小节,把 D5 → D4 Phase A → D1 三步的理由写清。跨阶段排序依据从 6 条扩到 8 条,加了 LTO-13 已落地 / D5/D4/D1 紧随 / D2/D6/D3 deferred 三条。
+  - §一 工程纪律行加一句 ARCHITECTURE_DECISIONS.md 待提交、D5 文档化的指引。
+  - 已通过 phase-guard scope check 与 format-validator(193 行,远在 300 行上限内)。
 
 进行中:
 
@@ -130,25 +152,25 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Review 当前实现 diff,决定是否提交实现 milestone。
-- **[Claude]** 如需要,对实现进行 PR/review gate。
+- **[Human]** Review final closeout / `pr.md` / 新增 `docs/engineering/ARCHITECTURE_DECISIONS.md`(draft) / 更新后的 `docs/roadmap.md`,提交 review-fix + closeout + roadmap update + ADR 文档后创建 PR / merge 决策。
+- **[Codex]** Merge 后执行 post-merge state sync(`current_state.md` + `docs/active_context.md`),并准备下一启动 phase = **D5 Adapter Discipline Codification**(单文档 phase,把 LTO-13 plan_audit Round 1-3 的 14 concerns 编纂为 `docs/engineering/ADAPTER_DISCIPLINE.md`)。
 
 当前阻塞项:
 
-- 无 blocker。Round 2 / Round 3 follow-up 已实现并验证通过,等待 human review / commit。
+- 无 blocker。Review concern 已处理;等待 Human merge gate。
 
 ## Tag 状态
 
 - 最新已执行 tag: **`v1.6.0`**(2026-05-03)
 - tag target: `0e6215a docs(release): sync v1.6.0 release docs`
 - 标记意义:**cluster C closure**(LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10 全部完成)
-- 下一 tag 评估:LTO-13 完成后视情况评估 `v1.7.0`(WebUI write surface 是首次 LLM-外可观察能力增量;但也可累积更多产品向 phase 后再 cut)。
+- 下一 tag 评估:LTO-13 completed merge 后评估 `v1.7.0`(WebUI write surface 是首次 LLM-外可观察能力增量;也可累积更多产品向 phase 后再 cut)。
 
 ## 当前下一步
 
-1. **[Human]** Review LTO-13 implementation diff。
-2. **[Human]** 若通过,提交实现 milestone。
-3. **[Claude]** 进入 review gate。
+1. **[Human]** 提交 review-fix + closeout 文档,创建 PR / merge 决策。
+2. **[Codex]** Merge 后执行 post-merge state sync。
+3. **[Human / Claude]** Merge 后评估 `v1.7.0` tag;触发后续 phase(D5 Adapter Discipline Codification、D1 Knowledge Plane Facade Solidification、D4 Adapter / Service Boundary Cleanup 三选一,见 `ARCHITECTURE_DECISIONS.md`)。
 
 ```markdown
 direction_gate:
@@ -157,7 +179,7 @@ direction_gate:
 - release_tag: v1.6.0 at 0e6215a docs(release): sync v1.6.0 release docs
 - active_branch: feat/lto-13-fastapi-local-web-ui-write-surface
 - active_phase: LTO-13 — FastAPI Local Web UI Write Surface
-- active_slice: Round 2 / Round 3 implementation follow-up complete; awaiting human review / commit
+- active_slice: review concerns addressed; ready for Human merge gate
 - cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
 - structural_changes_this_round: LTO-13 relocated 簇 C → 簇 B (interface boundary nature, not cluster C continuation); cluster C subheading dropped "+ 接续"; v1.6.0 tag decision marked executed
 - direction_decided: do LTO-13 directly; LTO-5 / LTO-6 do not block LTO-13 (application/commands is the buffer layer)
@@ -165,16 +187,23 @@ direction_gate:
 - closeout (prior phase): docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns (both absorbed)
 - new_invariants_landed: helper-side append_event allowlist (12 telemetry kinds + 2 disallowed) registered in INVARIANTS.md §9
-- validation: focused HTTP/Web/Application/Invariant/CLI gates passed; compileall passed; diff check passed; full pytest passed (745 passed, 8 deselected)
-- next_gate: Human implementation review / milestone commit
+- validation: focused HTTP/Web/Application/Invariant/CLI gates passed; post-review focused Web/Application/Invariant gate passed (59 passed); compileall passed; diff check passed; full pytest passed (745 passed, 8 deselected)
+- implementation_commit: d4c25ac feat(web): harden local write API surface
+- pr_materials: docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md + ./pr.md + review_comments.md
+- review_outcome: recommend-merge; 14/14 audit findings absorbed; C1 and N1 fixed; N2 deferred to D2 driven ports
+- next_gate: Human merge decision
 ```
 
 ## 当前产出物
 
-- `docs/roadmap.md`(claude/roadmap-updater + claude 主线, 2026-05-03, post-merge LTO-8 Step 2 完成 + cluster C 完全终结 + LTO-13 移回簇 B + §三 切到 LTO-13 + §四 v1.6.0 已执行)
+- `docs/roadmap.md`(claude, 2026-05-03, post-LTO-13 增量更新:LTO-13 标完成、LTO-5 重定义为 Driven Ports Rollout、LTO-6 重定义为 Knowledge Plane Facade Solidification 主动化、新增 D5/D4 Phase A independent phase tickets、§五 顺序更新)
+- `docs/engineering/ARCHITECTURE_DECISIONS.md`(claude, 2026-05-03, 草稿;架构身份 = Hexagonal + 当前模式清单 + 6 项已识别偏离 D1-D6;待与 LTO-13 closeout 一起提交)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan.md`(codex, 2026-05-03, LTO-13 phase plan; Round 1 / Pydantic follow-up / Round 2 / Round 3 audit concerns absorbed)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan_audit.md`(claude/design-auditor + claude post-audit + Round 2 + Round 3, 2026-05-03, has-concerns; 0 blockers / 14 concerns / 4 nits;含 plan-gate 后追加的 Pydantic 决策拆分 + 6 项 Round 2 post-impl 发现 + 6 项 Round 3 framework-rejection 发现 + Framework-Default Principle 元规则)
-- `src/swallow/surface_tools/web/api.py` / `http_models.py` / `static/index.html`(codex, 2026-05-03, LTO-13 write surface implementation)
+- `docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md`(codex, 2026-05-03, final closeout;review concern addressed)
+- `docs/plans/lto-13-fastapi-local-web-ui-write-surface/review_comments.md`(claude, 2026-05-03, **recommend-merge**;14/14 plan_audit findings absorbed;0 blockers / 1 concern (C1 schemas.py knowledge_retrieval 越界) / 2 nits)
+- `./pr.md`(codex, 2026-05-03, PR body;review outcome synced)
+- `src/swallow/surface_tools/web/api.py` / `schemas.py` / `dependencies.py` / `exceptions.py` / `server.py` / `static/index.html`(codex, 2026-05-03, LTO-13 write surface implementation;milestone commit `d4c25ac`)
 - `tests/integration/http/test_web_write_routes.py` + Web/guard test updates(codex, 2026-05-03, LTO-13 HTTP write coverage)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`(codex, 2026-05-03, LTO-8 Step 2 closeout final)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`(claude, 2026-05-03, recommend-merge;0 blockers / 2 non-blocking concerns)

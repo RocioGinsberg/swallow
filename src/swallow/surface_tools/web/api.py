@@ -28,12 +28,11 @@ from swallow.application.queries.control_center import (
     build_task_subtask_tree_payload,
     build_tasks_payload,
 )
-from swallow.surface_tools.workspace import resolve_path
 from swallow.surface_tools.web.exceptions import TaskActionBlockedError
 
 
 def _static_dir() -> Path:
-    return resolve_path(Path(__file__), base=Path.cwd()).parent / "static"
+    return Path(__file__).parent / "static"
 
 
 def _task_recovery_or_raise(result: TaskRecoveryCommandResult) -> TaskRecoveryCommandResult:

@@ -3,13 +3,13 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 
+from swallow.application.commands.knowledge import StagedCandidate
 from swallow.application.commands.proposals import ProposalApplyCommandResult, ProposalReviewCommandResult
 from swallow.application.commands.tasks import (
     TaskAcknowledgeCommandResult,
     TaskRecoveryCommandResult,
     TaskRunCommandResult,
 )
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate
 from swallow.orchestration.models import TaskState
 
 
