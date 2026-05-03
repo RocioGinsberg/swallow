@@ -8,14 +8,14 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Adapter / Service Boundary Cleanup`
-- latest_completed_phase: `D4 Phase A — Adapter Boundary Cleanup (rename surface_tools → adapters)`
-- latest_completed_slice: `D4 Phase A merged; LTO-6 direction confirmed (Functional facade + 一次清)`
-- active_track: `Architecture / Knowledge Plane`
-- active_phase: `LTO-6 — Knowledge Plane Facade Solidification`
-- active_slice: `review closeout synced; awaiting Human merge gate`
-- active_branch: `feat/lto-6-knowledge-plane-facade-solidification`
-- status: `lto6_review_closeout_sync_ready_for_merge`
+- latest_completed_track: `Architecture / Knowledge Plane`
+- latest_completed_phase: `LTO-6 — Knowledge Plane Facade Solidification`
+- latest_completed_slice: `LTO-6 merged at 883e2a9; Wiki Compiler design positioning decided`
+- active_track: `Knowledge Authoring`
+- active_phase: `LTO-1 — Wiki Compiler 第一阶段(prep)`
+- active_slice: `design docs prepped (EXECUTOR_REGISTRY + SELF_EVOLUTION); awaiting LTO-1 phase plan kickoff`
+- active_branch: `main`
+- status: `lto1_design_prepped_ready_for_plan`
 
 ## 当前状态说明
 
@@ -211,6 +211,29 @@ LTO-7 long-running follow-ups(仍开放):
   - C1 [concern] facade `render_*` / `build_*` 配对别名 ~14 处,M3 caller 迁移 commit 已更动每个 import line,正是删除冗余别名的最便宜窗口;建议 option (a) 单 follow-up commit 删冗余别名,~50 行 diff。
   - N1 [nit] `audit_canonical_registry` / `render_canonical_audit_report` 是 facade 中唯一两个用 lazy import 的函数(`knowledge_plane.py:510-519`),likely 因 `canonical_audit.py` 反向 import facade 形成循环;建议加 1 行注释或验证可消除。
   - N2 [nit] `knowledge_plane.py` 缺 `__all__`,wildcard import 隐含面比显式 surface 大;建议加 `__all__` 列 ~70 个 public functions / value classes(可后续 polish)。
+- **[Human]** LTO-6 已 merge to `main` at `883e2a9 Knowledge Plane Facade Solidification`(含 closeout final `41f1ac9`)。
+- **[Claude]** Wiki Compiler 定位决议(2026-05-04,Human + Claude 讨论后定):
+  - **选项 A 独立 specialist**(不是 Librarian / Ingestion 子能力,也不是 application command 形态)。
+  - 五元组 = `(specialist / propose_only / {task_artifacts, event_log, staged_knowledge} / specialist_internal / hybrid)`;`default_retrieval_sources = ["knowledge", "artifacts", "raw_material"]`。
+  - 与 Librarian 是**上下游关系**(Wiki Compiler 起草 → Librarian 守门 → Operator review → `apply_proposal`),不是合并关系。让一个 agent 同时做创作 + 守门会失去独立 verdict。
+  - 与 Ingestion 是**平行不重叠**:Ingestion 把单源外部会话结构化;Wiki Compiler 从多源 raw_material 综合产出 wiki/canonical 草稿,需要 retrieval 召回查重。
+- **[Claude]** LTO-1 phase plan 启动前的设计文档先行已完成:
+  - `docs/design/EXECUTOR_REGISTRY.md` §1.2 加 Wiki Compiler 第 5 个 specialist 条目(完整五元组 + 与 Librarian / Ingestion 关系说明 + retrieval sources 理由)。
+  - `docs/design/EXECUTOR_REGISTRY.md` §2 默认绑定表加"知识起草主线 / Wiki Compiler"行。
+  - `docs/design/SELF_EVOLUTION.md` §2 mermaid 图加 Wiki Compiler 上游环节(`raw_material → Wiki Compiler → staged`),与 Librarian 在同一 subgraph 内并列;主线表拆为"起草侧 / 守门侧"两行。
+  - `docs/design/SELF_EVOLUTION.md` §4.2 沉淀工作流文字拆为 [A] 起草侧 / [B] 守门侧 / [共同收口] 三段,显式说明 Wiki Compiler 与 Librarian 的上下游关系。
+  - 没改 INVARIANTS / KNOWLEDGE / ARCHITECTURE_DECISIONS / ADAPTER_DISCIPLINE —— 这些文档对 Wiki Compiler 没有需要修订的约束;新 specialist 完美套入既有 propose_only / 写 staged 边界。
+
+- **[Claude]** Wiki Compiler 4 模式语义决议(2026-05-04):
+  - **Mode 1 — `draft`**:从 raw_material 起草新 wiki entry,无对应旧对象;`relation_metadata = (无 / derived_from)`。
+  - **Mode 2 — `refine --mode supersede`**:旧 wiki 整体被取代;`relation_metadata = supersedes(<wiki_id>)`;旧 wiki 状态置 superseded(append-only,不删除)。
+  - **Mode 3 — `refine --mode refines`**:旧 wiki 仍 active,新 wiki 独立入库;`relation_metadata = refines(<wiki_id>)`;retrieval 通过 relation expansion 一并返回。
+  - **Mode 4 — `refresh-evidence`**:**不走 LLM**,仅刷 evidence 锚点(`content_hash` + `span` + `parser_version`);**不**经 `apply_proposal`(非 canonical mutation),但必须更新 `parser_version`(parser 升级时)以防 `KNOWLEDGE.md §A "Unversioned Evidence Rebuild"` 反模式。
+  - **Conflict 决策点**:Wiki Compiler 起草若召回到矛盾旧 wiki,标 `conflict_flag = contradicts(<wiki_id>)`;Librarian 守门时验证;Operator review 时人工二选一(supersede 旧 wiki / reject 新草稿 / 触发 audit);**系统永远不自动 supersede**(P7 / P8)。
+  - 设计文档已同步:`EXECUTOR_REGISTRY.md` Wiki Compiler 条目加 4 模式表 + Conflict 决策段;`SELF_EVOLUTION.md §4.2` 工作流文字按 4 模式 + Operator 决策点重写。
+- **[Claude]** Web Control Center 知识呈现决议(2026-05-04):
+  - **视图 1**(task-knowledge)+ **视图 2**(knowledge detail + adjacent relations 邻接表)并入 LTO-1 phase 作为 M2-M4 子目标。
+  - **视图 3**(项目级全图谱可视化)deferred —— 当前 wiki 节点量(~10s)在全图谱不友好区间;违反 LTO-13 §M3 "no new frontend package, build step, or asset pipeline";Wiki Compiler 落地前价值未显;留给真实需求触发或 Graph RAG 远期方向(`KNOWLEDGE.md §9`)。
 
 进行中:
 
@@ -218,13 +241,19 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Review final closeout / `pr.md`,提交 review closeout sync docs,然后进入 LTO-6 merge gate(可选:在 merge 前或 merge 后立即处理 C1 配对别名 follow-up,约 50 行 cleanup)。
-- **[Codex]** Merge 后执行 post-merge state sync(`current_state.md` + `docs/active_context.md` + `docs/roadmap.md` 把 LTO-6 标 done);更新 §五 推荐顺序首句把 Wiki Compiler 升级为"当前 ticket"。
-- **[Codex / 主线]** 启动 **Wiki Compiler 第一阶段(LTO-1)** —— LTO-6 是其硬 prerequisite,现在已就绪;此 phase 落地后 cut **v1.8.0**。
+- **[Codex]** Post-merge state sync:`current_state.md` + `docs/active_context.md` + `docs/roadmap.md`(LTO-6 标 done;§五 推荐顺序首句把 Wiki Compiler 升级为"当前 ticket")。
+- **[Codex]** 处理 LTO-6 review C1 follow-up(可选,~50 行 cleanup):删除 `knowledge_plane.py` 中 ~14 处 `render_*` / `build_*` 配对别名,每对保留一个(`render_*` 用于报告渲染,`build_*` 用于对象构造)。
+- **[Codex / 主线]** 启动 **LTO-1 Wiki Compiler 第一阶段** phase plan。设计文档(EXECUTOR_REGISTRY 5 specialist + 4 mode + SELF_EVOLUTION §2/§4.2)已先行更新到 main,plan 起草时直接引用如下锚点:
+  - **M1 — Wiki Compiler 起草核心**:`adapters/cli/cli_commands/wiki.py` 加 `swl wiki draft` / `swl wiki refine --mode supersede|refines` / `swl wiki refresh-evidence` 三条命令;application/commands 层加对应 command;实现走 specialist_internal LLM call path;prompt pack 输出 source pack + rationale + conflict_flag。
+  - **M2 — Knowledge browse 路由**:`adapters/http/api.py` 加 `GET /api/knowledge/wiki` / `GET /api/knowledge/canonical` / `GET /api/knowledge/staged` 三个 read-only 列表路由;走 `application/queries/knowledge.py`(可能需新建)。
+  - **M3 — Knowledge detail + relations 视图**:`GET /api/knowledge/{id}` + `GET /api/knowledge/{id}/relations`;Pydantic response envelope 含 `supersedes` / `refines` / `contradicts` / `refers_to` / `derived_from` 邻接对象。
+  - **M4 — Web UI Knowledge panel**:静态 `index.html` 加"Knowledge"标签页,展示 wiki/canonical 列表 + 详情 + 邻接 relations;遵循 `ADAPTER_DISCIPLINE.md` 6 条规则(Pydantic response_model / Depends / 集中 exception handler / 无 state machine in JS / loopback only);Wiki Compiler 触发按钮可选(若 LLM 调用走 long-running 路径,沿用 LTO-13 R2-1 accept-long-request 决议)。
+  - **M5 — Guard / closeout**:`tests/test_invariant_guards.py` 加 Wiki Compiler agent boundary guard(`truth_writes` 不含 canonical,只走 facade)+ Evidence rebuild parser_version guard(`refresh-evidence` 必须更新 parser_version 字段)。
+  - 此 phase 落地后 cut **v1.8.0**。
 
 当前阻塞项:
 
-- 无 blocker。LTO-6 review 已完成 = recommend-merge;1 concern(C1)已登记为非阻塞 follow-up,不阻止 merge gate。
+- 无 blocker。LTO-6 已 merge;Wiki Compiler 设计定位 + 4 模式语义 + Web 知识呈现 3 视图分级 + 文档先行已完成;等待 Codex 启动 LTO-1 phase plan。
 
 ## Tag 状态
 
