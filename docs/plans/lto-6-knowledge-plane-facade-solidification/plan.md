@@ -2,7 +2,7 @@
 author: codex
 phase: lto-6-knowledge-plane-facade-solidification
 slice: phase-plan
-status: review
+status: final
 depends_on:
   - docs/roadmap.md
   - docs/active_context.md
@@ -407,6 +407,6 @@ M5 is a validation gate, not a code commit.
 ## Plan Gate Checklist
 
 - [x] Claude / design-auditor reviews the facade API names and verifies they are not just old helper names with a new import path.
-- [ ] Human confirms the internal module naming choice (`_internal_*` same-package) before implementation.
-- [ ] Human confirms one-shot migration is acceptable for this phase.
-- [ ] Implementation branch is cut from `main` after plan gate.
+- [x] Human confirms the internal module naming choice (`_internal_*` same-package) before implementation.
+- [x] Human confirms one-shot migration is acceptable for this phase.
+- [x] Implementation branch is cut from `main` after plan gate.
