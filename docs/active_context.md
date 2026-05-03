@@ -13,14 +13,16 @@
 - latest_completed_slice: `LTO-6 merged at 883e2a9; Wiki Compiler design positioning decided`
 - active_track: `Knowledge Authoring`
 - active_phase: `LTO-1 — Wiki Compiler 第一阶段`
-- active_slice: `M2/M3 — Knowledge browse routes + detail/relations complete; ready for Human milestone review`
+- active_slice: `M4 — Web UI Knowledge panel complete; ready for Human milestone review`
 - active_branch: `feat/lto-1-wiki-compiler-first-stage`
-- status: `lto1_m2_m3_ready_for_human_commit`
+- status: `lto1_m4_ready_for_human_commit`
 
 ## 当前状态说明
 
 当前 git 分支为 `feat/lto-1-wiki-compiler-first-stage`。当前 HEAD 为:
 
+- `8c7faba docs(state): update active_context for M2/M3 complete`
+- `8e03ddd feat(web): add knowledge browse read routes`
 - `178f9ee feat(wiki): add compiler draft and refine commands`
 - `7eb2ef8 docs(plan): add lto-1 wiki compiler plan`
 - `b73ebf8 docs(state): update roadmap`
@@ -29,7 +31,7 @@
 
 `v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。
 
-**当前真实入口**:LTO-6 已 merge 到 `main`;Wiki Compiler 设计定位、4 模式语义与 Web 知识呈现视图分级已通过设计文档先行落到 `main`;`docs/roadmap.md` 已更新为 LTO-1 当前 ticket。`docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md` 已产出(0 blockers / 5 concerns / 2 nits),Codex 已吸收到 `plan.md`;Human 已完成 Plan Gate、planning docs commit 与 feature branch switch。M1 — Wiki Compiler 起草核心已提交为 `178f9ee feat(wiki): add compiler draft and refine commands`;M2/M3 — read-only Knowledge browse routes + detail/relations 已实现并通过 full validation,等待 Human milestone review / commit。
+**当前真实入口**:LTO-6 已 merge 到 `main`;Wiki Compiler 设计定位、4 模式语义与 Web 知识呈现视图分级已通过设计文档先行落到 `main`;`docs/roadmap.md` 已更新为 LTO-1 当前 ticket。`docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md` 已产出(0 blockers / 5 concerns / 2 nits),Codex 已吸收到 `plan.md`;Human 已完成 Plan Gate、planning docs commit 与 feature branch switch。M1 — Wiki Compiler 起草核心已提交为 `178f9ee feat(wiki): add compiler draft and refine commands`;M2/M3 — read-only Knowledge browse routes + detail/relations 已提交为 `8e03ddd feat(web): add knowledge browse read routes` + `8c7faba docs(state): update active_context for M2/M3 complete`;M4 — Web UI Knowledge panel 已实现并通过 full validation,等待 Human milestone review / commit。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -228,6 +230,12 @@ LTO-7 long-running follow-ups(仍开放):
   - Knowledge Plane facade 补只读 `load_canonical_registry_records` / `iter_knowledge_task_ids`,HTTP adapter 不直接读 SQLite / 文件路径 / knowledge internals。
   - relations view 合并 persisted relations 与 staged/canonical `relation_metadata`,分组覆盖 `supersedes` / `refines` / `contradicts` / `refers_to` / `derived_from` + `legacy`。
   - 验证通过:M2/M3 focused tests `7 passed`;Web/API/Invariant focused gate `50 passed`;facade/relations gate `13 passed`;`compileall`;`git diff --check`;full pytest `769 passed, 8 deselected`。
+- **[Human]** 已提交 M2/M3 milestone:`8e03ddd feat(web): add knowledge browse read routes` + `8c7faba docs(state): update active_context for M2/M3 complete`。
+- **[Codex]** 完成 **M4 — Web UI Knowledge panel**:
+  - `index.html` 新增 Tasks / Knowledge surface segmented control,Knowledge surface 只读展示 wiki/canonical/staged 列表、详情、source pack 与 relations adjacency。
+  - JS 只调用 M2/M3 GET routes,通过 backend read model 切换 knowledge kind/status,不引入 Wiki Compiler draft/refine/refresh 触发按钮。
+  - `tests/test_web_api.py` 增加 knowledge surface / route string smoke,验证 UI 文本与 route exposure。
+  - 验证通过:Web/API focused gate `22 passed`;`compileall`;`git diff --check`;full pytest `769 passed, 8 deselected`。
 
 进行中:
 
@@ -235,7 +243,7 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** 审阅 M2/M3 diff 与验证结果后执行 milestone commit。
+- **[Human]** 审阅 M4 diff 与验证结果后执行 milestone commit。
 - **[Codex]** 处理 LTO-6 review C1 follow-up(可选,~50 行 cleanup):删除 `knowledge_plane.py` 中 ~14 处 `render_*` / `build_*` 配对别名,每对保留一个(`render_*` 用于报告渲染,`build_*` 用于对象构造)。默认不阻塞 LTO-1 plan。
 - **[Codex / 主线]** 继续按 **LTO-1 Wiki Compiler 第一阶段** `plan.md` 实现。设计文档(EXECUTOR_REGISTRY 5 specialist + 4 mode + SELF_EVOLUTION §2/§4.2)已先行更新到 main,实现时继续遵循如下锚点:
   - **M4 — Web UI Knowledge panel**:静态 `index.html` 加"Knowledge"标签页,展示 wiki/canonical/staged 列表 + 详情 + 邻接 relations;遵循 `ADAPTER_DISCIPLINE.md` 6 条规则(Pydantic response_model / Depends / 集中 exception handler / 无 state machine in JS / loopback only);本期 Web 只读,不加入 Wiki Compiler draft/refine/refresh 触发按钮。
@@ -244,7 +252,7 @@ LTO-7 long-running follow-ups(仍开放):
 
 当前阻塞项:
 
-- 无 blocker。M2/M3 已完成,等待 Human milestone review / commit。
+- 无 blocker。M4 已实现,等待 Human milestone review / commit。
 
 ## Tag 状态
 
@@ -256,8 +264,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审阅 M2/M3 diff 与验证结果后执行 milestone commit。
-2. **[Codex]** Human 确认 M2/M3 commit 后进入 M4 Web UI Knowledge panel。
+1. **[Human]** 审阅 M4 diff 与验证结果后执行 milestone commit。
+2. **[Codex]** Human 确认 M4 commit 后进入 M5 guards / closeout。
 
 ```markdown
 direction_gate:
@@ -265,16 +273,18 @@ direction_gate:
 - latest_release_tag: v1.7.0 at 2156d4a docs(release): sync v1.7.0 release docs
 - active_branch: feat/lto-1-wiki-compiler-first-stage
 - active_phase: LTO-1 — Wiki Compiler 第一阶段
-- active_slice: M2/M3 — Knowledge browse routes + detail/relations complete; ready for Human milestone review
+- active_slice: M4 — Web UI Knowledge panel complete; ready for Human milestone review
 - roadmap: docs/roadmap.md current ticket = LTO-1 Wiki Compiler 第一阶段; v1.8.0 after first-stage landing
 - lto1_design_docs: docs/design/EXECUTOR_REGISTRY.md + docs/design/SELF_EVOLUTION.md updated with Wiki Compiler specialist + 4 modes
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
-- next_gate: Human M2/M3 milestone review / commit -> M4 Web UI Knowledge panel
+- next_gate: Human M4 milestone review / commit -> M5 guards / closeout
 ```
 
 ## 当前产出物
 
+- `src/swallow/adapters/http/static/index.html`(codex, 2026-05-04, M4 Knowledge surface;wiki/canonical/staged lists + detail + source pack + relations adjacency;read-only)
+- `tests/test_web_api.py`(codex, 2026-05-04, M4 static smoke for Knowledge panel IDs and GET route strings)
 - `src/swallow/application/queries/knowledge.py`(codex, 2026-05-04, M2/M3 read model;wiki/canonical/staged list + detail + persisted/metadata relations adjacency)
 - `src/swallow/adapters/http/api.py` + `src/swallow/adapters/http/schemas.py`(codex, 2026-05-04, M2/M3 read-only Knowledge Browse HTTP routes + Pydantic response envelopes)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py` + `_internal_canonical_registry.py` + `_internal_knowledge_store.py`(codex, 2026-05-04, M2/M3 read-only facade helpers for canonical registry records and knowledge task ids)
