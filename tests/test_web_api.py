@@ -104,10 +104,25 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertIn("/api/tasks/{task_id}/resume", route_paths)
         self.assertIn("/api/tasks/{task_id}/rerun", route_paths)
         self.assertIn("/api/tasks/{task_id}/acknowledge", route_paths)
+        self.assertIn("/api/knowledge/wiki", route_paths)
+        self.assertIn("/api/knowledge/canonical", route_paths)
+        self.assertIn("/api/knowledge/staged", route_paths)
+        self.assertIn("/api/knowledge/{object_id}", route_paths)
+        self.assertIn("/api/knowledge/{object_id}/relations", route_paths)
         self.assertIn("/api/knowledge/staged/{candidate_id}/promote", route_paths)
         self.assertIn("/api/knowledge/staged/{candidate_id}/reject", route_paths)
         self.assertIn("/api/proposals/review", route_paths)
         self.assertIn("/api/proposals/apply", route_paths)
+        knowledge_read_routes = {
+            getattr(route, "path", ""): getattr(route, "response_model", None)
+            for route in app.routes
+            if "GET" in getattr(route, "methods", set())
+        }
+        self.assertIsNotNone(knowledge_read_routes["/api/knowledge/wiki"])
+        self.assertIsNotNone(knowledge_read_routes["/api/knowledge/canonical"])
+        self.assertIsNotNone(knowledge_read_routes["/api/knowledge/staged"])
+        self.assertIsNotNone(knowledge_read_routes["/api/knowledge/{object_id}"])
+        self.assertIsNotNone(knowledge_read_routes["/api/knowledge/{object_id}/relations"])
         write_routes = {
             getattr(route, "path", ""): getattr(route, "response_model", None)
             for route in app.routes

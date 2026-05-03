@@ -167,6 +167,10 @@ def resolve_knowledge_object_id(base_dir: Path, object_id: str, **kwargs: Any) -
     return _canonical_registry.resolve_knowledge_object_id(base_dir, object_id, **kwargs)
 
 
+def load_canonical_registry_records(base_dir: Path) -> list[dict[str, object]]:
+    return _canonical_registry.load_canonical_registry_records(base_dir)
+
+
 def build_canonical_registry_index(records: list[dict[str, object]]) -> dict[str, object]:
     return _canonical_registry.build_canonical_registry_index(records)
 
@@ -272,6 +276,10 @@ def persist_wiki_entry_from_canonical_record(
 
 def iter_file_knowledge_task_ids(base_dir: Path) -> list[str]:
     return _knowledge_store.iter_file_knowledge_task_ids(base_dir)
+
+
+def iter_knowledge_task_ids(base_dir: Path) -> list[str]:
+    return _knowledge_store.iter_knowledge_task_ids(base_dir)
 
 
 def migrate_file_knowledge_to_sqlite(base_dir: Path, *, dry_run: bool = False) -> dict[str, object]:

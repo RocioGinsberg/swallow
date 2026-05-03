@@ -114,6 +114,13 @@ def resolve_knowledge_object_id(base_dir: Path, object_id: str, *, store: Sqlite
     raise ValueError(f"Unknown knowledge object: {normalized_id}")
 
 
+def load_canonical_registry_records(base_dir: Path) -> list[dict[str, object]]:
+    registry_file = canonical_registry_path(base_dir)
+    if not registry_file.exists():
+        return []
+    return [dict(record) for record in read_json_lines_or_empty(registry_file)]
+
+
 def build_canonical_registry_report(records: list[dict[str, object]]) -> str:
     lines = [
         "# Canonical Knowledge Registry",
