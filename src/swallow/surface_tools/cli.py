@@ -18,8 +18,6 @@ from swallow.knowledge_retrieval.canonical_reuse_eval import (
 )
 from swallow.knowledge_retrieval.canonical_audit import audit_canonical_registry, build_canonical_audit_report
 from swallow.surface_tools.consistency_audit import (
-    build_audit_trigger_policy_report,
-    load_audit_trigger_policy,
     run_consistency_audit,
 )
 from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_report
@@ -52,9 +50,6 @@ from swallow.truth_governance.governance import (
     ProposalTarget,
     apply_proposal,
     register_canonical_proposal,
-    register_mps_policy_proposal,
-    register_policy_proposal,
-    register_route_metadata_proposal,
 )
 from swallow.knowledge_retrieval.knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
@@ -64,13 +59,15 @@ from swallow.knowledge_retrieval.knowledge_relations import (
     delete_knowledge_relation,
     list_knowledge_relations,
 )
+from swallow.surface_tools.cli_commands.audit import handle_audit_command
 from swallow.surface_tools.cli_commands.meta_optimizer import handle_meta_optimize_command
 from swallow.surface_tools.cli_commands.proposals import handle_proposal_command
+from swallow.surface_tools.cli_commands.route import handle_route_command
 from swallow.surface_tools.cli_commands.route_metadata import handle_route_metadata_command
+from swallow.surface_tools.cli_commands.synthesis import handle_synthesis_command
 from swallow.knowledge_retrieval.knowledge_objects import summarize_canonicalization
 from swallow.knowledge_retrieval.knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from swallow.knowledge_retrieval.knowledge_suggestions import apply_relation_suggestions, build_relation_suggestion_application_report
-from swallow.orchestration.models import Event, RouteSelection
 from swallow.surface_tools.mps_policy_store import MPS_POLICY_KINDS
 from swallow.orchestration.orchestrator import (
     acknowledge_task,
@@ -110,8 +107,7 @@ from swallow.surface_tools.paths import (
     route_path,
     topology_path,
 )
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate, update_staged_candidate
-from swallow.orchestration.synthesis import load_synthesis_config, run_synthesis
+from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, update_staged_candidate
 from swallow.truth_governance.sqlite_store import get_schema_status
 from swallow.surface_tools.workspace import resolve_path
 from swallow.provider_router.router import (
@@ -120,14 +116,8 @@ from swallow.provider_router.router import (
     apply_route_policy,
     apply_route_registry,
     apply_route_weights,
-    build_route_policy_report,
-    build_route_registry_report,
-    load_route_policy_from_path,
-    route_by_name,
-    select_route,
 )
 from swallow.truth_governance.store import (
-    append_event,
     iter_task_states,
     load_events,
     load_knowledge_objects,
@@ -764,48 +754,6 @@ def _dispatch_artifact_printer(args: argparse.Namespace, base_dir: Path) -> int:
             "either add an entry or remove it from the Phase 67 M3 in-scope command set."
         )
     return handler(base_dir, getattr(args, "task_id", None))
-
-
-def _format_route_selection_value(value: object) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    normalized = str(value or "").strip()
-    return normalized or "none"
-
-
-def build_route_selection_report(
-    task_id: str,
-    selection: RouteSelection,
-    *,
-    executor_override: str = "",
-    route_mode_override: str = "",
-) -> str:
-    lines = [
-        "# Route Selection",
-        "",
-        f"- task_id: {task_id}",
-        f"- override_executor: {executor_override or 'none'}",
-        f"- override_route_mode: {route_mode_override or 'none'}",
-        f"- selected_route: {selection.route.name}",
-        f"- executor_name: {selection.route.executor_name}",
-        f"- backend_kind: {selection.route.backend_kind}",
-        f"- execution_site: {selection.route.execution_site}",
-        f"- executor_family: {selection.route.executor_family}",
-        f"- transport_kind: {selection.route.transport_kind}",
-        f"- model_hint: {selection.route.model_hint or 'none'}",
-        f"- dialect: {selection.route.dialect_hint or 'none'}",
-        f"- fallback_route: {selection.route.fallback_route_name or 'none'}",
-        f"- reason: {selection.reason}",
-        f"- capabilities: {selection.route.capabilities.summary()}",
-        "",
-        "## Policy Inputs",
-    ]
-    if selection.policy_inputs:
-        for key in sorted(selection.policy_inputs):
-            lines.append(f"- {key}: {_format_route_selection_value(selection.policy_inputs[key])}")
-    else:
-        lines.append("- none")
-    return "\n".join(lines)
 
 
 def build_stage_candidate_list_report(candidates: list[StagedCandidate]) -> str:
@@ -2631,183 +2579,21 @@ def main(argv: list[str] | None = None) -> int:
     if proposal_result is not None:
         return proposal_result
 
-    if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "show":
-        print(build_audit_trigger_policy_report(load_audit_trigger_policy(base_dir)), end="")
-        return 0
+    audit_result = handle_audit_command(base_dir, args)
+    if audit_result is not None:
+        return audit_result
 
-    if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "set":
-        policy = load_audit_trigger_policy(base_dir)
-        if args.enabled is not None:
-            policy.enabled = bool(args.enabled)
-        if args.trigger_on_degraded is not None:
-            policy.trigger_on_degraded = bool(args.trigger_on_degraded)
-        if args.clear_trigger_on_cost_above:
-            policy.trigger_on_cost_above = None
-        elif args.trigger_on_cost_above is not None:
-            if args.trigger_on_cost_above < 0:
-                raise ValueError("--trigger-on-cost-above must be non-negative.")
-            policy.trigger_on_cost_above = float(args.trigger_on_cost_above)
-        if args.auditor_route is not None:
-            auditor_route = args.auditor_route.strip()
-            if not auditor_route:
-                raise ValueError("--auditor-route must be a non-empty route name.")
-            if route_by_name(auditor_route) is None:
-                raise ValueError(f"Unknown auditor route: {auditor_route}")
-            policy.auditor_route = auditor_route
-        proposal_id = register_policy_proposal(
-            base_dir=base_dir,
-            proposal_id="audit-trigger-policy",
-            audit_trigger_policy=policy,
-        )
-        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
-        print(build_audit_trigger_policy_report(policy), end="")
-        return 0
+    synthesis_result = handle_synthesis_command(base_dir, args)
+    if synthesis_result is not None:
+        return synthesis_result
 
-    if (
-        args.command == "synthesis"
-        and args.synthesis_command == "policy"
-        and args.synthesis_policy_command == "set"
-    ):
-        proposal_id = register_mps_policy_proposal(
-            base_dir=base_dir,
-            proposal_id=f"mps-policy:{args.kind}",
-            kind=args.kind,
-            value=int(args.value),
-        )
-        result = apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
-        print(f"{args.kind}: {args.value}")
-        print(f"applied: {'yes' if result.success else 'no'}")
-        return 0
-
-    if args.command == "synthesis" and args.synthesis_command == "run":
-        state = load_state(base_dir, args.task_id)
-        config = load_synthesis_config(resolve_path(args.config_path))
-        result = run_synthesis(base_dir, state, config)
-        summary = str(result.payload.get("arbiter_decision", {}).get("synthesis_summary", "")).strip()
-        print(f"{state.task_id} synthesis_completed config_id={config.config_id} artifact={result.path}")
-        if summary:
-            print(summary)
-        return 0
-
-    if args.command == "synthesis" and args.synthesis_command == "stage":
-        task_id = args.task_id.strip()
-        if not task_id:
-            raise ValueError("--task must be a non-empty task id.")
-        load_state(base_dir, task_id)
-        arbitration_path = artifacts_dir(base_dir, task_id) / "synthesis_arbitration.json"
-        if not arbitration_path.exists():
-            raise ValueError(f"Missing synthesis arbitration artifact: {arbitration_path}")
-        arbitration_data = json.loads(arbitration_path.read_text(encoding="utf-8"))
-        if not isinstance(arbitration_data, dict):
-            raise ValueError("synthesis_arbitration.json must contain a JSON object.")
-        config_id = str(arbitration_data.get("config_id", "")).strip()
-        if not config_id:
-            raise ValueError("synthesis arbitration artifact is missing config_id.")
-        arbiter_decision = arbitration_data.get("arbiter_decision", {})
-        if not isinstance(arbiter_decision, dict):
-            raise ValueError("synthesis arbitration artifact is missing arbiter_decision.")
-        synthesis_summary = str(arbiter_decision.get("synthesis_summary", "")).strip()
-        if not synthesis_summary:
-            raise ValueError("synthesis arbitration summary must be non-empty.")
-        duplicate = next(
-            (
-                candidate
-                for candidate in load_staged_candidates(base_dir)
-                if candidate.source_task_id == task_id
-                and candidate.source_object_id == config_id
-                and candidate.status == "pending"
-            ),
-            None,
-        )
-        if duplicate is not None:
-            print(
-                f"Synthesis arbitration is already staged: {duplicate.candidate_id} submitted_at={duplicate.submitted_at}",
-                file=sys.stderr,
-            )
-            return 1
-        candidate = StagedCandidate(
-            candidate_id="",
-            text=synthesis_summary,
-            source_task_id=task_id,
-            topic=str(arbitration_data.get("topic", "")).strip(),
-            source_kind="synthesis",
-            source_ref=str(arbitration_path.relative_to(base_dir)),
-            source_object_id=config_id,
-            submitted_by="cli",
-            taxonomy_role="",
-            taxonomy_memory_authority="",
-        )
-        persisted = submit_staged_candidate(base_dir, candidate)
-        append_event(
-            base_dir,
-            Event(
-                task_id=task_id,
-                event_type="task.synthesis_staged",
-                message="Synthesis arbitration artifact was staged for knowledge review.",
-                payload={
-                    "candidate_id": persisted.candidate_id,
-                    "config_id": config_id,
-                    "source_ref": persisted.source_ref,
-                },
-            ),
-        )
-        print(f"{persisted.candidate_id} synthesis_staged config_id={config_id}")
-        return 0
-
-    if args.command == "route" and args.route_command == "registry" and args.route_registry_command == "show":
-        print(build_route_registry_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "registry" and args.route_registry_command == "apply":
-        registry_path = resolve_path(args.registry_file)
-        route_registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        proposal_id = register_route_metadata_proposal(
-            base_dir=base_dir,
-            proposal_id=f"route-registry:{registry_path.name}",
-            route_registry=route_registry,
-        )
-        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
-        print(build_route_registry_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "policy" and args.route_policy_command == "show":
-        print(build_route_policy_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "policy" and args.route_policy_command == "apply":
-        policy_path = resolve_path(args.policy_file)
-        route_policy = load_route_policy_from_path(policy_path)
-        proposal_id = register_route_metadata_proposal(
-            base_dir=base_dir,
-            proposal_id=f"route-policy:{policy_path.name}",
-            route_policy=route_policy,
-        )
-        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
-        print(build_route_policy_report(base_dir), end="")
-        return 0
+    route_result = handle_route_command(base_dir, args)
+    if route_result is not None:
+        return route_result
 
     route_metadata_result = handle_route_metadata_command(base_dir, args)
     if route_metadata_result is not None:
         return route_metadata_result
-
-    if args.command == "route" and args.route_command == "select":
-        apply_route_registry(base_dir)
-        apply_route_policy(base_dir)
-        apply_route_weights(base_dir)
-        apply_route_fallbacks(base_dir)
-        apply_route_capability_profiles(base_dir)
-        state = load_state(base_dir, args.task_id)
-        selection = select_route(state, args.executor, args.route_mode)
-        print(
-            build_route_selection_report(
-                state.task_id,
-                selection,
-                executor_override=str(args.executor or "").strip(),
-                route_mode_override=str(args.route_mode or "").strip(),
-            ),
-            end="",
-        )
-        return 0
 
     if args.command == "note":
         result = ingest_operator_note(

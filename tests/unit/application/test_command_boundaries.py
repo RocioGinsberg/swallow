@@ -12,6 +12,7 @@ COMMAND_MODULES = (
 PLANNED_COMMAND_MODULES = (
     "application/commands/route_metadata.py",
     "application/commands/policies.py",
+    "application/commands/synthesis.py",
     "application/commands/ingestion.py",
     "application/commands/knowledge.py",
     "application/commands/tasks.py",
@@ -38,6 +39,7 @@ MODULE_PRIVATE_WRITER_TOKENS = {
         "save_mps_policy",
         "_apply_policy_change",
     ),
+    "application/commands/synthesis.py": (),
     "application/commands/knowledge.py": (
         "append_canonical_record",
         "persist_wiki_entry_from_record",
@@ -104,3 +106,32 @@ def test_proposal_commands_use_governance_boundary() -> None:
 
     assert "register_route_metadata_proposal(" in source
     assert "apply_proposal(" in source
+
+
+def test_route_metadata_commands_use_governance_boundary_when_present() -> None:
+    relative_path = "application/commands/route_metadata.py"
+    if not (SRC_ROOT / relative_path).exists():
+        return
+    source = _source(relative_path)
+
+    assert "register_route_metadata_proposal(" in source
+    assert "apply_proposal(" in source
+
+
+def test_policy_commands_use_governance_boundary_when_present() -> None:
+    relative_path = "application/commands/policies.py"
+    if not (SRC_ROOT / relative_path).exists():
+        return
+    source = _source(relative_path)
+
+    assert "register_policy_proposal(" in source
+    assert "register_mps_policy_proposal(" in source
+    assert "apply_proposal(" in source
+
+
+def test_m2_governance_apply_calls_moved_out_of_cli() -> None:
+    source = _source("surface_tools/cli.py")
+
+    assert "register_policy_proposal(" not in source
+    assert "register_mps_policy_proposal(" not in source
+    assert "register_route_metadata_proposal(" not in source

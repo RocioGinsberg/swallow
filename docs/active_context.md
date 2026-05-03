@@ -13,15 +13,15 @@
 - latest_completed_slice: `governance.py 642 → 45 行 facade + handler 模块化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-9 Step 2 — broad CLI command-family migration`
-- active_slice: `M1 baseline characterization tests complete; awaiting Human review/commit`
+- active_slice: `M2 governance-adjacent small families complete; awaiting Human review/commit`
 - active_branch: `refactor/cli_command_family_migration`
-- status: `lto9_step2_m1_complete_awaiting_commit`
+- status: `lto9_step2_m2_complete_awaiting_commit`
 
 ## 当前状态说明
 
 当前 git 分支为 `refactor/cli_command_family_migration`,工作树进入 LTO-9 Step 2 实现阶段。当前 HEAD 为:
 
-- `b80d3b8 docs(plan): add LTO-9 Step 2 plan`
+- `5bb4660 test(cli): characterize broad command families`
 
 LTO-10 已合并到主线:
 
@@ -123,6 +123,8 @@ LTO-7 long-running follow-ups(仍开放):
   - M4 scope 显式说明 `canonical-reuse-evaluate` / `consistency-audit` 放入 task write/control milestone 的理由。
 - **[Human]** Plan Gate 已通过,并已提交最终 plan / audit / state 文档:
   - `b80d3b8 docs(plan): add LTO-9 Step 2 plan`
+- **[Human]** M1 baseline characterization tests 已提交:
+  - `5bb4660 test(cli): characterize broad command families`
 
 进行中:
 
@@ -130,8 +132,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** 审查并提交 M1 baseline characterization tests。
-- **[Codex]** Human 提交 M1 后进入 M2 governance-adjacent small families。
+- **[Human]** 审查并提交 M2 governance-adjacent small families。
+- **[Codex]** Human 提交 M2 后进入 M3 knowledge family migration。
 
 当前阻塞项:
 
@@ -145,8 +147,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审查并提交 M1 baseline characterization tests。
-2. **[Codex]** Human 提交 M1 后进入 M2。
+1. **[Human]** 审查并提交 M2 governance-adjacent small families。
+2. **[Codex]** Human 提交 M2 后进入 M3 knowledge family migration。
 
 ```markdown
 plan_gate:
@@ -154,7 +156,7 @@ plan_gate:
 - merge_commit: b3f7f43 Governance Apply Handler Maintainability
 - active_branch: refactor/cli_command_family_migration
 - active_phase: LTO-9 Step 2 — broad CLI command-family migration
-- active_slice: M1 baseline characterization tests complete; awaiting Human review/commit
+- active_slice: M2 governance-adjacent small families complete; awaiting Human review/commit
 - direction_decided: LTO-9 Step 2 first, then LTO-8 Step 2 (cluster C closure)
 - roadmap: docs/roadmap.md current ticket = LTO-9 Step 2; next choice = LTO-8 Step 2
 - context_brief: docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md (170 lines)
@@ -165,7 +167,7 @@ plan_gate:
 - closeout (prior phase): docs/plans/governance-apply-handler-split/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns; 1 withdrawn
 - tag_decision: defer v1.6.0 until LTO-9 Step 2 + LTO-8 Step 2 both land (cluster C closure)
-- next_gate: Human review / commit → M2
+- next_gate: Human review / commit → M3
 ```
 
 ## 当前产出物
@@ -184,6 +186,12 @@ plan_gate:
 - `tests/integration/cli/test_task_commands.py`(codex, 2026-05-02, M1 task create/list/acknowledge characterization)
 - `tests/integration/cli/test_synthesis_commands.py`(codex, 2026-05-02, M1 synthesis run/stage characterization expanded)
 - `tests/unit/application/test_command_boundaries.py`(codex, 2026-05-02, M1 planned application command boundary scaffolding)
+- `src/swallow/application/commands/route_metadata.py`(codex, 2026-05-03, M2 route registry/policy apply + route select application command boundary)
+- `src/swallow/application/commands/policies.py`(codex, 2026-05-03, M2 audit/MPS policy application command boundary)
+- `src/swallow/application/commands/synthesis.py`(codex, 2026-05-03, M2 synthesis run/stage application command boundary)
+- `src/swallow/surface_tools/cli_commands/route.py`(codex, 2026-05-03, M2 route registry/policy/select CLI adapter)
+- `src/swallow/surface_tools/cli_commands/audit.py`(codex, 2026-05-03, M2 audit policy CLI adapter)
+- `src/swallow/surface_tools/cli_commands/synthesis.py`(codex, 2026-05-03, M2 synthesis CLI adapter)
 
 ## 当前验证结果
 
@@ -193,6 +201,15 @@ plan_gate:
 
 .venv/bin/python -m pytest tests/integration/cli tests/unit/application/test_command_boundaries.py -q
 # 19 passed
+
+git diff --check
+# passed
+
+.venv/bin/python -m pytest tests/integration/cli/test_route_family_commands.py tests/integration/cli/test_audit_commands.py tests/integration/cli/test_synthesis_commands.py tests/unit/application/test_command_boundaries.py tests/test_invariant_guards.py -q
+# 39 passed
+
+.venv/bin/python -m pytest tests/integration/cli tests/unit/application/test_command_boundaries.py -q
+# 22 passed
 
 git diff --check
 # passed

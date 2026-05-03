@@ -484,17 +484,21 @@ def test_route_override_only_set_by_operator() -> None:
                         violations.append(f"{rel_path}:{node.lineno} writes route_override_hint")
             elif isinstance(node, ast.Call):
                 for keyword in node.keywords:
-                        if keyword.arg == "executor_override" and rel_path not in {
-                            "src/swallow/surface_tools/cli.py",
-                            "src/swallow/provider_router/router.py",
-                        }:
-                            violations.append(f"{rel_path}:{keyword.lineno} sets executor_override")
-                        if keyword.arg == "route_mode_override" and rel_path not in {
-                            "src/swallow/surface_tools/cli.py",
-                            "src/swallow/orchestration/orchestrator.py",
-                            "src/swallow/provider_router/router.py",
-                        }:
-                            violations.append(f"{rel_path}:{keyword.lineno} sets route_mode_override")
+                    if keyword.arg == "executor_override" and rel_path not in {
+                        "src/swallow/surface_tools/cli.py",
+                        "src/swallow/application/commands/route_metadata.py",
+                        "src/swallow/surface_tools/cli_commands/route.py",
+                        "src/swallow/provider_router/router.py",
+                    }:
+                        violations.append(f"{rel_path}:{keyword.lineno} sets executor_override")
+                    if keyword.arg == "route_mode_override" and rel_path not in {
+                        "src/swallow/surface_tools/cli.py",
+                        "src/swallow/application/commands/route_metadata.py",
+                        "src/swallow/surface_tools/cli_commands/route.py",
+                        "src/swallow/orchestration/orchestrator.py",
+                        "src/swallow/provider_router/router.py",
+                    }:
+                        violations.append(f"{rel_path}:{keyword.lineno} sets route_mode_override")
 
     assert violations == []
 
