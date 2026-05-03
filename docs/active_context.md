@@ -13,46 +13,23 @@
 - latest_completed_slice: `LTO-6 merged at 883e2a9; Wiki Compiler design positioning decided`
 - active_track: `Knowledge Authoring`
 - active_phase: `LTO-1 — Wiki Compiler 第一阶段(prep)`
-- active_slice: `design docs prepped (EXECUTOR_REGISTRY + SELF_EVOLUTION); awaiting LTO-1 phase plan kickoff`
+- active_slice: `LTO-1 plan audit absorbed; ready for Human Plan Gate`
 - active_branch: `main`
-- status: `lto1_design_prepped_ready_for_plan`
+- status: `lto1_plan_audit_absorbed_ready_for_gate`
 
 ## 当前状态说明
 
-当前 git 分支为 `feat/lto-6-knowledge-plane-facade-solidification`。当前 HEAD 为:
+当前 git 分支为 `main`。当前 HEAD 为:
 
-- `1be8a5e docs(state): mark lto-6 m4 commit gate`
-- `18b4c15 test(knowledge): guard knowledge plane import boundary`
-- `47e69af docs(state): mark lto-6 m2 m3 commit gate`
+- `b73ebf8 docs(state): update roadmap`
+- `1a3d61b docs(design): add wiki compiler specialist`
+- `883e2a9 Knowledge Plane Facade Solidification`
 
-进入 LTO-13 实现前,HEAD 为:
+`v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。
 
-- `5b18a7f docs(plan): local first write API`
-- `3d280ca docs(state): update roadmap`
-- `ea4a886 Orchestration Lifecycle Decomposition`(LTO-8 Step 2 merge commit)
-
-`v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。**`v1.7.0` annotated tag 已 cut**(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。
+**当前真实入口**:LTO-6 已 merge 到 `main`;Wiki Compiler 设计定位、4 模式语义与 Web 知识呈现视图分级已通过设计文档先行落到 `main`;`docs/roadmap.md` 已更新为 LTO-1 当前 ticket。`docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md` 已产出(0 blockers / 5 concerns / 2 nits),Codex 已吸收到 `plan.md`,等待 Human Plan Gate / planning docs commit / feature branch switch。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
-
-`docs/roadmap.md` 已 post-merge + cluster C closure 同步,本轮一次性完成 7 项调整:
-
-- §一 baseline "当前重构状态" 切到 "簇 C 完全终结";v1.6.0 已发布;下一启动 LTO-13。
-- §二 簇 C LTO-8 行标 "已完成"(Step 1 + Step 2);列出 harness.py -50% 与 helper-side append_event allowlist 新 invariant。
-- §二 LTO-13 **从簇 C 移回簇 B**(纠正之前 roadmap-updater 误分类:LTO-13 是接口边界 defer 项,性质同 LTO-5/LTO-6,不是簇 C 接续)。
-- §二 簇 B 标题 "架构重构已开头 seed";cluster description 加 "+ 接口边界" 说明 LTO-13 性质。
-- §二 簇 C 子标题去掉 "+ 接续";改为 "已完全终结"。
-- §二 LTO-6 行加 "作为 touched-surface 慢推,不专门开 phase" 说明。
-- §三 当前 ticket 切到 **LTO-13**;下一选择 = Wiki Compiler / LTO-6 / LTO-4 / LTO-5(视真实需求)。
-- §四 v1.6.0 tag 决策 "已执行"(2026-05-03;tag target = `0e6215a`)。
-- §五 推荐顺序更新:`簇 C(done)→ LTO-13 → 后续视真实需求`;LTO-8 顺位 "Step 1 + Step 2 已完成"。
-
-**Direction 决定理由**(Human + Claude 讨论后定):
-
-- LTO-13 不依赖 LTO-5(repository ports)/LTO-6(knowledge plane facade migration)— application/commands 已在 LTO-9 Step 2 完成,作为 LTO-13 与下层架构之间的缓冲层。
-- LTO-5 / LTO-6 重构发生在 application 之下,不会让 LTO-13 已写代码改一行。
-- LTO-6 当前状态:`application/commands/{synthesis,knowledge}.py` 还直接 import 6 个 `knowledge_retrieval.*` 子模块,绕开 `knowledge_plane` facade。LTO-13 plan 实施时显式约束新增 application 层调用走公共导出,避免直接 reach `knowledge_retrieval.*` 子模块。
-- Human 真实需求 = WebUI 写支持,优先级高于簇 B 慢推项。
 
 LTO-8 Step 2 deferred(已记 closeout):
 
@@ -73,16 +50,17 @@ LTO-7 long-running follow-ups(仍开放):
 2. `current_state.md`
 3. `docs/roadmap.md`
 4. `docs/design/INVARIANTS.md`
-5. `docs/design/INTERACTION.md`
+5. `docs/design/EXECUTOR_REGISTRY.md`
 6. `docs/design/SELF_EVOLUTION.md`
-7. `docs/design/HARNESS.md`
-8. `docs/engineering/CODE_ORGANIZATION.md`
-9. `docs/engineering/TEST_ARCHITECTURE.md`
-10. `docs/concerns_backlog.md`
-11. `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`
-12. `docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md`
-13. `docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md`
-14. `docs/plans/lto-6-knowledge-plane-facade-solidification/review_comments.md`
+7. `docs/design/KNOWLEDGE.md`
+8. `docs/engineering/ADAPTER_DISCIPLINE.md`
+9. `docs/engineering/CODE_ORGANIZATION.md`
+10. `docs/engineering/TEST_ARCHITECTURE.md`
+11. `docs/engineering/ARCHITECTURE_DECISIONS.md`
+12. `docs/plans/lto-1-wiki-compiler-first-stage/plan.md`
+13. `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md`
+14. `docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md`
+15. `docs/plans/lto-6-knowledge-plane-facade-solidification/review_comments.md`
 
 ## 当前推进
 
@@ -241,19 +219,19 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Codex]** Post-merge state sync:`current_state.md` + `docs/active_context.md` + `docs/roadmap.md`(LTO-6 标 done;§五 推荐顺序首句把 Wiki Compiler 升级为"当前 ticket")。
-- **[Codex]** 处理 LTO-6 review C1 follow-up(可选,~50 行 cleanup):删除 `knowledge_plane.py` 中 ~14 处 `render_*` / `build_*` 配对别名,每对保留一个(`render_*` 用于报告渲染,`build_*` 用于对象构造)。
-- **[Codex / 主线]** 启动 **LTO-1 Wiki Compiler 第一阶段** phase plan。设计文档(EXECUTOR_REGISTRY 5 specialist + 4 mode + SELF_EVOLUTION §2/§4.2)已先行更新到 main,plan 起草时直接引用如下锚点:
+- **[Human]** 审阅已吸收 audit 的 `plan.md` + `plan_audit.md`;Plan Gate 通过后提交 planning docs 并从 `main` 切出 `feat/lto-1-wiki-compiler-first-stage`。
+- **[Codex]** 处理 LTO-6 review C1 follow-up(可选,~50 行 cleanup):删除 `knowledge_plane.py` 中 ~14 处 `render_*` / `build_*` 配对别名,每对保留一个(`render_*` 用于报告渲染,`build_*` 用于对象构造)。默认不阻塞 LTO-1 plan。
+- **[Codex / 主线]** Human Plan Gate + branch switch 后按 **LTO-1 Wiki Compiler 第一阶段** `plan.md` 实现。设计文档(EXECUTOR_REGISTRY 5 specialist + 4 mode + SELF_EVOLUTION §2/§4.2)已先行更新到 main,实现时继续遵循如下锚点:
   - **M1 — Wiki Compiler 起草核心**:`adapters/cli/cli_commands/wiki.py` 加 `swl wiki draft` / `swl wiki refine --mode supersede|refines` / `swl wiki refresh-evidence` 三条命令;application/commands 层加对应 command;实现走 specialist_internal LLM call path;prompt pack 输出 source pack + rationale + conflict_flag。
   - **M2 — Knowledge browse 路由**:`adapters/http/api.py` 加 `GET /api/knowledge/wiki` / `GET /api/knowledge/canonical` / `GET /api/knowledge/staged` 三个 read-only 列表路由;走 `application/queries/knowledge.py`(可能需新建)。
   - **M3 — Knowledge detail + relations 视图**:`GET /api/knowledge/{id}` + `GET /api/knowledge/{id}/relations`;Pydantic response envelope 含 `supersedes` / `refines` / `contradicts` / `refers_to` / `derived_from` 邻接对象。
-  - **M4 — Web UI Knowledge panel**:静态 `index.html` 加"Knowledge"标签页,展示 wiki/canonical 列表 + 详情 + 邻接 relations;遵循 `ADAPTER_DISCIPLINE.md` 6 条规则(Pydantic response_model / Depends / 集中 exception handler / 无 state machine in JS / loopback only);Wiki Compiler 触发按钮可选(若 LLM 调用走 long-running 路径,沿用 LTO-13 R2-1 accept-long-request 决议)。
+  - **M4 — Web UI Knowledge panel**:静态 `index.html` 加"Knowledge"标签页,展示 wiki/canonical/staged 列表 + 详情 + 邻接 relations;遵循 `ADAPTER_DISCIPLINE.md` 6 条规则(Pydantic response_model / Depends / 集中 exception handler / 无 state machine in JS / loopback only);本期 Web 只读,不加入 Wiki Compiler draft/refine/refresh 触发按钮。
   - **M5 — Guard / closeout**:`tests/test_invariant_guards.py` 加 Wiki Compiler agent boundary guard(`truth_writes` 不含 canonical,只走 facade)+ Evidence rebuild parser_version guard(`refresh-evidence` 必须更新 parser_version 字段)。
   - 此 phase 落地后 cut **v1.8.0**。
 
 当前阻塞项:
 
-- 无 blocker。LTO-6 已 merge;Wiki Compiler 设计定位 + 4 模式语义 + Web 知识呈现 3 视图分级 + 文档先行已完成;等待 Codex 启动 LTO-1 phase plan。
+- 无 blocker。LTO-6 已 merge;Wiki Compiler 设计定位 + 4 模式语义 + Web 知识呈现 3 视图分级 + 文档先行已完成;LTO-1 plan audit 已产出且 concerns 已吸收,等待 Human Plan Gate / commit / branch switch。
 
 ## Tag 状态
 
@@ -261,39 +239,32 @@ LTO-7 long-running follow-ups(仍开放):
 - tag target: `2156d4a docs(release): sync v1.7.0 release docs`
 - 标记意义:**LTO-13 FastAPI Local Web UI Write Surface 首次落地**(本地 Web Control Center write surface;LLM-外可观察能力增量)
 - 上一 tag: `v1.6.0` at `0e6215a`(标记 cluster C closure)
-- 下一 tag 评估:无明确预期;留给后续 phase(D5 / D4 Phase A / D1 是工程纪律收口型,未必单独 cut tag;Wiki Compiler 等产品向 phase 触发再评估)
+- 下一 tag 评估:roadmap 当前预期为 LTO-1 Wiki Compiler 第一阶段落地后评估 / cut **v1.8.0**。
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 LTO-6 review closeout sync docs(`closeout.md` + `review_comments.md` + `docs/concerns_backlog.md` + `docs/active_context.md`)。
-2. **[Human]** 用 ignored `./pr.md` 同步现有 PR 描述,然后进入 merge gate。
-3. **[Codex]** Merge 后执行 post-merge state sync(`current_state.md` + `docs/active_context.md` + `docs/roadmap.md`),并把下一启动切到 Wiki Compiler 第一阶段。
+1. **[Human]** 审阅已吸收 audit 的 `plan.md` + `plan_audit.md`,确认 Plan Gate。
+2. **[Human]** 提交 planning docs,然后从 `main` 切出 `feat/lto-1-wiki-compiler-first-stage`。
+3. **[Codex]** Human 确认分支切换后,按 M1-M5 开始实现。
 
 ```markdown
 direction_gate:
-- latest_completed_phase: D4 Phase A — Adapter Boundary Cleanup
+- latest_completed_phase: LTO-6 — Knowledge Plane Facade Solidification
 - latest_release_tag: v1.7.0 at 2156d4a docs(release): sync v1.7.0 release docs
-- active_branch: feat/lto-6-knowledge-plane-facade-solidification
-- active_phase: LTO-6 — Knowledge Plane Facade Solidification
-- active_slice: review closeout synced; awaiting Human merge gate
-- cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
-- roadmap: docs/roadmap.md current ticket = LTO-6 Knowledge Plane Facade Solidification; next startup = Wiki Compiler 第一阶段
-- d4_validation: compileall passed; diff check passed; runtime old-path scan clean; focused CLI/Web/Invariant/Application gate 316 passed; full pytest 745 passed, 8 deselected
-- lto6_plan: docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md (status final; plan_audit concerns absorbed)
-- lto6_plan_audit: docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md (has-concerns; 0 blockers / 7 concerns / 2 nits)
-- lto6_m1_validation: knowledge_plane_facade 6 passed; M1 focused gate 31 passed; compileall passed; diff check passed
-- lto6_m2_m3_validation: compileall passed; focused gate 303 passed; facade/knowledge/invariant gate 58 passed; application boundary 11 passed; provider_router focused 40 passed; full pytest 751 passed, 8 deselected; old-module/import-boundary scans clean; diff check passed
-- lto6_m4_validation: invariant guard 31 passed; diff check passed
-- lto6_m5_validation: compileall passed; full pytest 755 passed, 8 deselected; diff check passed
-- lto6_review: docs/plans/lto-6-knowledge-plane-facade-solidification/review_comments.md; recommend-merge; 0 blockers / 1 concern / 2 nits; 7/7 plan_audit concerns + 2/2 nits verified
-- lto6_closeout: docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md (status final)
-- lto6_pr_materials: ./pr.md updated with review outcome; ignored by git
-- lto6_deferred_concerns: C1 logged to docs/concerns_backlog.md; N1/N2 recorded in closeout/review
-- next_gate: Human final closeout sync commit + PR description sync + merge gate
+- active_branch: main
+- active_phase: LTO-1 — Wiki Compiler 第一阶段(prep)
+- active_slice: LTO-1 plan audit absorbed; ready for Human Plan Gate
+- roadmap: docs/roadmap.md current ticket = LTO-1 Wiki Compiler 第一阶段; v1.8.0 after first-stage landing
+- lto1_design_docs: docs/design/EXECUTOR_REGISTRY.md + docs/design/SELF_EVOLUTION.md updated with Wiki Compiler specialist + 4 modes
+- lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
+- lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
+- next_gate: Human Plan Gate -> planning docs commit -> feature branch
 ```
 
 ## 当前产出物
 
+- `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md`(claude/design-auditor, 2026-05-04, has-concerns;0 blockers / 5 concerns / 2 nits;重点:M1 StagedCandidate slots 约束、promotion 路径 relation 创建层、derived_from target type、relation enum 跨 milestone 依赖、source_pack schema 未锚定;M2/M3/M4/M5 confirmed ready)
+- `docs/plans/lto-1-wiki-compiler-first-stage/plan.md`(codex, 2026-05-04, review LTO-1 Wiki Compiler 第一阶段 plan;已吸收 plan_audit 5 concerns + 2 nits;M1-M5 覆盖 Wiki Compiler CLI/specialist、Knowledge Browse routes、detail+relations、Web panel、boundary/evidence guards)
 - `docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns;0 blockers / 7 concerns / 2 nits;重点:`build_knowledge_projection` god-function risk、`serve_knowledge_context` Callable injection、M2+M3 compileall gap、unclassified imports 26 处、M4 guard insufficiency、invariant guard allowlist staleness)
 - `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`(codex, 2026-05-03, final LTO-6 phase plan;Functional facade + one-shot migration + `_internal_*` module internalization + guard/test strategy;plan_audit 7 concerns + 2 nits absorbed)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py`(codex, 2026-05-03, M1 functional facade wrapper implementation)

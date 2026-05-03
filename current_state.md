@@ -19,32 +19,25 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `LTO-13 — FastAPI Local Web UI Write Surface`
-- latest_main_checkpoint: `52fd14c docs(state): update roadmap`
-- latest_executed_public_tag: `v1.6.0`
-- pending_release_tag: `v1.7.0`
-- current_working_phase: `release docs for v1.7.0`
-- checkpoint_type: `v1_7_0_release_docs_ready_for_tag`
+- latest_main_checkpoint_phase: `LTO-6 — Knowledge Plane Facade Solidification + Wiki Compiler design prep`
+- latest_main_checkpoint: `b73ebf8 docs(state): update roadmap`
+- latest_executed_public_tag: `v1.7.0`
+- pending_release_tag: `none`
+- current_working_phase: `LTO-1 — Wiki Compiler 第一阶段 Plan Gate preparation`
+- checkpoint_type: `lto1_plan_audit_absorbed_ready_for_gate`
 - active_branch: `main`
-- last_checked: `2026-05-03`
+- last_checked: `2026-05-04`
 
 说明:
 
-- 当前分支为 `main`,HEAD 为 `52fd14c docs(state): update roadmap`。
-- LTO-13 已合并到 `main`;merge 后本地 Web Control Center 获得首个写表面:
-  - task creation 与 task lifecycle actions。
-  - staged knowledge promote / reject。
-  - Meta-Optimizer proposal review / apply。
-  - FastAPI/Pydantic request + response models、统一 success envelope、集中 exception handlers。
-  - loopback-only `swl serve` host guard。
-- LTO-13 closeout / review 结论:
-  - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md`
-  - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/review_comments.md`
-  - Claude verdict: `recommend-merge`,0 blockers / 1 concern / 2 nits;C1 / N1 已处理,N2 deferred。
-  - Codex post-review validation:`focused Web/Application/Invariant gate` -> `59 passed`;`.venv/bin/python -m pytest -q` -> `745 passed, 8 deselected`;`compileall`;`git diff --check`。
-- Human 已决定打 `v1.7.0` tag。Codex 已将 `README.md` release snapshot 与本文恢复入口同步到 `v1.7.0` release-docs-ready 状态。
-- 最新已执行公开 tag 为 `v1.6.0`;annotated tag 指向 `0e6215a docs(release): sync v1.6.0 release docs`。
-- 当前等待 Human 提交 release docs,然后在 `main` 上执行 `v1.7.0` annotated tag。
+- 当前分支为 `main`,HEAD 为 `b73ebf8 docs(state): update roadmap`。
+- LTO-13 已合并并完成 `v1.7.0` annotated tag;tag target 为 `2156d4a docs(release): sync v1.7.0 release docs`。
+- LTO-6 已合并到 `main` at `883e2a9 Knowledge Plane Facade Solidification`;Knowledge Plane facade 已从 barrel file 收口为 functional facade,旧 direct reach imports 已由 guard 保护。
+- Wiki Compiler 设计准备已落到 `main`:
+  - `docs/design/EXECUTOR_REGISTRY.md` 增加 Wiki Compiler specialist 五元组、4 模式表与 conflict 决策段。
+  - `docs/design/SELF_EVOLUTION.md` 增加 Wiki Compiler 起草侧 / Librarian 守门侧 / Operator 共同收口工作流。
+  - `docs/roadmap.md` 当前 ticket 已切到 **LTO-1 Wiki Compiler 第一阶段**。
+- `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md` 已产出(0 blockers / 5 concerns / 2 nits),Codex 已吸收到 `plan.md`;实现尚未开始,Plan Gate 尚未通过。
 
 ---
 
@@ -53,17 +46,16 @@
 当前推荐从以下状态继续:
 
 - active_branch: `main`
-- active_track: `Release / Tag`
-- active_phase: `v1.7.0 release docs / tag preparation`
-- active_slice: `release docs synced; awaiting Human commit and tag`
-- workflow_status: `v1_7_0_release_docs_ready_for_tag`
+- active_track: `Knowledge Authoring`
+- active_phase: `LTO-1 — Wiki Compiler 第一阶段(prep)`
+- active_slice: `LTO-1 plan audit absorbed; ready for Human Plan Gate`
+- workflow_status: `lto1_plan_audit_absorbed_ready_for_gate`
 
 下一步:
 
-1. Human 审阅并提交 release docs。
-2. Human 在 `main` 上执行 annotated tag `v1.7.0`。
-3. Human 确认 tag 完成后,Codex 更新 `docs/active_context.md` 的 tag 状态。
-4. tag 完成后,再进入下一 phase planning;当前 roadmap 推荐起点为 **D5 Adapter Discipline Codification**。
+1. Human 审阅已吸收 audit 的 plan + plan_audit,确认 Plan Gate。
+2. Human 提交 planning docs,然后从 `main` 切出 `feat/lto-1-wiki-compiler-first-stage`。
+3. Codex 再进入实现阶段。
 
 ---
 
@@ -78,35 +70,36 @@
 5. `current_state.md`
 6. `README.md`
 7. `docs/roadmap.md`
-8. `docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md`
-9. `docs/plans/lto-13-fastapi-local-web-ui-write-surface/review_comments.md`
+8. `docs/design/EXECUTOR_REGISTRY.md`
+9. `docs/design/SELF_EVOLUTION.md`
 10. `docs/design/INVARIANTS.md`
 11. `docs/design/INTERACTION.md`
 12. `docs/engineering/CODE_ORGANIZATION.md`
 13. `docs/engineering/TEST_ARCHITECTURE.md`
 14. `docs/engineering/ARCHITECTURE_DECISIONS.md`
+15. `docs/engineering/ADAPTER_DISCIPLINE.md`
+16. `docs/design/KNOWLEDGE.md`
 
 ---
 
 ## 最小验证命令
 
-release tag 前建议至少执行以下检查:
+LTO-1 plan gate 前建议至少执行以下检查:
 
 ```bash
 git status --short --branch
 git branch --show-current
 git show --no-patch --decorate --oneline HEAD
-git tag --list "v1.7.0"
-sed -n '1,120p' README.md
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
+sed -n '1,220p' docs/roadmap.md
 ```
 
-LTO-13 final validation 已通过:
+最新 full-suite validation 记录:
 
 ```bash
 .venv/bin/python -m pytest -q
-# 745 passed, 8 deselected
+# LTO-6 final: 755 passed, 8 deselected
 
 .venv/bin/python -m compileall -q src/swallow
 # passed
@@ -119,36 +112,23 @@ git diff --check
 
 ## 当前已知边界
 
-- 当前不再做 LTO-13 代码实现;实现已合并到 `main`。
-- 当前只做 release docs / tag 状态同步。
+- 当前不再做 LTO-13 或 LTO-6 代码实现;两者均已合并到 `main`。
+- 当前只做 LTO-1 phase plan / plan_audit absorption;Plan Gate 前不开始实现、不切 feature branch。
 - 不改变 Orchestrator / Operator 的 task-state control authority。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
-- 不新增 schema migration、auth/multi-user、remote worker、Planner/DAG 或 Wiki Compiler 工作。
-- 下一 phase 默认不是继续扩张 LTO-13;应从 roadmap 推荐队列重新选择,当前建议为 D5 Adapter Discipline Codification。
+- 不新增 auth/multi-user、remote worker、Planner/DAG 或项目级全图谱可视化。
+- Wiki Compiler 第一阶段只做设计文档已批准的 authoring specialist + Knowledge Browse 视图 1/2 + guard 范围。
 
 ---
 
 ## 当前建议提交范围
 
-当前建议提交 release docs:
+当前建议提交 LTO-1 planning state sync / plan 文档:
 
 ```bash
-git add README.md current_state.md docs/active_context.md
+git add current_state.md docs/active_context.md docs/plans/lto-1-wiki-compiler-first-stage/plan.md docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md
 
-git commit -m "docs(release): sync v1.7.0 release docs"
-```
-
-提交后建议执行 annotated tag:
-
-```bash
-git tag -a v1.7.0 -m "v1.7.0 local web write surface"
-```
-
-如果需要推送:
-
-```bash
-git push origin main
-git push origin v1.7.0
+git commit -m "docs(plan): add lto-1 wiki compiler plan"
 ```
 
 ---
@@ -164,7 +144,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 release docs / tag 准备不要求 live HTTP / API-key dependent test。
+当前 LTO-1 planning 不要求 live HTTP / API-key dependent test。
 
 ---
 
