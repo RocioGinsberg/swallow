@@ -13,15 +13,15 @@
 - latest_completed_slice: `cli.py 3653 → 2672 行 (-27%) + application/commands 写命令完整化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-8 Step 2 — harness decomposition`
-- active_slice: `M3 artifact layout and record helper split complete; awaiting Human review/commit`
+- active_slice: `M4 execution attempts and telemetry split complete; awaiting Human review/commit`
 - active_branch: `feat/orchestration-lifecycle-decomposition-step2`
-- status: `lto8_step2_m3_complete_awaiting_commit`
+- status: `lto8_step2_m4_complete_awaiting_commit`
 
 ## 当前状态说明
 
 当前 git 分支为 `feat/orchestration-lifecycle-decomposition-step2`。LTO-8 Step 2 已进入实现阶段,当前 HEAD 为:
 
-- `3f0973c refactor(orchestration): split retrieval and report helpers`
+- `eb4366f refactor(orchestration): split artifact record helpers`
 
 LTO-9 Step 2 已合并到主线:
 
@@ -146,6 +146,13 @@ LTO-7 long-running follow-ups(仍开放):
   - `harness.py` 改为从 `artifact_writer.py` re-export 这些 builder,并保留 `build_handoff_record` 的 failure-guidance wrapper。
   - 新增 `tests/unit/orchestration/test_artifact_writer_module.py`,覆盖路径映射、远程 handoff / handoff / route / topology / execution-site / dispatch / compatibility record-report 形状。
   - `write_task_artifacts` 继续保持行为不变,只是 builder 责任从 `harness.py` 外移。
+- **[Human]** 已提交 M3 artifact layout and record helper split:
+  - `eb4366f refactor(orchestration): split artifact record helpers`
+- **[Codex]** M4 execution attempts and telemetry split 已完成:
+  - `src/swallow/orchestration/execution_attempts.py` 承接 `run_execution` 实现,包含 executor artifact writes、side-effect persistence callback、`executor.completed` / `executor.failed` telemetry。
+  - `src/swallow/orchestration/harness.py` 保留 `run_execution` compatibility wrapper,并继续保留 `harness.run_executor` patch 兼容性。
+  - `tests/unit/orchestration/test_execution_attempts_module.py` 新增 `run_execution` artifact/event characterization,并把 helper boundary 改为允许 executor telemetry、禁止 state-transition event strings。
+  - `tests/test_invariant_guards.py::test_harness_helper_modules_only_emit_allowlisted_event_kinds` 已加入,扫描 `retrieval_flow.py` / `execution_attempts.py` / `artifact_writer.py` / `task_report.py` 的 helper-side event kinds。
 
 进行中:
 
@@ -153,12 +160,12 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** 审查并提交 M3 artifact layout and record helper split。
-- **[Codex]** Human 提交 M3 后开始 M4 execution attempts and telemetry split。
+- **[Human]** 审查并提交 M4 execution attempts and telemetry split。
+- **[Codex]** Human 提交 M4 后开始 M5 write pipeline cleanup and facade reduction。
 
 当前阻塞项:
 
-- 无 blocker。等待 Human review / commit M3。
+- 无 blocker。等待 Human review / commit M4。
 
 ## Tag 状态
 
@@ -168,8 +175,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审查并提交 M3 artifact layout and record helper split。
-2. **[Codex]** Human 提交 M3 后开始 M4 execution attempts and telemetry split。
+1. **[Human]** 审查并提交 M4 execution attempts and telemetry split。
+2. **[Codex]** Human 提交 M4 后开始 M5 write pipeline cleanup and facade reduction。
 
 ```markdown
 plan_gate:
@@ -177,7 +184,7 @@ plan_gate:
 - merge_commit (prior): 1251c3c LTO-9 Step 2 — broad CLI command-family migration
 - active_branch: feat/orchestration-lifecycle-decomposition-step2
 - active_phase: LTO-8 Step 2 — harness decomposition (cluster C closure phase)
-- active_slice: M3 artifact layout and record helper split complete; awaiting Human review/commit
+- active_slice: M4 execution attempts and telemetry split complete; awaiting Human review/commit
 - cluster_c_status: LTO-7 + LTO-9 + LTO-10 fully closed; LTO-8 Step 2 = cluster C closure
 - roadmap: docs/roadmap.md current ticket = LTO-8 Step 2; next choice = LTO-13; candidates = Wiki Compiler / other LTOs
 - context_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines)
@@ -188,7 +195,7 @@ plan_gate:
 - review (prior phase): recommend-merge after fixes; 0 blockers; 3 polish concerns
 - new_invariant_design_point: helper-side append_event allowlist (12 telemetry kinds; state-transition kinds disallowed)
 - tag_decision: defer v1.6.0 until LTO-8 Step 2 merge (cluster C closure)
-- next_gate: Human M3 review/commit → Codex M4 implementation
+- next_gate: Human M4 review/commit → Codex M5 implementation
 ```
 
 ## 当前产出物
@@ -206,22 +213,28 @@ plan_gate:
 - `tests/unit/orchestration/test_retrieval_flow_module.py`(codex, 2026-05-03, M2 retrieval-flow helper boundary update)
 - `src/swallow/orchestration/artifact_writer.py`(codex, 2026-05-03, M3 artifact layout / record helper owner)
 - `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-03, M3 artifact writer helper characterization)
-- `docs/active_context.md`(codex, 2026-05-03, M3 complete;awaiting Human review/commit)
+- `src/swallow/orchestration/execution_attempts.py`(codex, 2026-05-03, M4 run_execution / execution telemetry owner)
+- `tests/unit/orchestration/test_execution_attempts_module.py`(codex, 2026-05-03, M4 execution attempts helper characterization)
+- `tests/test_invariant_guards.py`(codex, 2026-05-03, M4 helper-side event kind allowlist guard)
+- `docs/active_context.md`(codex, 2026-05-03, M4 complete;awaiting Human review/commit)
 
 ## 当前验证结果
 
 ```bash
-.venv/bin/python -m pytest tests/unit/orchestration/test_harness_facade.py tests/unit/orchestration/test_task_report_module.py tests/unit/orchestration/test_retrieval_flow_module.py tests/unit/orchestration/test_artifact_writer_module.py -q
-# 24 passed
+.venv/bin/python -m pytest tests/unit/orchestration/test_execution_attempts_module.py tests/unit/orchestration/test_harness_facade.py -q
+# 17 passed
 
 .venv/bin/python -m pytest tests/unit/orchestration -q
-# 45 passed
+# 46 passed
+
+.venv/bin/python -m pytest tests/test_invariant_guards.py -q
+# 27 passed
 
 .venv/bin/python -m pytest tests/test_grounding.py tests/test_cli.py -q
 # 247 passed, 10 subtests passed
 
-.venv/bin/python -m pytest tests/test_debate_loop.py tests/test_librarian_executor.py tests/test_invariant_guards.py -q
-# 37 passed
+.venv/bin/python -m pytest tests/test_debate_loop.py tests/test_librarian_executor.py -q
+# 11 passed
 
 .venv/bin/python -m pytest tests/test_cost_estimation.py tests/test_executor_protocol.py tests/test_executor_async.py -q
 # 35 passed

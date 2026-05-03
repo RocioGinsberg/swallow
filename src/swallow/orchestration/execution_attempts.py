@@ -1,9 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
+from pathlib import Path
+from time import perf_counter
 from typing import Awaitable, Callable, TypeVar
 
-from swallow.orchestration.models import ExecutorResult, TaskCard, TaskState
+from swallow.orchestration.executor import run_executor
+from swallow.orchestration.models import (
+    EVENT_EXECUTOR_COMPLETED,
+    EVENT_EXECUTOR_FAILED,
+    Event,
+    ExecutorResult,
+    RetrievalItem,
+    TaskCard,
+    TaskState,
+    build_telemetry_fields,
+)
+from swallow.provider_router.cost_estimation import DEFAULT_COST_ESTIMATOR, CostEstimator
+from swallow.truth_governance.store import append_event, write_artifact
 
 
 DEBATE_MAX_ROUNDS = 3
@@ -37,6 +51,98 @@ class ReviewGateResultFields:
 
     def to_kwargs(self) -> dict[str, object]:
         return asdict(self)
+
+
+def run_execution(
+    base_dir: Path,
+    state: TaskState,
+    retrieval_items: list[RetrievalItem],
+    *,
+    cost_estimator: CostEstimator = DEFAULT_COST_ESTIMATOR,
+    run_executor_fn: Callable[[TaskState, list[RetrievalItem]], ExecutorResult] = run_executor,
+    persist_side_effects: Callable[[Path, str, dict[str, object]], None] | None = None,
+) -> ExecutorResult:
+    started_at = perf_counter()
+    executor_result = run_executor_fn(state, retrieval_items)
+    executor_result = replace(
+        executor_result,
+        latency_ms=max(int((perf_counter() - started_at) * 1000), 0),
+    )
+    prompt_body = executor_result.prompt
+    token_cost = cost_estimator.estimate(
+        state.route_model_hint,
+        executor_result.estimated_input_tokens,
+        executor_result.estimated_output_tokens,
+    )
+    prompt_with_dialect = f"dialect: {executor_result.dialect or state.route_dialect or 'plain_text'}\n\n{prompt_body}"
+    write_artifact(base_dir, state.task_id, "executor_prompt.md", prompt_with_dialect)
+    write_artifact(base_dir, state.task_id, "executor_output.md", executor_result.output or executor_result.message)
+    write_artifact(base_dir, state.task_id, "executor_stdout.txt", executor_result.stdout)
+    write_artifact(base_dir, state.task_id, "executor_stderr.txt", executor_result.stderr)
+    if persist_side_effects is not None:
+        persist_side_effects(base_dir, state.task_id, executor_result.side_effects)
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type=EVENT_EXECUTOR_COMPLETED if executor_result.status == "completed" else EVENT_EXECUTOR_FAILED,
+            message=executor_result.message,
+            payload={
+                "status": executor_result.status,
+                "executor_name": executor_result.executor_name,
+                "route_mode": state.route_mode,
+                "route_name": state.route_name,
+                "route_backend": state.route_backend,
+                "route_executor_family": state.route_executor_family,
+                "route_execution_site": state.route_execution_site,
+                "route_remote_capable": state.route_remote_capable,
+                "route_transport_kind": state.route_transport_kind,
+                "route_dialect": state.route_dialect,
+                "route_capabilities": state.route_capabilities,
+                "attempt_id": state.current_attempt_id,
+                "attempt_number": state.current_attempt_number,
+                "attempt_owner_kind": state.current_attempt_owner_kind,
+                "attempt_owner_ref": state.current_attempt_owner_ref,
+                "attempt_ownership_status": state.current_attempt_ownership_status,
+                "attempt_owner_assigned_at": state.current_attempt_owner_assigned_at,
+                "attempt_transfer_reason": state.current_attempt_transfer_reason,
+                "topology_route_name": state.topology_route_name,
+                "topology_executor_family": state.topology_executor_family,
+                "topology_execution_site": state.topology_execution_site,
+                "topology_transport_kind": state.topology_transport_kind,
+                "topology_remote_capable_intent": state.topology_remote_capable_intent,
+                "topology_dispatch_status": state.topology_dispatch_status,
+                "execution_site_contract_kind": state.execution_site_contract_kind,
+                "execution_site_boundary": state.execution_site_boundary,
+                "execution_site_contract_status": state.execution_site_contract_status,
+                "execution_site_handoff_required": state.execution_site_handoff_required,
+                "execution_site_contract_reason": state.execution_site_contract_reason,
+                "dispatch_requested_at": state.dispatch_requested_at,
+                "dispatch_started_at": state.dispatch_started_at,
+                "execution_lifecycle": state.execution_lifecycle,
+                "dialect": executor_result.dialect or state.route_dialect,
+                "failure_kind": executor_result.failure_kind,
+                "review_feedback": executor_result.review_feedback,
+                "degraded": executor_result.degraded or state.route_is_fallback,
+                "original_route_name": executor_result.original_route_name,
+                "fallback_route_name": executor_result.fallback_route_name,
+                "output_written": [
+                    "executor_prompt.md",
+                    "executor_output.md",
+                    "executor_stdout.txt",
+                    "executor_stderr.txt",
+                ],
+            }
+            | build_telemetry_fields(
+                state,
+                latency_ms=executor_result.latency_ms,
+                degraded=executor_result.degraded or state.route_is_fallback,
+                token_cost=token_cost,
+                error_code=executor_result.failure_kind if executor_result.status == "failed" else "",
+            ).to_dict(),
+        ),
+    )
+    return executor_result
 
 
 def build_next_execution_attempt_metadata(

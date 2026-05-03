@@ -110,6 +110,35 @@ UI_FORBIDDEN_WRITE_CALLS = {
     "submit_staged_candidate",
     "write_artifact",
 }
+HARNESS_HELPER_EVENT_MODULES = {
+    "src/swallow/orchestration/retrieval_flow.py",
+    "src/swallow/orchestration/execution_attempts.py",
+    "src/swallow/orchestration/artifact_writer.py",
+    "src/swallow/orchestration/task_report.py",
+}
+HARNESS_HELPER_ALLOWED_EVENT_KINDS = {
+    "retrieval.completed",
+    "executor.completed",
+    "executor.failed",
+    "compatibility.completed",
+    "execution_fit.completed",
+    "knowledge_policy.completed",
+    "validation.completed",
+    "retry_policy.completed",
+    "execution_budget_policy.completed",
+    "stop_policy.completed",
+    "checkpoint_snapshot.completed",
+    "artifacts.written",
+}
+HARNESS_HELPER_ALLOWED_EVENT_CONSTANTS = {
+    "EVENT_RETRIEVAL_COMPLETED",
+    "EVENT_EXECUTOR_COMPLETED",
+    "EVENT_EXECUTOR_FAILED",
+}
+HARNESS_HELPER_DISALLOWED_EVENT_KINDS = {
+    "state_transitioned",
+    "entered_waiting_human",
+}
 
 
 def _src_py_files() -> list[Path]:
@@ -150,6 +179,16 @@ def _target_names(target: ast.AST) -> list[str]:
 
 def _constant_strings(node: ast.AST) -> list[str]:
     return [item.value for item in ast.walk(node) if isinstance(item, ast.Constant) and isinstance(item.value, str)]
+
+
+def _event_type_refs(node: ast.AST) -> set[str]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return {node.value}
+    if isinstance(node, ast.Name):
+        return {node.id}
+    if isinstance(node, ast.IfExp):
+        return _event_type_refs(node.body) | _event_type_refs(node.orelse)
+    return set()
 
 
 def _is_id_target(name: str) -> bool:
@@ -434,6 +473,33 @@ def test_state_transitions_only_via_orchestrator() -> None:
                         violations.append(f"{rel_path}:{node.lineno} imports save_state")
             elif isinstance(node, ast.Call) and _call_name(node) == "save_state":
                 violations.append(f"{rel_path}:{node.lineno} calls save_state")
+
+    assert violations == []
+
+
+def test_harness_helper_modules_only_emit_allowlisted_event_kinds() -> None:
+    """Harness-sourced helper modules may append telemetry events, never state-advance events."""
+
+    violations: list[str] = []
+    for rel_path in sorted(HARNESS_HELPER_EVENT_MODULES):
+        path = REPO_ROOT / rel_path
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
+        source_strings = set(_constant_strings(tree))
+        disallowed_strings = source_strings & HARNESS_HELPER_DISALLOWED_EVENT_KINDS
+        for event_kind in sorted(disallowed_strings):
+            violations.append(f"{rel_path} references disallowed event kind {event_kind}")
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call) or _call_name(node) != "Event":
+                continue
+            event_type_nodes = [keyword.value for keyword in node.keywords if keyword.arg == "event_type"]
+            if not event_type_nodes:
+                violations.append(f"{rel_path}:{node.lineno} constructs Event without explicit event_type")
+                continue
+            for ref in _event_type_refs(event_type_nodes[0]):
+                if ref in HARNESS_HELPER_ALLOWED_EVENT_KINDS or ref in HARNESS_HELPER_ALLOWED_EVENT_CONSTANTS:
+                    continue
+                violations.append(f"{rel_path}:{node.lineno} emits non-allowlisted event type {ref}")
 
     assert violations == []
 
