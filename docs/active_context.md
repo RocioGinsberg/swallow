@@ -8,32 +8,32 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Architecture / Knowledge Plane`
-- latest_completed_phase: `LTO-6 — Knowledge Plane Facade Solidification`
-- latest_completed_slice: `LTO-6 merged at 883e2a9; Wiki Compiler design positioning decided`
-- active_track: `Knowledge Authoring`
-- active_phase: `LTO-1 — Wiki Compiler 第一阶段`
-- active_slice: `PR review complete; C1 absorbed; ready for closeout commit`
-- active_branch: `feat/lto-1-wiki-compiler-first-stage`
-- status: `lto1_review_complete_ready_for_closeout`
+- latest_completed_track: `Knowledge Authoring`
+- latest_completed_phase: `LTO-1 — Wiki Compiler 第一阶段`
+- latest_completed_slice: `merged to main at 349efa9; closeout/review committed`
+- active_track: `Release / Tag Preparation`
+- active_phase: `v1.8.0 release docs`
+- active_slice: `release docs synced; ready for tag commit`
+- active_branch: `main`
+- status: `v1_8_0_release_docs_ready_for_tag_commit`
 
 ## 当前状态说明
 
-当前 git 分支为 `feat/lto-1-wiki-compiler-first-stage`。当前 HEAD 为:
+当前 git 分支为 `main`。当前 HEAD 为:
 
+- `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`
+- `9d9d7f2 docs(plan): finalize lto-1 wiki compiler closeout`
+- `32a5cbb refactor(wiki): remove executor compatibility wrapper`
 - `5ca1e10 test(guards): lock wiki compiler boundaries`
 - `c4fb52c feat(web): add knowledge panel`
-- `8c7faba docs(state): update active_context for M2/M3 complete`
 - `8e03ddd feat(web): add knowledge browse read routes`
 - `178f9ee feat(wiki): add compiler draft and refine commands`
 - `7eb2ef8 docs(plan): add lto-1 wiki compiler plan`
-- `b73ebf8 docs(state): update roadmap`
-- `1a3d61b docs(design): add wiki compiler specialist`
 - `883e2a9 Knowledge Plane Facade Solidification`
 
-`v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。
+`v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。Human 已决定基于 LTO-1 能力增量准备 `v1.8.0` release docs 与 annotated tag;tag 尚未执行。
 
-**当前真实入口**:LTO-6 已 merge 到 `main`;Wiki Compiler 设计定位、4 模式语义与 Web 知识呈现视图分级已通过设计文档先行落到 `main`;`docs/roadmap.md` 已更新为 LTO-1 当前 ticket。`docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md` 已产出(0 blockers / 5 concerns / 2 nits),Codex 已吸收到 `plan.md`;Human 已完成 Plan Gate、planning docs commit 与 feature branch switch。M1 — Wiki Compiler 起草核心已提交为 `178f9ee feat(wiki): add compiler draft and refine commands`;M2/M3 — read-only Knowledge browse routes + detail/relations 已提交为 `8e03ddd feat(web): add knowledge browse read routes` + `8c7faba docs(state): update active_context for M2/M3 complete`;M4 — Web UI Knowledge panel 已提交为 `c4fb52c feat(web): add knowledge panel`;M5 — guard / eval / closeout prep 已完成并通过 full validation;review concern 已吸收,当前等待 Human closeout commit / merge gate。
+**当前真实入口**:LTO-1 Wiki Compiler 第一阶段已 merge 到 `main` at `349efa9`。Post-merge state sync 与 `v1.8.0` tag-level release docs 已同步,等待人工提交 release docs 后执行 annotated tag。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -55,18 +55,19 @@ LTO-7 long-running follow-ups(仍开放):
 1. `docs/active_context.md`(本文)
 2. `current_state.md`
 3. `docs/roadmap.md`
-4. `docs/design/INVARIANTS.md`
-5. `docs/design/EXECUTOR_REGISTRY.md`
-6. `docs/design/SELF_EVOLUTION.md`
-7. `docs/design/KNOWLEDGE.md`
-8. `docs/engineering/ADAPTER_DISCIPLINE.md`
-9. `docs/engineering/CODE_ORGANIZATION.md`
-10. `docs/engineering/TEST_ARCHITECTURE.md`
-11. `docs/engineering/ARCHITECTURE_DECISIONS.md`
-12. `docs/plans/lto-1-wiki-compiler-first-stage/plan.md`
-13. `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md`
-14. `docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md`
-15. `docs/plans/lto-6-knowledge-plane-facade-solidification/review_comments.md`
+4. `README.md`
+5. `docs/plans/lto-1-wiki-compiler-first-stage/closeout.md`
+6. `docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md`
+7. `docs/design/INVARIANTS.md`
+8. `docs/design/EXECUTOR_REGISTRY.md`
+9. `docs/design/SELF_EVOLUTION.md`
+10. `docs/design/KNOWLEDGE.md`
+11. `docs/engineering/ADAPTER_DISCIPLINE.md`
+12. `docs/engineering/CODE_ORGANIZATION.md`
+13. `docs/engineering/TEST_ARCHITECTURE.md`
+14. `docs/engineering/ARCHITECTURE_DECISIONS.md`
+15. `docs/plans/lto-1-wiki-compiler-first-stage/plan.md`
+16. `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md`
 
 ## 当前推进
 
@@ -246,18 +247,18 @@ LTO-7 long-running follow-ups(仍开放):
 
 进行中:
 
-- 无。M5 已完成实现与验证,review concern 已吸收,等待 Human closeout commit。
+- 无。`v1.8.0` release docs 已同步,等待 Human 审阅提交。
 
 待执行:
 
-- **[Human]** Review final closeout + `pr.md`,合并 LTO-1 实现 milestone。
-- **[Codex]** Merge 后执行 post-merge state sync(`current_state.md` + `docs/active_context.md` + `docs/roadmap.md` 把 LTO-1 标 done)+ `v1.8.0` release docs。
-- **[Human]** Commit release docs + 执行 annotated tag `v1.8.0`(标记**首次 LLM-内编译能力增量落地**)。
-- **[Codex]** LTO-6 review C1 follow-up(可选,~50 行):删除 `knowledge_plane.py` 中 ~14 处 `render_*` / `build_*` 配对别名;不阻塞 LTO-1 merge。
+- **[Human]** 审阅并提交 release docs commit。
+- **[Human]** 执行 annotated tag `v1.8.0`(标记**首次 LLM-内编译能力增量落地** / Wiki Compiler first stage)。
+- **[Codex]** Human 确认 tag 完成后,同步 `docs/active_context.md` 的 tag 状态。
+- **[Optional]** LTO-6 review C1 follow-up:删除 `knowledge_plane.py` 中 ~14 处 `render_*` / `build_*` 配对别名;不阻塞 tag。
 
 当前阻塞项:
 
-- 无 blocker。LTO-1 review 已完成 = recommend-merge;1 concern 已在最终清理中吸收,当前等待 Human closeout commit / merge gate。
+- 无 blocker。release docs 已同步,等待 Human 审阅后提交并执行 tag。
 
 ## Tag 状态
 
@@ -265,27 +266,27 @@ LTO-7 long-running follow-ups(仍开放):
 - tag target: `2156d4a docs(release): sync v1.7.0 release docs`
 - 标记意义:**LTO-13 FastAPI Local Web UI Write Surface 首次落地**(本地 Web Control Center write surface;LLM-外可观察能力增量)
 - 上一 tag: `v1.6.0` at `0e6215a`(标记 cluster C closure)
-- 下一 tag 评估:roadmap 当前预期为 LTO-1 Wiki Compiler 第一阶段落地后评估 / cut **v1.8.0**。
+- 下一 tag:Human 已决定准备 **`v1.8.0`**;release docs commit 后执行 annotated tag。
 
 ## 当前下一步
 
-1. **[Human]** 审阅最终 closeout + `pr.md`,执行 closeout commit。
-2. **[Human]** Merge LTO-1 phase。
-3. **[Codex]** Post-merge state sync + 起草 v1.8.0 release docs。
-4. **[Human]** 执行 annotated tag `v1.8.0`。
+1. **[Human]** 审阅并提交 release docs commit。
+2. **[Human]** 执行 annotated tag `v1.8.0`。
+3. **[Codex]** Human 确认 tag 完成后,同步 tag 已执行状态。
 
 ```markdown
 direction_gate:
-- latest_completed_phase: LTO-6 — Knowledge Plane Facade Solidification
+- latest_completed_phase: LTO-1 — Wiki Compiler 第一阶段
 - latest_release_tag: v1.7.0 at 2156d4a docs(release): sync v1.7.0 release docs
-- active_branch: feat/lto-1-wiki-compiler-first-stage
-- active_phase: LTO-1 — Wiki Compiler 第一阶段
-- active_slice: M5 — Guard / Eval / Closeout prep complete; C1 absorbed
-- roadmap: docs/roadmap.md current ticket = LTO-1 Wiki Compiler 第一阶段; v1.8.0 after first-stage landing
+- active_branch: main
+- active_phase: v1.8.0 release docs
+- active_slice: release docs synced; ready for tag commit
+- roadmap: docs/roadmap.md LTO-1 marked complete; no active implementation ticket selected
 - lto1_design_docs: docs/design/EXECUTOR_REGISTRY.md + docs/design/SELF_EVOLUTION.md updated with Wiki Compiler specialist + 4 modes
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
-- next_gate: Human closeout commit -> merge gate
+- lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
+- next_gate: Human release docs commit -> annotated tag v1.8.0
 ```
 
 ## 当前产出物
@@ -307,7 +308,9 @@ direction_gate:
 - `docs/plans/lto-1-wiki-compiler-first-stage/closeout.md`(codex, 2026-05-04, M5 closeout final;review recommend-merge, C1 absorbed, validation + deferred follow-ups)
 - `docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md`(claude, 2026-05-04, **recommend-merge**;5/5 plan_audit concerns + 2/2 nits absorbed;0 blockers / 1 concern(C1 `WikiCompilerExecutor` empty subclass)/ 2 nits)
 - `src/swallow/orchestration/executor.py` + `src/swallow/surface_tools/wiki_compiler.py` + `tests/test_executor_protocol.py`(codex, 2026-05-04, post-review C1 cleanup:remove empty wrapper and register `WikiCompilerAgent` directly)
-- `current_state.md`(codex, 2026-05-04, closeout recovery entry sync)
+- `README.md`(codex, 2026-05-04, `v1.8.0` release snapshot;Wiki Compiler first stage)
+- `current_state.md`(codex, 2026-05-04, merge checkpoint + `v1.8.0` release-docs-ready state)
+- `docs/roadmap.md`(codex, 2026-05-04, LTO-1 marked complete;current ticket moved to release/tag prep)
 - `tests/eval/test_wiki_compiler_quality.py`(codex, 2026-05-04, M5 eval signal;source pack anchors + draft payload structural quality)
 - `tests/test_invariant_guards.py`(codex, 2026-05-04, M5 Wiki Compiler boundary/evidence/relation metadata guard coverage)
 - `./pr.md`(codex, 2026-05-04, PR body draft for LTO-1;review section synced and C1 disposition recorded)

@@ -19,26 +19,26 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `LTO-1 — Wiki Compiler 第一阶段 planning docs`
-- latest_main_checkpoint: `7eb2ef8 docs(plan): add lto-1 wiki compiler plan`
+- latest_main_checkpoint_phase: `LTO-1 — Wiki Compiler 第一阶段 merged`
+- latest_main_checkpoint: `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`
 - latest_executed_public_tag: `v1.7.0`
-- pending_release_tag: `none`
-- current_working_phase: `LTO-1 — Wiki Compiler 第一阶段 closeout`
-- checkpoint_type: `lto1_review_complete_ready_for_closeout_commit`
-- active_branch: `feat/lto-1-wiki-compiler-first-stage`
+- pending_release_tag: `v1.8.0`
+- current_working_phase: `v1.8.0 release docs / tag preparation`
+- checkpoint_type: `v1_8_0_release_docs_ready_for_tag_commit`
+- active_branch: `main`
 - last_checked: `2026-05-04`
 
 说明:
 
-- 当前工作分支为 `feat/lto-1-wiki-compiler-first-stage`;分支 HEAD 为 `5ca1e10 test(guards): lock wiki compiler boundaries`;本地 `main` HEAD 为 `7eb2ef8 docs(plan): add lto-1 wiki compiler plan`。
+- 当前工作分支为 `main`;HEAD 为 `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`。
 - LTO-13 已合并并完成 `v1.7.0` annotated tag;tag target 为 `2156d4a docs(release): sync v1.7.0 release docs`。
 - LTO-6 已合并到 `main` at `883e2a9 Knowledge Plane Facade Solidification`;Knowledge Plane facade 已从 barrel file 收口为 functional facade,旧 direct reach imports 已由 guard 保护。
-- Wiki Compiler 设计准备与 LTO-1 planning docs 已落到 `main`:
-  - `docs/design/EXECUTOR_REGISTRY.md` 增加 Wiki Compiler specialist 五元组、4 模式表与 conflict 决策段。
-  - `docs/design/SELF_EVOLUTION.md` 增加 Wiki Compiler 起草侧 / Librarian 守门侧 / Operator 共同收口工作流。
-  - `docs/roadmap.md` 当前 ticket 已切到 **LTO-1 Wiki Compiler 第一阶段**。
-- `feat/lto-1-wiki-compiler-first-stage` 已完成 M1-M5 实现、M5 guard/eval/closeout prep、Claude PR review(`recommend-merge`;0 blockers / 1 concern / 2 nits)与最终 C1 cleanup。
-- 当前等待 Human 审阅最终 diff、提交 closeout cleanup,然后推进 merge gate。
+- LTO-1 Wiki Compiler 第一阶段已合并到 `main`:
+  - `swl wiki draft/refine/refresh-evidence` CLI 与 `application.commands.wiki` 已落地。
+  - Wiki Compiler 作为 propose-only specialist 注册到 executor registry,Path C 经 Provider Router,不直接写 canonical truth。
+  - Knowledge Browse HTTP routes 与 Web Control Center 只读 Knowledge panel 已落地。
+  - M5 guard / eval / review cleanup 已完成;Claude review verdict 为 `recommend-merge`,0 blockers。
+- `v1.8.0` release docs 已准备好;Human 提交 release docs 后执行 annotated tag。
 
 ---
 
@@ -46,17 +46,18 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `feat/lto-1-wiki-compiler-first-stage`
-- active_track: `Knowledge Authoring`
-- active_phase: `LTO-1 — Wiki Compiler 第一阶段`
-- active_slice: `PR review complete; C1 absorbed; ready for closeout commit`
-- workflow_status: `lto1_review_complete_ready_for_closeout`
+- active_branch: `main`
+- active_track: `Release / Tag Preparation`
+- active_phase: `v1.8.0 release docs`
+- active_slice: `release docs synced; ready for tag commit`
+- workflow_status: `v1_8_0_release_docs_ready_for_tag_commit`
 
 下一步:
 
-1. Human 审阅最终 closeout diff 与 `./pr.md`。
-2. Human 提交 closeout cleanup。
-3. Human 推进 merge gate;merge 后 Codex 同步 `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`,再准备 `v1.8.0` release docs。
+1. Human 审阅本轮 release docs diff。
+2. Human 提交 release docs commit。
+3. Human 执行 annotated tag `v1.8.0`。
+4. Human 确认 tag 完成后,Codex 同步 `docs/active_context.md` 的 tag 已执行状态。
 
 ---
 
@@ -85,7 +86,7 @@
 
 ## 最小验证命令
 
-LTO-1 merge gate 前建议至少执行以下检查:
+`v1.8.0` tag commit 前建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -100,7 +101,7 @@ sed -n '1,220p' docs/roadmap.md
 
 ```bash
 .venv/bin/python -m pytest -q
-# LTO-1 final rerun: 773 passed, 12 deselected
+# LTO-1 final rerun before merge: 773 passed, 12 deselected
 
 .venv/bin/python -m compileall -q src/swallow
 # passed
@@ -114,24 +115,27 @@ git diff --check
 ## 当前已知边界
 
 - 当前不再做 LTO-13 或 LTO-6 代码实现;两者均已合并到 `main`。
-- 当前 LTO-1 implementation / review / C1 cleanup 已完成;未 merge 前不切换下一 phase。
+- 当前 LTO-1 implementation / review / C1 cleanup 已完成并合并到 `main`;本轮只做 release/tag 文档同步。
 - 不改变 Orchestrator / Operator 的 task-state control authority。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
 - 不新增 auth/multi-user、remote worker、Planner/DAG 或项目级全图谱可视化。
-- Wiki Compiler 第一阶段只做设计文档已批准的 authoring specialist + Knowledge Browse 视图 1/2 + guard 范围。
+- Wiki Compiler 第一阶段只做设计文档已批准的 authoring specialist + Knowledge Browse 视图 1/2 + guard 范围;Web 侧 Wiki Compiler trigger、自动 promotion/supersede/conflict resolution 仍 deferred。
 
 ---
 
 ## 当前建议提交范围
 
-当前建议提交 LTO-1 review cleanup 与 closeout 文档:
+当前建议提交 `v1.8.0` release docs:
 
 ```bash
-git add src/swallow/surface_tools/wiki_compiler.py src/swallow/orchestration/executor.py tests/test_executor_protocol.py
-git commit -m "refactor(wiki): remove executor compatibility wrapper"
+git add README.md current_state.md docs/active_context.md docs/roadmap.md
+git commit -m "docs(release): sync v1.8.0 release docs"
+```
 
-git add current_state.md docs/active_context.md docs/plans/lto-1-wiki-compiler-first-stage/closeout.md docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md
-git commit -m "docs(plan): finalize lto-1 wiki compiler closeout"
+提交后建议执行:
+
+```bash
+git tag -a v1.8.0 -m "v1.8.0 Wiki Compiler first stage"
 ```
 
 ---
@@ -147,7 +151,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 LTO-1 closeout 不要求 live HTTP / API-key dependent test。
+当前 `v1.8.0` release docs 不要求 live HTTP / API-key dependent test。
 
 ---
 

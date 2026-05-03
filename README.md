@@ -10,23 +10,24 @@ swallow sustains multi-step, multi-session tasks by combining task orchestration
 
 ## Release Snapshot
 
-Current release: **v1.7.0**.
+Current release: **v1.8.0**.
 
-This snapshot adds the first local Web Control Center write surface on top of the `v1.6.0` Cluster C architecture baseline:
+This snapshot adds the first Wiki Compiler stage on top of the `v1.7.0` local Web Control Center write surface:
 
-- Web Control Center write routes: `swl serve` now exposes local FastAPI `POST` routes for task creation, task lifecycle actions, staged knowledge promote/reject, and Meta-Optimizer proposal review/apply.
-- Shared application command boundary: Web writes call the same `application/commands/*` functions as CLI-originated writes; the Web adapter does request/response schema, dependency wiring, exception-to-HTTP mapping, and serialization only.
-- Typed HTTP contract: request and response bodies use scoped Pydantic models with a consistent success envelope, backend-derived action eligibility, and centralized FastAPI exception handlers for 400 / 404 / 409 style Swallow semantics.
-- Local safety guard: `swl serve` remains loopback-only for write-capable operation, so binding to broad LAN hosts is rejected by default.
-- UI capability parity: the static Control Center can create tasks, run/retry/resume/rerun/acknowledge task actions, promote/reject staged knowledge, and review/apply proposal bundles while refreshing the same read model used by the backend.
-- Governance baseline preserved: task state control remains with Orchestrator / Operator, Web writes do not bypass application commands, staged knowledge force promotion is not exposed in the Web UI, and `apply_proposal()` remains the only canonical / route / policy mutation entry.
+- Wiki Compiler specialist: `swl wiki draft`, `swl wiki refine --mode supersede|refines`, and `swl wiki refresh-evidence` provide a local knowledge-authoring loop from raw material / artifacts into staged wiki drafts.
+- Propose-only authoring boundary: the Wiki Compiler is registered as a Specialist Internal executor, routes LLM calls through Provider Router, writes task artifacts and staged knowledge only, and never writes canonical truth directly.
+- Reviewable compiler metadata: staged candidates preserve `wiki_mode`, `target_object_id`, source pack anchors, rationale, relation metadata, and conflict flags for Librarian / Operator review.
+- Conservative relation semantics: approved `refines` metadata can create a persisted relation row through the application command layer; `supersedes`, `derived_from`, `refers_to`, and `contradicts` remain staged review metadata in this first stage.
+- Knowledge Browse surface: local HTTP `GET` routes and the Web Control Center Knowledge panel expose wiki / canonical / staged lists, object detail, source pack, and adjacent relation views without adding Web-side LLM trigger buttons.
+- Evidence safety guard: `refresh-evidence` is a no-LLM path that requires parser-versioned evidence anchors, preventing content-hash-only evidence rebuilds.
+- Governance baseline preserved: task state control remains with Orchestrator / Operator, automatic promotion / supersede / conflict resolution are not introduced, and `apply_proposal()` remains the only canonical / route / policy mutation entry.
 
 ---
 
 ## Core Capabilities
 
 - **Stateful task runtime** — tasks persist across steps and sessions with explicit state, events, artifacts, checkpoints, resume, retry, rerun, and operator-initiated suspend.
-- **Knowledge governance** — SQLite-backed knowledge truth with staged → review → promote workflow, gated by a single `apply_proposal` entrypoint. Not implicit global memory.
+- **Knowledge governance and authoring** — SQLite-backed knowledge truth with staged → review → promote workflow, a propose-only Wiki Compiler authoring specialist, and a single `apply_proposal` mutation entrypoint. Not implicit global memory.
 - **Raw material storage boundary** — source bytes are addressed through `RawMaterialStore` refs (`file://workspace/...`, absolute `file://`, and `artifact://...`) with the filesystem backend implemented today and object-storage compatibility kept behind the store boundary.
 - **Policy & execution loop** — proposal-driven self-evolution, operator review/apply, complexity-aware routing, and guarded fan-out orchestration.
 - **Multi-perspective synthesis** — Path A participant fan-out plus arbiter synthesis writes structured task artifacts, with staged knowledge entry only through explicit Operator CLI action.
@@ -191,23 +192,24 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 ## Release Snapshot
 
-当前 release:**v1.7.0**。
+当前 release:**v1.8.0**。
 
-这个快照在 `v1.6.0` 簇 C 架构基线之上,新增首个本地 Web Control Center 写表面:
+这个快照在 `v1.7.0` 本地 Web Control Center 写表面之上,新增 Wiki Compiler 第一阶段:
 
-- Web Control Center 写路由:`swl serve` 现在提供本地 FastAPI `POST` 路由,覆盖 task 创建、task lifecycle actions、staged knowledge promote/reject、Meta-Optimizer proposal review/apply。
-- 共享 application command 边界:Web 写入调用与 CLI 写入相同的 `application/commands/*` 函数;Web adapter 只负责 request/response schema、dependency wiring、exception-to-HTTP mapping 和 serialization。
-- Typed HTTP contract:请求体和响应体使用 scoped Pydantic models,统一 success envelope,读取 backend-derived action eligibility,并用集中 FastAPI exception handlers 映射 400 / 404 / 409 类 Swallow 语义错误。
-- 本地安全守卫:`swl serve` 的写能力保持 loopback-only,默认拒绝绑定到宽泛 LAN host。
-- UI 能力对等:静态 Control Center 可创建 task、run/retry/resume/rerun/acknowledge task action、promote/reject staged knowledge、review/apply proposal bundle,并刷新同一份 backend read model。
-- 治理基线保持不变:task state control 仍只属于 Orchestrator / Operator,Web 写入不绕过 application commands,Web UI 不暴露 staged knowledge force promote,`apply_proposal()` 仍是 canonical / route / policy mutation 的唯一入口。
+- Wiki Compiler specialist:`swl wiki draft`、`swl wiki refine --mode supersede|refines`、`swl wiki refresh-evidence` 提供从 raw material / artifacts 到 staged wiki 草稿的本地知识起草闭环。
+- propose-only 起草边界:Wiki Compiler 注册为 Specialist Internal executor,LLM 调用经 Provider Router,只写 task artifacts 与 staged knowledge,永不直接写 canonical truth。
+- 可审查 compiler metadata:staged candidate 保留 `wiki_mode`、`target_object_id`、source pack anchors、rationale、relation metadata 与 conflict flags,供 Librarian / Operator review。
+- 保守 relation 语义:通过 Operator promote 后,`refines` metadata 可由 application command 层创建 persisted relation row;`supersedes`、`derived_from`、`refers_to`、`contradicts` 在第一阶段仍是 staged review metadata。
+- Knowledge Browse 表面:本地 HTTP `GET` 路由与 Web Control Center Knowledge panel 展示 wiki / canonical / staged 列表、对象详情、source pack 与邻接 relations,不新增 Web 侧 LLM trigger 按钮。
+- Evidence 安全守卫:`refresh-evidence` 是 no-LLM 路径,强制 parser-versioned evidence anchors,避免只刷 content hash 的 evidence rebuild。
+- 治理基线保持不变:task state control 仍只属于 Orchestrator / Operator,不引入 automatic promotion / supersede / conflict resolution,`apply_proposal()` 仍是 canonical / route / policy mutation 的唯一入口。
 
 ---
 
 ## 核心能力
 
 - **有状态任务运行时**——任务跨步骤和会话持久化,支持显式 state / events / artifacts / checkpoint / resume / retry / rerun / operator 主动 suspend。
-- **知识治理**——SQLite-backed 知识真值层,staged → review → promote 工作流,通过单一 `apply_proposal` 入口收口。不是隐式全局记忆。
+- **知识治理与起草**——SQLite-backed 知识真值层,staged → review → promote 工作流,propose-only Wiki Compiler authoring specialist,并通过单一 `apply_proposal` mutation 入口收口。不是隐式全局记忆。
 - **Raw material 存储边界**——source bytes 通过 `RawMaterialStore` ref(`file://workspace/...`、绝对 `file://`、`artifact://...`)寻址;当前实现 filesystem backend,未来 object-storage 兼容性留在 store 边界之后。
 - **策略与执行闭环**——proposal-driven 的自我演化、operator review/apply、complexity-aware 路由与带守卫的 fan-out 编排。
 - **多视角综合**——Path A participant fan-out + arbiter synthesis 产出结构化 task artifact,且只通过显式 Operator CLI 动作进入 staged knowledge。
