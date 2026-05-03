@@ -35,7 +35,7 @@ from swallow.surface_tools.ingestion_specialist import IngestionSpecialistAgent,
 from swallow.surface_tools.librarian_executor import LibrarianAgent, LibrarianExecutor
 from swallow.surface_tools.literature_specialist import LiteratureSpecialistAgent, LiteratureSpecialistExecutor
 from swallow.surface_tools.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
-from swallow.surface_tools.wiki_compiler import WikiCompilerAgent, WikiCompilerExecutor
+from swallow.surface_tools.wiki_compiler import WikiCompilerAgent
 from swallow.orchestration.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
 from swallow.provider_router.router import resolve_fallback_chain
 from swallow.surface_tools.quality_reviewer import QualityReviewerAgent, QualityReviewerExecutor
@@ -102,7 +102,6 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(QualityReviewerAgent(), ExecutorProtocol)
         self.assertIsInstance(QualityReviewerExecutor(), ExecutorProtocol)
         self.assertIsInstance(WikiCompilerAgent(), ExecutorProtocol)
-        self.assertIsInstance(WikiCompilerExecutor(), ExecutorProtocol)
         self.assertIsInstance(ValidatorAgent(), ExecutorProtocol)
         self.assertIsInstance(ValidatorExecutor(), ExecutorProtocol)
 
@@ -200,8 +199,8 @@ class ExecutorProtocolTest(unittest.TestCase):
         self.assertIsInstance(resolve_executor("consistency-reviewer", "local"), ConsistencyReviewerExecutor)
         self.assertIsInstance(resolve_executor("cli", "quality-reviewer"), QualityReviewerExecutor)
         self.assertIsInstance(resolve_executor("quality-reviewer", "local"), QualityReviewerExecutor)
-        self.assertIsInstance(resolve_executor("cli", "wiki-compiler"), WikiCompilerExecutor)
-        self.assertIsInstance(resolve_executor("wiki-compiler", "local"), WikiCompilerExecutor)
+        self.assertIsInstance(resolve_executor("cli", "wiki-compiler"), WikiCompilerAgent)
+        self.assertIsInstance(resolve_executor("wiki-compiler", "local"), WikiCompilerAgent)
         self.assertIsInstance(resolve_executor("validator", "local"), ValidatorExecutor)
 
     def test_local_cli_executor_delegates_to_harness_run_execution(self) -> None:

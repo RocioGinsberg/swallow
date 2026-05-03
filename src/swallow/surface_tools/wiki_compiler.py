@@ -23,6 +23,9 @@ WIKI_COMPILER_EXECUTOR_NAME = "wiki-compiler"
 WIKI_COMPILER_SYSTEM_ROLE = "specialist"
 WIKI_COMPILER_MEMORY_AUTHORITY = "staged-knowledge"
 WIKI_COMPILER_PARSER_VERSION = "wiki-compiler-v1"
+# Staged compiler metadata is intentionally broader than the persisted relation enum.
+# Only `refines` is promoted into a governed relation row in this phase; the other
+# signals stay on staged candidates/source packs for Operator review.
 WIKI_COMPILER_METADATA_RELATION_TYPES: tuple[str, ...] = (
     "supersedes",
     "refines",
@@ -487,11 +490,5 @@ class WikiCompilerAgent:
             ]
             normalized.insert(0, requested)
         return normalized
-
-
-class WikiCompilerExecutor(WikiCompilerAgent):
-    """Compatibility wrapper that preserves executor semantics while delegating to WikiCompilerAgent."""
-
-
 def source_ref_scheme(source_ref: str) -> str:
     return parse_raw_material_source_ref_scheme(source_ref)

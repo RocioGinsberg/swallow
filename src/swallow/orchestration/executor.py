@@ -271,9 +271,9 @@ def _lazy_quality_reviewer() -> ExecutorProtocol:
 
 
 def _lazy_wiki_compiler() -> ExecutorProtocol:
-    from swallow.surface_tools.wiki_compiler import WikiCompilerExecutor
+    from swallow.surface_tools.wiki_compiler import WikiCompilerAgent
 
-    return WikiCompilerExecutor()
+    return WikiCompilerAgent()
 
 
 EXECUTOR_REGISTRY: dict[str, Callable[[], ExecutorProtocol]] = {
