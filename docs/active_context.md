@@ -13,16 +13,16 @@
 - latest_completed_slice: `D4 Phase A merged; LTO-6 direction confirmed (Functional facade + 一次清)`
 - active_track: `Architecture / Knowledge Plane`
 - active_phase: `LTO-6 — Knowledge Plane Facade Solidification`
-- active_slice: `M1 facade contract complete; awaiting commit gate`
+- active_slice: `M2+M3 complete; awaiting commit gate`
 - active_branch: `feat/lto-6-knowledge-plane-facade-solidification`
-- status: `lto6_m1_commit_gate`
+- status: `lto6_m2_m3_commit_gate`
 
 ## 当前状态说明
 
 当前 git 分支为 `feat/lto-6-knowledge-plane-facade-solidification`。当前 HEAD 为:
 
+- `c9697f2 refactor(knowledge): add functional knowledge plane facade`
 - `fcf93d3 docs(plan): absorb lto-6 plan audit`
-- `3e75045 docs(state): update roadmap`
 
 进入 LTO-13 实现前,HEAD 为:
 
@@ -189,6 +189,12 @@ LTO-7 long-running follow-ups(仍开放):
   - 新增 `tests/test_knowledge_plane_facade.py`,覆盖 staged lifecycle、task knowledge view、ingestion、relations/suggestions、projection/review/policy/retrieval/prompt 等 facade 入口。
   - 修正 canonical audit facade 为 lazy import,避免 `truth_governance.store` ↔ `knowledge_plane` 初始化循环。
   - M1 验证通过:`tests/test_knowledge_plane_facade.py` 6 passed;M1 focused gate 31 passed;`compileall -q src/swallow`;`git diff --check`。
+- **[Codex]** 完成 M2+M3 atomic internalization and caller migration:
+  - 六个 lifecycle modules 已 rename 为 `_internal_*`,旧 public module files 不保留 compatibility stubs。
+  - application / adapters / orchestration / provider_router / residual `surface_tools` / truth_governance runtime callers 已迁移到 `knowledge_plane` facade;`raw_material.py` 作为 explicit storage-boundary exception 保留。
+  - `knowledge_retrieval/ingestion/__init__.py` 不再 re-export pipeline behavior,只保留 parser/filter public exports。
+  - 行为测试改走 facade imports;`tests/test_invariant_guards.py` 同步 `_internal_knowledge_store.py` 与 `_internal_ingestion_pipeline.py` allowlist。
+  - M2+M3 验证通过:`compileall -q src/swallow`;计划 focused gate `303 passed`;facade/knowledge/invariant gate `58 passed`;application boundary `11 passed`;provider_router focused gate `40 passed`;full pytest `751 passed, 8 deselected`;旧六模块 import scan clean;外层 `_internal_*` import scan clean;`git diff --check`。
 
 进行中:
 
@@ -196,13 +202,13 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** 审阅并提交 M1 milestone。
-- **[Codex]** Human 提交 M1 后继续 M2+M3 atomic internalization/caller migration。
+- **[Human]** 审阅并提交 M2+M3 milestone。
+- **[Codex]** Human 提交 M2+M3 后继续 M4 guard and documentation sync。
 - **[Claude]** PR review;**[Human]** merge gate。
 
 当前阻塞项:
 
-- 无 blocker。M1 已完成并停在 commit gate;等待 Human 审阅/提交。
+- 无 blocker。M2+M3 已完成并停在 commit gate;等待 Human 审阅/提交。
 
 ## Tag 状态
 
@@ -214,8 +220,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 M1 milestone。
-2. **[Codex]** Human 提交 M1 后继续 M2+M3 atomic internalization/caller migration。
+1. **[Human]** 审阅并提交 M2+M3 milestone。
+2. **[Codex]** Human 提交 M2+M3 后继续 M4 guard and documentation sync。
 
 ```markdown
 direction_gate:
@@ -224,7 +230,7 @@ direction_gate:
 - latest_release_tag: v1.7.0 at 2156d4a docs(release): sync v1.7.0 release docs
 - active_branch: feat/lto-6-knowledge-plane-facade-solidification
 - active_phase: LTO-6 — Knowledge Plane Facade Solidification
-- active_slice: M1 facade contract complete; awaiting commit gate
+- active_slice: M2+M3 complete; awaiting commit gate
 - cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
 - structural_changes_this_round: LTO-13 relocated 簇 C → 簇 B (interface boundary nature, not cluster C continuation); cluster C subheading dropped "+ 接续"; v1.6.0 tag decision marked executed
 - direction_decided: do LTO-13 directly; LTO-5 / LTO-6 do not block LTO-13 (application/commands is the buffer layer)
@@ -240,7 +246,8 @@ direction_gate:
 - lto6_plan: docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md (status review; plan_audit concerns absorbed)
 - lto6_plan_audit: docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md (has-concerns; 0 blockers / 7 concerns / 2 nits)
 - lto6_m1_validation: knowledge_plane_facade 6 passed; M1 focused gate 31 passed; compileall passed; diff check passed
-- next_gate: M1 commit gate
+- lto6_m2_m3_validation: compileall passed; focused gate 303 passed; facade/knowledge/invariant gate 58 passed; application boundary 11 passed; provider_router focused 40 passed; full pytest 751 passed, 8 deselected; old-module/import-boundary scans clean; diff check passed
+- next_gate: M2+M3 commit gate (Human review/commit)
 ```
 
 ## 当前产出物
@@ -249,6 +256,9 @@ direction_gate:
 - `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`(codex, 2026-05-03, LTO-6 phase plan;Functional facade + one-shot migration + `_internal_*` module internalization + guard/test strategy;plan_audit 7 concerns + 2 nits absorbed)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py`(codex, 2026-05-03, M1 functional facade wrapper implementation)
 - `tests/test_knowledge_plane_facade.py`(codex, 2026-05-03, M1 facade characterization coverage)
+- `src/swallow/knowledge_retrieval/_internal_canonical_registry.py` / `_internal_staged_knowledge.py` / `_internal_knowledge_store.py` / `_internal_knowledge_relations.py` / `_internal_knowledge_suggestions.py` / `_internal_ingestion_pipeline.py`(codex, 2026-05-03, M2 internal lifecycle modules)
+- `src/swallow/application/` / `adapters/` / `orchestration/` / `provider_router/` / `surface_tools/` / `truth_governance/` touched imports(codex, 2026-05-03, M3 caller migration to `knowledge_plane`)
+- `tests/test_*` + `tests/integration/*` + `tests/unit/*` touched imports/guards(codex, 2026-05-03, M3 facade behavior tests and moved-module guard sync)
 - `docs/roadmap.md`(claude, 2026-05-03, post-LTO-13 增量更新:LTO-13 标完成、LTO-5 重定义为 Driven Ports Rollout、LTO-6 重定义为 Knowledge Plane Facade Solidification 主动化、新增 D5/D4 Phase A independent phase tickets、§五 顺序更新)
 - `docs/engineering/ARCHITECTURE_DECISIONS.md`(claude, 2026-05-03, 草稿;架构身份 = Hexagonal + 当前模式清单 + 6 项已识别偏离 D1-D6;待与 LTO-13 closeout 一起提交)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan.md`(codex, 2026-05-03, LTO-13 phase plan; Round 1 / Pydantic follow-up / Round 2 / Round 3 audit concerns absorbed)
