@@ -148,6 +148,29 @@ KNOWLEDGE_RAW_MATERIAL_MODULE = "swallow.knowledge_retrieval.raw_material"
 KNOWLEDGE_RAW_MATERIAL_ALLOWED_FILES = {
     "src/swallow/surface_tools/librarian_executor.py",
 }
+WIKI_COMPILER_MODULE = "src/swallow/surface_tools/wiki_compiler.py"
+WIKI_COMMAND_MODULE = "src/swallow/application/commands/wiki.py"
+WIKI_COMPILER_FORBIDDEN_CALLS = {
+    "append_canonical_record",
+    "append_event",
+    "apply_proposal",
+    "persist_wiki_entry_from_record",
+    "save_audit_trigger_policy",
+    "save_mps_policy",
+    "save_route_capability_profiles",
+    "save_route_policy",
+    "save_route_registry",
+    "save_route_weights",
+    "save_state",
+    "submit_staged_candidate",
+}
+HTTP_KNOWLEDGE_QUERY_CALLS = {
+    "build_canonical_knowledge_payload",
+    "build_knowledge_detail_payload",
+    "build_knowledge_relations_payload",
+    "build_staged_knowledge_payload",
+    "build_wiki_knowledge_payload",
+}
 
 
 def _src_py_files() -> list[Path]:
@@ -283,6 +306,26 @@ def _knowledge_plane_import_boundary_violations_for_source(source: str, rel_path
     return _knowledge_plane_import_boundary_violations_for_tree(ast.parse(source), rel_path)
 
 
+def _function_named(tree: ast.AST, name: str) -> ast.FunctionDef:
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == name:
+            return node
+    raise AssertionError(f"Function not found: {name}")
+
+
+def _fastapi_route_path(decorator: ast.AST, method: str) -> str:
+    if not isinstance(decorator, ast.Call):
+        return ""
+    if not isinstance(decorator.func, ast.Attribute) or decorator.func.attr != method:
+        return ""
+    if not decorator.args:
+        return ""
+    path_arg = decorator.args[0]
+    if isinstance(path_arg, ast.Constant) and isinstance(path_arg.value, str):
+        return path_arg.value
+    return ""
+
+
 def test_knowledge_plane_import_boundary_guard_rejects_internal_import_fixture() -> None:
     violations = _knowledge_plane_import_boundary_violations_for_source(
         "from swallow.knowledge_retrieval._internal_knowledge_store import load_task_knowledge_view\n",
@@ -330,6 +373,120 @@ def test_knowledge_plane_public_boundary_imports() -> None:
         violations.extend(_knowledge_plane_import_boundary_violations_for_tree(tree, rel_path))
 
     assert violations == []
+
+
+def test_wiki_compiler_agent_boundary_propose_only() -> None:
+    rel_path = WIKI_COMPILER_MODULE
+    tree = ast.parse((REPO_ROOT / rel_path).read_text(encoding="utf-8"), filename=rel_path)
+    violations: list[str] = []
+    provider_router_imports: set[str] = set()
+    knowledge_plane_imports: set[str] = set()
+    calls: set[str] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name in {"httpx", "openai", "anthropic"}:
+                    violations.append(f"{rel_path}:{node.lineno} imports provider/client module {alias.name}")
+        elif isinstance(node, ast.ImportFrom):
+            if node.module == "swallow.provider_router.agent_llm":
+                provider_router_imports.update(alias.name for alias in node.names)
+            if node.module == KNOWLEDGE_PLANE_MODULE:
+                knowledge_plane_imports.update(alias.name for alias in node.names)
+            if node.module and node.module.startswith("swallow.knowledge_retrieval._internal"):
+                violations.append(f"{rel_path}:{node.lineno} imports knowledge internal module {node.module}")
+            for alias in node.names:
+                if alias.name in WIKI_COMPILER_FORBIDDEN_CALLS:
+                    violations.append(f"{rel_path}:{node.lineno} imports {alias.name}")
+        elif isinstance(node, ast.Call):
+            called_name = _call_name(node)
+            calls.add(called_name)
+            if called_name in WIKI_COMPILER_FORBIDDEN_CALLS:
+                violations.append(f"{rel_path}:{node.lineno} calls {called_name}")
+
+    assert "call_agent_llm" in provider_router_imports
+    assert "extract_json_object" in provider_router_imports
+    assert "submit_staged_knowledge" in knowledge_plane_imports
+    assert "call_agent_llm" in calls
+    assert "submit_staged_knowledge" in calls
+    assert violations == []
+
+
+def test_wiki_compiler_refresh_evidence_updates_parser_version_anchor() -> None:
+    rel_path = WIKI_COMMAND_MODULE
+    tree = ast.parse((REPO_ROOT / rel_path).read_text(encoding="utf-8"), filename=rel_path)
+    function = _function_named(tree, "refresh_wiki_evidence_command")
+    function_strings = set(_constant_strings(function))
+    result_call_keywords: set[str] = set()
+
+    for node in ast.walk(function):
+        if isinstance(node, ast.Call) and _call_name(node) == "EvidenceRefreshCommandResult":
+            result_call_keywords.update(keyword.arg or "" for keyword in node.keywords)
+
+    assert "refresh-evidence requires --span or --heading-path." in function_strings
+    assert {"content_hash", "parser_version", "span", "heading_path"} <= function_strings
+    assert {"content_hash", "parser_version", "span", "heading_path"} <= result_call_keywords
+
+
+def test_http_knowledge_routes_only_call_application_queries() -> None:
+    rel_path = "src/swallow/adapters/http/api.py"
+    tree = ast.parse((REPO_ROOT / rel_path).read_text(encoding="utf-8"), filename=rel_path)
+    violations: list[str] = []
+    knowledge_get_routes: list[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module.startswith("swallow.knowledge_retrieval"):
+                violations.append(f"{rel_path}:{node.lineno} imports {module}; use application.queries.knowledge")
+            if module in {"swallow.truth_governance.sqlite_store", "swallow.surface_tools.paths"}:
+                violations.append(f"{rel_path}:{node.lineno} imports lower-layer path/store module {module}")
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        route_paths = [
+            _fastapi_route_path(decorator, "get")
+            for decorator in node.decorator_list
+        ]
+        route_paths = [path for path in route_paths if path.startswith("/api/knowledge")]
+        if not route_paths:
+            continue
+        knowledge_get_routes.extend(route_paths)
+        calls = {_call_name(call) for call in ast.walk(node) if isinstance(call, ast.Call)}
+        if not calls & HTTP_KNOWLEDGE_QUERY_CALLS:
+            violations.append(f"{rel_path}:{node.lineno} route {route_paths[0]} does not call application query")
+        lower_layer_calls = calls & {"load_task_knowledge_view", "list_staged_knowledge", "list_knowledge_relations"}
+        for call_name in sorted(lower_layer_calls):
+            violations.append(f"{rel_path}:{node.lineno} route {route_paths[0]} calls lower-layer {call_name}")
+
+    assert set(knowledge_get_routes) == {
+        "/api/knowledge/wiki",
+        "/api/knowledge/canonical",
+        "/api/knowledge/staged",
+        "/api/knowledge/{object_id}",
+        "/api/knowledge/{object_id}/relations",
+    }
+    assert violations == []
+
+
+def test_knowledge_relation_metadata_types_cover_design_modes() -> None:
+    from swallow.knowledge_retrieval.knowledge_plane import KNOWLEDGE_RELATION_TYPES
+    from swallow.surface_tools.wiki_compiler import WIKI_COMPILER_METADATA_RELATION_TYPES
+
+    design_metadata_types = {
+        "supersedes",
+        "refines",
+        "contradicts",
+        "refers_to",
+        "derived_from",
+    }
+    legacy_relation_types = {"cites", "extends", "related_to"}
+
+    assert set(WIKI_COMPILER_METADATA_RELATION_TYPES) == design_metadata_types
+    assert {"refines", "contradicts"} <= set(KNOWLEDGE_RELATION_TYPES)
+    assert legacy_relation_types <= set(KNOWLEDGE_RELATION_TYPES)
+    assert "derived_from" not in KNOWLEDGE_RELATION_TYPES
+    assert "supersedes" not in KNOWLEDGE_RELATION_TYPES
+    assert "refers_to" not in KNOWLEDGE_RELATION_TYPES
 
 
 def test_canonical_write_only_via_apply_proposal() -> None:
