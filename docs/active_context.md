@@ -13,15 +13,15 @@
 - latest_completed_slice: `cli.py 3653 → 2672 行 (-27%) + application/commands 写命令完整化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-8 Step 2 — harness decomposition`
-- active_slice: `M4 execution attempts and telemetry split complete; awaiting Human review/commit`
+- active_slice: `M5 write pipeline cleanup and facade reduction complete; awaiting Human review/commit`
 - active_branch: `feat/orchestration-lifecycle-decomposition-step2`
-- status: `lto8_step2_m4_complete_awaiting_commit`
+- status: `lto8_step2_m5_complete_awaiting_commit`
 
 ## 当前状态说明
 
 当前 git 分支为 `feat/orchestration-lifecycle-decomposition-step2`。LTO-8 Step 2 已进入实现阶段,当前 HEAD 为:
 
-- `eb4366f refactor(orchestration): split artifact record helpers`
+- `5bf1c84 refactor(orchestration): split execution attempts and telemetry`
 
 LTO-9 Step 2 已合并到主线:
 
@@ -153,6 +153,14 @@ LTO-7 long-running follow-ups(仍开放):
   - `src/swallow/orchestration/harness.py` 保留 `run_execution` compatibility wrapper,并继续保留 `harness.run_executor` patch 兼容性。
   - `tests/unit/orchestration/test_execution_attempts_module.py` 新增 `run_execution` artifact/event characterization,并把 helper boundary 改为允许 executor telemetry、禁止 state-transition event strings。
   - `tests/test_invariant_guards.py::test_harness_helper_modules_only_emit_allowlisted_event_kinds` 已加入,扫描 `retrieval_flow.py` / `execution_attempts.py` / `artifact_writer.py` / `task_report.py` 的 helper-side event kinds。
+- **[Human]** 已提交 M4 execution attempts and telemetry split:
+  - `5bf1c84 refactor(orchestration): split execution attempts and telemetry`
+- **[Codex]** M5 write pipeline cleanup and facade reduction 已完成:
+  - `src/swallow/orchestration/artifact_writer.py` 承接 7 个 policy evaluation/save/report/event helper:`write_compatibility_policy_artifacts` / `write_execution_fit_policy_artifacts` / `write_knowledge_policy_artifacts` / `write_validation_policy_artifacts` / `write_retry_policy_artifacts` / `write_execution_budget_policy_artifacts` / `write_stop_policy_artifacts`。
+  - `artifact_writer.py` 同时承接 checkpoint snapshot finalization 与 closing `artifacts.written` event helper。
+  - `src/swallow/orchestration/harness.py` 保留 `write_task_artifacts` / async wrapper / compatibility sequencing,不再直接拥有 policy evaluator/save/count/event blocks。
+  - `tests/test_grounding.py::test_write_task_artifacts_emits_policy_and_artifact_events_in_order` 新增 policy/artifact event 顺序 characterization。
+  - `tests/unit/orchestration/test_artifact_writer_module.py` 的 helper boundary guard 调整为允许 artifact writer 发 allowlisted telemetry event,仍禁止 control-plane state event strings 与 harness/executor 反向依赖。
 
 进行中:
 
@@ -160,12 +168,12 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** 审查并提交 M4 execution attempts and telemetry split。
-- **[Codex]** Human 提交 M4 后开始 M5 write pipeline cleanup and facade reduction。
+- **[Human]** 审查并提交 M5 write pipeline cleanup and facade reduction。
+- **[Codex]** Human 提交 M5 后准备 LTO-8 Step 2 closeout / PR materials。
 
 当前阻塞项:
 
-- 无 blocker。等待 Human review / commit M4。
+- 无 blocker。等待 Human review / commit M5。
 
 ## Tag 状态
 
@@ -175,8 +183,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审查并提交 M4 execution attempts and telemetry split。
-2. **[Codex]** Human 提交 M4 后开始 M5 write pipeline cleanup and facade reduction。
+1. **[Human]** 审查并提交 M5 write pipeline cleanup and facade reduction。
+2. **[Codex]** Human 提交 M5 后准备 LTO-8 Step 2 closeout / PR materials。
 
 ```markdown
 plan_gate:
@@ -184,7 +192,7 @@ plan_gate:
 - merge_commit (prior): 1251c3c LTO-9 Step 2 — broad CLI command-family migration
 - active_branch: feat/orchestration-lifecycle-decomposition-step2
 - active_phase: LTO-8 Step 2 — harness decomposition (cluster C closure phase)
-- active_slice: M4 execution attempts and telemetry split complete; awaiting Human review/commit
+- active_slice: M5 write pipeline cleanup and facade reduction complete; awaiting Human review/commit
 - cluster_c_status: LTO-7 + LTO-9 + LTO-10 fully closed; LTO-8 Step 2 = cluster C closure
 - roadmap: docs/roadmap.md current ticket = LTO-8 Step 2; next choice = LTO-13; candidates = Wiki Compiler / other LTOs
 - context_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines)
@@ -195,7 +203,7 @@ plan_gate:
 - review (prior phase): recommend-merge after fixes; 0 blockers; 3 polish concerns
 - new_invariant_design_point: helper-side append_event allowlist (12 telemetry kinds; state-transition kinds disallowed)
 - tag_decision: defer v1.6.0 until LTO-8 Step 2 merge (cluster C closure)
-- next_gate: Human M4 review/commit → Codex M5 implementation
+- next_gate: Human M5 review/commit → Codex phase closeout / PR materials
 ```
 
 ## 当前产出物
@@ -216,31 +224,32 @@ plan_gate:
 - `src/swallow/orchestration/execution_attempts.py`(codex, 2026-05-03, M4 run_execution / execution telemetry owner)
 - `tests/unit/orchestration/test_execution_attempts_module.py`(codex, 2026-05-03, M4 execution attempts helper characterization)
 - `tests/test_invariant_guards.py`(codex, 2026-05-03, M4 helper-side event kind allowlist guard)
-- `docs/active_context.md`(codex, 2026-05-03, M4 complete;awaiting Human review/commit)
+- `src/swallow/orchestration/artifact_writer.py`(codex, 2026-05-03, M5 write pipeline policy/checkpoint/artifact event helper owner)
+- `src/swallow/orchestration/harness.py`(codex, 2026-05-03, M5 thin write pipeline sequencing facade)
+- `tests/test_grounding.py`(codex, 2026-05-03, M5 policy/artifact event order characterization)
+- `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-03, M5 artifact writer helper boundary update)
+- `docs/active_context.md`(codex, 2026-05-03, M5 complete;awaiting Human review/commit)
 
 ## 当前验证结果
 
 ```bash
-.venv/bin/python -m pytest tests/unit/orchestration/test_execution_attempts_module.py tests/unit/orchestration/test_harness_facade.py -q
-# 17 passed
+.venv/bin/python -m pytest tests/test_grounding.py tests/unit/orchestration/test_artifact_writer_module.py tests/test_invariant_guards.py -q
+# 40 passed
 
 .venv/bin/python -m pytest tests/unit/orchestration -q
 # 46 passed
 
-.venv/bin/python -m pytest tests/test_invariant_guards.py -q
-# 27 passed
+.venv/bin/python -m pytest tests/test_grounding.py tests/test_cost_estimation.py tests/test_executor_protocol.py tests/test_executor_async.py tests/test_debate_loop.py tests/test_librarian_executor.py tests/test_invariant_guards.py -q
+# 79 passed
 
-.venv/bin/python -m pytest tests/test_grounding.py tests/test_cli.py -q
-# 247 passed, 10 subtests passed
-
-.venv/bin/python -m pytest tests/test_debate_loop.py tests/test_librarian_executor.py -q
-# 11 passed
-
-.venv/bin/python -m pytest tests/test_cost_estimation.py tests/test_executor_protocol.py tests/test_executor_async.py -q
-# 35 passed
+.venv/bin/python -m pytest tests/test_cli.py -q
+# 242 passed, 10 subtests passed
 
 .venv/bin/python -m compileall -q src/swallow
 # passed
+
+.venv/bin/python -m pytest -q
+# 734 passed, 8 deselected, 10 subtests passed
 
 git diff --check
 # passed

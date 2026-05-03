@@ -274,9 +274,10 @@ def test_artifact_writer_module_has_no_control_plane_write_surface() -> None:
     public_names = {name for name in dir(artifact_writer) if not name.startswith("_")}
 
     assert "save_state" not in source
-    assert "append_event" not in source
     assert "orchestration.harness" not in source
     assert "orchestration.executor" not in source
+    assert "state_transitioned" not in source
+    assert "entered_waiting_human" not in source
     assert public_names.isdisjoint(
         {
             "create_task",

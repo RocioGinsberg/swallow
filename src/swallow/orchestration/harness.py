@@ -5,15 +5,7 @@ from dataclasses import replace
 import json
 from pathlib import Path
 
-from swallow.orchestration.checkpoint_snapshot import build_checkpoint_snapshot_report, evaluate_checkpoint_snapshot
-from swallow.orchestration.compatibility import build_compatibility_report, evaluate_route_compatibility
 from swallow.provider_router.cost_estimation import DEFAULT_COST_ESTIMATOR, CostEstimator
-from swallow.orchestration.execution_budget_policy import (
-    build_execution_budget_policy_report,
-    evaluate_execution_budget_policy,
-    normalize_token_cost_limit,
-)
-from swallow.orchestration.execution_fit import build_execution_fit_report, evaluate_execution_fit
 from swallow.orchestration.executor import build_failure_recommendations, run_executor
 from swallow.knowledge_retrieval.grounding import build_grounding_evidence, build_grounding_evidence_report, extract_grounding_entries
 from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index, build_knowledge_index_report
@@ -23,11 +15,9 @@ from swallow.knowledge_retrieval.knowledge_objects import (
     summarize_knowledge_reuse,
     summarize_knowledge_stages,
 )
-from swallow.knowledge_retrieval.knowledge_policy import build_knowledge_policy_report, evaluate_knowledge_policy
 from swallow.knowledge_retrieval.knowledge_suggestions import persist_executor_side_effects
 from swallow.orchestration.models import (
     CompatibilityResult,
-    Event,
     ExecutionBudgetPolicyResult,
     ExecutionFitResult,
     ExecutorResult,
@@ -40,9 +30,8 @@ from swallow.orchestration.models import (
     ValidationResult,
 )
 from swallow.knowledge_retrieval.retrieval import retrieve_context, summarize_reused_knowledge
-from swallow.orchestration.retry_policy import build_retry_policy_report, evaluate_retry_policy
-from swallow.orchestration.stop_policy import build_stop_policy_report, evaluate_stop_policy
 from swallow.orchestration.artifact_writer import (
+    append_artifacts_written_event,
     build_compatibility_record,
     build_dispatch_record,
     build_dispatch_report,
@@ -57,32 +46,30 @@ from swallow.orchestration.artifact_writer import (
     build_topology_record,
     build_topology_report,
     format_route_capabilities,
+    write_checkpoint_snapshot_artifacts,
+    write_compatibility_policy_artifacts,
+    write_execution_budget_policy_artifacts,
+    write_execution_fit_policy_artifacts,
+    write_knowledge_policy_artifacts,
+    write_retry_policy_artifacts,
+    write_stop_policy_artifacts,
+    write_validation_policy_artifacts,
 )
 from swallow.orchestration.execution_attempts import run_execution as _run_execution
 from swallow.orchestration.retrieval_flow import run_retrieval as _run_retrieval
 from swallow.orchestration.retrieval_flow import run_retrieval_async as _run_retrieval_async
 from swallow.orchestration.task_report import build_retrieval_report, build_source_grounding
 from swallow.truth_governance.store import (
-    append_event,
-    save_compatibility,
-    save_checkpoint_snapshot,
     save_dispatch,
-    save_execution_budget_policy,
     save_execution_site,
-    save_execution_fit,
     save_handoff,
     save_knowledge_index,
-    save_knowledge_policy,
     save_memory,
     save_remote_handoff_contract,
-    save_retry_policy,
     save_route,
-    save_stop_policy,
     save_topology,
-    save_validation,
     write_artifact,
 )
-from swallow.orchestration.validator import build_validation_report, validate_run_outputs
 
 
 def run_retrieval(base_dir: Path, state: TaskState, request: RetrievalRequest) -> list[RetrievalItem]:
@@ -241,86 +228,12 @@ def write_task_artifacts(
         build_resume_note(provisional_state, retrieval_items, executor_result, None, None, None, None, None, None, None),
     )
 
-    compatibility_result = evaluate_route_compatibility(state, executor_result)
-    save_compatibility(base_dir, state.task_id, build_compatibility_record(state, executor_result, compatibility_result))
-    write_artifact(
+    compatibility_result = write_compatibility_policy_artifacts(base_dir, state, executor_result)
+    execution_fit_result = write_execution_fit_policy_artifacts(base_dir, state, executor_result)
+    knowledge_policy_result = write_knowledge_policy_artifacts(base_dir, state)
+    validation_result = write_validation_policy_artifacts(base_dir, state, retrieval_items, executor_result)
+    retry_policy_result = write_retry_policy_artifacts(
         base_dir,
-        state.task_id,
-        "compatibility_report.md",
-        build_compatibility_report(compatibility_result),
-    )
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="compatibility.completed",
-            message=compatibility_result.message,
-            payload={
-                "status": compatibility_result.status,
-                "finding_counts": compatibility_counts(compatibility_result),
-            },
-        ),
-    )
-
-    execution_fit_result = evaluate_execution_fit(state, executor_result)
-    save_execution_fit(base_dir, state.task_id, execution_fit_result.to_dict())
-    write_artifact(
-        base_dir,
-        state.task_id,
-        "execution_fit_report.md",
-        build_execution_fit_report(execution_fit_result),
-    )
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="execution_fit.completed",
-            message=execution_fit_result.message,
-            payload={
-                "status": execution_fit_result.status,
-                "finding_counts": execution_fit_counts(execution_fit_result),
-            },
-        ),
-    )
-
-    knowledge_policy_result = evaluate_knowledge_policy(state)
-    save_knowledge_policy(base_dir, state.task_id, knowledge_policy_result.to_dict())
-    write_artifact(
-        base_dir,
-        state.task_id,
-        "knowledge_policy_report.md",
-        build_knowledge_policy_report(knowledge_policy_result),
-    )
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="knowledge_policy.completed",
-            message=knowledge_policy_result.message,
-            payload={
-                "status": knowledge_policy_result.status,
-                "finding_counts": knowledge_policy_counts(knowledge_policy_result),
-            },
-        ),
-    )
-
-    validation_result = validate_run_outputs(state, retrieval_items, executor_result, state.artifact_paths)
-    save_validation(base_dir, state.task_id, validation_result)
-    write_artifact(base_dir, state.task_id, "validation_report.md", build_validation_report(validation_result))
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="validation.completed",
-            message=validation_result.message,
-            payload={
-                "status": validation_result.status,
-                "finding_counts": validation_counts(validation_result),
-            },
-        ),
-    )
-
-    retry_policy_result = evaluate_retry_policy(
         state,
         executor_result,
         compatibility_result,
@@ -328,86 +241,8 @@ def write_task_artifacts(
         knowledge_policy_result,
         validation_result,
     )
-    save_retry_policy(base_dir, state.task_id, retry_policy_result.to_dict())
-    write_artifact(
-        base_dir,
-        state.task_id,
-        "retry_policy_report.md",
-        build_retry_policy_report(retry_policy_result),
-    )
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="retry_policy.completed",
-            message=retry_policy_result.message,
-            payload={
-                "status": retry_policy_result.status,
-                "retryable": retry_policy_result.retryable,
-                "retry_decision": retry_policy_result.retry_decision,
-                "remaining_attempts": retry_policy_result.remaining_attempts,
-                "checkpoint_required": retry_policy_result.checkpoint_required,
-            },
-        ),
-    )
-
-    execution_budget_policy_result = evaluate_execution_budget_policy(
-        retry_policy_result,
-        base_dir=base_dir,
-        task_id=state.task_id,
-        token_cost_limit=normalize_token_cost_limit(
-            state.task_semantics.get("token_cost_limit", 0.0) if state.task_semantics else 0.0
-        ),
-    )
-    save_execution_budget_policy(base_dir, state.task_id, execution_budget_policy_result.to_dict())
-    write_artifact(
-        base_dir,
-        state.task_id,
-        "execution_budget_policy_report.md",
-        build_execution_budget_policy_report(execution_budget_policy_result),
-    )
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="execution_budget_policy.completed",
-            message=execution_budget_policy_result.message,
-            payload={
-                "status": execution_budget_policy_result.status,
-                "timeout_seconds": execution_budget_policy_result.timeout_seconds,
-                "budget_state": execution_budget_policy_result.budget_state,
-                "timeout_state": execution_budget_policy_result.timeout_state,
-                "remaining_attempts": execution_budget_policy_result.remaining_attempts,
-                "current_token_cost": execution_budget_policy_result.current_token_cost,
-                "token_cost_limit": execution_budget_policy_result.token_cost_limit,
-            },
-        ),
-    )
-
-    stop_policy_result = evaluate_stop_policy(state, executor_result, retry_policy_result)
-    save_stop_policy(base_dir, state.task_id, stop_policy_result.to_dict())
-    write_artifact(
-        base_dir,
-        state.task_id,
-        "stop_policy_report.md",
-        build_stop_policy_report(stop_policy_result),
-    )
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="stop_policy.completed",
-            message=stop_policy_result.message,
-            payload={
-                "status": stop_policy_result.status,
-                "stop_required": stop_policy_result.stop_required,
-                "continue_allowed": stop_policy_result.continue_allowed,
-                "stop_decision": stop_policy_result.stop_decision,
-                "escalation_level": stop_policy_result.escalation_level,
-                "checkpoint_kind": stop_policy_result.checkpoint_kind,
-            },
-        ),
-    )
+    execution_budget_policy_result = write_execution_budget_policy_artifacts(base_dir, state, retry_policy_result)
+    stop_policy_result = write_stop_policy_artifacts(base_dir, state, executor_result, retry_policy_result)
 
     if state.status == "waiting_human":
         final_status = "waiting_human"
@@ -446,35 +281,13 @@ def write_task_artifacts(
         "handoff_report.md",
         build_handoff_report(handoff_record),
     )
-    checkpoint_snapshot_result = evaluate_checkpoint_snapshot(
+    checkpoint_snapshot_result = write_checkpoint_snapshot_artifacts(
+        base_dir,
         render_state,
         handoff_record,
-        retry_policy_result.to_dict(),
-        stop_policy_result.to_dict(),
-        execution_budget_policy_result.to_dict(),
-    )
-    save_checkpoint_snapshot(base_dir, state.task_id, checkpoint_snapshot_result.to_dict())
-    write_artifact(
-        base_dir,
-        state.task_id,
-        "checkpoint_snapshot_report.md",
-        build_checkpoint_snapshot_report(checkpoint_snapshot_result),
-    )
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="checkpoint_snapshot.completed",
-            message=checkpoint_snapshot_result.message,
-            payload={
-                "status": checkpoint_snapshot_result.status,
-                "checkpoint_state": checkpoint_snapshot_result.checkpoint_state,
-                "execution_phase": checkpoint_snapshot_result.execution_phase,
-                "last_phase_checkpoint_at": checkpoint_snapshot_result.last_phase_checkpoint_at,
-                "recommended_path": checkpoint_snapshot_result.recommended_path,
-                "resume_ready": checkpoint_snapshot_result.resume_ready,
-            },
-        ),
+        retry_policy_result,
+        stop_policy_result,
+        execution_budget_policy_result,
     )
     save_memory(
         base_dir,
@@ -528,43 +341,7 @@ def write_task_artifacts(
             execution_budget_policy_result,
         ),
     )
-    append_event(
-        base_dir,
-        Event(
-            task_id=state.task_id,
-            event_type="artifacts.written",
-            message="Wrote summary, resume note, compatibility, and validation artifacts.",
-            payload={
-                "status": final_status,
-                "phase": state.phase,
-                "artifact_paths": {
-                    "task_semantics_report": state.artifact_paths.get("task_semantics_report", ""),
-                    "knowledge_objects_report": state.artifact_paths.get("knowledge_objects_report", ""),
-                    "knowledge_partition_report": state.artifact_paths.get("knowledge_partition_report", ""),
-                    "knowledge_index_report": state.artifact_paths.get("knowledge_index_report", ""),
-                    "summary": state.artifact_paths.get("summary", ""),
-                    "resume_note": state.artifact_paths.get("resume_note", ""),
-                    "route_report": state.artifact_paths.get("route_report", ""),
-                    "topology_report": state.artifact_paths.get("topology_report", ""),
-                    "execution_site_report": state.artifact_paths.get("execution_site_report", ""),
-                    "dispatch_report": state.artifact_paths.get("dispatch_report", ""),
-                    "handoff_report": state.artifact_paths.get("handoff_report", ""),
-                    "execution_fit_report": state.artifact_paths.get("execution_fit_report", ""),
-                    "retry_policy_report": state.artifact_paths.get("retry_policy_report", ""),
-                    "execution_budget_policy_report": state.artifact_paths.get("execution_budget_policy_report", ""),
-                    "stop_policy_report": state.artifact_paths.get("stop_policy_report", ""),
-                    "compatibility_report": state.artifact_paths.get("compatibility_report", ""),
-                    "knowledge_policy_report": state.artifact_paths.get("knowledge_policy_report", ""),
-                    "source_grounding": state.artifact_paths.get("source_grounding", ""),
-                    "grounding_evidence_json": state.artifact_paths.get("grounding_evidence_json", ""),
-                    "grounding_evidence_report": state.artifact_paths.get("grounding_evidence_report", ""),
-                    "retrieval_report": state.artifact_paths.get("retrieval_report", ""),
-                    "validation_report": state.artifact_paths.get("validation_report", ""),
-                    "task_memory": state.artifact_paths.get("task_memory", ""),
-                },
-            },
-        ),
-    )
+    append_artifacts_written_event(base_dir, state, final_status=final_status)
     return (
         compatibility_result,
         execution_fit_result,
@@ -599,34 +376,6 @@ async def write_task_artifacts_async(
         executor_result,
         grounding_evidence_override,
     )
-
-
-def validation_counts(result: ValidationResult) -> dict[str, int]:
-    counts = {"pass": 0, "warn": 0, "fail": 0}
-    for finding in result.findings:
-        counts[finding.level] = counts.get(finding.level, 0) + 1
-    return counts
-
-
-def compatibility_counts(result: CompatibilityResult) -> dict[str, int]:
-    counts = {"pass": 0, "warn": 0, "fail": 0}
-    for finding in result.findings:
-        counts[finding.level] = counts.get(finding.level, 0) + 1
-    return counts
-
-
-def execution_fit_counts(result: ExecutionFitResult) -> dict[str, int]:
-    counts = {"pass": 0, "warn": 0, "fail": 0}
-    for finding in result.findings:
-        counts[finding.level] = counts.get(finding.level, 0) + 1
-    return counts
-
-
-def knowledge_policy_counts(result: KnowledgePolicyResult) -> dict[str, int]:
-    counts = {"pass": 0, "warn": 0, "fail": 0}
-    for finding in result.findings:
-        counts[finding.level] = counts.get(finding.level, 0) + 1
-    return counts
 
 
 def build_task_memory(

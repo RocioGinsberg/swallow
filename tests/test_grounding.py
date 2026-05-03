@@ -233,6 +233,41 @@ class GroundingTest(unittest.TestCase):
         self.assertEqual(checkpoint_snapshot["recommended_path"], "run")
         self.assertEqual(task_memory["status"], "waiting_human")
 
+    def test_write_task_artifacts_emits_policy_and_artifact_events_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            task_id = "task-event-order"
+            state = _build_task_state(tmp_path, task_id)
+            executor_result = ExecutorResult(
+                executor_name="local",
+                status="completed",
+                message="Execution completed.",
+                output="done",
+            )
+
+            write_task_artifacts(tmp_path, state, [], executor_result)
+
+            events = [
+                json.loads(line)
+                for line in (tmp_path / ".swl" / "tasks" / task_id / "events.jsonl").read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+
+        self.assertEqual(
+            [event["event_type"] for event in events],
+            [
+                "compatibility.completed",
+                "execution_fit.completed",
+                "knowledge_policy.completed",
+                "validation.completed",
+                "retry_policy.completed",
+                "execution_budget_policy.completed",
+                "stop_policy.completed",
+                "checkpoint_snapshot.completed",
+                "artifacts.written",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
