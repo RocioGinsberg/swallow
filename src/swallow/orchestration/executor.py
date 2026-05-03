@@ -24,8 +24,14 @@ from swallow.provider_router._http_helpers import (
     resolve_new_api_chat_completions_url,
 )
 from swallow.provider_router.cost_estimation import estimate_tokens
-from swallow.knowledge_retrieval.dialect_data import DEFAULT_EXECUTOR, collect_prompt_data, normalize_executor_name, resolve_executor_name
-from swallow.knowledge_retrieval.dialect_adapters import ClaudeXMLDialect, FIMDialect
+from swallow.knowledge_retrieval.knowledge_plane import (
+    DEFAULT_EXECUTOR,
+    ClaudeXMLDialect,
+    FIMDialect,
+    collect_executor_prompt_data as collect_prompt_data,
+    normalize_executor_name,
+    resolve_executor_name,
+)
 from swallow.orchestration.models import DialectSpec, ExecutorResult, RetrievalItem, RouteSpec, TaskCard, TaskState
 from swallow.orchestration.runtime_config import resolve_swl_chat_model
 from swallow.surface_tools.workspace import resolve_path

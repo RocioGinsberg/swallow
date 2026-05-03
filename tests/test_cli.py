@@ -38,7 +38,16 @@ from swallow.orchestration.harness import (
     build_retrieval_report,
     build_source_grounding,
 )
-from swallow.knowledge_retrieval.knowledge_policy import evaluate_knowledge_policy
+from swallow.knowledge_retrieval.knowledge_plane import (
+    ARTIFACTS_SOURCE_TYPE,
+    KNOWLEDGE_SOURCE_TYPE,
+    OPERATOR_CANONICAL_WRITE_AUTHORITY,
+    StagedCandidate,
+    evaluate_knowledge_policy,
+    list_staged_knowledge as load_staged_candidates,
+    retrieve_knowledge_context as retrieve_context,
+    submit_staged_knowledge as submit_staged_candidate,
+)
 from swallow.surface_tools.meta_optimizer import load_optimization_proposal_bundle
 from swallow.orchestration.models import (
     DispatchVerdict,
@@ -80,7 +89,6 @@ from swallow.surface_tools.paths import (
     route_weights_path,
     swallow_db_path,
 )
-from swallow.knowledge_retrieval.retrieval import ARTIFACTS_SOURCE_TYPE, KNOWLEDGE_SOURCE_TYPE, retrieve_context
 from swallow.knowledge_retrieval.retrieval_adapters import select_retrieval_adapter
 from swallow.provider_router.router import (
     apply_route_policy,
@@ -92,8 +100,6 @@ from swallow.provider_router.router import (
     route_by_name,
     select_route,
 )
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
-from swallow.knowledge_retrieval.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
 from swallow.truth_governance.store import (
     append_event,
     append_canonical_record,

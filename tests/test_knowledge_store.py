@@ -9,9 +9,9 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.knowledge_retrieval.knowledge_store import (
+from swallow.knowledge_retrieval.knowledge_plane import (
     load_task_knowledge_view,
-    persist_wiki_entry_from_record,
+    persist_wiki_entry_from_canonical_record as persist_wiki_entry_from_record,
 )
 from swallow.surface_tools.paths import knowledge_evidence_entry_path, knowledge_objects_path
 from swallow.truth_governance.store import save_knowledge_objects

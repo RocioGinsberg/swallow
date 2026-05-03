@@ -14,10 +14,14 @@ from swallow.knowledge_retrieval.raw_material import (
     resolve_raw_material,
     source_ref_for_file,
 )
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate
+from swallow.knowledge_retrieval._internal_staged_knowledge import (
+    StagedCandidate,
+    load_staged_candidates,
+    submit_staged_candidate,
+)
 from swallow.surface_tools.workspace import resolve_path
-from .filters import ExtractedFragment, filter_conversation_turns
-from .parsers import (
+from .ingestion.filters import ExtractedFragment, filter_conversation_turns
+from .ingestion.parsers import (
     ConversationTurn,
     detect_ingestion_format,
     normalize_ingestion_format_hint,

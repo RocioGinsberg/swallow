@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from swallow.knowledge_retrieval.knowledge_objects import canonicalization_status_for
+from swallow.knowledge_retrieval.knowledge_plane import canonicalization_status_for
 from swallow.orchestration.models import TaskCard, TaskState, build_librarian_taxonomy_profile
 
 

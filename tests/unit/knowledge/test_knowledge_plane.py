@@ -3,16 +3,15 @@ from __future__ import annotations
 from pathlib import Path
 
 from swallow.knowledge_retrieval import knowledge_plane
-from swallow.knowledge_retrieval import knowledge_store
 from swallow.surface_tools.paths import knowledge_evidence_entry_path, knowledge_objects_path, knowledge_wiki_entry_path
 from swallow.truth_governance.store import save_knowledge_objects
 from tests.helpers.workspace import read_json
 
 
 def test_knowledge_plane_facade_exports_task_knowledge_api() -> None:
-    assert knowledge_plane.load_task_knowledge_view is knowledge_store.load_task_knowledge_view
-    assert knowledge_plane.persist_task_knowledge_view is knowledge_store.persist_task_knowledge_view
-    assert knowledge_plane.load_task_evidence_entries is knowledge_store.load_task_evidence_entries
+    assert callable(knowledge_plane.load_task_knowledge_view)
+    assert callable(knowledge_plane.persist_task_knowledge_view)
+    assert callable(knowledge_plane.load_task_evidence_entries)
 
 
 def test_knowledge_plane_facade_persists_evidence_and_wiki_layers(tmp_path: Path) -> None:

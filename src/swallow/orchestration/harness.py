@@ -7,15 +7,20 @@ from pathlib import Path
 
 from swallow.provider_router.cost_estimation import DEFAULT_COST_ESTIMATOR, CostEstimator
 from swallow.orchestration.executor import build_failure_recommendations, run_executor
-from swallow.knowledge_retrieval.grounding import build_grounding_evidence, build_grounding_evidence_report, extract_grounding_entries
-from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index, build_knowledge_index_report
-from swallow.knowledge_retrieval.knowledge_objects import (
+from swallow.knowledge_retrieval.knowledge_plane import (
+    build_grounding_evidence,
+    build_grounding_evidence_report,
+    build_knowledge_index,
+    build_knowledge_index_report,
+    extract_grounding_entries,
+    persist_executor_side_effects,
+    retrieve_knowledge_context as retrieve_context,
+    summarize_reused_knowledge,
     summarize_canonicalization,
     summarize_knowledge_evidence,
     summarize_knowledge_reuse,
     summarize_knowledge_stages,
 )
-from swallow.knowledge_retrieval.knowledge_suggestions import persist_executor_side_effects
 from swallow.orchestration.models import (
     CompatibilityResult,
     ExecutionBudgetPolicyResult,
@@ -29,7 +34,6 @@ from swallow.orchestration.models import (
     TaskState,
     ValidationResult,
 )
-from swallow.knowledge_retrieval.retrieval import retrieve_context, summarize_reused_knowledge
 from swallow.orchestration.artifact_writer import (
     append_artifacts_written_event,
     build_compatibility_record,

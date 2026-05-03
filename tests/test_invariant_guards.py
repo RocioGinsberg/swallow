@@ -64,7 +64,7 @@ EXECUTION_PLANE_FILES = {
     "src/swallow/surface_tools/consistency_reviewer.py",
     "src/swallow/surface_tools/meta_optimizer.py",
     "src/swallow/surface_tools/meta_optimizer_agent.py",
-    "src/swallow/knowledge_retrieval/ingestion/pipeline.py",
+    "src/swallow/knowledge_retrieval/_internal_ingestion_pipeline.py",
 }
 TASK_STATE_WRITE_CALLS = {"save_state"}
 TASK_SQL_WRITE_RE = re.compile(r"\b(INSERT|UPDATE|DELETE|REPLACE)\s+(?:INTO\s+)?(?:tasks|task_records)\b", re.IGNORECASE)
@@ -141,6 +141,12 @@ HARNESS_HELPER_ALLOWED_EVENT_CONSTANTS = {
 HARNESS_HELPER_DISALLOWED_EVENT_KINDS = {
     "state_transitioned",
     "entered_waiting_human",
+}
+KNOWLEDGE_RETRIEVAL_PACKAGE = "swallow.knowledge_retrieval"
+KNOWLEDGE_PLANE_MODULE = "swallow.knowledge_retrieval.knowledge_plane"
+KNOWLEDGE_RAW_MATERIAL_MODULE = "swallow.knowledge_retrieval.raw_material"
+KNOWLEDGE_RAW_MATERIAL_ALLOWED_FILES = {
+    "src/swallow/surface_tools/librarian_executor.py",
 }
 
 
@@ -235,13 +241,105 @@ def _find_protected_writer_uses(*, protected_names: set[str], allowed_files: set
     return violations
 
 
+def _knowledge_plane_import_boundary_violation(rel_path: str, imported_module: str, lineno: int) -> str:
+    if not imported_module.startswith(KNOWLEDGE_RETRIEVAL_PACKAGE):
+        return ""
+    if rel_path.startswith("src/swallow/knowledge_retrieval/"):
+        return ""
+    if imported_module == KNOWLEDGE_PLANE_MODULE:
+        return ""
+    if imported_module == KNOWLEDGE_RAW_MATERIAL_MODULE and rel_path in KNOWLEDGE_RAW_MATERIAL_ALLOWED_FILES:
+        return ""
+    if imported_module == KNOWLEDGE_RAW_MATERIAL_MODULE:
+        return f"{rel_path}:{lineno} imports raw_material outside its storage-boundary allowlist"
+    return f"{rel_path}:{lineno} imports {imported_module}; use {KNOWLEDGE_PLANE_MODULE}"
+
+
+def _knowledge_plane_import_boundary_violations_for_tree(tree: ast.AST, rel_path: str) -> list[str]:
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                violation = _knowledge_plane_import_boundary_violation(rel_path, alias.name, node.lineno)
+                if violation:
+                    violations.append(violation)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            modules: list[str]
+            if node.module == KNOWLEDGE_RETRIEVAL_PACKAGE:
+                modules = [
+                    f"{node.module}.{alias.name}" if alias.name != "*" else node.module
+                    for alias in node.names
+                ]
+            else:
+                modules = [node.module]
+            for module in modules:
+                violation = _knowledge_plane_import_boundary_violation(rel_path, module, node.lineno)
+                if violation:
+                    violations.append(violation)
+    return violations
+
+
+def _knowledge_plane_import_boundary_violations_for_source(source: str, rel_path: str) -> list[str]:
+    return _knowledge_plane_import_boundary_violations_for_tree(ast.parse(source), rel_path)
+
+
+def test_knowledge_plane_import_boundary_guard_rejects_internal_import_fixture() -> None:
+    violations = _knowledge_plane_import_boundary_violations_for_source(
+        "from swallow.knowledge_retrieval._internal_knowledge_store import load_task_knowledge_view\n",
+        "src/swallow/application/commands/example.py",
+    )
+
+    assert violations == [
+        "src/swallow/application/commands/example.py:1 imports "
+        "swallow.knowledge_retrieval._internal_knowledge_store; use "
+        "swallow.knowledge_retrieval.knowledge_plane"
+    ]
+
+
+def test_knowledge_plane_import_boundary_guard_rejects_facade_covered_import_fixture() -> None:
+    violations = _knowledge_plane_import_boundary_violations_for_source(
+        "from swallow.knowledge_retrieval.retrieval import retrieve_context\n",
+        "src/swallow/orchestration/example.py",
+    )
+
+    assert violations == [
+        "src/swallow/orchestration/example.py:1 imports "
+        "swallow.knowledge_retrieval.retrieval; use swallow.knowledge_retrieval.knowledge_plane"
+    ]
+
+
+def test_knowledge_plane_import_boundary_guard_allows_facade_and_raw_material_exception_fixture() -> None:
+    facade_violations = _knowledge_plane_import_boundary_violations_for_source(
+        "from swallow.knowledge_retrieval.knowledge_plane import retrieve_knowledge_context\n",
+        "src/swallow/orchestration/example.py",
+    )
+    raw_material_violations = _knowledge_plane_import_boundary_violations_for_source(
+        "from swallow.knowledge_retrieval.raw_material import FilesystemRawMaterialStore\n",
+        "src/swallow/surface_tools/librarian_executor.py",
+    )
+
+    assert facade_violations == []
+    assert raw_material_violations == []
+
+
+def test_knowledge_plane_public_boundary_imports() -> None:
+    violations: list[str] = []
+    for path in _src_py_files():
+        rel_path = _relative(path)
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
+        violations.extend(_knowledge_plane_import_boundary_violations_for_tree(tree, rel_path))
+
+    assert violations == []
+
+
 def test_canonical_write_only_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"append_canonical_record", "persist_wiki_entry_from_record"},
         allowed_files={
             "src/swallow/truth_governance/truth/knowledge.py",
             "src/swallow/truth_governance/store.py",
-            "src/swallow/knowledge_retrieval/knowledge_store.py",
+            "src/swallow/knowledge_retrieval/knowledge_plane.py",  # facade wrapper; governance still owns promotion
+            "src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
         },
     )
 
@@ -345,7 +443,8 @@ def test_only_apply_proposal_calls_private_writers() -> None:
         },
         allowed_files={
             "src/swallow/truth_governance/store.py",
-            "src/swallow/knowledge_retrieval/knowledge_store.py",
+            "src/swallow/knowledge_retrieval/knowledge_plane.py",  # facade wrapper; governance still owns promotion
+            "src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
             "src/swallow/provider_router/route_metadata_store.py",  # physical route metadata writer owner
             "src/swallow/provider_router/router.py",  # legacy compatibility facade wrappers
             "src/swallow/surface_tools/consistency_audit.py",
@@ -408,7 +507,7 @@ def test_no_module_outside_governance_imports_store_writes() -> None:
     }
     allowed_files = {
         "src/swallow/surface_tools/consistency_audit.py",
-        "src/swallow/knowledge_retrieval/knowledge_store.py",
+        "src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
         "src/swallow/surface_tools/mps_policy_store.py",
         "src/swallow/provider_router/route_metadata_store.py",
         "src/swallow/provider_router/router.py",

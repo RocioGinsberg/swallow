@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from swallow.knowledge_retrieval.evidence_pack import build_evidence_pack
-from swallow.knowledge_retrieval.retrieval import (
+from swallow.knowledge_retrieval.knowledge_plane import (
+    build_evidence_pack,
     source_policy_flags_for,
     source_policy_label_for,
     summarize_retrieval_trace,

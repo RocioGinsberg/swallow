@@ -14,15 +14,18 @@ from swallow.application.commands.knowledge import (
     reject_stage_candidate_command,
     resolve_stage_candidate,
 )
-from swallow.knowledge_retrieval.canonical_audit import audit_canonical_registry, build_canonical_audit_report
-from swallow.knowledge_retrieval.ingestion.pipeline import build_ingestion_report, build_ingestion_summary
-from swallow.knowledge_retrieval.knowledge_relations import (
+from swallow.knowledge_retrieval.knowledge_plane import (
+    StagedCandidate,
+    audit_canonical_registry,
+    build_canonical_audit_report,
+    build_ingestion_report,
+    build_ingestion_summary,
     build_knowledge_relation_report,
     build_knowledge_relations_report,
+    build_relation_suggestion_application_report,
     list_knowledge_relations,
+    list_staged_knowledge as load_staged_candidates,
 )
-from swallow.knowledge_retrieval.knowledge_suggestions import build_relation_suggestion_application_report
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates
 from swallow.surface_tools.paths import canonical_registry_path
 from swallow.surface_tools.workspace import resolve_path
 

@@ -9,7 +9,12 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import swallow.knowledge_retrieval.retrieval as retrieval_module
-from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_summary
+from swallow.knowledge_retrieval.knowledge_plane import (
+    TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+    build_canonical_reuse_summary,
+    create_knowledge_relation,
+    persist_wiki_entry_from_canonical_record as persist_wiki_entry_from_record,
+)
 from swallow.knowledge_retrieval.retrieval import (
     KNOWLEDGE_SOURCE_TYPE,
     annotate_source_policy,
@@ -33,8 +38,6 @@ from swallow.knowledge_retrieval.retrieval_adapters import (
     VectorRetrievalUnavailable,
     build_api_embedding,
 )
-from swallow.knowledge_retrieval.knowledge_relations import create_knowledge_relation
-from swallow.knowledge_retrieval.knowledge_store import TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY, persist_wiki_entry_from_record
 from swallow.orchestration.models import RetrievalRequest
 from swallow.truth_governance.store import append_canonical_record, save_canonical_reuse_policy, save_knowledge_objects
 

@@ -11,8 +11,11 @@ from swallow.orchestration.execution_budget_policy import (
     normalize_token_cost_limit,
 )
 from swallow.orchestration.execution_fit import build_execution_fit_report, evaluate_execution_fit
-from swallow.knowledge_retrieval.knowledge_suggestions import persist_executor_side_effects
-from swallow.knowledge_retrieval.knowledge_policy import build_knowledge_policy_report, evaluate_knowledge_policy
+from swallow.knowledge_retrieval.knowledge_plane import (
+    evaluate_knowledge_policy,
+    persist_executor_side_effects,
+    render_knowledge_policy_report as build_knowledge_policy_report,
+)
 from swallow.orchestration.models import (
     CheckpointSnapshotResult,
     CompatibilityResult,

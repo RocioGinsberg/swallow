@@ -13,16 +13,17 @@
 - latest_completed_slice: `D4 Phase A merged; LTO-6 direction confirmed (Functional facade + 一次清)`
 - active_track: `Architecture / Knowledge Plane`
 - active_phase: `LTO-6 — Knowledge Plane Facade Solidification`
-- active_slice: `plan_audit absorbed; awaiting Human plan gate`
-- active_branch: `main`
-- status: `lto6_plan_audit_absorbed`
+- active_slice: `review closeout synced; awaiting Human merge gate`
+- active_branch: `feat/lto-6-knowledge-plane-facade-solidification`
+- status: `lto6_review_closeout_sync_ready_for_merge`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。当前 HEAD 为:
+当前 git 分支为 `feat/lto-6-knowledge-plane-facade-solidification`。当前 HEAD 为:
 
-- `52fd14c docs(state): update roadmap`
-- `4ea7a9d FastAPI Local Web UI Write Surface`
+- `1be8a5e docs(state): mark lto-6 m4 commit gate`
+- `18b4c15 test(knowledge): guard knowledge plane import boundary`
+- `47e69af docs(state): mark lto-6 m2 m3 commit gate`
 
 进入 LTO-13 实现前,HEAD 为:
 
@@ -78,8 +79,10 @@ LTO-7 long-running follow-ups(仍开放):
 8. `docs/engineering/CODE_ORGANIZATION.md`
 9. `docs/engineering/TEST_ARCHITECTURE.md`
 10. `docs/concerns_backlog.md`
-11. `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`
-12. `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`
+11. `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`
+12. `docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md`
+13. `docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md`
+14. `docs/plans/lto-6-knowledge-plane-facade-solidification/review_comments.md`
 
 ## 当前推进
 
@@ -184,6 +187,30 @@ LTO-7 long-running follow-ups(仍开放):
   - 明确 `ingestion/__init__.py` 不再 re-export pipeline,`run_knowledge_ingestion_pipeline` 进入 facade。
   - 补齐未分类 imports 的迁移矩阵,包括 `artifact_writer.py`、`harness.py`、`adapters/cli.py`、`truth_governance/sqlite_store.py`、`surface_tools/librarian_executor.py` 等。
   - M4 guard scope 扩为 production source 默认只能经 `knowledge_plane`,并要求同步 `_internal_knowledge_store.py` invariant allowlist。
+- **[Codex]** 完成 M1 facade contract and characterization:
+  - `knowledge_plane.py` 从 import-only barrel 改为显式 functional facade wrapper,删除 broad legacy `__all__`。
+  - 新增 `tests/test_knowledge_plane_facade.py`,覆盖 staged lifecycle、task knowledge view、ingestion、relations/suggestions、projection/review/policy/retrieval/prompt 等 facade 入口。
+  - 修正 canonical audit facade 为 lazy import,避免 `truth_governance.store` ↔ `knowledge_plane` 初始化循环。
+  - M1 验证通过:`tests/test_knowledge_plane_facade.py` 6 passed;M1 focused gate 31 passed;`compileall -q src/swallow`;`git diff --check`。
+- **[Codex]** 完成 M2+M3 atomic internalization and caller migration:
+  - 六个 lifecycle modules 已 rename 为 `_internal_*`,旧 public module files 不保留 compatibility stubs。
+  - application / adapters / orchestration / provider_router / residual `surface_tools` / truth_governance runtime callers 已迁移到 `knowledge_plane` facade;`raw_material.py` 作为 explicit storage-boundary exception 保留。
+  - `knowledge_retrieval/ingestion/__init__.py` 不再 re-export pipeline behavior,只保留 parser/filter public exports。
+  - 行为测试改走 facade imports;`tests/test_invariant_guards.py` 同步 `_internal_knowledge_store.py` 与 `_internal_ingestion_pipeline.py` allowlist。
+  - M2+M3 验证通过:`compileall -q src/swallow`;计划 focused gate `303 passed`;facade/knowledge/invariant gate `58 passed`;application boundary `11 passed`;provider_router focused gate `40 passed`;full pytest `751 passed, 8 deselected`;旧六模块 import scan clean;外层 `_internal_*` import scan clean;`git diff --check`。
+- **[Codex]** 完成 M4 guard and documentation sync:
+  - `tests/test_invariant_guards.py` 新增 Knowledge Plane public-boundary import guard,扫描 production source 并阻止外层代码直接 import `_internal_*`、旧六 public module、facade-covered behavior modules 或任意非 `knowledge_plane` Knowledge Retrieval 子模块。
+  - 守卫保留唯一 production exception:`surface_tools/librarian_executor.py` 可直接 import `raw_material.py` 作为 storage-boundary dependency。
+  - 新增 synthetic fixture tests,证明守卫会拒绝 `_internal_knowledge_store` 与 `retrieval` 直接 import,并允许 `knowledge_plane` 与 raw-material exception。
+  - M4 验证通过:`tests/test_invariant_guards.py` 31 passed;`git diff --check`。
+- **[Codex]** 完成 M5 full validation and closeout prep:
+  - M5 验证通过:`compileall -q src/swallow`;full pytest `755 passed, 8 deselected`;`git diff --check`。
+  - 新增并最终同步 `docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md`,记录 outcome、plan audit absorption、validation、review disposition 和 deferred follow-ups。
+  - 更新 ignored `./pr.md` 为 LTO-6 PR body,供 Human 同步 PR 描述时使用。
+- **[Claude]** 完成 PR review,产出 `docs/plans/lto-6-knowledge-plane-facade-solidification/review_comments.md`:**recommend-merge**;0 blockers / 1 concern / 2 nits。逐项核验 7 项 plan_audit concerns + 2 项 nits 全部吸收,无静默回归。INVARIANTS §0 canonical write authority 经核实保留(`apply_proposal` 不在 facade 暴露,`application/commands/knowledge.py` 仍直接 import `truth_governance.governance`)。
+  - C1 [concern] facade `render_*` / `build_*` 配对别名 ~14 处,M3 caller 迁移 commit 已更动每个 import line,正是删除冗余别名的最便宜窗口;建议 option (a) 单 follow-up commit 删冗余别名,~50 行 diff。
+  - N1 [nit] `audit_canonical_registry` / `render_canonical_audit_report` 是 facade 中唯一两个用 lazy import 的函数(`knowledge_plane.py:510-519`),likely 因 `canonical_audit.py` 反向 import facade 形成循环;建议加 1 行注释或验证可消除。
+  - N2 [nit] `knowledge_plane.py` 缺 `__all__`,wildcard import 隐含面比显式 surface 大;建议加 `__all__` 列 ~70 个 public functions / value classes(可后续 polish)。
 
 进行中:
 
@@ -191,12 +218,13 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Plan Gate 通过后切 `feat/lto-6-knowledge-plane-facade-solidification` 分支。
-- **[Codex]** 实现;**[Claude]** PR review;**[Human]** merge gate。
+- **[Human]** Review final closeout / `pr.md`,提交 review closeout sync docs,然后进入 LTO-6 merge gate(可选:在 merge 前或 merge 后立即处理 C1 配对别名 follow-up,约 50 行 cleanup)。
+- **[Codex]** Merge 后执行 post-merge state sync(`current_state.md` + `docs/active_context.md` + `docs/roadmap.md` 把 LTO-6 标 done);更新 §五 推荐顺序首句把 Wiki Compiler 升级为"当前 ticket"。
+- **[Codex / 主线]** 启动 **Wiki Compiler 第一阶段(LTO-1)** —— LTO-6 是其硬 prerequisite,现在已就绪;此 phase 落地后 cut **v1.8.0**。
 
 当前阻塞项:
 
-- 无 blocker。LTO-6 plan_audit 已产出并由 Codex 吸收到 `plan.md`;等待 Human plan gate。
+- 无 blocker。LTO-6 review 已完成 = recommend-merge;1 concern(C1)已登记为非阻塞 follow-up,不阻止 merge gate。
 
 ## Tag 状态
 
@@ -208,45 +236,53 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** Plan Gate 通过后切 `feat/lto-6-knowledge-plane-facade-solidification` 分支。
-2. **[Codex]** 按更新后的 LTO-6 plan 开始实现。
+1. **[Human]** 审阅并提交 LTO-6 review closeout sync docs(`closeout.md` + `review_comments.md` + `docs/concerns_backlog.md` + `docs/active_context.md`)。
+2. **[Human]** 用 ignored `./pr.md` 同步现有 PR 描述,然后进入 merge gate。
+3. **[Codex]** Merge 后执行 post-merge state sync(`current_state.md` + `docs/active_context.md` + `docs/roadmap.md`),并把下一启动切到 Wiki Compiler 第一阶段。
 
 ```markdown
 direction_gate:
 - latest_completed_phase: D4 Phase A — Adapter Boundary Cleanup
-- merge_commit: 4ea7a9d FastAPI Local Web UI Write Surface
 - latest_release_tag: v1.7.0 at 2156d4a docs(release): sync v1.7.0 release docs
-- active_branch: main
+- active_branch: feat/lto-6-knowledge-plane-facade-solidification
 - active_phase: LTO-6 — Knowledge Plane Facade Solidification
-- active_slice: plan_audit absorbed; awaiting Human plan gate
+- active_slice: review closeout synced; awaiting Human merge gate
 - cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
-- structural_changes_this_round: LTO-13 relocated 簇 C → 簇 B (interface boundary nature, not cluster C continuation); cluster C subheading dropped "+ 接续"; v1.6.0 tag decision marked executed
-- direction_decided: do LTO-13 directly; LTO-5 / LTO-6 do not block LTO-13 (application/commands is the buffer layer)
 - roadmap: docs/roadmap.md current ticket = LTO-6 Knowledge Plane Facade Solidification; next startup = Wiki Compiler 第一阶段
-- closeout (prior phase): docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md (status final)
-- review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns (both absorbed)
-- new_invariants_landed: helper-side append_event allowlist (12 telemetry kinds + 2 disallowed) registered in INVARIANTS.md §9
-- validation: focused HTTP/Web/Application/Invariant/CLI gates passed; post-review focused Web/Application/Invariant gate passed (59 passed); compileall passed; diff check passed; full pytest passed (745 passed, 8 deselected)
-- implementation_commit: d4c25ac feat(web): harden local write API surface
-- pr_materials: docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md + ./pr.md + review_comments.md
-- review_outcome: recommend-merge; 14/14 audit findings absorbed; C1 and N1 fixed; N2 deferred to D2 driven ports
 - d4_validation: compileall passed; diff check passed; runtime old-path scan clean; focused CLI/Web/Invariant/Application gate 316 passed; full pytest 745 passed, 8 deselected
-- lto6_plan: docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md (status review; plan_audit concerns absorbed)
+- lto6_plan: docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md (status final; plan_audit concerns absorbed)
 - lto6_plan_audit: docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md (has-concerns; 0 blockers / 7 concerns / 2 nits)
-- next_gate: Human plan gate
+- lto6_m1_validation: knowledge_plane_facade 6 passed; M1 focused gate 31 passed; compileall passed; diff check passed
+- lto6_m2_m3_validation: compileall passed; focused gate 303 passed; facade/knowledge/invariant gate 58 passed; application boundary 11 passed; provider_router focused 40 passed; full pytest 751 passed, 8 deselected; old-module/import-boundary scans clean; diff check passed
+- lto6_m4_validation: invariant guard 31 passed; diff check passed
+- lto6_m5_validation: compileall passed; full pytest 755 passed, 8 deselected; diff check passed
+- lto6_review: docs/plans/lto-6-knowledge-plane-facade-solidification/review_comments.md; recommend-merge; 0 blockers / 1 concern / 2 nits; 7/7 plan_audit concerns + 2/2 nits verified
+- lto6_closeout: docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md (status final)
+- lto6_pr_materials: ./pr.md updated with review outcome; ignored by git
+- lto6_deferred_concerns: C1 logged to docs/concerns_backlog.md; N1/N2 recorded in closeout/review
+- next_gate: Human final closeout sync commit + PR description sync + merge gate
 ```
 
 ## 当前产出物
 
 - `docs/plans/lto-6-knowledge-plane-facade-solidification/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns;0 blockers / 7 concerns / 2 nits;重点:`build_knowledge_projection` god-function risk、`serve_knowledge_context` Callable injection、M2+M3 compileall gap、unclassified imports 26 处、M4 guard insufficiency、invariant guard allowlist staleness)
-- `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`(codex, 2026-05-03, LTO-6 phase plan;Functional facade + one-shot migration + `_internal_*` module internalization + guard/test strategy;plan_audit 7 concerns + 2 nits absorbed)
+- `docs/plans/lto-6-knowledge-plane-facade-solidification/plan.md`(codex, 2026-05-03, final LTO-6 phase plan;Functional facade + one-shot migration + `_internal_*` module internalization + guard/test strategy;plan_audit 7 concerns + 2 nits absorbed)
+- `src/swallow/knowledge_retrieval/knowledge_plane.py`(codex, 2026-05-03, M1 functional facade wrapper implementation)
+- `tests/test_knowledge_plane_facade.py`(codex, 2026-05-03, M1 facade characterization coverage)
+- `src/swallow/knowledge_retrieval/_internal_canonical_registry.py` / `_internal_staged_knowledge.py` / `_internal_knowledge_store.py` / `_internal_knowledge_relations.py` / `_internal_knowledge_suggestions.py` / `_internal_ingestion_pipeline.py`(codex, 2026-05-03, M2 internal lifecycle modules)
+- `src/swallow/application/` / `adapters/` / `orchestration/` / `provider_router/` / `surface_tools/` / `truth_governance/` touched imports(codex, 2026-05-03, M3 caller migration to `knowledge_plane`)
+- `tests/test_*` + `tests/integration/*` + `tests/unit/*` touched imports/guards(codex, 2026-05-03, M3 facade behavior tests and moved-module guard sync)
+- `tests/test_invariant_guards.py`(codex, 2026-05-03, M4 Knowledge Plane public-boundary import guard)
+- `docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md`(codex, 2026-05-04, final closeout;review recommend-merge, C1/N1/N2 dispositions recorded)
+- `docs/plans/lto-6-knowledge-plane-facade-solidification/review_comments.md`(claude, 2026-05-04, **recommend-merge**;7/7 plan_audit concerns + 2/2 nits absorbed;0 blockers / 1 concern(C1 `render_*` / `build_*` 配对别名 ~14 处)/ 2 nits)
+- `docs/concerns_backlog.md`(codex, 2026-05-04, LTO-6 C1 facade naming cleanup logged as non-blocking follow-up before Wiki Compiler)
+- `./pr.md`(codex, 2026-05-04, ignored PR body draft for LTO-6;review outcome synced)
 - `docs/roadmap.md`(claude, 2026-05-03, post-LTO-13 增量更新:LTO-13 标完成、LTO-5 重定义为 Driven Ports Rollout、LTO-6 重定义为 Knowledge Plane Facade Solidification 主动化、新增 D5/D4 Phase A independent phase tickets、§五 顺序更新)
 - `docs/engineering/ARCHITECTURE_DECISIONS.md`(claude, 2026-05-03, 草稿;架构身份 = Hexagonal + 当前模式清单 + 6 项已识别偏离 D1-D6;待与 LTO-13 closeout 一起提交)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan.md`(codex, 2026-05-03, LTO-13 phase plan; Round 1 / Pydantic follow-up / Round 2 / Round 3 audit concerns absorbed)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan_audit.md`(claude/design-auditor + claude post-audit + Round 2 + Round 3, 2026-05-03, has-concerns; 0 blockers / 14 concerns / 4 nits;含 plan-gate 后追加的 Pydantic 决策拆分 + 6 项 Round 2 post-impl 发现 + 6 项 Round 3 framework-rejection 发现 + Framework-Default Principle 元规则)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md`(codex, 2026-05-03, final closeout;review concern addressed)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/review_comments.md`(claude, 2026-05-03, **recommend-merge**;14/14 plan_audit findings absorbed;0 blockers / 1 concern (C1 schemas.py knowledge_retrieval 越界) / 2 nits)
-- `./pr.md`(codex, 2026-05-03, PR body;review outcome synced)
 - `src/swallow/adapters/http/api.py` / `schemas.py` / `dependencies.py` / `exceptions.py` / `server.py` / `static/index.html`(codex, 2026-05-03, LTO-13 write surface implementation;milestone commit `d4c25ac`)
 - `tests/integration/http/test_web_write_routes.py` + Web/guard test updates(codex, 2026-05-03, LTO-13 HTTP write coverage)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`(codex, 2026-05-03, LTO-8 Step 2 closeout final)

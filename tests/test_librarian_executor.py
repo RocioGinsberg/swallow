@@ -10,10 +10,12 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.knowledge_retrieval.canonical_registry import build_canonical_registry_index
-from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_summary
-from swallow.knowledge_retrieval.knowledge_index import build_knowledge_index
-from swallow.knowledge_retrieval.knowledge_partition import build_knowledge_partition
+from swallow.knowledge_retrieval.knowledge_plane import (
+    build_canonical_registry_index,
+    build_canonical_reuse_summary,
+    build_knowledge_index,
+    build_knowledge_partition,
+)
 from swallow.surface_tools.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianAgent, LibrarianExecutor
 from swallow.orchestration.models import TaskCard, TaskState, ValidationResult
 from swallow.orchestration.orchestrator import _apply_librarian_side_effects, create_task, run_task

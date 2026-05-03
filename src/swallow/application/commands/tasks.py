@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from swallow._io_helpers import read_json_or_empty
-from swallow.knowledge_retrieval.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
+from swallow.knowledge_retrieval.knowledge_plane import OPERATOR_CANONICAL_WRITE_AUTHORITY
 from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
 from swallow.orchestration.models import TaskState
 from swallow.orchestration.orchestrator import (

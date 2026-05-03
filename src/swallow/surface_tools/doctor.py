@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib import error, request
 
+from swallow.knowledge_retrieval.knowledge_plane import iter_file_knowledge_task_ids
 from swallow.orchestration.executor import CLI_AGENT_CONFIGS
-from swallow.knowledge_retrieval.knowledge_store import iter_file_knowledge_task_ids
 from swallow.orchestration.runtime_config import (
     resolve_swl_api_base_url,
     resolve_swl_api_key,

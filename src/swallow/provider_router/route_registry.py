@@ -4,7 +4,7 @@ import json
 from collections.abc import Iterable
 from pathlib import Path
 
-from swallow.knowledge_retrieval.dialect_data import DEFAULT_EXECUTOR, normalize_executor_name
+from swallow.knowledge_retrieval.knowledge_plane import DEFAULT_EXECUTOR, normalize_executor_name
 from swallow.orchestration.models import RouteCapabilities, RouteSpec, TaxonomyProfile
 from swallow.provider_router import route_policy as route_policy_module
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from swallow.knowledge_retrieval.knowledge_index import invalidation_reason_for
 from swallow.knowledge_retrieval.knowledge_objects import canonicalization_status_for, is_retrieval_reuse_ready
-from swallow.knowledge_retrieval.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
+from swallow.knowledge_retrieval._internal_knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
 from swallow.orchestration.models import LIBRARIAN_MEMORY_AUTHORITY, utc_now
 
 

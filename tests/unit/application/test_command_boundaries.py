@@ -141,7 +141,7 @@ def test_knowledge_commands_use_governance_boundary_when_present() -> None:
 
     assert "register_canonical_proposal(" in source
     assert "apply_proposal(" in source
-    assert "update_staged_candidate(" in source
+    assert "decide_staged_knowledge(" in source
     assert "apply_relation_suggestions(" in source
 
 
