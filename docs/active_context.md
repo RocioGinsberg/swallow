@@ -13,15 +13,19 @@
 - latest_completed_slice: `cli.py 3653 → 2672 行 (-27%) + application/commands 写命令完整化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-8 Step 2 — harness decomposition`
-- active_slice: `plan_audit concerns absorbed; awaiting Human Plan Gate`
-- active_branch: `main`
-- status: `lto8_step2_plan_audit_absorbed_awaiting_plan_gate`
+- active_slice: `PR review complete; recommend-merge; concerns absorbed; ready for Human PR decision`
+- active_branch: `feat/orchestration-lifecycle-decomposition-step2`
+- status: `lto8_step2_review_complete_recommend_merge`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-9 Step 2 已合并到主线:
+当前 git 分支为 `feat/orchestration-lifecycle-decomposition-step2`。LTO-8 Step 2 已进入实现阶段,当前 HEAD 为:
 
-- `4229680 docs(state): update roadmap` (HEAD)
+- `e65e606 refactor(orchestration): thin harness write pipeline`
+
+LTO-9 Step 2 已合并到主线:
+
+- `4229680 docs(state): update roadmap`
 - `1251c3c LTO-9 Step 2 — broad CLI command-family migration` (merge commit)
 
 LTO-9 Step 2 完整事实与 milestone 细节见 `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md`(本文不复制)。
@@ -88,6 +92,8 @@ LTO-7 long-running follow-ups(仍开放):
 14. `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(LTO-8 Step 2 brief,335 行,已就绪)
 15. `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`(LTO-8 Step 2 plan;257 行)
 16. `docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md`(has-concerns,0 blockers / 5 concerns)
+17. `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`(LTO-8 Step 2 closeout;status final)
+18. `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`(claude review;recommend-merge,0 blockers / 2 non-blocking concerns)
 
 ## 当前推进
 
@@ -119,6 +125,66 @@ LTO-7 long-running follow-ups(仍开放):
   - C-3: Scope/M1/M2/M3 明确 `harness.py` compatibility exports 包括 `test_cli.py` 直接 import 的 builder 符号。
   - C-4: Scope/M2/M5 明确 `orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` patch targets 需保持,并把 `tests/test_debate_loop.py` / `tests/test_librarian_executor.py` 加入 gate。
   - C-5: M1/M2 命名新增测试文件 `tests/unit/orchestration/test_harness_facade.py` / `tests/unit/orchestration/test_task_report_module.py`。
+- **[Human]** Plan Gate 已通过并切换到实现分支:
+  - `feat/orchestration-lifecycle-decomposition-step2`
+  - `8106390 docs(plan): add LTO-8 Step 2 plan`
+- **[Codex]** M1 baseline and facade characterization 已完成:
+  - 新增 `tests/unit/orchestration/test_harness_facade.py`
+  - 覆盖 `harness.py` compatibility exports:`run_execution` / `run_retrieval` / `run_retrieval_async` / `write_task_artifacts` / `write_task_artifacts_async` / `build_remote_handoff_contract_record` / `build_remote_handoff_contract_report` / `build_resume_note` / `build_retrieval_report` / `build_source_grounding`
+  - 确认 `orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` patch-target names 仍可 import
+  - 建立 source grounding / retrieval report / remote handoff / resume note 的 pre-move output characterization
+- **[Human]** 已提交 M1 baseline/facade characterization:
+  - `c8a94f3 test(orchestration): characterize harness facade`
+- **[Codex]** M2 retrieval and retrieval-report split 已完成:
+  - 新增 `src/swallow/orchestration/task_report.py`,承接 `build_source_grounding` / `build_retrieval_report` / `_format_line_span`。
+  - `src/swallow/orchestration/retrieval_flow.py` 承接 `run_retrieval` / `run_retrieval_async` 实现,包含 retrieval persistence 与 `retrieval.completed` telemetry。
+  - `src/swallow/orchestration/harness.py` 保留 `run_retrieval` / `run_retrieval_async` compatibility wrappers,并继续保留 `harness.retrieve_context` patch 兼容性。
+  - `harness.py` 继续 re-export `build_source_grounding` / `build_retrieval_report`,保持 `tests/test_cli.py` 直接 import surface。
+  - 新增 `tests/unit/orchestration/test_task_report_module.py`;更新 retrieval_flow unit guard,允许 retrieval telemetry 但禁止 state-transition event strings。
+- **[Human]** 已提交 M2 retrieval and retrieval-report split:
+  - `3f0973c refactor(orchestration): split retrieval and report helpers`
+- **[Codex]** M3 artifact layout and record helper split 已完成:
+  - 新增 / 承接 `src/swallow/orchestration/artifact_writer.py` 中的 `build_route_record` / `build_route_report` / `build_topology_record` / `build_topology_report` / `build_execution_site_record` / `build_execution_site_report` / `build_dispatch_record` / `build_dispatch_report` / `build_remote_handoff_contract_record` / `build_remote_handoff_contract_report` / `build_handoff_record` / `build_handoff_report` / `build_compatibility_record`。
+  - `harness.py` 改为从 `artifact_writer.py` re-export 这些 builder,并保留 `build_handoff_record` 的 failure-guidance wrapper。
+  - 新增 `tests/unit/orchestration/test_artifact_writer_module.py`,覆盖路径映射、远程 handoff / handoff / route / topology / execution-site / dispatch / compatibility record-report 形状。
+  - `write_task_artifacts` 继续保持行为不变,只是 builder 责任从 `harness.py` 外移。
+- **[Human]** 已提交 M3 artifact layout and record helper split:
+  - `eb4366f refactor(orchestration): split artifact record helpers`
+- **[Codex]** M4 execution attempts and telemetry split 已完成:
+  - `src/swallow/orchestration/execution_attempts.py` 承接 `run_execution` 实现,包含 executor artifact writes、side-effect persistence callback、`executor.completed` / `executor.failed` telemetry。
+  - `src/swallow/orchestration/harness.py` 保留 `run_execution` compatibility wrapper,并继续保留 `harness.run_executor` patch 兼容性。
+  - `tests/unit/orchestration/test_execution_attempts_module.py` 新增 `run_execution` artifact/event characterization,并把 helper boundary 改为允许 executor telemetry、禁止 state-transition event strings。
+  - `tests/test_invariant_guards.py::test_harness_helper_modules_only_emit_allowlisted_event_kinds` 已加入,扫描 `retrieval_flow.py` / `execution_attempts.py` / `artifact_writer.py` / `task_report.py` 的 helper-side event kinds。
+- **[Human]** 已提交 M4 execution attempts and telemetry split:
+  - `5bf1c84 refactor(orchestration): split execution attempts and telemetry`
+- **[Codex]** M5 write pipeline cleanup and facade reduction 已完成:
+  - `src/swallow/orchestration/artifact_writer.py` 承接 7 个 policy evaluation/save/report/event helper:`write_compatibility_policy_artifacts` / `write_execution_fit_policy_artifacts` / `write_knowledge_policy_artifacts` / `write_validation_policy_artifacts` / `write_retry_policy_artifacts` / `write_execution_budget_policy_artifacts` / `write_stop_policy_artifacts`。
+  - `artifact_writer.py` 同时承接 checkpoint snapshot finalization 与 closing `artifacts.written` event helper。
+  - `src/swallow/orchestration/harness.py` 保留 `write_task_artifacts` / async wrapper / compatibility sequencing,不再直接拥有 policy evaluator/save/count/event blocks。
+  - `tests/test_grounding.py::test_write_task_artifacts_emits_policy_and_artifact_events_in_order` 新增 policy/artifact event 顺序 characterization。
+  - `tests/unit/orchestration/test_artifact_writer_module.py` 的 helper boundary guard 调整为允许 artifact writer 发 allowlisted telemetry event,仍禁止 control-plane state event strings 与 harness/executor 反向依赖。
+- **[Human]** 已提交 M5 write pipeline cleanup and facade reduction:
+  - `e65e606 refactor(orchestration): thin harness write pipeline`
+- **[Codex]** 已准备 LTO-8 Step 2 closeout / PR materials:
+  - `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`
+  - `pr.md`
+  - `current_state.md`
+  - `docs/active_context.md`
+- **[Claude]** Completed PR review:
+  - `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`
+  - verdict: `recommend-merge`(0 blockers / 2 non-blocking concerns)
+  - 独立复跑校验:`.venv/bin/python -m pytest -q` -> `734 passed, 8 deselected, 10 subtests passed`(与 Codex 报告一致;+13 vs LTO-9 Step 2 baseline 721)
+  - `harness.py` 2077 → 1028 行(-50%;`append_event` 12 → 0;`save_state` 0 不变);Control invariant 保持(`test_state_transitions_only_via_orchestrator` allowlist 未广开)
+  - 5 条 plan_audit concern 在代码层面均有对应实现/守卫(逐条交叉验证表格在 review 文档内);新 invariant 设计点(helper-side `append_event` allowlist)以 AST-walking guard 测试支撑
+  - 9 个 closeout 列出的 patch-target 公共导出(`harness.run_execution` / `run_retrieval` / `run_retrieval_async` / `write_task_artifacts` / `write_task_artifacts_async` / `build_remote_handoff_contract_record` / `build_resume_note` / `build_retrieval_report` / `build_source_grounding`)+ `orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` 全部 runtime 导入验证通过
+  - 依赖注入设计(`harness.run_retrieval` 调 `_run_retrieval(..., retrieve_context_fn=retrieve_context)` 等)正确保留 test patch 表面
+- **[Claude]** PR review 关键发现:
+  - **CONCERN-1 (Doc polish)**: closeout TL;DR / `pr.md` 描述 `harness.py` 为 "thin facade" 与 1028 行实际(`build_summary` 280 + `build_resume_note` 180 + `build_task_memory` 160 + `write_task_artifacts` body 220 ≈ 840 行业务逻辑)不符。Codex 已在 closeout §Deferred Work 显式承认。建议改为 "import-compatible facade with policy/artifact pipeline extracted; report builders remain pending a future phase",防止未来 reader 误读为完整 facade。
+  - **CONCERN-2 (Invariant doc)**: 新 helper-side `append_event` allowlist 是 cluster C 的**首个新 invariant**,以 `test_harness_helper_modules_only_emit_allowlisted_event_kinds` 强制(AST 扫描 4 helper 模块,12 allowed kinds + 2 disallowed + 3 constants),但未在 `docs/design/INVARIANTS.md §9` 记录。建议加一行,防止未来 phase audit 漏看。
+  - 两条均非 blocker,可作 post-merge 单文件 doc commit;不影响合并。
+- **[Codex]** 已吸收 Claude review 的 2 条非阻塞 concern:
+  - closeout / `pr.md` 已改为描述 `harness.py` 的真实终态:import-compatible orchestration facade with policy/artifact pipeline extracted;summary/resume-note/task-memory report builders remain deferred。
+  - `docs/design/INVARIANTS.md §9` 已新增 `test_harness_helper_modules_only_emit_allowlisted_event_kinds` 守卫条目,记录 helper-side `append_event` allowlist invariant。
 
 进行中:
 
@@ -126,41 +192,42 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Plan Gate(吸收完成后)。
+- **[Human]** 完成 closeout / review 状态 commit,创建/更新 PR(基于 `pr.md`),决定合并;簇 C 终结 = `v1.6.0` cut 触发点。
+- **[Codex]** Merge 后做 post-merge state sync,触发 `roadmap-updater` 把簇 C 标记完全终结、推进 §三 当前 ticket 到 LTO-13、§五 LTO-8 顺位标 "Step 1 + Step 2 已完成"。
 
 当前阻塞项:
 
-- 无 plan blocker。等待 Human Plan Gate 审批 `plan.md`。
+- 无 blocker。
 
 ## Tag 状态
 
 - 最新已执行 tag: `v1.5.0`
 - tag target: `bc8abb1 docs(release): sync v1.5.0 release docs`
-- 当前结论: defer `v1.6.0` 到 LTO-8 Step 2 merge 后,届时簇 C 真正终结,版本号代表 "cluster C closure" 完整信号。理由:LTO-9 Step 2 是 behavior-preserving 重构,无外部能力增量;簇 C 还有 LTO-8 Step 2 这个真正的核心痛点(harness.py 2077 行 + event-kind allowlist 新设计点)未拆。
+- 当前结论: **`v1.6.0` cut 时机已到**(在 LTO-8 Step 2 merge 时)。LTO-8 Step 2 merge 后簇 C 真正终结(LTO-7 / LTO-8 Step 1+Step 2 / LTO-9 Step 1+Step 2 / LTO-10 全部完成),版本号代表 "cluster C closure" 的完整信号 — 这是项目级别的架构重构里程碑。建议 Human 在合并 LTO-8 Step 2 同期或紧随其后打 `v1.6.0` tag。
 
 ## 当前下一步
 
-1. **[Human]** Plan Gate;通过后切 `feat/orchestration-lifecycle-decomposition-step2`。
-2. **[Codex]** Plan Gate 通过且 feature branch 就绪后开始 M1。
+1. **[Human]** 完成 closeout / review 状态 commit,创建/更新 PR(基于 `pr.md`),决定合并;合并后**簇 C 真正终结 = `v1.6.0` cut 触发点**。
+2. **[Codex]** Merge 后做 post-merge state sync,触发 `roadmap-updater` 把簇 C 标记完全终结、推进 §三 当前 ticket 到 LTO-13、§五 LTO-8 顺位标 "Step 1 + Step 2 已完成"、§四 v1.6.0 tag 决策更新为 "已 cut"。
 
 ```markdown
-plan_gate:
+review_gate:
 - latest_completed_phase: LTO-9 Step 2 — broad CLI command-family migration
 - merge_commit (prior): 1251c3c LTO-9 Step 2 — broad CLI command-family migration
-- active_branch: main
+- active_branch: feat/orchestration-lifecycle-decomposition-step2
 - active_phase: LTO-8 Step 2 — harness decomposition (cluster C closure phase)
-- active_slice: plan_audit concerns absorbed; awaiting Human Plan Gate
-- cluster_c_status: LTO-7 + LTO-9 + LTO-10 fully closed; LTO-8 Step 2 = cluster C closure
+- active_slice: PR review complete; recommend-merge; concerns absorbed; ready for Human PR decision
+- cluster_c_status: LTO-7 + LTO-9 + LTO-10 fully closed; LTO-8 Step 2 review-complete = cluster C closure ready
 - roadmap: docs/roadmap.md current ticket = LTO-8 Step 2; next choice = LTO-13; candidates = Wiki Compiler / other LTOs
-- context_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines)
 - plan: docs/plans/orchestration-lifecycle-decomposition-step2/plan.md (audit concerns absorbed)
 - plan_audit: docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md
-- audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed in plan.md
-- closeout (prior phase): docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md (status final)
-- review (prior phase): recommend-merge after fixes; 0 blockers; 3 polish concerns
-- new_invariant_design_point: helper-side append_event allowlist (12 telemetry kinds; state-transition kinds disallowed)
-- tag_decision: defer v1.6.0 until LTO-8 Step 2 merge (cluster C closure)
-- next_gate: Human Plan Gate → branch creation
+- audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed in plan.md AND in code
+- closeout: docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md (status final)
+- review: verdict recommend-merge; 0 blockers; 2 non-blocking concerns absorbed (closeout/pr phrasing + INVARIANTS.md §9 helper event allowlist entry)
+- review_validation: full pytest 734 passed, 8 deselected, 10 subtests passed; helper-side append_event allowlist guard active; harness.py 2077 → 1028 行 (-50%)
+- new_invariant_design_point: helper-side append_event allowlist (12 telemetry kinds; state-transition kinds disallowed); enforced by test_harness_helper_modules_only_emit_allowlisted_event_kinds (AST walk + string scan)
+- tag_decision: v1.6.0 cut at LTO-8 Step 2 merge (cluster C closure trigger reached)
+- next_gate: Human closeout/review state commit + PR decision
 ```
 
 ## 当前产出物
@@ -171,4 +238,48 @@ plan_gate:
 - `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-8 Step 2 事实盘点;direction gate 通过后启用)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`(codex, 2026-05-03, LTO-8 Step 2 harness decomposition plan;已吸收 plan_audit 5 条 concern)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns, 0 blockers / 5 concerns)
-- `docs/active_context.md`(codex, 2026-05-03, LTO-8 Step 2 plan_audit concern 吸收后切到 Human Plan Gate)
+- `tests/unit/orchestration/test_harness_facade.py`(codex, 2026-05-03, M1 harness facade compatibility + builder characterization)
+- `src/swallow/orchestration/task_report.py`(codex, 2026-05-03, M2 source-grounding and retrieval-report helper module)
+- `src/swallow/orchestration/retrieval_flow.py`(codex, 2026-05-03, M2 retrieval execution implementation owner)
+- `tests/unit/orchestration/test_task_report_module.py`(codex, 2026-05-03, M2 task-report helper characterization)
+- `tests/unit/orchestration/test_retrieval_flow_module.py`(codex, 2026-05-03, M2 retrieval-flow helper boundary update)
+- `src/swallow/orchestration/artifact_writer.py`(codex, 2026-05-03, M3 artifact layout / record helper owner)
+- `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-03, M3 artifact writer helper characterization)
+- `src/swallow/orchestration/execution_attempts.py`(codex, 2026-05-03, M4 run_execution / execution telemetry owner)
+- `tests/unit/orchestration/test_execution_attempts_module.py`(codex, 2026-05-03, M4 execution attempts helper characterization)
+- `tests/test_invariant_guards.py`(codex, 2026-05-03, M4 helper-side event kind allowlist guard)
+- `src/swallow/orchestration/artifact_writer.py`(codex, 2026-05-03, M5 write pipeline policy/checkpoint/artifact event helper owner)
+- `src/swallow/orchestration/harness.py`(codex, 2026-05-03, M5 thin write pipeline sequencing facade)
+- `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`(codex, 2026-05-03, LTO-8 Step 2 closeout;status final)
+- `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`(claude, 2026-05-03, recommend-merge;0 blockers / 2 non-blocking concerns)
+- `docs/design/INVARIANTS.md`(codex, 2026-05-03, review concern absorption;helper-side event allowlist guard registered in §9)
+- `docs/active_context.md`(codex, 2026-05-03, PR review concerns absorbed;ready for Human PR decision + v1.6.0 cut trigger)
+- `tests/test_grounding.py`(codex, 2026-05-03, M5 policy/artifact event order characterization)
+- `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-03, M5 artifact writer helper boundary update)
+- `pr.md`(codex, 2026-05-03, LTO-8 Step 2 PR draft;ignored by git unless force-added)
+- `current_state.md`(codex, 2026-05-03, recovery checkpoint updated to LTO-8 Step 2 recommend-merge)
+
+## 当前验证结果
+
+```bash
+.venv/bin/python -m pytest tests/test_grounding.py tests/unit/orchestration/test_artifact_writer_module.py tests/test_invariant_guards.py -q
+# 40 passed
+
+.venv/bin/python -m pytest tests/unit/orchestration -q
+# 46 passed
+
+.venv/bin/python -m pytest tests/test_grounding.py tests/test_cost_estimation.py tests/test_executor_protocol.py tests/test_executor_async.py tests/test_debate_loop.py tests/test_librarian_executor.py tests/test_invariant_guards.py -q
+# 79 passed
+
+.venv/bin/python -m pytest tests/test_cli.py -q
+# 242 passed, 10 subtests passed
+
+.venv/bin/python -m compileall -q src/swallow
+# passed
+
+.venv/bin/python -m pytest -q
+# 734 passed, 8 deselected, 10 subtests passed
+
+git diff --check
+# passed
+```

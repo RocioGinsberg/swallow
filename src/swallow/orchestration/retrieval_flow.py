@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
+from typing import Callable
 
 from swallow._io_helpers import read_json_strict
-from swallow.knowledge_retrieval.retrieval import build_retrieval_request
+from swallow.knowledge_retrieval.retrieval import build_retrieval_request, retrieve_context, summarize_reused_knowledge
 from swallow.orchestration.models import (
+    EVENT_RETRIEVAL_COMPLETED,
+    Event,
     RetrievalItem,
     RetrievalRequest,
     TaskState,
@@ -13,6 +17,7 @@ from swallow.orchestration.models import (
 )
 from swallow.orchestration.task_semantics import normalize_retrieval_source_types
 from swallow.surface_tools.paths import retrieval_path
+from swallow.truth_governance.store import append_event, save_retrieval
 
 
 _RETRIEVAL_SOURCE_POLICY: dict[tuple[str, str], tuple[str, ...]] = {
@@ -88,3 +93,49 @@ def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
         limit=8,
         strategy="system_baseline",
     )
+
+
+def run_retrieval(
+    base_dir: Path,
+    state: TaskState,
+    request: RetrievalRequest,
+    *,
+    retrieve_context_fn: Callable[..., list[RetrievalItem]] = retrieve_context,
+) -> list[RetrievalItem]:
+    retrieval_items = retrieve_context_fn(Path(state.workspace_root), request=request)
+    reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    save_retrieval(base_dir, state.task_id, retrieval_items)
+    append_event(
+        base_dir,
+        Event(
+            task_id=state.task_id,
+            event_type=EVENT_RETRIEVAL_COMPLETED,
+            message="Retrieved local repository and note context.",
+            payload={
+                "count": len(retrieval_items),
+                "query": request.query,
+                "source_types_requested": request.source_types,
+                "context_layers": request.context_layers,
+                "limit": request.limit,
+                "strategy": request.strategy,
+                "top_paths": [item.path for item in retrieval_items[:3]],
+                "top_citations": [item.reference() for item in retrieval_items[:3]],
+                "source_types": sorted({item.source_type for item in retrieval_items}),
+                "reused_knowledge_count": reused_knowledge["count"],
+                "reused_knowledge_current_task_count": reused_knowledge["current_task_count"],
+                "reused_knowledge_cross_task_count": reused_knowledge["cross_task_count"],
+                "reused_knowledge_references": reused_knowledge["references"],
+            },
+        ),
+    )
+    return retrieval_items
+
+
+async def run_retrieval_async(
+    base_dir: Path,
+    state: TaskState,
+    request: RetrievalRequest,
+    *,
+    retrieve_context_fn: Callable[..., list[RetrievalItem]] = retrieve_context,
+) -> list[RetrievalItem]:
+    return await asyncio.to_thread(run_retrieval, base_dir, state, request, retrieve_context_fn=retrieve_context_fn)

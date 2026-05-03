@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -219,6 +220,59 @@ def test_debate_exhausted_executor_result_preserves_original_execution_fields() 
     assert exhausted.side_effects == {"relation_suggestions": []}
 
 
+def test_run_execution_writes_executor_artifacts_and_allowlisted_completion_event(tmp_path: Path) -> None:
+    state = _state(
+        task_id="execution-run-test",
+        workspace_root=str(tmp_path),
+        route_name="local-summary",
+        route_model_hint="local",
+        current_attempt_id="attempt-0001",
+        current_attempt_number=1,
+        current_attempt_ownership_status="owned",
+        current_attempt_owner_assigned_at="2026-05-03T00:00:00+00:00",
+        dispatch_requested_at="2026-05-03T00:00:00+00:00",
+        dispatch_started_at="2026-05-03T00:00:01+00:00",
+        execution_lifecycle="dispatched",
+    )
+    side_effect_calls: list[tuple[Path, str, dict[str, object]]] = []
+
+    result = execution_attempts.run_execution(
+        tmp_path,
+        state,
+        [],
+        run_executor_fn=lambda _state, _retrieval_items: ExecutorResult(
+            executor_name="mock",
+            status="completed",
+            message="Execution completed.",
+            output="executor output",
+            prompt="executor prompt",
+            dialect="markdown",
+            estimated_input_tokens=10,
+            estimated_output_tokens=20,
+            side_effects={"relation_suggestions": []},
+        ),
+        persist_side_effects=lambda base_dir, task_id, side_effects: side_effect_calls.append(
+            (base_dir, task_id, dict(side_effects))
+        ),
+    )
+
+    artifact_root = tmp_path / ".swl" / "tasks" / state.task_id / "artifacts"
+    events_path = tmp_path / ".swl" / "tasks" / state.task_id / "events.jsonl"
+    events = [json.loads(line) for line in events_path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+    assert result.status == "completed"
+    assert (artifact_root / "executor_prompt.md").read_text(encoding="utf-8") == "dialect: markdown\n\nexecutor prompt\n"
+    assert (artifact_root / "executor_output.md").read_text(encoding="utf-8") == "executor output\n"
+    assert side_effect_calls == [(tmp_path, state.task_id, {"relation_suggestions": []})]
+    assert events[-1]["event_type"] == "executor.completed"
+    assert events[-1]["payload"]["output_written"] == [
+        "executor_prompt.md",
+        "executor_output.md",
+        "executor_stdout.txt",
+        "executor_stderr.txt",
+    ]
+
+
 def test_debate_loop_core_returns_immediately_when_review_passes() -> None:
     clear_calls = 0
     attempts: list[int] = []
@@ -354,10 +408,10 @@ def test_execution_attempts_module_has_no_control_plane_write_surface() -> None:
     public_names = {name for name in dir(execution_attempts) if not name.startswith("_")}
 
     assert "save_state" not in source
-    assert "append_event" not in source
     assert "orchestration.harness" not in source
-    assert "orchestration.executor" not in source
     assert "orchestration.review_gate" not in source
+    assert "state_transitioned" not in source
+    assert "entered_waiting_human" not in source
     assert public_names.isdisjoint(
         {
             "create_task",
