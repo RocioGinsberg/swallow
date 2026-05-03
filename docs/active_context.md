@@ -13,15 +13,16 @@
 - latest_completed_slice: `v1.6.0 tagged; cluster C fully closed`
 - active_track: `Interface / Application Boundary`
 - active_phase: `LTO-13 — FastAPI Local Web UI Write Surface`
-- active_slice: `plan_audit absorbed; awaiting Human Plan Gate`
-- active_branch: `main`
-- status: `lto13_plan_audit_absorbed`
+- active_slice: `implementation complete; awaiting human review / commit`
+- active_branch: `feat/lto-13-fastapi-local-web-ui-write-surface`
+- status: `lto13_implementation_complete`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。进入 LTO-13 plan / audit 文档更新前,HEAD 为:
+当前 git 分支为 `feat/lto-13-fastapi-local-web-ui-write-surface`。进入 LTO-13 实现前,HEAD 为:
 
-- `0e6215a docs(release): sync v1.6.0 release docs`
+- `5b18a7f docs(plan): local first write API`
+- `3d280ca docs(state): update roadmap`
 - `ea4a886 Orchestration Lifecycle Decomposition`(LTO-8 Step 2 merge commit)
 
 `v1.6.0` annotated tag 已 cut,标记 cluster C 完整闭合。
@@ -86,6 +87,25 @@ LTO-7 long-running follow-ups(仍开放):
 - **[Codex]** 产出 `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan.md`,明确 FastAPI 写路由范围、HTTP contract、guard 扩展和 milestone gate。
 - **[Claude / design-auditor]** 产出 `plan_audit.md`:has-concerns;0 blockers / 5 concerns / 1 nit。
 - **[Codex]** 已吸收 plan_audit 5 个 concern + 1 个 nit:workspace_root pre-existing gap、FastAPI dev dependency、proposal artifact relative path bridge、M2 `apply_proposal` UI guard、OperatorToken source 决策、static index test 归属。
+- **[Claude]** Plan-gate 后追加第 6 个 concern(post-impl 发现):§Design Decisions "不引入 Pydantic" 把 `api.py` 顶层 import 硬约束与 schema 工具选型捆绑;Pydantic 随 FastAPI dev extras 自动装,禁用它实际只换来每条路由手写 `from_json` / coercion / 400-mapping。建议拆成两条独立约束:`api.py` 顶层 import 不依赖 FastAPI/Pydantic + 请求体走 Pydantic 模型放在 lazy-imported `http_models.py`,从而拿回 422 字段级错误与 OpenAPI schema。详见 `plan_audit.md` Slice M1 末尾。
+- **[Claude]** Round 2 post-impl deep re-read,plan_audit 追加 6 项发现(4 concerns + 2 nits):
+  - R2-1 [critical concern] `run`/`retry`/`resume`/`rerun` 路由是分钟级阻塞,plan §Sync vs async 没分析后果(threadpool 占用 + 浏览器无进度反馈);需 plan 明示 fire-and-poll 或 accept-long-requests 二选一。
+  - R2-2 [concern] 4 条 run-style 路由的语义差异未在 backend 暴露,UI 被迫在 JS 里编 state machine —— 违反 §Boundary Rules;建议 read model 增加 `retry_eligible` / `resume_eligible` / `rerun_eligible` 布尔字段。
+  - R2-3 [concern] response shape 仅对 `POST /api/tasks` 一条路由 specced,其余 9 条路由契约空白;建议固定统一 envelope 或为每行加 response keys 列。
+  - R2-4 [concern] `promote_stage_candidate_command` 的 `force=True` 绕过 preflight,plan 既没规定 wire format 也没规定 UX —— 建议本期不暴露(保留 CLI 逃生口)。
+  - R2-5 [nit] `swl serve --host 0.0.0.0` 无 guard,LAN 暴露全部写面;建议加 loopback-only enforcement。
+  - R2-6 [nit] `TaskAcknowledgeCommandResult` 没有 `blocked_kind` 字段,与 `TaskRecoveryCommandResult` 不对称,统一 error-mapping helper 会漏 acknowledge 的 409。
+- **[Human]** Plan Gate 通过并切至 `feat/lto-13-fastapi-local-web-ui-write-surface`。
+- **[Codex]** 完成 LTO-13 实现:
+  - 新增 `surface_tools/web/schemas.py` 作为 FastAPI/Pydantic request schema,仅在 `create_fastapi_app()` 内部导入。
+  - `surface_tools/web/http_models.py` 收敛为 response/path helper,不承担 body coercion。
+  - `web/api.py` 新增 task lifecycle、staged knowledge promote/reject、proposal review/apply `POST` routes,全部通过 `application.commands.*`。
+  - `index.html` 新增最小 operator action controls,写入后刷新后端 read model。
+  - `tests/integration/http/test_web_write_routes.py` 覆盖 task write、knowledge write、proposal relative path bridge 和 path rejection。
+  - `test_ui_backend_only_calls_governance_functions` 增加 `apply_proposal` / `create_task` / `run_task` 禁止项。
+  - `pyproject.toml` dev optional dependency 增加 FastAPI。
+- **[Codex]** 已处理 plan_audit 第 6 个 concern(Pydantic / DTO 决策拆分):修订 plan §Design Decisions 与实现,保留 `api.py` 顶层 import 不依赖 FastAPI/Pydantic 的硬约束;请求体验证改为 `surface_tools/web/schemas.py` 内的 scoped Pydantic models;沿用 FastAPI 默认 `422` + 字段级 detail,`api.py` 只映射 400/404/409 等 Swallow 语义错误。
+- **[Codex]** 验证通过:`tests/integration/http/test_web_write_routes.py` 7 passed; Web/API/Invariant/Application boundary focused gates 48 passed; `compileall -q src/swallow`; `git diff --check`; full pytest `741 passed, 8 deselected`。
 
 进行中:
 
@@ -93,11 +113,15 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Plan Gate;通过后切 `feat/lto-13-fastapi-local-web-ui-write-surface`(或类似名)。
+- **[Codex]** 处理 plan_audit Round 2 的 6 项发现(plan 文本 + 实现两侧):
+  - 必须先做的 plan 修订 5 项:R2-1 长请求决策、R2-2 eligibility flags 暴露、R2-3 response envelope、R2-4 `force` 立场、R2-5 host guard。
+  - 实现 follow-up:对 `TaskAcknowledgeCommandResult` 加 `blocked_kind`(R2-6);`server.py` 加 loopback enforcement(R2-5);依据 R2-1 选择补对应测试形态。
+- **[Human]** Review 当前实现 diff(含 Round 2 修订后的版本),决定是否提交实现 milestone。
+- **[Claude]** 如需要,对实现进行 PR/review gate。
 
 当前阻塞项:
 
-- 无 blocker。plan_audit concerns 已吸收,等待 Human Plan Gate。
+- 无 blocker。实现与验证已完成,等待 human review / commit。
 
 ## Tag 状态
 
@@ -108,17 +132,18 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** Plan Gate。
-2. **[Human]** Plan Gate 通过后切 `feat/lto-13-fastapi-local-web-ui-write-surface`。
+1. **[Human]** Review LTO-13 implementation diff。
+2. **[Human]** 若通过,提交实现 milestone。
+3. **[Claude]** 进入 review gate。
 
 ```markdown
 direction_gate:
 - latest_completed_phase: LTO-8 Step 2 — harness decomposition
 - merge_commit: ea4a886 Orchestration Lifecycle Decomposition
 - release_tag: v1.6.0 at 0e6215a docs(release): sync v1.6.0 release docs
-- active_branch: main
+- active_branch: feat/lto-13-fastapi-local-web-ui-write-surface
 - active_phase: LTO-13 — FastAPI Local Web UI Write Surface
-- active_slice: plan_audit absorbed; awaiting Human Plan Gate
+- active_slice: implementation complete; awaiting human review / commit
 - cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
 - structural_changes_this_round: LTO-13 relocated 簇 C → 簇 B (interface boundary nature, not cluster C continuation); cluster C subheading dropped "+ 接续"; v1.6.0 tag decision marked executed
 - direction_decided: do LTO-13 directly; LTO-5 / LTO-6 do not block LTO-13 (application/commands is the buffer layer)
@@ -126,14 +151,17 @@ direction_gate:
 - closeout (prior phase): docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns (both absorbed)
 - new_invariants_landed: helper-side append_event allowlist (12 telemetry kinds + 2 disallowed) registered in INVARIANTS.md §9
-- next_gate: Human Plan Gate (plan_audit complete; 5 concerns + 1 nit absorbed; 0 blockers)
+- validation: focused HTTP/Web/Application/Invariant gates passed; compileall passed; diff check passed; full pytest passed (741 passed, 8 deselected)
+- next_gate: Human implementation review / milestone commit
 ```
 
 ## 当前产出物
 
 - `docs/roadmap.md`(claude/roadmap-updater + claude 主线, 2026-05-03, post-merge LTO-8 Step 2 完成 + cluster C 完全终结 + LTO-13 移回簇 B + §三 切到 LTO-13 + §四 v1.6.0 已执行)
 - `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan.md`(codex, 2026-05-03, LTO-13 phase plan; plan_audit concerns absorbed)
-- `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns; 0 blockers / 5 concerns / 1 nit)
+- `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan_audit.md`(claude/design-auditor + claude post-audit + Round 2, 2026-05-03, has-concerns; 0 blockers / 10 concerns / 3 nits;含 plan-gate 后追加的 Pydantic 决策拆分 + 6 项 Round 2 post-impl 发现)
+- `src/swallow/surface_tools/web/api.py` / `http_models.py` / `static/index.html`(codex, 2026-05-03, LTO-13 write surface implementation)
+- `tests/integration/http/test_web_write_routes.py` + Web/guard test updates(codex, 2026-05-03, LTO-13 HTTP write coverage)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`(codex, 2026-05-03, LTO-8 Step 2 closeout final)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`(claude, 2026-05-03, recommend-merge;0 blockers / 2 non-blocking concerns)
 - `docs/active_context.md`(claude, 2026-05-03, post-tag state synced;awaiting LTO-13 kickoff;Direction Gate 决定记录)
