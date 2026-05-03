@@ -135,3 +135,22 @@ def test_m2_governance_apply_calls_moved_out_of_cli() -> None:
     assert "register_policy_proposal(" not in source
     assert "register_mps_policy_proposal(" not in source
     assert "register_route_metadata_proposal(" not in source
+
+
+def test_knowledge_commands_use_governance_boundary_when_present() -> None:
+    relative_path = "application/commands/knowledge.py"
+    if not (SRC_ROOT / relative_path).exists():
+        return
+    source = _source(relative_path)
+
+    assert "register_canonical_proposal(" in source
+    assert "apply_proposal(" in source
+    assert "update_staged_candidate(" in source
+    assert "apply_relation_suggestions(" in source
+
+
+def test_m3_knowledge_apply_call_moved_out_of_cli() -> None:
+    source = _source("surface_tools/cli.py")
+
+    assert "register_canonical_proposal(" not in source
+    assert "ProposalTarget.CANONICAL_KNOWLEDGE" not in source
