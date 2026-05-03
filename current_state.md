@@ -19,25 +19,26 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `LTO-6 — Knowledge Plane Facade Solidification + Wiki Compiler design prep`
-- latest_main_checkpoint: `b73ebf8 docs(state): update roadmap`
+- latest_main_checkpoint_phase: `LTO-1 — Wiki Compiler 第一阶段 planning docs`
+- latest_main_checkpoint: `7eb2ef8 docs(plan): add lto-1 wiki compiler plan`
 - latest_executed_public_tag: `v1.7.0`
 - pending_release_tag: `none`
-- current_working_phase: `LTO-1 — Wiki Compiler 第一阶段 Plan Gate preparation`
-- checkpoint_type: `lto1_plan_audit_absorbed_ready_for_gate`
-- active_branch: `main`
+- current_working_phase: `LTO-1 — Wiki Compiler 第一阶段 closeout`
+- checkpoint_type: `lto1_review_complete_ready_for_closeout_commit`
+- active_branch: `feat/lto-1-wiki-compiler-first-stage`
 - last_checked: `2026-05-04`
 
 说明:
 
-- 当前分支为 `main`,HEAD 为 `b73ebf8 docs(state): update roadmap`。
+- 当前工作分支为 `feat/lto-1-wiki-compiler-first-stage`;分支 HEAD 为 `5ca1e10 test(guards): lock wiki compiler boundaries`;本地 `main` HEAD 为 `7eb2ef8 docs(plan): add lto-1 wiki compiler plan`。
 - LTO-13 已合并并完成 `v1.7.0` annotated tag;tag target 为 `2156d4a docs(release): sync v1.7.0 release docs`。
 - LTO-6 已合并到 `main` at `883e2a9 Knowledge Plane Facade Solidification`;Knowledge Plane facade 已从 barrel file 收口为 functional facade,旧 direct reach imports 已由 guard 保护。
-- Wiki Compiler 设计准备已落到 `main`:
+- Wiki Compiler 设计准备与 LTO-1 planning docs 已落到 `main`:
   - `docs/design/EXECUTOR_REGISTRY.md` 增加 Wiki Compiler specialist 五元组、4 模式表与 conflict 决策段。
   - `docs/design/SELF_EVOLUTION.md` 增加 Wiki Compiler 起草侧 / Librarian 守门侧 / Operator 共同收口工作流。
   - `docs/roadmap.md` 当前 ticket 已切到 **LTO-1 Wiki Compiler 第一阶段**。
-- `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md` 已产出(0 blockers / 5 concerns / 2 nits),Codex 已吸收到 `plan.md`;实现尚未开始,Plan Gate 尚未通过。
+- `feat/lto-1-wiki-compiler-first-stage` 已完成 M1-M5 实现、M5 guard/eval/closeout prep、Claude PR review(`recommend-merge`;0 blockers / 1 concern / 2 nits)与最终 C1 cleanup。
+- 当前等待 Human 审阅最终 diff、提交 closeout cleanup,然后推进 merge gate。
 
 ---
 
@@ -45,17 +46,17 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `main`
+- active_branch: `feat/lto-1-wiki-compiler-first-stage`
 - active_track: `Knowledge Authoring`
-- active_phase: `LTO-1 — Wiki Compiler 第一阶段(prep)`
-- active_slice: `LTO-1 plan audit absorbed; ready for Human Plan Gate`
-- workflow_status: `lto1_plan_audit_absorbed_ready_for_gate`
+- active_phase: `LTO-1 — Wiki Compiler 第一阶段`
+- active_slice: `PR review complete; C1 absorbed; ready for closeout commit`
+- workflow_status: `lto1_review_complete_ready_for_closeout`
 
 下一步:
 
-1. Human 审阅已吸收 audit 的 plan + plan_audit,确认 Plan Gate。
-2. Human 提交 planning docs,然后从 `main` 切出 `feat/lto-1-wiki-compiler-first-stage`。
-3. Codex 再进入实现阶段。
+1. Human 审阅最终 closeout diff 与 `./pr.md`。
+2. Human 提交 closeout cleanup。
+3. Human 推进 merge gate;merge 后 Codex 同步 `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`,再准备 `v1.8.0` release docs。
 
 ---
 
@@ -84,7 +85,7 @@
 
 ## 最小验证命令
 
-LTO-1 plan gate 前建议至少执行以下检查:
+LTO-1 merge gate 前建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -99,7 +100,7 @@ sed -n '1,220p' docs/roadmap.md
 
 ```bash
 .venv/bin/python -m pytest -q
-# LTO-6 final: 755 passed, 8 deselected
+# LTO-1 final rerun: 773 passed, 12 deselected
 
 .venv/bin/python -m compileall -q src/swallow
 # passed
@@ -113,7 +114,7 @@ git diff --check
 ## 当前已知边界
 
 - 当前不再做 LTO-13 或 LTO-6 代码实现;两者均已合并到 `main`。
-- 当前只做 LTO-1 phase plan / plan_audit absorption;Plan Gate 前不开始实现、不切 feature branch。
+- 当前 LTO-1 implementation / review / C1 cleanup 已完成;未 merge 前不切换下一 phase。
 - 不改变 Orchestrator / Operator 的 task-state control authority。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
 - 不新增 auth/multi-user、remote worker、Planner/DAG 或项目级全图谱可视化。
@@ -123,12 +124,14 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前建议提交 LTO-1 planning state sync / plan 文档:
+当前建议提交 LTO-1 review cleanup 与 closeout 文档:
 
 ```bash
-git add current_state.md docs/active_context.md docs/plans/lto-1-wiki-compiler-first-stage/plan.md docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md
+git add src/swallow/surface_tools/wiki_compiler.py src/swallow/orchestration/executor.py tests/test_executor_protocol.py
+git commit -m "refactor(wiki): remove executor compatibility wrapper"
 
-git commit -m "docs(plan): add lto-1 wiki compiler plan"
+git add current_state.md docs/active_context.md docs/plans/lto-1-wiki-compiler-first-stage/closeout.md docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md
+git commit -m "docs(plan): finalize lto-1 wiki compiler closeout"
 ```
 
 ---
@@ -144,7 +147,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 LTO-1 planning 不要求 live HTTP / API-key dependent test。
+当前 LTO-1 closeout 不要求 live HTTP / API-key dependent test。
 
 ---
 
