@@ -10,14 +10,16 @@ swallow sustains multi-step, multi-session tasks by combining task orchestration
 
 ## Release Snapshot
 
-Current release: **v1.5.0**.
+Current release: **v1.6.0**.
 
-This snapshot closes the Phase 67 + Phase 68 sequence after `v1.4.0`:
+This snapshot closes the Cluster C architecture program after `v1.5.0`:
 
-- Module hygiene and ownership: runtime code is organized into semantic packages (`truth_governance`, `orchestration`, `provider_router`, `knowledge_retrieval`, `surface_tools`), JSON/JSONL helper ownership is centralized, and read-only CLI artifact/report dispatch is table-driven.
-- Raw material storage boundary: `RawMaterialStore` defines the raw-source layer with URI parsing, content hashing, and a filesystem backend, keeping future object-storage backends behind the store boundary.
-- Stable raw material references: new in-workspace ingestion records use `file://workspace/...`, out-of-workspace inputs use absolute `file://` URIs, and librarian artifact evidence can resolve `artifact://...` while preserving legacy artifact refs.
-- Governance baseline preserved: no Knowledge Truth schema changes, no retrieval source type changes, and the `apply_proposal()` write boundary remains the canonical route for knowledge / route / policy mutation.
+- Orchestration lifecycle decomposition: `orchestrator.py` and `harness.py` now delegate retrieval, execution attempts, artifact records, task reports, subtask helpers, task lifecycle payloads, and knowledge-flow helpers to focused modules while keeping Orchestrator as the sole task-state control owner.
+- Harness write-pipeline cleanup: `harness.py` was reduced from the 2077-line baseline to a 1028-line import-compatible orchestration facade with the policy / artifact pipeline extracted; summary, resume-note, and task-memory report builders remain intentionally deferred.
+- Surface and governance modularity: broad CLI command families moved out of `surface_tools/cli.py`, CLI-originated write paths now route through `application/commands/*`, and `truth_governance/governance.py` is a small `apply_proposal` facade over focused private handlers.
+- Provider Router maintainability: route registry, policy, metadata-store, selection, completion-gateway, reports, and facade compatibility are split across focused modules while preserving Path A / Path C governance boundaries.
+- Guard baseline strengthened: the new helper-side `append_event` allowlist guard records that orchestration helpers may emit only telemetry / artifact-completion events, while state-transition events stay in Orchestrator.
+- Governance baseline preserved: no task / knowledge / route / policy schema changes, no FastAPI write routes, no Provider Router behavior change, and `apply_proposal()` remains the only canonical / route / policy mutation entry.
 
 ---
 
@@ -189,14 +191,16 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 ## Release Snapshot
 
-当前 release:**v1.5.0**。
+当前 release:**v1.6.0**。
 
-这个快照闭合 `v1.4.0` 之后的 Phase 67 + Phase 68:
+这个快照闭合 `v1.5.0` 之后的簇 C 架构重构计划:
 
-- 模块卫生与归属:runtime code 已按语义归入 `truth_governance`、`orchestration`、`provider_router`、`knowledge_retrieval`、`surface_tools`;JSON/JSONL helper 归属集中,read-only CLI artifact/report dispatch 改为表驱动。
-- Raw material 存储边界:`RawMaterialStore` 定义原始 source 层,提供 URI 解析、content hashing 与 filesystem backend,把未来 object-storage backend 留在 store 边界之后。
-- 稳定 raw material reference:新的 workspace 内 ingestion record 使用 `file://workspace/...`,workspace 外输入使用绝对 `file://` URI,librarian artifact evidence 可解析 `artifact://...`,同时保留 legacy artifact ref 兼容。
-- 治理基线保持不变:未修改 Knowledge Truth schema,未修改 retrieval source type 语义,knowledge / route / policy mutation 仍由 `apply_proposal()` 写入边界收口。
+- Orchestration lifecycle decomposition:`orchestrator.py` 与 `harness.py` 已把 retrieval、execution attempts、artifact records、task reports、subtask helpers、task lifecycle payloads、knowledge-flow helpers 委托给聚焦模块,同时保持 Orchestrator 是唯一 task-state control owner。
+- Harness 写入流水线清理:`harness.py` 从 2077 行 baseline 降到 1028 行 import-compatible orchestration facade,policy / artifact pipeline 已外移;summary、resume-note、task-memory report builders 明确保留为后续 report-rendering slice。
+- Surface 与 governance 模块化:广泛 CLI 命令族已从 `surface_tools/cli.py` 外移,CLI-originated write paths 通过 `application/commands/*` 收口,`truth_governance/governance.py` 成为 `apply_proposal` 小 facade。
+- Provider Router 可维护性:route registry、policy、metadata-store、selection、completion-gateway、reports 与 facade compatibility 已拆成聚焦模块,同时保持 Path A / Path C 治理边界。
+- 守卫基线增强:新增 helper-side `append_event` allowlist guard,规定 orchestration helpers 只能发 telemetry / artifact-completion events,state-transition events 保留在 Orchestrator。
+- 治理基线保持不变:未修改 task / knowledge / route / policy schema,未新增 FastAPI write routes,未改变 Provider Router 行为,`apply_proposal()` 仍是 canonical / route / policy mutation 的唯一入口。
 
 ---
 
