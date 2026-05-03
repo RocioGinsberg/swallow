@@ -16,18 +16,11 @@ from swallow.knowledge_retrieval.canonical_reuse_eval import (
     build_canonical_reuse_regression_report,
     compare_canonical_reuse_regression,
 )
-from swallow.knowledge_retrieval.canonical_audit import audit_canonical_registry, build_canonical_audit_report
-from swallow.surface_tools.consistency_audit import (
-    build_audit_trigger_policy_report,
-    load_audit_trigger_policy,
-    run_consistency_audit,
-)
 from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_report
 from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
 from swallow.knowledge_retrieval.canonical_registry import (
     build_canonical_registry_index_report,
     build_canonical_registry_report,
-    build_staged_canonical_key,
 )
 from swallow.surface_tools.doctor import (
     diagnose_cli_agents,
@@ -41,46 +34,26 @@ from swallow.surface_tools.doctor import (
 from swallow.knowledge_retrieval.ingestion.pipeline import (
     build_ingestion_report,
     build_ingestion_summary,
-    ingest_local_file,
     ingest_operator_note,
     run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
-from swallow.knowledge_retrieval.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY, migrate_file_knowledge_to_sqlite
-from swallow.truth_governance.governance import (
-    OperatorToken,
-    ProposalTarget,
-    apply_proposal,
-    register_canonical_proposal,
-    register_mps_policy_proposal,
-    register_policy_proposal,
-    register_route_metadata_proposal,
-)
+from swallow.application.commands.knowledge import build_stage_promote_preflight_notices
 from swallow.knowledge_retrieval.knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
-    build_knowledge_relation_report,
-    build_knowledge_relations_report,
-    create_knowledge_relation,
-    delete_knowledge_relation,
-    list_knowledge_relations,
 )
+from swallow.surface_tools.cli_commands.audit import handle_audit_command
+from swallow.surface_tools.cli_commands.knowledge import handle_knowledge_command
 from swallow.surface_tools.cli_commands.meta_optimizer import handle_meta_optimize_command
 from swallow.surface_tools.cli_commands.proposals import handle_proposal_command
+from swallow.surface_tools.cli_commands.route import handle_route_command
 from swallow.surface_tools.cli_commands.route_metadata import handle_route_metadata_command
+from swallow.surface_tools.cli_commands.synthesis import handle_synthesis_command
+from swallow.surface_tools.cli_commands.tasks import handle_task_read_command, handle_task_write_command
 from swallow.knowledge_retrieval.knowledge_objects import summarize_canonicalization
 from swallow.knowledge_retrieval.knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
-from swallow.knowledge_retrieval.knowledge_suggestions import apply_relation_suggestions, build_relation_suggestion_application_report
-from swallow.orchestration.models import Event, RouteSelection
 from swallow.surface_tools.mps_policy_store import MPS_POLICY_KINDS
-from swallow.orchestration.orchestrator import (
-    acknowledge_task,
-    append_task_knowledge_capture,
-    create_task,
-    decide_task_knowledge,
-    evaluate_task_canonical_reuse,
-    run_task,
-    update_task_planning_handoff,
-)
+from swallow.orchestration.orchestrator import run_task
 from swallow.surface_tools.paths import (
     artifacts_dir,
     canonical_registry_index_path,
@@ -110,8 +83,7 @@ from swallow.surface_tools.paths import (
     route_path,
     topology_path,
 )
-from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates, submit_staged_candidate, update_staged_candidate
-from swallow.orchestration.synthesis import load_synthesis_config, run_synthesis
+from swallow.knowledge_retrieval.staged_knowledge import StagedCandidate, load_staged_candidates
 from swallow.truth_governance.sqlite_store import get_schema_status
 from swallow.surface_tools.workspace import resolve_path
 from swallow.provider_router.router import (
@@ -120,14 +92,8 @@ from swallow.provider_router.router import (
     apply_route_policy,
     apply_route_registry,
     apply_route_weights,
-    build_route_policy_report,
-    build_route_registry_report,
-    load_route_policy_from_path,
-    route_by_name,
-    select_route,
 )
 from swallow.truth_governance.store import (
-    append_event,
     iter_task_states,
     load_events,
     load_knowledge_objects,
@@ -339,29 +305,6 @@ def format_store_migration_summary(summary: dict[str, object]) -> str:
         f"event_count_skipped={summary.get('event_count_skipped', 0)}",
         "migrated_task_ids=" + ",".join(str(item) for item in migrated_task_ids),
         "skipped_task_ids=" + ",".join(str(item) for item in skipped_task_ids),
-    ]
-    return "\n".join(lines)
-
-
-def format_knowledge_migration_summary(summary: dict[str, object]) -> str:
-    migrated_task_ids = summary.get("migrated_task_ids", [])
-    skipped_task_ids = summary.get("skipped_task_ids", [])
-    failed_task_ids = summary.get("failed_task_ids", [])
-    error_items = summary.get("errors", {})
-    lines = [
-        f"db_path={summary.get('db_path', '')}",
-        f"dry_run={'yes' if summary.get('dry_run', False) else 'no'}",
-        f"task_count_scanned={summary.get('task_count_scanned', 0)}",
-        f"task_count_migrated={summary.get('task_count_migrated', 0)}",
-        f"task_count_skipped={summary.get('task_count_skipped', 0)}",
-        f"task_count_failed={summary.get('task_count_failed', 0)}",
-        f"knowledge_object_count_migrated={summary.get('knowledge_object_count_migrated', 0)}",
-        f"knowledge_object_count_skipped={summary.get('knowledge_object_count_skipped', 0)}",
-        f"knowledge_object_count_failed={summary.get('knowledge_object_count_failed', 0)}",
-        "migrated_task_ids=" + ",".join(str(item) for item in migrated_task_ids),
-        "skipped_task_ids=" + ",".join(str(item) for item in skipped_task_ids),
-        "failed_task_ids=" + ",".join(str(item) for item in failed_task_ids),
-        "errors=" + "; ".join(f"{task_id}:{message}" for task_id, message in sorted(error_items.items())),
     ]
     return "\n".join(lines)
 
@@ -713,165 +656,6 @@ def _print_canonical_reuse_eval(base_dir: Path, task_id: str | None) -> int:
     )
 
 
-ARTIFACT_PRINTER_DISPATCH: dict[str, ArtifactPrinter] = {
-    **{command: _text_artifact_printer(artifact_name) for command, artifact_name in TEXT_ARTIFACT_PRINTERS.items()},
-    **{command: _json_artifact_printer(path_builder) for command, path_builder in JSON_ARTIFACT_PRINTERS.items()},
-    "knowledge-objects-json": lambda base_dir, task_id: _print_json_payload(
-        load_knowledge_objects(base_dir, _require_artifact_task_id(task_id))
-    ),
-    "knowledge-decisions": lambda base_dir, task_id: _print_report(
-        build_knowledge_decisions_report(
-            read_json_lines_or_empty(knowledge_decisions_path(base_dir, _require_artifact_task_id(task_id)))
-        )
-    ),
-    "canonical-registry": lambda base_dir, _task_id: _print_report(
-        build_canonical_registry_report(read_json_lines_or_empty(canonical_registry_path(base_dir)))
-    ),
-    "canonical-registry-index": lambda base_dir, _task_id: _print_report(
-        build_canonical_registry_index_report(read_json_or_empty(canonical_registry_index_path(base_dir)))
-    ),
-    "canonical-reuse": lambda base_dir, _task_id: _print_report(
-        build_canonical_reuse_report(read_json_or_empty(canonical_reuse_policy_path(base_dir)))
-    ),
-    "canonical-reuse-regression": _print_canonical_reuse_regression,
-    "canonical-reuse-eval": _print_canonical_reuse_eval,
-    "knowledge-decisions-json": lambda base_dir, task_id: _print_json_payload(
-        read_json_lines_or_empty(knowledge_decisions_path(base_dir, _require_artifact_task_id(task_id)))
-    ),
-    "canonical-registry-json": lambda base_dir, _task_id: _print_json_payload(
-        read_json_lines_or_empty(canonical_registry_path(base_dir))
-    ),
-    "canonical-registry-index-json": lambda base_dir, _task_id: _print_json_payload(
-        read_json_or_empty(canonical_registry_index_path(base_dir))
-    ),
-    "canonical-reuse-json": lambda base_dir, _task_id: _print_json_payload(
-        read_json_or_empty(canonical_reuse_policy_path(base_dir))
-    ),
-    "canonical-reuse-eval-json": lambda base_dir, task_id: _print_json_payload(
-        read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, _require_artifact_task_id(task_id)))
-    ),
-    "canonical-reuse-regression-json": lambda base_dir, task_id: _print_json_payload(
-        read_json_or_empty(canonical_reuse_regression_path(base_dir, _require_artifact_task_id(task_id)))
-    ),
-}
-
-
-def _dispatch_artifact_printer(args: argparse.Namespace, base_dir: Path) -> int:
-    handler = ARTIFACT_PRINTER_DISPATCH.get(args.task_command)
-    if handler is None:
-        raise NotImplementedError(
-            f"Read-only printer dispatch table missing handler for {args.task_command!r}; "
-            "either add an entry or remove it from the Phase 67 M3 in-scope command set."
-        )
-    return handler(base_dir, getattr(args, "task_id", None))
-
-
-def _format_route_selection_value(value: object) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    normalized = str(value or "").strip()
-    return normalized or "none"
-
-
-def build_route_selection_report(
-    task_id: str,
-    selection: RouteSelection,
-    *,
-    executor_override: str = "",
-    route_mode_override: str = "",
-) -> str:
-    lines = [
-        "# Route Selection",
-        "",
-        f"- task_id: {task_id}",
-        f"- override_executor: {executor_override or 'none'}",
-        f"- override_route_mode: {route_mode_override or 'none'}",
-        f"- selected_route: {selection.route.name}",
-        f"- executor_name: {selection.route.executor_name}",
-        f"- backend_kind: {selection.route.backend_kind}",
-        f"- execution_site: {selection.route.execution_site}",
-        f"- executor_family: {selection.route.executor_family}",
-        f"- transport_kind: {selection.route.transport_kind}",
-        f"- model_hint: {selection.route.model_hint or 'none'}",
-        f"- dialect: {selection.route.dialect_hint or 'none'}",
-        f"- fallback_route: {selection.route.fallback_route_name or 'none'}",
-        f"- reason: {selection.reason}",
-        f"- capabilities: {selection.route.capabilities.summary()}",
-        "",
-        "## Policy Inputs",
-    ]
-    if selection.policy_inputs:
-        for key in sorted(selection.policy_inputs):
-            lines.append(f"- {key}: {_format_route_selection_value(selection.policy_inputs[key])}")
-    else:
-        lines.append("- none")
-    return "\n".join(lines)
-
-
-def build_stage_candidate_list_report(candidates: list[StagedCandidate]) -> str:
-    pending_candidates = [candidate for candidate in candidates if candidate.status == "pending"]
-    lines = [
-        "# Staged Knowledge Review Queue",
-        "",
-        f"- pending_count: {len(pending_candidates)}",
-        "",
-        "## Candidates",
-    ]
-    if not pending_candidates:
-        lines.append("- no pending candidates")
-        return "\n".join(lines)
-
-    for candidate in pending_candidates:
-        preview = candidate.text if len(candidate.text) <= 72 else candidate.text[:69] + "..."
-        lines.extend(
-            [
-                f"- {candidate.candidate_id}",
-                f"  source_task_id: {candidate.source_task_id}",
-                f"  topic: {candidate.topic or '-'}",
-                f"  source_kind: {candidate.source_kind or '-'}",
-                f"  source_ref: {candidate.source_ref or '-'}",
-                f"  source_object_id: {candidate.source_object_id or 'none'}",
-                f"  submitted_by: {candidate.submitted_by or 'unknown'}",
-                f"  taxonomy: {candidate.taxonomy_role or '-'} / {candidate.taxonomy_memory_authority or '-'}",
-                f"  submitted_at: {candidate.submitted_at}",
-                f"  text: {preview or '(empty)'}",
-            ]
-        )
-    return "\n".join(lines)
-
-
-def build_stage_candidate_inspect_report(candidate: StagedCandidate) -> str:
-    return "\n".join(
-        [
-            f"Staged Candidate: {candidate.candidate_id}",
-            f"status: {candidate.status}",
-            f"source_task_id: {candidate.source_task_id}",
-            f"topic: {candidate.topic or '-'}",
-            f"source_kind: {candidate.source_kind or '-'}",
-            f"source_ref: {candidate.source_ref or '-'}",
-            f"source_object_id: {candidate.source_object_id or '-'}",
-            f"submitted_by: {candidate.submitted_by or '-'}",
-            f"submitted_at: {candidate.submitted_at}",
-            f"taxonomy_role: {candidate.taxonomy_role or '-'}",
-            f"taxonomy_memory_authority: {candidate.taxonomy_memory_authority or '-'}",
-            f"decided_at: {candidate.decided_at or '-'}",
-            f"decided_by: {candidate.decided_by or '-'}",
-            f"decision_note: {candidate.decision_note or '-'}",
-            "",
-            "Text",
-            candidate.text or "(empty)",
-        ]
-    )
-
-
-def resolve_stage_candidate(base_dir: Path, candidate_id: str) -> StagedCandidate:
-    normalized_id = candidate_id.strip()
-    for candidate in load_staged_candidates(base_dir):
-        if candidate.candidate_id == normalized_id:
-            return candidate
-    raise ValueError(f"Unknown staged candidate: {normalized_id}")
-
-
 def summarize_text_preview(text: str, limit: int) -> str:
     normalized = " ".join(text.split())
     if not normalized:
@@ -914,102 +698,6 @@ def build_task_staged_report(
             ]
         )
     return "\n".join(lines)
-
-
-def build_stage_canonical_record(
-    candidate: StagedCandidate,
-    *,
-    refined_text: str = "",
-) -> dict[str, object]:
-    canonical_key = build_staged_canonical_key(
-        source_task_id=candidate.source_task_id,
-        source_object_id=candidate.source_object_id,
-        candidate_id=candidate.candidate_id,
-    )
-    canonical_text = refined_text.strip() or candidate.text
-    return {
-        "canonical_id": f"canonical-{candidate.candidate_id}",
-        "canonical_key": canonical_key,
-        "source_task_id": candidate.source_task_id,
-        "source_object_id": candidate.source_object_id,
-        "promoted_at": candidate.decided_at,
-        "promoted_by": candidate.decided_by or "swl_cli",
-        "decision_note": candidate.decision_note,
-        "decision_ref": f".swl/staged_knowledge/registry.jsonl#{candidate.candidate_id}",
-        "artifact_ref": "",
-        "source_ref": candidate.source_ref,
-        "text": canonical_text,
-        "evidence_status": "source_only",
-        "canonical_stage": "canonical",
-        "canonical_status": "active",
-        "superseded_by": "",
-        "superseded_at": "",
-    }
-
-
-def build_stage_promote_preflight_notices(
-    canonical_records: list[dict[str, object]],
-    candidate: StagedCandidate,
-) -> list[dict[str, str]]:
-    """Build structured preflight notices for stage promotion decisions.
-
-    The return shape is intentionally `list[dict[str, str]]`. Earlier drafts used
-    plain strings, but the CLI has already standardized on structured notice
-    records so downstream formatting can stay explicit and stable.
-    """
-    preview_record = build_stage_canonical_record(candidate)
-    canonical_id = str(preview_record.get("canonical_id", "")).strip()
-    canonical_key = str(preview_record.get("canonical_key", "")).strip()
-
-    notices: list[dict[str, str]] = []
-    existing_record = next(
-        (
-            record
-            for record in canonical_records
-            if str(record.get("canonical_id", "")).strip() == canonical_id
-        ),
-        None,
-    )
-    if canonical_id and existing_record is not None:
-        notices.append(
-            {
-                "notice_type": "idempotent",
-                "canonical_id": canonical_id,
-                "text_preview": summarize_text_preview(str(existing_record.get("text", "")), 60),
-            }
-        )
-
-    if canonical_key:
-        active_match = next(
-            (
-                record
-                for record in canonical_records
-                if str(record.get("canonical_key", "")).strip() == canonical_key
-                and str(record.get("canonical_id", "")).strip() != canonical_id
-                and str(record.get("canonical_status", "active")).strip() != "superseded"
-            ),
-            None,
-        )
-        if active_match is not None:
-            notices.append(
-                {
-                    "notice_type": "supersede",
-                    "canonical_id": str(active_match.get("canonical_id", "")).strip() or "unknown",
-                    "text_preview": summarize_text_preview(str(active_match.get("text", "")), 60),
-                }
-            )
-    return notices
-
-
-def format_stage_promote_preflight_notice(notice: dict[str, str]) -> str:
-    notice_type = notice.get("notice_type", "").strip()
-    canonical_id = notice.get("canonical_id", "").strip() or "unknown"
-    text_preview = notice.get("text_preview", "").strip() or "(empty)"
-    if notice_type == "supersede":
-        return f"[SUPERSEDE] canonical_id={canonical_id} text={text_preview}"
-    if notice_type == "idempotent":
-        return f"[IDEMPOTENT] canonical_id={canonical_id} text={text_preview}"
-    return f"[NOTICE] canonical_id={canonical_id} text={text_preview}"
 
 
 def filter_task_states(states: list[object], focus: str) -> list[object]:
@@ -1329,39 +1017,6 @@ def resolve_attempt_pair(attempts: list[dict[str, str]], left: str | None, right
     return attempts[1], attempts[0]
 
 
-def execute_task_run(
-    base_dir: Path,
-    task_id: str,
-    executor_name: str | None,
-    capability_refs: list[str] | None,
-    route_mode: str | None,
-    reset_grounding: bool = False,
-    skip_to_phase: str = "retrieval",
-) -> int:
-    state = run_task(
-        base_dir=base_dir,
-        task_id=task_id,
-        executor_name=executor_name,
-        capability_refs=capability_refs,
-        route_mode=route_mode,
-        reset_grounding=reset_grounding,
-        skip_to_phase=skip_to_phase,
-    )
-    print(
-        f"{state.task_id} {state.status} retrieval={state.retrieval_count} "
-        f"execution_phase={state.execution_phase}"
-    )
-    return 0
-
-
-def is_acknowledged_dispatch_reentry(state: object) -> bool:
-    return (
-        getattr(state, "status", "") == "running"
-        and getattr(state, "phase", "") == "retrieval"
-        and getattr(state, "topology_dispatch_status", "") == "acknowledged"
-    )
-
-
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="swl",
@@ -1441,7 +1096,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     synthesis_policy_set_parser = synthesis_policy_subparsers.add_parser(
         "set",
-        help="Update an MPS policy value via apply_proposal.",
+        help="Update an MPS policy value (governed write).",
     )
     synthesis_policy_set_parser.add_argument(
         "--kind",
@@ -2495,133 +2150,9 @@ def main(argv: list[str] | None = None) -> int:
         apply_route_fallbacks(base_dir)
         apply_route_capability_profiles(base_dir)
 
-    if args.command == "knowledge" and args.knowledge_command == "stage-list":
-        candidates = load_staged_candidates(base_dir)
-        if getattr(args, "all", False):
-            lines = [
-                "# Staged Knowledge Registry",
-                "",
-                f"- count: {len(candidates)}",
-                "",
-                "## Candidates",
-            ]
-            if not candidates:
-                lines.append("- no staged candidates")
-            else:
-                for candidate in candidates:
-                    lines.extend(
-                        [
-                            f"- {candidate.candidate_id}",
-                            f"  status: {candidate.status}",
-                            f"  source_task_id: {candidate.source_task_id}",
-                            f"  submitted_by: {candidate.submitted_by or 'unknown'}",
-                            f"  taxonomy: {candidate.taxonomy_role or '-'} / {candidate.taxonomy_memory_authority or '-'}",
-                        ]
-                    )
-            print("\n".join(lines))
-        else:
-            print(build_stage_candidate_list_report(candidates))
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "stage-inspect":
-        print(build_stage_candidate_inspect_report(resolve_stage_candidate(base_dir, args.candidate_id)))
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "stage-promote":
-        candidate = resolve_stage_candidate(base_dir, args.candidate_id)
-        if candidate.status != "pending":
-            raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
-        canonical_records = read_json_lines_or_empty(canonical_registry_path(base_dir))
-        preflight_notices = build_stage_promote_preflight_notices(canonical_records, candidate)
-        for notice in preflight_notices:
-            print(format_stage_promote_preflight_notice(notice))
-        if any(notice.get("notice_type") == "supersede" for notice in preflight_notices) and not getattr(args, "force", False):
-            raise ValueError("Supersede notice detected; rerun with --force to confirm promotion.")
-        decision_note = args.note.strip()
-        if args.text.strip():
-            decision_note = f"{decision_note} [refined]".strip() if decision_note else "[refined]"
-        updated = update_staged_candidate(
-            base_dir,
-            candidate.candidate_id,
-            "promoted",
-            "swl_cli",
-            decision_note,
-        )
-        canonical_record = build_stage_canonical_record(updated, refined_text=args.text)
-        register_canonical_proposal(
-            base_dir=base_dir,
-            proposal_id=updated.candidate_id,
-            canonical_record=canonical_record,
-            write_authority=OPERATOR_CANONICAL_WRITE_AUTHORITY,
-            refresh_derived=True,
-        )
-        apply_proposal(updated.candidate_id, OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
-        print(f"{updated.candidate_id} staged_promoted canonical_id=canonical-{updated.candidate_id}")
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "stage-reject":
-        candidate = resolve_stage_candidate(base_dir, args.candidate_id)
-        if candidate.status != "pending":
-            raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
-        updated = update_staged_candidate(
-            base_dir,
-            candidate.candidate_id,
-            "rejected",
-            "swl_cli",
-            args.note,
-        )
-        print(f"{updated.candidate_id} staged_rejected status={updated.status}")
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "canonical-audit":
-        canonical_records = read_json_lines_or_empty(canonical_registry_path(base_dir))
-        print(build_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "ingest-file":
-        result = ingest_local_file(
-            base_dir,
-            resolve_path(args.source_path),
-            dry_run=bool(args.dry_run),
-        )
-        output = build_ingestion_report(result)
-        if bool(args.summary):
-            output = f"{output}\n\n{build_ingestion_summary(result)}"
-        print(output)
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "link":
-        relation = create_knowledge_relation(
-            base_dir,
-            source_object_id=args.source_object_id,
-            target_object_id=args.target_object_id,
-            relation_type=args.relation_type,
-            confidence=float(args.confidence),
-            context=args.context,
-            created_by="swl_cli",
-        )
-        print(build_knowledge_relation_report(relation))
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "unlink":
-        delete_knowledge_relation(base_dir, args.relation_id)
-        print(f"deleted_relation_id: {args.relation_id}")
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "links":
-        relations = list_knowledge_relations(base_dir, args.object_id)
-        print(build_knowledge_relations_report(args.object_id, relations))
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "apply-suggestions":
-        load_state(base_dir, args.task_id)
-        report = apply_relation_suggestions(base_dir, args.task_id, dry_run=bool(args.dry_run))
-        print(build_relation_suggestion_application_report(report), end="")
-        return 0
-
-    if args.command == "knowledge" and args.knowledge_command == "migrate":
-        print(format_knowledge_migration_summary(migrate_file_knowledge_to_sqlite(base_dir, dry_run=args.dry_run)))
-        return 0
+    knowledge_result = handle_knowledge_command(base_dir, args)
+    if knowledge_result is not None:
+        return knowledge_result
 
     meta_optimize_result = handle_meta_optimize_command(base_dir, args)
     if meta_optimize_result is not None:
@@ -2631,183 +2162,21 @@ def main(argv: list[str] | None = None) -> int:
     if proposal_result is not None:
         return proposal_result
 
-    if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "show":
-        print(build_audit_trigger_policy_report(load_audit_trigger_policy(base_dir)), end="")
-        return 0
+    audit_result = handle_audit_command(base_dir, args)
+    if audit_result is not None:
+        return audit_result
 
-    if args.command == "audit" and args.audit_command == "policy" and args.audit_policy_command == "set":
-        policy = load_audit_trigger_policy(base_dir)
-        if args.enabled is not None:
-            policy.enabled = bool(args.enabled)
-        if args.trigger_on_degraded is not None:
-            policy.trigger_on_degraded = bool(args.trigger_on_degraded)
-        if args.clear_trigger_on_cost_above:
-            policy.trigger_on_cost_above = None
-        elif args.trigger_on_cost_above is not None:
-            if args.trigger_on_cost_above < 0:
-                raise ValueError("--trigger-on-cost-above must be non-negative.")
-            policy.trigger_on_cost_above = float(args.trigger_on_cost_above)
-        if args.auditor_route is not None:
-            auditor_route = args.auditor_route.strip()
-            if not auditor_route:
-                raise ValueError("--auditor-route must be a non-empty route name.")
-            if route_by_name(auditor_route) is None:
-                raise ValueError(f"Unknown auditor route: {auditor_route}")
-            policy.auditor_route = auditor_route
-        proposal_id = register_policy_proposal(
-            base_dir=base_dir,
-            proposal_id="audit-trigger-policy",
-            audit_trigger_policy=policy,
-        )
-        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
-        print(build_audit_trigger_policy_report(policy), end="")
-        return 0
+    synthesis_result = handle_synthesis_command(base_dir, args)
+    if synthesis_result is not None:
+        return synthesis_result
 
-    if (
-        args.command == "synthesis"
-        and args.synthesis_command == "policy"
-        and args.synthesis_policy_command == "set"
-    ):
-        proposal_id = register_mps_policy_proposal(
-            base_dir=base_dir,
-            proposal_id=f"mps-policy:{args.kind}",
-            kind=args.kind,
-            value=int(args.value),
-        )
-        result = apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
-        print(f"{args.kind}: {args.value}")
-        print(f"applied: {'yes' if result.success else 'no'}")
-        return 0
-
-    if args.command == "synthesis" and args.synthesis_command == "run":
-        state = load_state(base_dir, args.task_id)
-        config = load_synthesis_config(resolve_path(args.config_path))
-        result = run_synthesis(base_dir, state, config)
-        summary = str(result.payload.get("arbiter_decision", {}).get("synthesis_summary", "")).strip()
-        print(f"{state.task_id} synthesis_completed config_id={config.config_id} artifact={result.path}")
-        if summary:
-            print(summary)
-        return 0
-
-    if args.command == "synthesis" and args.synthesis_command == "stage":
-        task_id = args.task_id.strip()
-        if not task_id:
-            raise ValueError("--task must be a non-empty task id.")
-        load_state(base_dir, task_id)
-        arbitration_path = artifacts_dir(base_dir, task_id) / "synthesis_arbitration.json"
-        if not arbitration_path.exists():
-            raise ValueError(f"Missing synthesis arbitration artifact: {arbitration_path}")
-        arbitration_data = json.loads(arbitration_path.read_text(encoding="utf-8"))
-        if not isinstance(arbitration_data, dict):
-            raise ValueError("synthesis_arbitration.json must contain a JSON object.")
-        config_id = str(arbitration_data.get("config_id", "")).strip()
-        if not config_id:
-            raise ValueError("synthesis arbitration artifact is missing config_id.")
-        arbiter_decision = arbitration_data.get("arbiter_decision", {})
-        if not isinstance(arbiter_decision, dict):
-            raise ValueError("synthesis arbitration artifact is missing arbiter_decision.")
-        synthesis_summary = str(arbiter_decision.get("synthesis_summary", "")).strip()
-        if not synthesis_summary:
-            raise ValueError("synthesis arbitration summary must be non-empty.")
-        duplicate = next(
-            (
-                candidate
-                for candidate in load_staged_candidates(base_dir)
-                if candidate.source_task_id == task_id
-                and candidate.source_object_id == config_id
-                and candidate.status == "pending"
-            ),
-            None,
-        )
-        if duplicate is not None:
-            print(
-                f"Synthesis arbitration is already staged: {duplicate.candidate_id} submitted_at={duplicate.submitted_at}",
-                file=sys.stderr,
-            )
-            return 1
-        candidate = StagedCandidate(
-            candidate_id="",
-            text=synthesis_summary,
-            source_task_id=task_id,
-            topic=str(arbitration_data.get("topic", "")).strip(),
-            source_kind="synthesis",
-            source_ref=str(arbitration_path.relative_to(base_dir)),
-            source_object_id=config_id,
-            submitted_by="cli",
-            taxonomy_role="",
-            taxonomy_memory_authority="",
-        )
-        persisted = submit_staged_candidate(base_dir, candidate)
-        append_event(
-            base_dir,
-            Event(
-                task_id=task_id,
-                event_type="task.synthesis_staged",
-                message="Synthesis arbitration artifact was staged for knowledge review.",
-                payload={
-                    "candidate_id": persisted.candidate_id,
-                    "config_id": config_id,
-                    "source_ref": persisted.source_ref,
-                },
-            ),
-        )
-        print(f"{persisted.candidate_id} synthesis_staged config_id={config_id}")
-        return 0
-
-    if args.command == "route" and args.route_command == "registry" and args.route_registry_command == "show":
-        print(build_route_registry_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "registry" and args.route_registry_command == "apply":
-        registry_path = resolve_path(args.registry_file)
-        route_registry = json.loads(registry_path.read_text(encoding="utf-8"))
-        proposal_id = register_route_metadata_proposal(
-            base_dir=base_dir,
-            proposal_id=f"route-registry:{registry_path.name}",
-            route_registry=route_registry,
-        )
-        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
-        print(build_route_registry_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "policy" and args.route_policy_command == "show":
-        print(build_route_policy_report(base_dir), end="")
-        return 0
-
-    if args.command == "route" and args.route_command == "policy" and args.route_policy_command == "apply":
-        policy_path = resolve_path(args.policy_file)
-        route_policy = load_route_policy_from_path(policy_path)
-        proposal_id = register_route_metadata_proposal(
-            base_dir=base_dir,
-            proposal_id=f"route-policy:{policy_path.name}",
-            route_policy=route_policy,
-        )
-        apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.ROUTE_METADATA)
-        print(build_route_policy_report(base_dir), end="")
-        return 0
+    route_result = handle_route_command(base_dir, args)
+    if route_result is not None:
+        return route_result
 
     route_metadata_result = handle_route_metadata_command(base_dir, args)
     if route_metadata_result is not None:
         return route_metadata_result
-
-    if args.command == "route" and args.route_command == "select":
-        apply_route_registry(base_dir)
-        apply_route_policy(base_dir)
-        apply_route_weights(base_dir)
-        apply_route_fallbacks(base_dir)
-        apply_route_capability_profiles(base_dir)
-        state = load_state(base_dir, args.task_id)
-        selection = select_route(state, args.executor, args.route_mode)
-        print(
-            build_route_selection_report(
-                state.task_id,
-                selection,
-                executor_override=str(args.executor or "").strip(),
-                route_mode_override=str(args.route_mode or "").strip(),
-            ),
-            end="",
-        )
-        return 0
 
     if args.command == "note":
         result = ingest_operator_note(
@@ -2858,276 +2227,14 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return 0
 
-    if args.command == "task" and args.task_command == "create":
-        input_context: dict[str, object] = {}
-        if args.executor.strip() == "literature-specialist" and args.document_paths:
-            document_paths: list[str] = []
-            seen_paths: set[str] = set()
-            for raw_path in args.document_paths:
-                normalized = str(resolve_path(raw_path))
-                if not normalized or normalized in seen_paths:
-                    continue
-                document_paths.append(normalized)
-                seen_paths.add(normalized)
-            if document_paths:
-                input_context["document_paths"] = document_paths
-        state = create_task(
-            base_dir=base_dir,
-            title=args.title.strip(),
-            goal=args.goal.strip(),
-            workspace_root=resolve_path(args.workspace_root),
-            executor_name=args.executor.strip(),
-            input_context=input_context,
-            constraints=args.constraint,
-            acceptance_criteria=args.acceptance_criterion,
-            priority_hints=args.priority_hint,
-            next_action_proposals=args.next_action_proposal,
-            planning_source=args.planning_source,
-            complexity_hint=args.complexity_hint,
-            knowledge_items=args.knowledge_item,
-            knowledge_stage=args.knowledge_stage,
-            knowledge_source=args.knowledge_source,
-            knowledge_artifact_refs=args.knowledge_artifact_ref,
-            knowledge_retrieval_eligible=args.knowledge_retrieval_eligible,
-            knowledge_canonicalization_intent=args.knowledge_canonicalization_intent,
-            capability_refs=args.capability,
-            route_mode=args.route_mode,
-        )
-        print(state.task_id)
-        return 0
+    task_write_result = handle_task_write_command(base_dir, args)
+    if task_write_result is not None:
+        return task_write_result
 
-    if args.command == "task" and args.task_command == "planning-handoff":
-        state = update_task_planning_handoff(
-            base_dir=base_dir,
-            task_id=args.task_id,
-            constraints=args.constraint,
-            acceptance_criteria=args.acceptance_criterion,
-            priority_hints=args.priority_hint,
-            next_action_proposals=args.next_action_proposal,
-            planning_source=args.planning_source,
-            complexity_hint=args.complexity_hint,
-        )
-        print(
-            f"{state.task_id} planning_handoff_updated "
-            f"constraints={len(state.task_semantics.get('constraints', []))} "
-            f"next_actions={len(state.task_semantics.get('next_action_proposals', []))}"
-        )
-        return 0
+    task_read_result = handle_task_read_command(base_dir, args)
+    if task_read_result is not None:
+        return task_read_result
 
-    if args.command == "task" and args.task_command == "knowledge-capture":
-        state = append_task_knowledge_capture(
-            base_dir=base_dir,
-            task_id=args.task_id,
-            knowledge_items=args.knowledge_item,
-            knowledge_stage=args.knowledge_stage,
-            knowledge_source=args.knowledge_source,
-            knowledge_artifact_refs=args.knowledge_artifact_ref,
-            knowledge_retrieval_eligible=args.knowledge_retrieval_eligible,
-            knowledge_canonicalization_intent=args.knowledge_canonicalization_intent,
-        )
-        print(f"{state.task_id} knowledge_capture_added added={len(args.knowledge_item)} total={len(state.knowledge_objects)}")
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-promote":
-        caller_authority = OPERATOR_CANONICAL_WRITE_AUTHORITY if args.target == "canonical" else "task-state"
-        state = decide_task_knowledge(
-            base_dir,
-            args.task_id,
-            object_id=args.object_id,
-            decision_type="promote",
-            decision_target=args.target,
-            caller_authority=caller_authority,
-            note=args.note,
-        )
-        print(f"{state.task_id} knowledge_promoted object={args.object_id} target={args.target}")
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-reject":
-        state = decide_task_knowledge(
-            base_dir,
-            args.task_id,
-            object_id=args.object_id,
-            decision_type="reject",
-            decision_target=args.target,
-            note=args.note,
-        )
-        print(f"{state.task_id} knowledge_rejected object={args.object_id} target={args.target}")
-        return 0
-
-    if args.command == "task" and args.task_command == "run":
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
-
-    if args.command == "task" and args.task_command == "acknowledge":
-        try:
-            state = acknowledge_task(base_dir, args.task_id)
-        except ValueError as exc:
-            state = load_state(base_dir, args.task_id)
-            print(
-                f"{state.task_id} acknowledge_blocked "
-                f"status={state.status} "
-                f"phase={state.phase} "
-                f"dispatch_status={state.topology_dispatch_status} "
-                f"reason={str(exc)}"
-            )
-            return 1
-        print(
-            f"{state.task_id} dispatch_acknowledged "
-            f"status={state.status} "
-            f"phase={state.phase} "
-            f"dispatch_status={state.topology_dispatch_status} "
-            f"route={state.route_name}"
-        )
-        return 0
-
-    if args.command == "task" and args.task_command == "retry":
-        state = load_state(base_dir, args.task_id)
-        if is_acknowledged_dispatch_reentry(state):
-            return execute_task_run(
-                base_dir,
-                args.task_id,
-                args.executor,
-                args.capability,
-                args.route_mode,
-                skip_to_phase=args.from_phase,
-            )
-        retry_policy = read_json_or_empty(retry_policy_path(base_dir, args.task_id))
-        stop_policy = read_json_or_empty(stop_policy_path(base_dir, args.task_id))
-        checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
-        if not (retry_policy.get("retryable", False) and stop_policy.get("checkpoint_kind", "") in {"retry_review", "detached_retry_review"}):
-            print(
-                f"{state.task_id} retry_blocked "
-                f"retry_decision={retry_policy.get('retry_decision', 'pending')} "
-                f"checkpoint_kind={stop_policy.get('checkpoint_kind', 'pending')} "
-                f"suggested_path={checkpoint_snapshot.get('recommended_path', 'pending')}"
-            )
-            return 1
-        return execute_task_run(
-            base_dir,
-            args.task_id,
-            args.executor,
-            args.capability,
-            args.route_mode,
-            reset_grounding=True,
-            skip_to_phase=args.from_phase,
-        )
-
-    if args.command == "task" and args.task_command == "resume":
-        state = load_state(base_dir, args.task_id)
-        if is_acknowledged_dispatch_reentry(state):
-            return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
-        checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
-        if not (checkpoint_snapshot.get("resume_ready", False) and checkpoint_snapshot.get("recommended_path", "") == "resume"):
-            print(
-                f"{state.task_id} resume_blocked "
-                f"checkpoint_state={checkpoint_snapshot.get('checkpoint_state', 'pending')} "
-                f"recommended_path={checkpoint_snapshot.get('recommended_path', 'pending')} "
-                f"suggested_reason={checkpoint_snapshot.get('recommended_reason', 'pending')}"
-            )
-            return 1
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
-
-    if args.command == "task" and args.task_command == "rerun":
-        return execute_task_run(
-            base_dir,
-            args.task_id,
-            args.executor,
-            args.capability,
-            args.route_mode,
-            reset_grounding=True,
-            skip_to_phase=args.from_phase,
-        )
-
-    if args.command == "task" and args.task_command == "list":
-        states = sorted(
-            iter_task_states(base_dir),
-            key=lambda state: (state.updated_at, state.task_id),
-            reverse=True,
-        )
-        states = filter_task_states(states, args.focus)
-        if args.limit is not None:
-            states = states[: max(args.limit, 0)]
-        print(f"task_id\tstatus\tphase\tattempt\tupdated_at\ttitle\tfocus={args.focus}")
-        for state in states:
-            attempt_label = state.current_attempt_id or "-"
-            print(
-                "\t".join(
-                    [
-                        state.task_id,
-                        state.status,
-                        state.phase,
-                        attempt_label,
-                        state.updated_at,
-                        state.title,
-                    ]
-                )
-            )
-        return 0
-
-    if args.command == "task" and args.task_command == "queue":
-        states = sorted(
-            iter_task_states(base_dir),
-            key=lambda state: (state.updated_at, state.task_id),
-            reverse=True,
-        )
-        queue_entries = [entry for state in states if (entry := build_task_queue_entry(base_dir, state)) is not None]
-        if args.limit is not None:
-            queue_entries = queue_entries[: max(args.limit, 0)]
-        print("task_id\taction\tstatus\tattempt\tupdated_at\treason\tregression\tknowledge\tnext\ttitle")
-        for entry in queue_entries:
-            print(
-                "\t".join(
-                    [
-                        entry["task_id"],
-                        entry["action"],
-                        entry["status"],
-                        entry["attempt"],
-                        entry["updated_at"],
-                        entry["reason"],
-                        entry["regression"],
-                        entry["knowledge"],
-                        entry["next"],
-                        entry["title"],
-                    ]
-                )
-            )
-        return 0
-
-    if args.command == "task" and args.task_command == "attempts":
-        state = load_state(base_dir, args.task_id)
-        attempts = build_attempt_summaries(base_dir, args.task_id)
-        print("attempt_id\tattempt_number\tstatus\texecutor_status\texecution_lifecycle\tretrieval_count\thandoff_status\tstarted_at\tfinished_at")
-        for attempt in attempts:
-            print(
-                "\t".join(
-                    [
-                        attempt["attempt_id"],
-                        attempt["attempt_number"],
-                        attempt["status"],
-                        attempt["executor_status"],
-                        attempt["execution_lifecycle"],
-                        attempt["retrieval_count"],
-                        attempt["handoff_status"],
-                        attempt["started_at"],
-                        attempt["finished_at"],
-                    ]
-                )
-            )
-        if not attempts and state.current_attempt_id:
-            print(
-                "\t".join(
-                    [
-                        state.current_attempt_id,
-                        str(state.current_attempt_number or 0),
-                        state.status,
-                        state.executor_status,
-                        state.execution_lifecycle,
-                        str(state.retrieval_count),
-                        "pending",
-                        state.updated_at,
-                        "-",
-                    ]
-                )
-            )
         return 0
 
     if args.command == "task" and args.task_command == "compare-attempts":
@@ -3175,32 +2282,6 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
         decisions = read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id))
         print(build_review_queue_report(build_review_queue(knowledge_objects, decisions)))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-reuse-evaluate":
-        result = evaluate_task_canonical_reuse(
-            base_dir=base_dir,
-            task_id=args.task_id,
-            citations=args.citation,
-            judgment=args.judgment,
-            note=args.note,
-        )
-        print(
-            f"{result['record']['task_id']} canonical_reuse_evaluated judgment={result['record']['judgment']} citations={result['record']['citation_count']}"
-        )
-        return 0
-
-    if args.command == "task" and args.task_command == "consistency-audit":
-        result = run_consistency_audit(
-            base_dir,
-            args.task_id,
-            auditor_route=args.auditor_route,
-            sample_artifact_path=args.artifact,
-        )
-        artifact_ref = result.audit_artifact or "-"
-        print(
-            f"{result.task_id} consistency_audit status={result.status} verdict={result.verdict} route={result.auditor_route} artifact={artifact_ref}"
-        )
         return 0
 
     if args.command == "task" and args.task_command == "inspect":
@@ -3391,30 +2472,6 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(lines))
         return 0
 
-    if args.command == "task" and args.task_command == "capabilities":
-        state = load_state(base_dir, args.task_id)
-        manifest = json.loads(capability_manifest_path(base_dir, args.task_id).read_text(encoding="utf-8"))
-        assembly = json.loads(capability_assembly_path(base_dir, args.task_id).read_text(encoding="utf-8"))
-        lines = [
-            f"Task Capabilities: {state.task_id}",
-            "",
-            "Requested Manifest",
-            f"profile_refs: {', '.join(manifest.get('profile_refs', [])) or '-'}",
-            f"workflow_refs: {', '.join(manifest.get('workflow_refs', [])) or '-'}",
-            f"validator_refs: {', '.join(manifest.get('validator_refs', [])) or '-'}",
-            f"skill_refs: {', '.join(manifest.get('skill_refs', [])) or '-'}",
-            f"tool_refs: {', '.join(manifest.get('tool_refs', [])) or '-'}",
-            "",
-            "Effective Assembly",
-            f"assembly_status: {assembly.get('assembly_status', 'pending')}",
-            f"resolver: {assembly.get('resolver', 'unknown')}",
-            f"effective_profiles: {', '.join(assembly.get('effective', {}).get('profile_refs', [])) or '-'}",
-            f"effective_workflows: {', '.join(assembly.get('effective', {}).get('workflow_refs', [])) or '-'}",
-            f"effective_validators: {', '.join(assembly.get('effective', {}).get('validator_refs', [])) or '-'}",
-            f"notes: {'; '.join(assembly.get('notes', [])) or '-'}",
-        ]
-        print("\n".join(lines))
-        return 0
 
     if args.command == "task" and args.task_command == "review":
         state = load_state(base_dir, args.task_id)
@@ -3567,44 +2624,6 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(lines))
         return 0
 
-    if args.command == "task" and args.task_command == "checkpoint":
-        print((artifacts_dir(base_dir, args.task_id) / "checkpoint_snapshot_report.md").read_text(encoding="utf-8"), end="")
-        return 0
-
-    if args.command == "task" and args.task_command == "policy":
-        state = load_state(base_dir, args.task_id)
-
-        retry_policy = read_json_or_empty(retry_policy_path(base_dir, args.task_id))
-        execution_budget_policy = read_json_or_empty(execution_budget_policy_path(base_dir, args.task_id))
-        stop_policy = read_json_or_empty(stop_policy_path(base_dir, args.task_id))
-        lines = [f"Task Policy: {state.task_id}", f"title: {state.title}", ""]
-        lines.extend(build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy))
-        lines.extend(
-            [
-                "",
-                "Policy Artifacts",
-                f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
-                f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
-                f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
-            ]
-        )
-        print("\n".join(lines))
-        return 0
-
-    if args.command == "task" and args.task_command == "artifacts":
-        state = load_state(base_dir, args.task_id)
-        print(build_grouped_artifact_index(state.artifact_paths), end="")
-        return 0
-
-    if args.command == "task" and args.task_command == "dispatch":
-        state = load_state(base_dir, args.task_id)
-        topology = read_json_or_empty(topology_path(base_dir, args.task_id))
-        if is_mock_remote_task(state, topology):
-            print("[MOCK-REMOTE]")
-        return _print_text_artifact(artifacts_dir(base_dir, args.task_id) / "dispatch_report.md")
-
-    if args.command == "task" and args.task_command in ARTIFACT_PRINTER_DISPATCH:
-        return _dispatch_artifact_printer(args, base_dir)
 
     if args.command == "migrate":
         if bool(args.status):
