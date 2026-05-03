@@ -83,6 +83,30 @@
         flex-wrap: wrap;
       }
 
+      .surface-tabs {
+        display: flex;
+        gap: 6px;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 250, 240, 0.72);
+      }
+
+      .tab-button {
+        min-width: 92px;
+        background: transparent;
+        color: var(--muted);
+        border: 0;
+        box-shadow: none;
+        padding: 8px 12px;
+      }
+
+      .tab-button.is-active {
+        background: linear-gradient(180deg, #0d857b 0%, var(--accent) 100%);
+        color: #f7fffd;
+        box-shadow: 0 8px 20px rgba(15, 118, 110, 0.16);
+      }
+
       button,
       input,
       select,
@@ -127,6 +151,14 @@
         display: grid;
         grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
         gap: 18px;
+      }
+
+      .surface {
+        display: none;
+      }
+
+      .surface.is-active {
+        display: block;
       }
 
       .command-panel {
@@ -511,6 +543,70 @@
         padding: 12px;
       }
 
+      .knowledge-controls {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        padding: 12px;
+        border-bottom: 1px solid rgba(216, 205, 184, 0.85);
+      }
+
+      .knowledge-controls select {
+        width: 100%;
+        border-radius: 14px;
+        background: #f4efe4;
+      }
+
+      .knowledge-detail {
+        display: grid;
+        grid-template-rows: auto auto minmax(140px, 0.7fr) minmax(180px, 0.9fr) minmax(180px, 0.9fr);
+        min-height: 72vh;
+      }
+
+      .knowledge-list {
+        max-height: 66vh;
+      }
+
+      .knowledge-text {
+        min-height: 180px;
+        max-height: 44vh;
+      }
+
+      .source-list,
+      .relation-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 10px;
+        max-height: 100%;
+        overflow: auto;
+      }
+
+      .source-item,
+      .relation-item {
+        border: 1px solid rgba(216, 205, 184, 0.85);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.46);
+        padding: 12px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .relation-group {
+        display: grid;
+        gap: 8px;
+      }
+
+      .relation-group-title {
+        margin: 0;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
       @media (max-width: 980px) {
         .workspace {
           grid-template-columns: 1fr;
@@ -530,6 +626,10 @@
         .task-list {
           max-height: 40vh;
         }
+
+        .knowledge-controls {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
@@ -542,7 +642,11 @@
           <p class="subhead">Local task workbench over <code>.swl/</code>. Inspect status, events, artifacts, and operator actions without leaving the browser.</p>
         </div>
         <div class="toolbar">
-          <select id="focus-select" aria-label="Task focus filter">
+          <div class="surface-tabs" role="tablist" aria-label="Control center surface">
+            <button class="tab-button is-active" id="task-surface-tab" type="button" data-surface="tasks">Tasks</button>
+            <button class="tab-button" id="knowledge-surface-tab" type="button" data-surface="knowledge">Knowledge</button>
+          </div>
+          <select id="focus-select" class="task-toolbar-control" aria-label="Task focus filter">
             <option value="active">active</option>
             <option value="failed">failed</option>
             <option value="recent" selected>recent</option>
@@ -554,6 +658,7 @@
         </div>
       </header>
 
+      <section class="surface is-active" id="task-surface">
       <section class="panel command-panel" id="operator-actions-panel">
         <div class="command-grid">
           <form class="command-block" id="task-create-form">
@@ -730,10 +835,79 @@
           </div>
         </section>
       </main>
+      </section>
+
+      <section class="surface" id="knowledge-surface">
+      <main class="workspace knowledge-workspace">
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Knowledge</h2>
+            <span class="stamp" id="knowledge-count">0 items</span>
+          </div>
+          <div class="knowledge-controls">
+            <select id="knowledge-kind-select" aria-label="Knowledge kind">
+              <option value="wiki">wiki</option>
+              <option value="canonical">canonical</option>
+              <option value="staged">staged</option>
+            </select>
+            <select id="knowledge-status-select" aria-label="Knowledge status"></select>
+          </div>
+          <ul class="task-list knowledge-list" id="knowledge-list">
+            <li class="empty">No knowledge loaded yet.</li>
+          </ul>
+        </section>
+
+        <section class="panel knowledge-detail">
+          <div class="detail-block">
+            <div class="panel-header" style="padding:0; border:0; background:none;">
+              <div>
+                <h2 class="panel-title" id="knowledge-detail-title">Knowledge Detail</h2>
+                <p class="detail-summary" id="knowledge-detail-summary">Select a knowledge object.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="detail-block">
+            <div class="meta-grid" id="knowledge-detail-meta">
+              <p class="empty">No knowledge selected.</p>
+            </div>
+          </div>
+
+          <div class="detail-block">
+            <div class="panel-header" style="padding:0 0 12px; border:0; background:none;">
+              <h3 class="panel-title">Sources</h3>
+              <span class="stamp" id="knowledge-source-count">0</span>
+            </div>
+            <ul class="source-list" id="knowledge-source-list">
+              <li class="empty">Sources will appear here.</li>
+            </ul>
+          </div>
+
+          <div class="detail-block">
+            <div class="panel-header" style="padding:0 0 12px; border:0; background:none;">
+              <h3 class="panel-title">Relations</h3>
+              <span class="stamp" id="knowledge-relation-count">0</span>
+            </div>
+            <div class="relation-list" id="knowledge-relation-list">
+              <p class="empty">Relations will appear here.</p>
+            </div>
+          </div>
+
+          <div class="detail-block">
+            <div class="panel-header" style="padding:0 0 12px; border:0; background:none;">
+              <h3 class="panel-title">Text</h3>
+              <span class="stamp" id="knowledge-text-status">empty</span>
+            </div>
+            <pre class="knowledge-text" id="knowledge-text">No knowledge selected.</pre>
+          </div>
+        </section>
+      </main>
+      </section>
     </div>
 
     <script>
       const state = {
+        surface: "tasks",
         focus: "recent",
         tasks: [],
         artifacts: [],
@@ -743,9 +917,24 @@
         selectedArtifacts: {
           left: "",
           right: ""
+        },
+        knowledge: {
+          kind: "wiki",
+          statusByKind: {
+            wiki: "active",
+            canonical: "active",
+            staged: "pending"
+          },
+          items: [],
+          selectedObjectId: "",
+          detail: null,
+          relations: null
         }
       };
 
+      const taskSurface = document.getElementById("task-surface");
+      const knowledgeSurface = document.getElementById("knowledge-surface");
+      const surfaceTabs = Array.from(document.querySelectorAll("[data-surface]"));
       const focusSelect = document.getElementById("focus-select");
       const refreshButton = document.getElementById("refresh-button");
       const taskCount = document.getElementById("task-count");
@@ -783,6 +972,24 @@
       const proposalReviewPath = document.getElementById("proposal-review-path");
       const proposalReviewNote = document.getElementById("proposal-review-note");
       const taskActionButtons = Array.from(document.querySelectorAll("[data-task-action]"));
+      const knowledgeKindSelect = document.getElementById("knowledge-kind-select");
+      const knowledgeStatusSelect = document.getElementById("knowledge-status-select");
+      const knowledgeCount = document.getElementById("knowledge-count");
+      const knowledgeList = document.getElementById("knowledge-list");
+      const knowledgeDetailTitle = document.getElementById("knowledge-detail-title");
+      const knowledgeDetailSummary = document.getElementById("knowledge-detail-summary");
+      const knowledgeDetailMeta = document.getElementById("knowledge-detail-meta");
+      const knowledgeSourceCount = document.getElementById("knowledge-source-count");
+      const knowledgeSourceList = document.getElementById("knowledge-source-list");
+      const knowledgeRelationCount = document.getElementById("knowledge-relation-count");
+      const knowledgeRelationList = document.getElementById("knowledge-relation-list");
+      const knowledgeTextStatus = document.getElementById("knowledge-text-status");
+      const knowledgeText = document.getElementById("knowledge-text");
+      const knowledgeStatusOptions = {
+        wiki: ["active", "superseded", "all"],
+        canonical: ["active", "superseded", "all"],
+        staged: ["pending", "promoted", "rejected", "all"]
+      };
 
       function escapeHtml(value) {
         return String(value)
@@ -838,6 +1045,211 @@
 
       function statusClass(status) {
         return String(status || "").trim().toLowerCase();
+      }
+
+      function activeKnowledgeStatus() {
+        return state.knowledge.statusByKind[state.knowledge.kind] || "all";
+      }
+
+      function syncKnowledgeStatusOptions() {
+        const options = knowledgeStatusOptions[state.knowledge.kind] || ["all"];
+        knowledgeStatusSelect.innerHTML = options
+          .map((status) => `<option value="${escapeHtml(status)}">${escapeHtml(status)}</option>`)
+          .join("");
+        knowledgeStatusSelect.value = activeKnowledgeStatus();
+      }
+
+      function renderSurface() {
+        taskSurface.classList.toggle("is-active", state.surface === "tasks");
+        knowledgeSurface.classList.toggle("is-active", state.surface === "knowledge");
+        focusSelect.hidden = state.surface !== "tasks";
+        surfaceTabs.forEach((button) => {
+          const isActive = button.dataset.surface === state.surface;
+          button.classList.toggle("is-active", isActive);
+          button.setAttribute("aria-selected", isActive ? "true" : "false");
+        });
+      }
+
+      async function switchSurface(surface) {
+        if (state.surface === surface) {
+          return;
+        }
+        state.surface = surface;
+        renderSurface();
+        await refresh();
+      }
+
+      function knowledgeListPath() {
+        const kind = encodeURIComponent(state.knowledge.kind);
+        const status = encodeURIComponent(activeKnowledgeStatus());
+        return `/api/knowledge/${kind}?status=${status}`;
+      }
+
+      function renderKnowledgeList() {
+        const items = state.knowledge.items;
+        knowledgeCount.textContent = `${items.length} items`;
+        if (!items.length) {
+          knowledgeList.innerHTML = '<li class="empty">No knowledge found for this filter.</li>';
+          return;
+        }
+
+        knowledgeList.innerHTML = items.map((item) => `
+          <li class="task-item ${item.object_id === state.knowledge.selectedObjectId ? "is-active" : ""}" data-knowledge-id="${escapeHtml(item.object_id)}">
+            <div class="task-row">
+              <span class="dot ${statusClass(item.status)}"></span>
+              <span class="task-meta">${escapeHtml(item.object_kind)}</span>
+              <span class="task-meta">${escapeHtml(item.status)}</span>
+            </div>
+            <p class="task-title">${escapeHtml(item.object_id)}</p>
+            <p class="task-goal">${escapeHtml(item.text_preview || "(empty)")}</p>
+          </li>
+        `).join("");
+
+        document.querySelectorAll("[data-knowledge-id]").forEach((item) => {
+          item.addEventListener("click", () => {
+            state.knowledge.selectedObjectId = item.dataset.knowledgeId || "";
+            renderKnowledgeList();
+            void loadKnowledgeDetail();
+          });
+        });
+      }
+
+      function renderKnowledgeMeta(detail) {
+        const fields = [
+          ["object_id", detail.object_id],
+          ["kind", detail.object_kind],
+          ["status", detail.status],
+          ["task_id", detail.task_id],
+          ["canonical_id", detail.canonical_id],
+          ["candidate_id", detail.candidate_id],
+          ["topic", detail.topic],
+          ["updated", detail.updated_at],
+          ["conflict", detail.conflict_flag]
+        ];
+        knowledgeDetailMeta.innerHTML = fields.map(([label, value]) => `
+          <div class="meta-item">
+            <span class="meta-label">${escapeHtml(label)}</span>
+            <span>${escapeHtml(value || "-")}</span>
+          </div>
+        `).join("");
+      }
+
+      function sourcePackRefs(sourcePack) {
+        return sourcePack
+          .map((source) => String(source.source_ref || source.artifact_ref || source.target_ref || source.resolved_ref || "").trim())
+          .filter(Boolean);
+      }
+
+      function renderKnowledgeSources(detail) {
+        const sourcePack = Array.isArray(detail.source_pack) ? detail.source_pack : [];
+        const packedRefs = new Set(sourcePackRefs(sourcePack));
+        const sourceRefs = (detail.source_refs || []).filter((sourceRef) => !packedRefs.has(String(sourceRef)));
+        const count = sourcePack.length + sourceRefs.length;
+        knowledgeSourceCount.textContent = `${count}`;
+        if (!count) {
+          knowledgeSourceList.innerHTML = '<li class="empty">No sources recorded.</li>';
+          return;
+        }
+
+        const sourcePackItems = sourcePack.map((source) => `
+          <li class="source-item">
+            <div>${escapeHtml(source.source_ref || source.artifact_ref || source.target_ref || source.resolved_ref || "source")}</div>
+            <div class="artifact-path">parser=${escapeHtml(source.parser_version || "-")} · span=${escapeHtml(source.span || source.heading_path || "-")}</div>
+            <div class="artifact-path">${escapeHtml(source.content_hash || "")}</div>
+            <div>${escapeHtml(source.preview || "")}</div>
+          </li>
+        `);
+        const sourceRefItems = sourceRefs.map((sourceRef) => `
+          <li class="source-item">
+            <div>${escapeHtml(sourceRef)}</div>
+          </li>
+        `);
+        knowledgeSourceList.innerHTML = sourcePackItems.concat(sourceRefItems).join("");
+      }
+
+      function renderKnowledgeRelations(relations) {
+        const groups = relations && relations.groups ? relations.groups : {};
+        const groupNames = ["supersedes", "refines", "contradicts", "refers_to", "derived_from", "legacy"];
+        const count = groupNames.reduce((total, groupName) => total + ((groups[groupName] || []).length), 0);
+        knowledgeRelationCount.textContent = `${count}`;
+        if (!count) {
+          knowledgeRelationList.innerHTML = '<p class="empty">No relations recorded.</p>';
+          return;
+        }
+
+        knowledgeRelationList.innerHTML = groupNames
+          .filter((groupName) => (groups[groupName] || []).length)
+          .map((groupName) => `
+            <section class="relation-group">
+              <h4 class="relation-group-title">${escapeHtml(groupName)} · ${(groups[groupName] || []).length}</h4>
+              ${(groups[groupName] || []).map((edge) => `
+                <div class="relation-item">
+                  <div>${escapeHtml(edge.direction || "edge")} · ${escapeHtml(edge.edge_source || "")}</div>
+                  <div>${escapeHtml(edge.source_object_id || "-")} -> ${escapeHtml(edge.target_object_id || edge.target_ref || "-")}</div>
+                  <div class="artifact-path">${escapeHtml(edge.context || edge.relation_id || "")}</div>
+                </div>
+              `).join("")}
+            </section>
+          `).join("");
+      }
+
+      function renderKnowledgeDetail(detail, relations) {
+        if (!detail) {
+          knowledgeDetailTitle.textContent = "Knowledge Detail";
+          knowledgeDetailSummary.textContent = "Select a knowledge object.";
+          knowledgeDetailMeta.innerHTML = '<p class="empty">No knowledge selected.</p>';
+          knowledgeSourceCount.textContent = "0";
+          knowledgeSourceList.innerHTML = '<li class="empty">Sources will appear here.</li>';
+          knowledgeRelationCount.textContent = "0";
+          knowledgeRelationList.innerHTML = '<p class="empty">Relations will appear here.</p>';
+          knowledgeTextStatus.textContent = "empty";
+          knowledgeText.textContent = "No knowledge selected.";
+          return;
+        }
+
+        knowledgeDetailTitle.textContent = detail.object_id || "Knowledge Detail";
+        knowledgeDetailSummary.textContent = detail.text_preview || "(empty)";
+        knowledgeTextStatus.textContent = detail.status || "unknown";
+        knowledgeText.textContent = detail.text || "(empty)";
+        renderKnowledgeMeta(detail);
+        renderKnowledgeSources(detail);
+        renderKnowledgeRelations(relations || {});
+      }
+
+      async function loadKnowledgeDetail() {
+        if (!state.knowledge.selectedObjectId) {
+          state.knowledge.detail = null;
+          state.knowledge.relations = null;
+          renderKnowledgeDetail(null, null);
+          return;
+        }
+
+        const encodedObjectId = encodeURIComponent(state.knowledge.selectedObjectId);
+        const [detailPayload, relationsPayload] = await Promise.all([
+          fetchJson(`/api/knowledge/${encodedObjectId}`),
+          fetchJson(`/api/knowledge/${encodedObjectId}/relations`)
+        ]);
+        state.knowledge.detail = commandData(detailPayload).detail;
+        state.knowledge.relations = commandData(relationsPayload);
+        renderKnowledgeDetail(state.knowledge.detail, state.knowledge.relations);
+      }
+
+      async function refreshKnowledge() {
+        syncKnowledgeStatusOptions();
+        const payload = await fetchJson(knowledgeListPath());
+        const data = commandData(payload);
+        state.knowledge.items = data.items || [];
+        if (!state.knowledge.selectedObjectId && state.knowledge.items.length) {
+          state.knowledge.selectedObjectId = state.knowledge.items[0].object_id;
+        }
+        if (
+          state.knowledge.selectedObjectId &&
+          !state.knowledge.items.some((item) => item.object_id === state.knowledge.selectedObjectId)
+        ) {
+          state.knowledge.selectedObjectId = state.knowledge.items[0] ? state.knowledge.items[0].object_id : "";
+        }
+        renderKnowledgeList();
+        await loadKnowledgeDetail();
       }
 
       function renderTaskList() {
@@ -1136,6 +1548,12 @@
       }
 
       async function refresh() {
+        if (state.surface === "knowledge") {
+          await refreshKnowledge();
+          lastRefresh.textContent = `Refreshed ${new Date().toLocaleTimeString()}`;
+          return;
+        }
+
         const payload = await fetchJson(`/api/tasks?focus=${encodeURIComponent(state.focus)}`);
         state.tasks = payload.tasks || [];
         state.artifacts = [];
@@ -1152,6 +1570,12 @@
         lastRefresh.textContent = `Refreshed ${new Date().toLocaleTimeString()}`;
       }
 
+      surfaceTabs.forEach((button) => {
+        button.addEventListener("click", async () => {
+          await switchSurface(button.dataset.surface || "tasks");
+        });
+      });
+
       focusSelect.addEventListener("change", async (event) => {
         state.focus = event.target.value;
         state.selectedTaskId = "";
@@ -1163,6 +1587,24 @@
       refreshButton.addEventListener("click", async () => {
         await refresh();
       });
+
+      knowledgeKindSelect.addEventListener("change", async (event) => {
+        state.knowledge.kind = event.target.value;
+        state.knowledge.selectedObjectId = "";
+        syncKnowledgeStatusOptions();
+        await refreshKnowledge();
+        lastRefresh.textContent = `Refreshed ${new Date().toLocaleTimeString()}`;
+      });
+
+      knowledgeStatusSelect.addEventListener("change", async (event) => {
+        state.knowledge.statusByKind[state.knowledge.kind] = event.target.value;
+        state.knowledge.selectedObjectId = "";
+        await refreshKnowledge();
+        lastRefresh.textContent = `Refreshed ${new Date().toLocaleTimeString()}`;
+      });
+
+      syncKnowledgeStatusOptions();
+      renderSurface();
 
       artifactLeftSelect.addEventListener("change", async (event) => {
         state.selectedArtifacts.left = event.target.value;

@@ -1,0 +1,236 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from unittest.mock import patch
+
+from swallow.knowledge_retrieval.knowledge_plane import (
+    StagedCandidate,
+    TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+    load_task_knowledge_view,
+    list_knowledge_relations,
+    list_staged_knowledge,
+    persist_task_knowledge_view,
+    submit_staged_knowledge,
+)
+from swallow.orchestration.orchestrator import create_task
+from swallow.provider_router.agent_llm import AgentLLMResponse
+from swallow.surface_tools.paths import artifacts_dir
+from tests.helpers.cli_runner import run_cli
+
+
+def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(tmp_path: Path) -> None:
+    state = create_task(
+        base_dir=tmp_path,
+        title="Compile wiki note",
+        goal="Draft a wiki entry from raw notes.",
+        workspace_root=tmp_path,
+    )
+    source = tmp_path / "compiler-source.md"
+    source.write_text("# Compiler\n\nUse staged review before canonical promotion.\n", encoding="utf-8")
+    source_ref = "file://workspace/compiler-source.md"
+
+    with patch(
+        "swallow.surface_tools.wiki_compiler.call_agent_llm",
+        return_value=AgentLLMResponse(
+            content=json.dumps(
+                {
+                    "title": "Wiki Compiler Boundary",
+                    "text": "Wiki Compiler drafts staged knowledge and leaves promotion to Operator review.",
+                    "rationale": "source-1 states the staged review boundary.",
+                    "relation_metadata": [{"relation_type": "derived_from", "target_ref": source_ref}],
+                    "conflict_flag": "",
+                }
+            ),
+            input_tokens=10,
+            output_tokens=20,
+            model="mock-model",
+        ),
+    ) as llm_mock:
+        result = run_cli(
+            tmp_path,
+            "wiki",
+            "draft",
+            "--task-id",
+            state.task_id,
+            "--topic",
+            "compiler",
+            "--source-ref",
+            source_ref,
+        )
+
+    result.assert_success()
+    llm_mock.assert_called_once()
+    assert result.stderr == ""
+    assert "wiki_draft_staged" in result.stdout
+
+    candidates = list_staged_knowledge(tmp_path)
+    assert len(candidates) == 1
+    candidate = candidates[0]
+    assert candidate.submitted_by == "wiki-compiler"
+    assert candidate.wiki_mode == "draft"
+    assert candidate.topic == "compiler"
+    assert candidate.rationale == "source-1 states the staged review boundary."
+    assert candidate.relation_metadata == [{"relation_type": "derived_from", "target_ref": source_ref}]
+    assert candidate.source_pack[0]["source_ref"] == source_ref
+    assert str(candidate.source_pack[0]["content_hash"]).startswith("sha256:")
+    assert candidate.source_pack[0]["parser_version"] == "wiki-compiler-v1"
+    assert candidate.source_pack[0]["span"] == "L1-L3"
+
+    artifact_root = artifacts_dir(tmp_path, state.task_id)
+    assert (artifact_root / "wiki_compiler_prompt_pack.json").exists()
+    assert (artifact_root / "wiki_compiler_result.json").exists()
+
+
+def test_wiki_refine_cli_records_requested_relation_metadata(tmp_path: Path) -> None:
+    state = create_task(
+        base_dir=tmp_path,
+        title="Refine wiki note",
+        goal="Draft a wiki refinement.",
+        workspace_root=tmp_path,
+    )
+    source = tmp_path / "refine-source.md"
+    source.write_text("The existing wiki entry needs a narrower follow-up.\n", encoding="utf-8")
+
+    with patch(
+        "swallow.surface_tools.wiki_compiler.call_agent_llm",
+        return_value=AgentLLMResponse(
+            content=json.dumps(
+                {
+                    "title": "Refined Wiki",
+                    "text": "A narrower wiki entry that refines the target.",
+                    "rationale": "The source narrows the target wiki.",
+                    "relation_metadata": [],
+                    "conflict_flag": "",
+                }
+            ),
+            input_tokens=7,
+            output_tokens=9,
+            model="mock-model",
+        ),
+    ):
+        result = run_cli(
+            tmp_path,
+            "wiki",
+            "refine",
+            "--task-id",
+            state.task_id,
+            "--mode",
+            "refines",
+            "--target",
+            "wiki-target",
+            "--source-ref",
+            "file://workspace/refine-source.md",
+        )
+
+    result.assert_success()
+    candidate = list_staged_knowledge(tmp_path)[0]
+    assert candidate.wiki_mode == "refines"
+    assert candidate.target_object_id == "wiki-target"
+    assert candidate.relation_metadata[0] == {"relation_type": "refines", "target_object_id": "wiki-target"}
+
+
+def test_wiki_refresh_evidence_updates_anchor_without_llm(tmp_path: Path) -> None:
+    state = create_task(
+        base_dir=tmp_path,
+        title="Refresh evidence",
+        goal="Refresh one evidence source anchor.",
+        workspace_root=tmp_path,
+    )
+    source = tmp_path / "evidence.md"
+    source.write_text("# Evidence\n\nFresh source anchor.\n", encoding="utf-8")
+    persist_task_knowledge_view(
+        tmp_path,
+        state.task_id,
+        [
+            {
+                "object_id": "evidence-1",
+                "text": "Old evidence text.",
+                "stage": "raw",
+                "source_kind": "operator",
+                "source_ref": "",
+                "evidence_status": "unbacked",
+            }
+        ],
+    )
+
+    with patch("swallow.surface_tools.wiki_compiler.call_agent_llm", side_effect=AssertionError("LLM must not run")):
+        result = run_cli(
+            tmp_path,
+            "wiki",
+            "refresh-evidence",
+            "--task-id",
+            state.task_id,
+            "--target",
+            "evidence-1",
+            "--source-ref",
+            "file://workspace/evidence.md",
+            "--parser-version",
+            "parser-v2",
+            "--span",
+            "L1-L3",
+        )
+
+    result.assert_success()
+    assert "evidence-1 evidence_refreshed" in result.stdout
+    view = [
+        item
+        for item in load_task_knowledge_view(tmp_path, state.task_id)
+        if item["object_id"] == "evidence-1"
+    ]
+    assert len(view) == 1
+    assert view[0]["parser_version"] == "parser-v2"
+    assert view[0]["span"] == "L1-L3"
+    assert str(view[0]["content_hash"]).startswith("sha256:")
+    assert view[0]["source_ref"] == "file://workspace/evidence.md"
+
+
+def test_stage_promote_creates_refines_relation_from_operator_approved_metadata(tmp_path: Path) -> None:
+    state = create_task(
+        base_dir=tmp_path,
+        title="Promote refinement",
+        goal="Approve a staged wiki refinement.",
+        workspace_root=tmp_path,
+    )
+    persist_task_knowledge_view(
+        tmp_path,
+        state.task_id,
+        [
+            {
+                "object_id": "wiki-target",
+                "text": "Existing wiki entry.",
+                "stage": "canonical",
+                "source_kind": "test",
+                "source_ref": "",
+                "evidence_status": "source_only",
+            }
+        ],
+        write_authority=TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+    )
+    candidate = submit_staged_knowledge(
+        tmp_path,
+        StagedCandidate(
+            candidate_id="",
+            text="Approved refinement.",
+            source_task_id=state.task_id,
+            submitted_by="wiki-compiler",
+            wiki_mode="refines",
+            target_object_id="wiki-target",
+            relation_metadata=[{"relation_type": "refines", "target_object_id": "wiki-target"}],
+        ),
+    )
+
+    result = run_cli(
+        tmp_path,
+        "knowledge",
+        "stage-promote",
+        candidate.candidate_id,
+        "--note",
+        "Approved refinement relation.",
+    )
+
+    result.assert_success()
+    relations = list_knowledge_relations(tmp_path, f"canonical-{candidate.candidate_id}")
+    assert len(relations) == 1
+    assert relations[0]["relation_type"] == "refines"
+    assert relations[0]["counterparty_object_id"] == "wiki-target"

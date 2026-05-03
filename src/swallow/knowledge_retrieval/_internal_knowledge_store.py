@@ -189,6 +189,13 @@ def iter_file_knowledge_task_ids(base_dir: Path) -> list[str]:
     return sorted(task_ids)
 
 
+def iter_knowledge_task_ids(base_dir: Path) -> list[str]:
+    task_ids = set(iter_file_knowledge_task_ids(base_dir))
+    if _sqlite_knowledge_enabled():
+        task_ids.update(_sqlite_store().iter_knowledge_task_ids(base_dir))
+    return sorted(task_ids)
+
+
 def load_task_evidence_entries(base_dir: Path, task_id: str) -> list[dict[str, object]]:
     if _sqlite_knowledge_enabled():
         sqlite_store = _sqlite_store()

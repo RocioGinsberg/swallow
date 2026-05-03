@@ -28,6 +28,14 @@ from swallow.application.queries.control_center import (
     build_task_subtask_tree_payload,
     build_tasks_payload,
 )
+from swallow.application.queries.knowledge import (
+    KnowledgeObjectNotFoundError,
+    build_canonical_knowledge_payload,
+    build_knowledge_detail_payload,
+    build_knowledge_relations_payload,
+    build_staged_knowledge_payload,
+    build_wiki_knowledge_payload,
+)
 from swallow.adapters.http.exceptions import TaskActionBlockedError
 
 
@@ -80,6 +88,9 @@ def create_fastapi_app(base_dir: Path):
         from swallow.adapters.http.schemas import (
             CandidateEnvelope,
             CreateTaskRequest,
+            KnowledgeDetailEnvelope,
+            KnowledgeListEnvelope,
+            KnowledgeRelationsEnvelope,
             ProposalApplyEnvelope,
             ProposalApplyRequest,
             ProposalReviewEnvelope,
@@ -115,6 +126,10 @@ def create_fastapi_app(base_dir: Path):
     @app.exception_handler(TaskActionBlockedError)
     def task_action_blocked_handler(_request: Request, exc: TaskActionBlockedError) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": exc.detail})
+
+    @app.exception_handler(KnowledgeObjectNotFoundError)
+    def knowledge_object_not_found_handler(_request: Request, exc: KnowledgeObjectNotFoundError) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": str(exc)})
 
     @app.exception_handler(ValueError)
     def value_error_handler(_request: Request, exc: ValueError) -> JSONResponse:
@@ -261,6 +276,50 @@ def create_fastapi_app(base_dir: Path):
     @app.get("/api/tasks/{task_id}/knowledge")
     def task_knowledge(task_id: str, request_base_dir: Path = Depends(get_base_dir)) -> dict[str, object]:
         return build_task_knowledge_payload(request_base_dir, task_id)
+
+    @app.get("/api/knowledge/wiki", response_model=KnowledgeListEnvelope)
+    def knowledge_wiki(
+        status: str = "active",
+        limit: int = 50,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> KnowledgeListEnvelope:
+        return KnowledgeListEnvelope.from_payload(
+            build_wiki_knowledge_payload(request_base_dir, status=status, limit=limit)
+        )
+
+    @app.get("/api/knowledge/canonical", response_model=KnowledgeListEnvelope)
+    def knowledge_canonical(
+        status: str = "active",
+        limit: int = 50,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> KnowledgeListEnvelope:
+        return KnowledgeListEnvelope.from_payload(
+            build_canonical_knowledge_payload(request_base_dir, status=status, limit=limit)
+        )
+
+    @app.get("/api/knowledge/staged", response_model=KnowledgeListEnvelope)
+    def knowledge_staged(
+        status: str = "pending",
+        limit: int = 50,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> KnowledgeListEnvelope:
+        return KnowledgeListEnvelope.from_payload(
+            build_staged_knowledge_payload(request_base_dir, status=status, limit=limit)
+        )
+
+    @app.get("/api/knowledge/{object_id}", response_model=KnowledgeDetailEnvelope)
+    def knowledge_detail(
+        object_id: str,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> KnowledgeDetailEnvelope:
+        return KnowledgeDetailEnvelope.from_payload(build_knowledge_detail_payload(request_base_dir, object_id))
+
+    @app.get("/api/knowledge/{object_id}/relations", response_model=KnowledgeRelationsEnvelope)
+    def knowledge_relations(
+        object_id: str,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> KnowledgeRelationsEnvelope:
+        return KnowledgeRelationsEnvelope.from_payload(build_knowledge_relations_payload(request_base_dir, object_id))
 
     @app.get("/api/tasks/{task_id}/subtask-tree")
     def task_subtask_tree(task_id: str, request_base_dir: Path = Depends(get_base_dir)) -> dict[str, object]:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from swallow._io_helpers import read_json_lines_or_empty
@@ -51,6 +51,7 @@ __all__ = [
 class StagePromoteCommandResult:
     candidate: StagedCandidate
     notices: list[dict[str, str]]
+    relation_records: list[dict[str, object]] = field(default_factory=list)
 
 
 class StagePromotePreflightError(ValueError):
@@ -108,6 +109,10 @@ def build_stage_canonical_record(
         "canonical_status": "active",
         "superseded_by": "",
         "superseded_at": "",
+        "source_pack": candidate.source_pack,
+        "rationale": candidate.rationale,
+        "relation_metadata": candidate.relation_metadata,
+        "conflict_flag": candidate.conflict_flag,
     }
 
 
@@ -156,6 +161,16 @@ def build_stage_promote_preflight_notices(
                     "text_preview": summarize_text_preview(str(active_match.get("text", "")), 60),
                 }
             )
+    if candidate.conflict_flag or any(
+        str(item.get("relation_type", "")).strip() == "contradicts" for item in candidate.relation_metadata
+    ):
+        notices.append(
+            {
+                "notice_type": "conflict",
+                "canonical_id": candidate.target_object_id or candidate.source_object_id or candidate.candidate_id,
+                "text_preview": summarize_text_preview(candidate.conflict_flag or candidate.text, 60),
+            }
+        )
     return notices
 
 
@@ -174,6 +189,8 @@ def promote_stage_candidate_command(
     notices = build_stage_promote_preflight_notices(canonical_records, candidate)
     if any(notice.get("notice_type") == "supersede" for notice in notices) and not force:
         raise StagePromotePreflightError("Supersede notice detected; rerun with --force to confirm promotion.", notices)
+    if any(notice.get("notice_type") == "conflict" for notice in notices) and not force:
+        raise StagePromotePreflightError("Conflict notice detected; rerun with --force to confirm promotion.", notices)
     decision_note = note.strip()
     if refined_text.strip():
         decision_note = f"{decision_note} [refined]".strip() if decision_note else "[refined]"
@@ -193,7 +210,8 @@ def promote_stage_candidate_command(
         refresh_derived=True,
     )
     apply_proposal(updated.candidate_id, OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
-    return StagePromoteCommandResult(candidate=updated, notices=notices)
+    relation_records = _create_promoted_relation_records(base_dir, updated)
+    return StagePromoteCommandResult(candidate=updated, notices=notices, relation_records=relation_records)
 
 
 def reject_stage_candidate_command(base_dir: Path, candidate_id: str, *, note: str) -> StagedCandidate:
@@ -249,3 +267,27 @@ def apply_relation_suggestions_command(base_dir: Path, task_id: str, *, dry_run:
 
 def migrate_knowledge_command(base_dir: Path, *, dry_run: bool = False) -> dict[str, object]:
     return migrate_file_knowledge_to_sqlite(base_dir, dry_run=dry_run)
+
+
+def _create_promoted_relation_records(base_dir: Path, candidate: StagedCandidate) -> list[dict[str, object]]:
+    source_object_id = candidate.source_object_id.strip() or f"canonical-{candidate.candidate_id}"
+    created: list[dict[str, object]] = []
+    for item in candidate.relation_metadata:
+        relation_type = str(item.get("relation_type", "")).strip()
+        if relation_type != "refines":
+            continue
+        target_object_id = str(item.get("target_object_id", "")).strip()
+        if not target_object_id:
+            continue
+        created.append(
+            create_knowledge_relation(
+                base_dir,
+                source_object_id=source_object_id,
+                target_object_id=target_object_id,
+                relation_type="refines",
+                confidence=1.0,
+                context=f"Operator promoted staged candidate {candidate.candidate_id}.",
+                created_by="swl_cli",
+            )
+        )
+    return created

@@ -168,6 +168,9 @@ def build_stage_candidate_list_report(candidates: list[StagedCandidate]) -> str:
                 f"  source_object_id: {candidate.source_object_id or 'none'}",
                 f"  submitted_by: {candidate.submitted_by or 'unknown'}",
                 f"  taxonomy: {candidate.taxonomy_role or '-'} / {candidate.taxonomy_memory_authority or '-'}",
+                f"  wiki_mode: {candidate.wiki_mode or '-'}",
+                f"  target_object_id: {candidate.target_object_id or '-'}",
+                f"  conflict_flag: {candidate.conflict_flag or '-'}",
                 f"  submitted_at: {candidate.submitted_at}",
                 f"  text: {preview or '(empty)'}",
             ]
@@ -189,9 +192,17 @@ def build_stage_candidate_inspect_report(candidate: StagedCandidate) -> str:
             f"submitted_at: {candidate.submitted_at}",
             f"taxonomy_role: {candidate.taxonomy_role or '-'}",
             f"taxonomy_memory_authority: {candidate.taxonomy_memory_authority or '-'}",
+            f"wiki_mode: {candidate.wiki_mode or '-'}",
+            f"target_object_id: {candidate.target_object_id or '-'}",
+            f"source_pack_count: {len(candidate.source_pack)}",
+            f"relation_metadata_count: {len(candidate.relation_metadata)}",
+            f"conflict_flag: {candidate.conflict_flag or '-'}",
             f"decided_at: {candidate.decided_at or '-'}",
             f"decided_by: {candidate.decided_by or '-'}",
             f"decision_note: {candidate.decision_note or '-'}",
+            "",
+            "Rationale",
+            candidate.rationale or "(empty)",
             "",
             "Text",
             candidate.text or "(empty)",
@@ -207,6 +218,8 @@ def format_stage_promote_preflight_notice(notice: dict[str, str]) -> str:
         return f"[SUPERSEDE] canonical_id={canonical_id} text={text_preview}"
     if notice_type == "idempotent":
         return f"[IDEMPOTENT] canonical_id={canonical_id} text={text_preview}"
+    if notice_type == "conflict":
+        return f"[CONFLICT] target={canonical_id} text={text_preview}"
     return f"[NOTICE] canonical_id={canonical_id} text={text_preview}"
 
 

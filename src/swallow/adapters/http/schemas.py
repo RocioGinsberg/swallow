@@ -67,6 +67,97 @@ class WebResponseModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class KnowledgeSummary(WebResponseModel):
+    object_id: str
+    object_kind: str
+    status: str
+    text_preview: str
+    source_refs: list[str] = Field(default_factory=list)
+    task_id: str = ""
+    canonical_id: str = ""
+    candidate_id: str = ""
+    topic: str = ""
+    updated_at: str = ""
+
+
+class KnowledgeListEnvelopeData(WebResponseModel):
+    count: int
+    items: list[KnowledgeSummary]
+    filters: dict[str, Any]
+
+
+class KnowledgeListEnvelope(WebResponseModel):
+    ok: Literal[True] = True
+    data: KnowledgeListEnvelopeData
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "KnowledgeListEnvelope":
+        return cls(data=KnowledgeListEnvelopeData(**payload))
+
+
+class KnowledgeDetail(KnowledgeSummary):
+    text: str = ""
+    source_pack: list[dict[str, Any]] = Field(default_factory=list)
+    rationale: str = ""
+    relation_metadata: list[dict[str, Any]] = Field(default_factory=list)
+    conflict_flag: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class KnowledgeDetailEnvelopeData(WebResponseModel):
+    detail: KnowledgeDetail
+
+
+class KnowledgeDetailEnvelope(WebResponseModel):
+    ok: Literal[True] = True
+    data: KnowledgeDetailEnvelopeData
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "KnowledgeDetailEnvelope":
+        return cls(data=KnowledgeDetailEnvelopeData(**payload))
+
+
+class KnowledgeRelationEdge(WebResponseModel):
+    relation_id: str = ""
+    relation_type: str
+    direction: str
+    source_object_id: str = ""
+    target_object_id: str = ""
+    counterparty_object_id: str = ""
+    confidence: float = 1.0
+    context: str = ""
+    created_at: str = ""
+    created_by: str = ""
+    edge_source: str
+    target_ref: str = ""
+    source_ref: str = ""
+
+
+class KnowledgeRelationGroups(WebResponseModel):
+    supersedes: list[KnowledgeRelationEdge] = Field(default_factory=list)
+    refines: list[KnowledgeRelationEdge] = Field(default_factory=list)
+    contradicts: list[KnowledgeRelationEdge] = Field(default_factory=list)
+    refers_to: list[KnowledgeRelationEdge] = Field(default_factory=list)
+    derived_from: list[KnowledgeRelationEdge] = Field(default_factory=list)
+    legacy: list[KnowledgeRelationEdge] = Field(default_factory=list)
+
+
+class KnowledgeRelationsEnvelopeData(WebResponseModel):
+    object_id: str
+    object_kind: str
+    count: int
+    groups: KnowledgeRelationGroups
+
+
+class KnowledgeRelationsEnvelope(WebResponseModel):
+    ok: Literal[True] = True
+    data: KnowledgeRelationsEnvelopeData
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "KnowledgeRelationsEnvelope":
+        return cls(data=KnowledgeRelationsEnvelopeData(**payload))
+
+
 class TaskResponse(WebResponseModel):
     task_id: str
     status: str

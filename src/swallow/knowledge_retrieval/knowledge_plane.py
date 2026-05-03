@@ -21,6 +21,7 @@ from swallow.knowledge_retrieval import knowledge_objects as _knowledge_objects
 from swallow.knowledge_retrieval import knowledge_partition as _knowledge_partition
 from swallow.knowledge_retrieval import knowledge_policy as _knowledge_policy
 from swallow.knowledge_retrieval import knowledge_review as _knowledge_review
+from swallow.knowledge_retrieval import raw_material as _raw_material
 from swallow.knowledge_retrieval import retrieval as _retrieval
 from swallow.knowledge_retrieval.dialect_adapters import ClaudeXMLDialect, FIMDialect
 from swallow.orchestration.models import RetrievalItem, RetrievalRequest, TaskState
@@ -30,6 +31,10 @@ IngestionPipelineResult = _ingestion_pipeline.IngestionPipelineResult
 EvidencePack = _evidence_pack.EvidencePack
 SourcePointer = _evidence_pack.SourcePointer
 GroundingEntry = _grounding.GroundingEntry
+FilesystemRawMaterialStore = _raw_material.FilesystemRawMaterialStore
+InvalidRawMaterialRef = _raw_material.InvalidRawMaterialRef
+RawMaterialRef = _raw_material.RawMaterialRef
+UnsupportedRawMaterialScheme = _raw_material.UnsupportedRawMaterialScheme
 
 CANONICAL_KNOWLEDGE_WRITE_AUTHORITIES = _knowledge_store.CANONICAL_KNOWLEDGE_WRITE_AUTHORITIES
 LIBRARIAN_AGENT_WRITE_AUTHORITY = _knowledge_store.LIBRARIAN_AGENT_WRITE_AUTHORITY
@@ -41,6 +46,30 @@ EXTERNAL_SESSION_SOURCE_KIND = _ingestion_pipeline.EXTERNAL_SESSION_SOURCE_KIND
 DEFAULT_EXECUTOR = _dialect_data.DEFAULT_EXECUTOR
 ARTIFACTS_SOURCE_TYPE = _retrieval.ARTIFACTS_SOURCE_TYPE
 KNOWLEDGE_SOURCE_TYPE = _retrieval.KNOWLEDGE_SOURCE_TYPE
+
+
+def parse_raw_material_source_ref(source_ref: str) -> RawMaterialRef:
+    return _raw_material.parse_source_ref(source_ref)
+
+
+def parse_raw_material_source_ref_scheme(source_ref: str) -> str:
+    return _raw_material.parse_source_ref_scheme(source_ref)
+
+
+def source_ref_for_local_file(path: Path, *, workspace_root: Path | None = None) -> str:
+    return _raw_material.source_ref_for_file(path, workspace_root=workspace_root)
+
+
+def source_ref_for_task_artifact(task_id: str, artifact_name: str) -> str:
+    return _raw_material.source_ref_for_artifact(task_id, artifact_name)
+
+
+def source_ref_for_legacy_artifact_ref(artifact_ref: str) -> str:
+    return _raw_material.artifact_source_ref_from_legacy_ref(artifact_ref)
+
+
+def load_raw_material_bytes(store: FilesystemRawMaterialStore, source_ref: str) -> bytes:
+    return _raw_material.resolve_raw_material(store, source_ref)
 
 
 def list_staged_knowledge(base_dir: Path) -> list[StagedCandidate]:
@@ -136,6 +165,10 @@ def build_staged_canonical_key(*, source_task_id: str, source_object_id: str, ca
 
 def resolve_knowledge_object_id(base_dir: Path, object_id: str, **kwargs: Any) -> str:
     return _canonical_registry.resolve_knowledge_object_id(base_dir, object_id, **kwargs)
+
+
+def load_canonical_registry_records(base_dir: Path) -> list[dict[str, object]]:
+    return _canonical_registry.load_canonical_registry_records(base_dir)
 
 
 def build_canonical_registry_index(records: list[dict[str, object]]) -> dict[str, object]:
@@ -243,6 +276,10 @@ def persist_wiki_entry_from_canonical_record(
 
 def iter_file_knowledge_task_ids(base_dir: Path) -> list[str]:
     return _knowledge_store.iter_file_knowledge_task_ids(base_dir)
+
+
+def iter_knowledge_task_ids(base_dir: Path) -> list[str]:
+    return _knowledge_store.iter_knowledge_task_ids(base_dir)
 
 
 def migrate_file_knowledge_to_sqlite(base_dir: Path, *, dry_run: bool = False) -> dict[str, object]:
