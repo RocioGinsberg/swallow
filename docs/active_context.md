@@ -12,18 +12,31 @@
 - latest_completed_phase: `LTO-9 Step 2 — broad CLI command-family migration`
 - latest_completed_slice: `cli.py 3653 → 2672 行 (-27%) + application/commands 写命令完整化`
 - active_track: `Architecture / Engineering`
-- active_phase: `awaiting Direction Gate (LTO-8 Step 2 default)`
-- active_slice: `post-merge state synced; ready for LTO-8 Step 2 plan kickoff`
+- active_phase: `LTO-8 Step 2 — harness decomposition`
+- active_slice: `plan_audit concerns absorbed; awaiting Human Plan Gate`
 - active_branch: `main`
-- status: `lto9_step2_merged_lto10_closed_lto8_step2_default_next`
+- status: `lto8_step2_plan_audit_absorbed_awaiting_plan_gate`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`,工作树干净。LTO-9 Step 2 已合并到主线:
+当前 git 分支为 `main`。LTO-9 Step 2 已合并到主线:
 
-- `1251c3c LTO-9 Step 2 — broad CLI command-family migration` (HEAD)
+- `4229680 docs(state): update roadmap` (HEAD)
+- `1251c3c LTO-9 Step 2 — broad CLI command-family migration` (merge commit)
 
 LTO-9 Step 2 完整事实与 milestone 细节见 `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md`(本文不复制)。
+
+LTO-8 Step 2 plan 已由 Codex 起草:
+
+- `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`
+- Plan 选择:把 `harness.py` 压成 import-compatible thin facade;`run_retrieval` / `run_execution` / `write_task_artifacts` 通过 wrapper 保持 patch target,实现逻辑按 retrieval / execution attempts / artifact writer / task report 模块拆分。
+- 关键新增设计点:明确 helper-side `append_event` allowlist,仅允许 retrieval / executor / policy / artifact completion telemetry event,不得发 state-transition / waiting_human 类事件。
+- Plan audit 5 条 concern 已吸收进 `plan.md`:
+  - 新增 `Plan Audit Absorption` 节逐条记录 C-1..C-5 resolution。
+  - M4 指定 `tests/test_invariant_guards.py::test_harness_helper_modules_only_emit_allowlisted_event_kinds` 作为 allowlist enforcement。
+  - M5 指定 7 个 `write_task_artifacts` policy blocks、event order characterization 与 `test_grounding.py::test_write_task_artifacts_preserves_waiting_human_checkpoint_state` gate。
+  - Scope/M1/M2/M3/M5 明确保留 `harness.py` builder re-export、`orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` patch targets。
+  - M1/M2 命名新增测试文件:`tests/unit/orchestration/test_harness_facade.py` 与 `tests/unit/orchestration/test_task_report_module.py`。
 
 **簇 C 状态盘点**:LTO-7 / LTO-9(Step 1+Step 2)/ LTO-10 已完全终结;**只剩 LTO-8 Step 2(`harness.py` 拆分,含 event-kind allowlist 新设计点)作为簇 C 终结 phase**。LTO-9 Step 2 顺带完成 application/commands 写命令完整化(原 LTO-5 应用边界部分)。
 
@@ -73,6 +86,8 @@ LTO-7 long-running follow-ups(仍开放):
 12. `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md`
 13. `docs/plans/surface-cli-meta-optimizer-split-step2/review_comments.md`
 14. `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(LTO-8 Step 2 brief,335 行,已就绪)
+15. `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`(LTO-8 Step 2 plan;257 行)
+16. `docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md`(has-concerns,0 blockers / 5 concerns)
 
 ## 当前推进
 
@@ -82,6 +97,28 @@ LTO-7 long-running follow-ups(仍开放):
 - **[Claude / roadmap-updater]** `docs/roadmap.md` 一次性完成 8 项结构调整:
   - LTO-9 Step 2 + LTO-10 完成同步、LTO-3 归档、LTO-5 重命名为 Repository / Persistence Ports、新增 LTO-13、§三 当前 ticket 切到 LTO-8 Step 2、§四 加 LTO-3 归档与 tag 决策、§五 推荐顺序加入 LTO-13。
 - **[Claude]** Roadmap 轻量校正(4 处一致性):§二 簇 B 子标题、§二 簇 C 子标题与说明、§三 副标题、§二 总开头 LTO-3 归档说明对齐。
+- **[Human]** Direction Gate 已通过:针对下一方向生成 LTO-8 Step 2 `plan.md`。
+- **[Codex]** 已起草 LTO-8 Step 2 plan:
+  - `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`
+  - 5 milestone:M1 baseline/facade characterization;M2 retrieval/report split;M3 artifact layout/record split;M4 execution attempts/telemetry split;M5 write pipeline cleanup/facade reduction。
+  - Plan 明确 `harness.py` 保持 import-compatible facade,并在 M4 预先定义 helper-side event allowlist。
+- **[Claude / design-auditor]** Produced plan audit:
+  - `docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md`
+  - verdict: `has-concerns`, 0 blockers / 5 concerns
+  - 三条具体代码级 concern 经独立交叉验证:`test_cli.py:36-39` 直接 import 4 个 harness builder 符号(CONCERN-3 成立);`test_debate_loop.py` 5 处 + `test_librarian_executor.py` patch 在 `orchestrator.*` scope(CONCERN-4 成立);`tests/unit/orchestration/` 已存在 6 个测试文件,M1 acceptance 未命名新增文件(CONCERN-5 成立)。
+- **[Claude]** Plan audit concerns 概览(均非 blocker):
+  - CONCERN-1 (M4): `append_event` allowlist 是新 invariant 设计点但**没有 source-text 测试支撑**;需要命名 guard(如 `test_harness_helper_modules_only_emit_allowlisted_event_kinds`),扫描 helper 模块对禁止 event kind 字符串的引用。
+  - CONCERN-2 (M5): `write_task_artifacts` decomposition acceptance hand-wavy — 没列出具体子 helper、没有 sequential `append_event` 顺序的 characterization 测试、`test_grounding.py:205` 的 `waiting_human` rollback 测试未被命名为 binding gate。
+  - CONCERN-3 (M3): `test_cli.py` 直接从 `swallow.orchestration.harness` import 4 个 builder 符号(`build_remote_handoff_contract_record` / `build_resume_note` / `build_retrieval_report` / `build_source_grounding`),不在 plan §6 patch-target preservation 列表;M2/M3 移动后必须在 `harness.py` 保留 re-export wrapper,否则 import break。
+  - CONCERN-4 (M2/M5): `test_debate_loop.py`(5 处)与 `test_librarian_executor.py` patch 在 `orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` scope,plan §6 仅列了 `harness.*` patch target,未明确 `orchestrator.py` 中 re-import 这两个符号的 wrapper 也必须保持稳定。
+  - CONCERN-5 (M1): M1 acceptance "add or expand unit tests" 太弱,未命名要在 `tests/unit/orchestration/` 创建的新测试文件;Step 1 / LTO-9 Step 2 precedent 都要求显式命名。
+- **[Codex]** 已吸收 5 条 plan_audit concern 到 `plan.md`:
+  - 新增 `Plan Audit Absorption` 节,逐条记录 C-1..C-5 resolution。
+  - C-1: M4 加入 named invariant guard `test_harness_helper_modules_only_emit_allowlisted_event_kinds`,扫描 helper module event kind allowlist。
+  - C-2: M5 加入 7 个 policy evaluation blocks 目标、sequential event order characterization、`test_grounding.py::test_write_task_artifacts_preserves_waiting_human_checkpoint_state` binding gate。
+  - C-3: Scope/M1/M2/M3 明确 `harness.py` compatibility exports 包括 `test_cli.py` 直接 import 的 builder 符号。
+  - C-4: Scope/M2/M5 明确 `orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` patch targets 需保持,并把 `tests/test_debate_loop.py` / `tests/test_librarian_executor.py` 加入 gate。
+  - C-5: M1/M2 命名新增测试文件 `tests/unit/orchestration/test_harness_facade.py` / `tests/unit/orchestration/test_task_report_module.py`。
 
 进行中:
 
@@ -89,14 +126,11 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Direction Gate 默认确认 LTO-8 Step 2 为下阶段;若需重新评估方向(例如先 LTO-13 / Wiki Compiler / 其他)需显式说明。
-- **[Codex]** Direction Gate 通过后起草 LTO-8 Step 2 `plan.md`(基于 `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`,目标路径同目录下 `plan.md`)。
-- **[Claude / design-auditor]** plan.md 产出后 plan audit。
-- **[Human]** Plan Gate;通过后切 `feat/orchestration-lifecycle-decomposition-step2`(或 Codex 推荐其他名)。
+- **[Human]** Plan Gate(吸收完成后)。
 
 当前阻塞项:
 
-- 无 blocker。等待 Human Direction Gate(默认 LTO-8 Step 2)。
+- 无 plan blocker。等待 Human Plan Gate 审批 `plan.md`。
 
 ## Tag 状态
 
@@ -106,24 +140,27 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** Direction Gate:默认确认 LTO-8 Step 2 为下阶段;若需调整请显式说明。
-2. **[Codex]** 起草 `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`(brief 已就绪,335 行)。
-3. **[Claude / design-auditor]** plan.md 产出后 plan audit。
-4. **[Human]** Plan Gate。
+1. **[Human]** Plan Gate;通过后切 `feat/orchestration-lifecycle-decomposition-step2`。
+2. **[Codex]** Plan Gate 通过且 feature branch 就绪后开始 M1。
 
 ```markdown
-direction_gate:
+plan_gate:
 - latest_completed_phase: LTO-9 Step 2 — broad CLI command-family migration
-- merge_commit: 1251c3c LTO-9 Step 2 — broad CLI command-family migration
+- merge_commit (prior): 1251c3c LTO-9 Step 2 — broad CLI command-family migration
 - active_branch: main
-- cluster_c_status: LTO-7 + LTO-9 + LTO-10 fully closed; LTO-8 Step 2 is the only remaining cluster C phase
-- candidate_next_phase: LTO-8 Step 2 (default; brief ready) | LTO-13 (after cluster C closure) | other
+- active_phase: LTO-8 Step 2 — harness decomposition (cluster C closure phase)
+- active_slice: plan_audit concerns absorbed; awaiting Human Plan Gate
+- cluster_c_status: LTO-7 + LTO-9 + LTO-10 fully closed; LTO-8 Step 2 = cluster C closure
 - roadmap: docs/roadmap.md current ticket = LTO-8 Step 2; next choice = LTO-13; candidates = Wiki Compiler / other LTOs
+- context_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines)
+- plan: docs/plans/orchestration-lifecycle-decomposition-step2/plan.md (audit concerns absorbed)
+- plan_audit: docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md
+- audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed in plan.md
 - closeout (prior phase): docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md (status final)
-- review (prior phase): recommend-merge after fixes; 0 blockers; 3 polish concerns absorbed/recorded
-- structural changes: LTO-3 archived; LTO-5 renamed/redefined as Repository / Persistence Ports; LTO-13 added (FastAPI Local Web UI Write Surface)
+- review (prior phase): recommend-merge after fixes; 0 blockers; 3 polish concerns
+- new_invariant_design_point: helper-side append_event allowlist (12 telemetry kinds; state-transition kinds disallowed)
 - tag_decision: defer v1.6.0 until LTO-8 Step 2 merge (cluster C closure)
-- next_gate: Human direction → Codex plan.md → Claude plan_audit → Human Plan Gate
+- next_gate: Human Plan Gate → branch creation
 ```
 
 ## 当前产出物
@@ -132,4 +169,6 @@ direction_gate:
 - `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md`(codex, 2026-05-03, LTO-9 Step 2 closeout final)
 - `docs/plans/surface-cli-meta-optimizer-split-step2/review_comments.md`(claude, 2026-05-03, recommend-merge after fixes)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-8 Step 2 事实盘点;direction gate 通过后启用)
-- `docs/active_context.md`(claude, 2026-05-03, post-merge state synced;awaiting Direction Gate;tag 评估记录)
+- `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`(codex, 2026-05-03, LTO-8 Step 2 harness decomposition plan;已吸收 plan_audit 5 条 concern)
+- `docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns, 0 blockers / 5 concerns)
+- `docs/active_context.md`(codex, 2026-05-03, LTO-8 Step 2 plan_audit concern 吸收后切到 Human Plan Gate)
