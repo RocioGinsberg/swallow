@@ -60,6 +60,9 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertIn("id=\"proposal-review-form\"", payload)
         self.assertIn("/api/tasks?focus=", payload)
         self.assertIn('postJson("/api/tasks"', payload)
+        self.assertIn("action_eligibility", payload)
+        self.assertIn("pendingTaskAction", payload)
+        self.assertIn("data-task-action=\"run\"", payload)
         self.assertIn("/api/tasks/${encodeURIComponent(state.selectedTaskId)}/${action}", payload)
         self.assertIn("/api/knowledge/staged/${encodeURIComponent(stagedCandidateId.value)}/promote", payload)
         self.assertIn("/api/knowledge/staged/${encodeURIComponent(stagedCandidateId.value)}/reject", payload)
@@ -105,6 +108,14 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertIn("/api/knowledge/staged/{candidate_id}/reject", route_paths)
         self.assertIn("/api/proposals/review", route_paths)
         self.assertIn("/api/proposals/apply", route_paths)
+        write_routes = {
+            getattr(route, "path", ""): getattr(route, "response_model", None)
+            for route in app.routes
+            if "POST" in getattr(route, "methods", set())
+        }
+        self.assertIsNotNone(write_routes["/api/tasks"])
+        self.assertIsNotNone(write_routes["/api/tasks/{task_id}/run"])
+        self.assertIsNotNone(write_routes["/api/knowledge/staged/{candidate_id}/promote"])
 
     def test_web_api_payloads_are_read_only_and_return_expected_task_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -134,8 +145,11 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertEqual(task_checksum_before, task_checksum_after)
         self.assertEqual(tasks_payload["count"], 1)
         self.assertEqual(tasks_payload["tasks"][0]["task_id"], created.task_id)
+        self.assertIn("action_eligibility", tasks_payload["tasks"][0])
+        self.assertTrue(tasks_payload["tasks"][0]["action_eligibility"]["run"]["eligible"])
         self.assertEqual(task_payload["task_id"], created.task_id)
         self.assertEqual(task_payload["status"], "completed")
+        self.assertIn("action_eligibility", task_payload)
         self.assertGreater(events_payload["count"], 0)
         self.assertEqual(events_payload["events"][0]["event_type"], "task.created")
         self.assertGreater(artifacts_payload["count"], 0)

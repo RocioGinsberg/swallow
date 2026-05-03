@@ -38,12 +38,16 @@ class StagePromotePreflightError(ValueError):
         self.notices = notices
 
 
+class UnknownStagedCandidateError(ValueError):
+    pass
+
+
 def resolve_stage_candidate(base_dir: Path, candidate_id: str) -> StagedCandidate:
     normalized_id = candidate_id.strip()
     for candidate in load_staged_candidates(base_dir):
         if candidate.candidate_id == normalized_id:
             return candidate
-    raise ValueError(f"Unknown staged candidate: {normalized_id}")
+    raise UnknownStagedCandidateError(f"Unknown staged candidate: {normalized_id}")
 
 
 def summarize_text_preview(text: str, limit: int) -> str:

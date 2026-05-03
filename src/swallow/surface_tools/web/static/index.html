@@ -574,11 +574,11 @@
             </div>
             <div class="button-row">
               <button id="task-create-submit" type="submit">Create</button>
-              <button id="task-run-button" type="button">Run</button>
-              <button id="task-retry-button" type="button">Retry</button>
-              <button id="task-resume-button" type="button">Resume</button>
-              <button id="task-rerun-button" type="button">Rerun</button>
-              <button id="task-acknowledge-button" type="button">Acknowledge</button>
+              <button id="task-run-button" type="button" data-task-action="run">Run</button>
+              <button id="task-retry-button" type="button" data-task-action="retry">Retry</button>
+              <button id="task-resume-button" type="button" data-task-action="resume">Resume</button>
+              <button id="task-rerun-button" type="button" data-task-action="rerun">Rerun</button>
+              <button id="task-acknowledge-button" type="button" data-task-action="acknowledge">Acknowledge</button>
             </div>
           </form>
 
@@ -738,6 +738,8 @@
         tasks: [],
         artifacts: [],
         selectedTaskId: "",
+        selectedTask: null,
+        pendingTaskAction: "",
         selectedArtifacts: {
           left: "",
           right: ""
@@ -780,6 +782,7 @@
       const proposalReviewDecision = document.getElementById("proposal-review-decision");
       const proposalReviewPath = document.getElementById("proposal-review-path");
       const proposalReviewNote = document.getElementById("proposal-review-note");
+      const taskActionButtons = Array.from(document.querySelectorAll("[data-task-action]"));
 
       function escapeHtml(value) {
         return String(value)
@@ -827,6 +830,10 @@
           setCommandStatus(`${label} failed: ${error.message}`);
           return null;
         }
+      }
+
+      function commandData(payload) {
+        return payload && payload.data ? payload.data : payload;
       }
 
       function statusClass(status) {
@@ -879,6 +886,18 @@
             <span>${escapeHtml(value || "-")}</span>
           </div>
         `).join("");
+      }
+
+      function renderTaskActions(task) {
+        const eligibility = task && task.action_eligibility ? task.action_eligibility : {};
+        taskActionButtons.forEach((button) => {
+          const action = button.dataset.taskAction || "";
+          const actionEligibility = eligibility[action] || { eligible: false, reason: "action is unavailable" };
+          const isPending = state.pendingTaskAction === action;
+          button.disabled = !state.selectedTaskId || !actionEligibility.eligible || Boolean(state.pendingTaskAction);
+          button.title = actionEligibility.eligible ? "" : String(actionEligibility.reason || "action is unavailable");
+          button.textContent = isPending ? `${action}...` : action.charAt(0).toUpperCase() + action.slice(1);
+        });
       }
 
       function renderEvents(events) {
@@ -1087,6 +1106,8 @@
           detailTitle.textContent = "Task Detail";
           detailSummary.textContent = "Select a task to inspect its status, events, and artifacts.";
           detailMeta.innerHTML = '<p class="empty">No task selected.</p>';
+          state.selectedTask = null;
+          renderTaskActions(null);
           renderSubtaskTree([]);
           renderEvents([]);
           renderTimeline({ entries: [], total_cost: 0, total_latency_ms: 0, debate_rounds: 0 });
@@ -1104,7 +1125,9 @@
 
         detailTitle.textContent = task.title || state.selectedTaskId;
         detailSummary.textContent = task.goal || "No goal recorded.";
+        state.selectedTask = task;
         renderMeta(task);
+        renderTaskActions(task);
         renderSubtaskTree(subtaskTreePayload.children || []);
         renderEvents(eventsPayload.events || []);
         renderTimeline(timelinePayload || { entries: [], total_cost: 0, total_latency_ms: 0, debate_rounds: 0 });
@@ -1161,7 +1184,7 @@
             goal: taskCreateGoal.value,
             executor_name: taskCreateExecutor.value || "local"
           });
-          state.selectedTaskId = payload.task.task_id;
+          state.selectedTaskId = commandData(payload).task.task_id;
           taskCreateTitle.value = "";
           taskCreateGoal.value = "";
           return payload;
@@ -1173,7 +1196,14 @@
           setCommandStatus("Select a task first.");
           return;
         }
-        await runCommand(action, async () => postJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/${action}`, {}));
+        state.pendingTaskAction = action;
+        renderTaskActions(state.selectedTask);
+        try {
+          await runCommand(action, async () => postJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/${action}`, {}));
+        } finally {
+          state.pendingTaskAction = "";
+          renderTaskActions(state.selectedTask);
+        }
       }
 
       document.getElementById("task-run-button").addEventListener("click", () => runSelectedTaskAction("run"));
@@ -1202,8 +1232,9 @@
           decision: proposalReviewDecision.value,
           note: proposalReviewNote.value
         }));
-        if (payload && payload.record_path) {
-          proposalReviewPath.value = payload.record_path;
+        const data = commandData(payload);
+        if (data && data.record_path) {
+          proposalReviewPath.value = data.record_path;
         }
       });
 

@@ -42,7 +42,8 @@ def test_task_lifecycle_write_routes_create_run_and_report_conflicts(tmp_path: P
     )
 
     assert create_response.status_code == 200
-    created = create_response.json()["task"]
+    assert create_response.json()["ok"] is True
+    created = create_response.json()["data"]["task"]
     task_id = created["task_id"]
     assert created["status"] == "created"
     persisted = load_state(tmp_path, task_id)
@@ -52,7 +53,7 @@ def test_task_lifecycle_write_routes_create_run_and_report_conflicts(tmp_path: P
     run_response = client.post(f"/api/tasks/{task_id}/run", json={})
 
     assert run_response.status_code == 200
-    assert run_response.json()["task"]["status"] == "completed"
+    assert run_response.json()["data"]["task"]["status"] == "completed"
 
     missing_response = client.post("/api/tasks/missing-task/run", json={})
 
@@ -99,7 +100,7 @@ def test_task_resume_reports_blocked_state_as_conflict(tmp_path: Path) -> None:
             "title": "Blocked resume task",
             "goal": "Resume should be blocked before a checkpoint exists.",
         },
-    ).json()["task"]
+    ).json()["data"]["task"]
 
     response = client.post(f"/api/tasks/{created['task_id']}/resume", json={})
 
@@ -141,6 +142,9 @@ def test_knowledge_stage_promote_and_reject_routes(tmp_path: Path) -> None:
 
     assert promote_response.status_code == 200
     assert reject_response.status_code == 200
+    assert promote_response.json()["ok"] is True
+    assert promote_response.json()["data"]["candidate"]["status"] == "promoted"
+    assert reject_response.json()["data"]["candidate"]["status"] == "rejected"
     staged = {candidate.candidate_id: candidate for candidate in load_staged_candidates(tmp_path)}
     assert staged[promote_candidate.candidate_id].status == "promoted"
     assert staged[reject_candidate.candidate_id].status == "rejected"
@@ -160,6 +164,27 @@ def test_knowledge_stage_routes_return_not_found_for_unknown_candidate(tmp_path:
 
     assert response.status_code == 404
     assert "Unknown staged candidate" in response.json()["detail"]
+
+
+def test_knowledge_stage_promote_does_not_expose_force_bypass(tmp_path: Path) -> None:
+    candidate = submit_staged_candidate(
+        tmp_path,
+        StagedCandidate(
+            candidate_id="",
+            text="Force should not be accepted through HTTP.",
+            source_task_id="http-task",
+            source_object_id="knowledge-force",
+            submitted_by="integration-test",
+        ),
+    )
+
+    response = _client(tmp_path).post(
+        f"/api/knowledge/staged/{candidate.candidate_id}/promote",
+        json={"note": "No force in web schema.", "force": True},
+    )
+
+    assert response.status_code == 422
+    assert "force" in str(response.json()["detail"])
 
 
 def test_proposal_review_apply_routes_use_workspace_relative_paths(tmp_path: Path) -> None:
@@ -222,15 +247,27 @@ def test_proposal_review_apply_routes_use_workspace_relative_paths(tmp_path: Pat
         assert traversal_response.status_code == 400
         assert missing_response.status_code == 404
         assert review_response.status_code == 200
-        review_payload = review_response.json()
+        review_payload = review_response.json()["data"]
         assert review_payload["review_record"]["decision"] == "approved"
         review_path = review_payload["record_path"]
 
         apply_response = client.post("/api/proposals/apply", json={"review_path": review_path})
 
         assert apply_response.status_code == 200
-        assert apply_response.json()["application_record"]["applied_count"] >= 1
+        assert apply_response.json()["data"]["application_record"]["applied_count"] >= 1
         assert "local-codex" in load_route_weights(tmp_path)
         assert not route_weights_path(tmp_path).exists()
     finally:
         route.quality_weight = original_weight
+
+
+def test_write_routes_publish_response_models_in_openapi(tmp_path: Path) -> None:
+    openapi = _client(tmp_path).get("/openapi.json").json()
+
+    task_create_schema = openapi["paths"]["/api/tasks"]["post"]["responses"]["200"]["content"]["application/json"]["schema"]
+    promote_schema = openapi["paths"]["/api/knowledge/staged/{candidate_id}/promote"]["post"]["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]
+
+    assert task_create_schema["$ref"].endswith("/TaskEnvelope")
+    assert promote_schema["$ref"].endswith("/StagePromoteEnvelope")
