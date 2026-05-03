@@ -13,15 +13,19 @@
 - latest_completed_slice: `cli.py 3653 → 2672 行 (-27%) + application/commands 写命令完整化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-8 Step 2 — harness decomposition`
-- active_slice: `plan_audit concerns absorbed; awaiting Human Plan Gate`
-- active_branch: `main`
-- status: `lto8_step2_plan_audit_absorbed_awaiting_plan_gate`
+- active_slice: `M1 baseline and facade characterization complete; awaiting Human review/commit`
+- active_branch: `feat/orchestration-lifecycle-decomposition-step2`
+- status: `lto8_step2_m1_complete_awaiting_commit`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-9 Step 2 已合并到主线:
+当前 git 分支为 `feat/orchestration-lifecycle-decomposition-step2`。LTO-8 Step 2 已进入实现阶段,当前 HEAD 为:
 
-- `4229680 docs(state): update roadmap` (HEAD)
+- `8106390 docs(plan): add LTO-8 Step 2 plan`
+
+LTO-9 Step 2 已合并到主线:
+
+- `4229680 docs(state): update roadmap`
 - `1251c3c LTO-9 Step 2 — broad CLI command-family migration` (merge commit)
 
 LTO-9 Step 2 完整事实与 milestone 细节见 `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md`(本文不复制)。
@@ -119,6 +123,14 @@ LTO-7 long-running follow-ups(仍开放):
   - C-3: Scope/M1/M2/M3 明确 `harness.py` compatibility exports 包括 `test_cli.py` 直接 import 的 builder 符号。
   - C-4: Scope/M2/M5 明确 `orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` patch targets 需保持,并把 `tests/test_debate_loop.py` / `tests/test_librarian_executor.py` 加入 gate。
   - C-5: M1/M2 命名新增测试文件 `tests/unit/orchestration/test_harness_facade.py` / `tests/unit/orchestration/test_task_report_module.py`。
+- **[Human]** Plan Gate 已通过并切换到实现分支:
+  - `feat/orchestration-lifecycle-decomposition-step2`
+  - `8106390 docs(plan): add LTO-8 Step 2 plan`
+- **[Codex]** M1 baseline and facade characterization 已完成:
+  - 新增 `tests/unit/orchestration/test_harness_facade.py`
+  - 覆盖 `harness.py` compatibility exports:`run_execution` / `run_retrieval` / `run_retrieval_async` / `write_task_artifacts` / `write_task_artifacts_async` / `build_remote_handoff_contract_record` / `build_remote_handoff_contract_report` / `build_resume_note` / `build_retrieval_report` / `build_source_grounding`
+  - 确认 `orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` patch-target names 仍可 import
+  - 建立 source grounding / retrieval report / remote handoff / resume note 的 pre-move output characterization
 
 进行中:
 
@@ -126,11 +138,12 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Plan Gate(吸收完成后)。
+- **[Human]** 审查并提交 M1 baseline/facade characterization。
+- **[Codex]** Human 提交 M1 后开始 M2 retrieval and retrieval-report split。
 
 当前阻塞项:
 
-- 无 plan blocker。等待 Human Plan Gate 审批 `plan.md`。
+- 无 blocker。等待 Human review / commit M1。
 
 ## Tag 状态
 
@@ -140,16 +153,16 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** Plan Gate;通过后切 `feat/orchestration-lifecycle-decomposition-step2`。
-2. **[Codex]** Plan Gate 通过且 feature branch 就绪后开始 M1。
+1. **[Human]** 审查并提交 M1 baseline/facade characterization。
+2. **[Codex]** Human 提交 M1 后开始 M2 retrieval and retrieval-report split。
 
 ```markdown
 plan_gate:
 - latest_completed_phase: LTO-9 Step 2 — broad CLI command-family migration
 - merge_commit (prior): 1251c3c LTO-9 Step 2 — broad CLI command-family migration
-- active_branch: main
+- active_branch: feat/orchestration-lifecycle-decomposition-step2
 - active_phase: LTO-8 Step 2 — harness decomposition (cluster C closure phase)
-- active_slice: plan_audit concerns absorbed; awaiting Human Plan Gate
+- active_slice: M1 baseline and facade characterization complete; awaiting Human review/commit
 - cluster_c_status: LTO-7 + LTO-9 + LTO-10 fully closed; LTO-8 Step 2 = cluster C closure
 - roadmap: docs/roadmap.md current ticket = LTO-8 Step 2; next choice = LTO-13; candidates = Wiki Compiler / other LTOs
 - context_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines)
@@ -160,7 +173,7 @@ plan_gate:
 - review (prior phase): recommend-merge after fixes; 0 blockers; 3 polish concerns
 - new_invariant_design_point: helper-side append_event allowlist (12 telemetry kinds; state-transition kinds disallowed)
 - tag_decision: defer v1.6.0 until LTO-8 Step 2 merge (cluster C closure)
-- next_gate: Human Plan Gate → branch creation
+- next_gate: Human M1 review/commit → Codex M2 implementation
 ```
 
 ## 当前产出物
@@ -171,4 +184,21 @@ plan_gate:
 - `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-8 Step 2 事实盘点;direction gate 通过后启用)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`(codex, 2026-05-03, LTO-8 Step 2 harness decomposition plan;已吸收 plan_audit 5 条 concern)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns, 0 blockers / 5 concerns)
-- `docs/active_context.md`(codex, 2026-05-03, LTO-8 Step 2 plan_audit concern 吸收后切到 Human Plan Gate)
+- `tests/unit/orchestration/test_harness_facade.py`(codex, 2026-05-03, M1 harness facade compatibility + builder characterization)
+- `docs/active_context.md`(codex, 2026-05-03, M1 complete;awaiting Human review/commit)
+
+## 当前验证结果
+
+```bash
+.venv/bin/python -m pytest tests/unit/orchestration/test_harness_facade.py -q
+# 7 passed
+
+.venv/bin/python -m pytest tests/unit/orchestration -q
+# 42 passed
+
+.venv/bin/python -m pytest tests/test_invariant_guards.py -q
+# 26 passed
+
+git diff --check
+# passed
+```
