@@ -13,9 +13,9 @@
 - latest_completed_slice: `LTO-13 merged; roadmap updated for post-LTO-13 + ADR D1-D6`
 - active_track: `Release / Tag`
 - active_phase: `v1.7.0 release docs / tag preparation`
-- active_slice: `release docs synced; awaiting Human commit and tag`
+- active_slice: `D5 Adapter Discipline doc shipped (lightweight cross-audited); ready for D4 Phase A`
 - active_branch: `main`
-- status: `v1_7_0_release_docs_ready_for_tag`
+- status: `d5_complete_ready_for_d4_phase_a`
 
 ## 当前状态说明
 
@@ -30,7 +30,7 @@
 - `3d280ca docs(state): update roadmap`
 - `ea4a886 Orchestration Lifecycle Decomposition`(LTO-8 Step 2 merge commit)
 
-`v1.6.0` annotated tag 已 cut,标记 cluster C 完整闭合。Human 已决定打 `v1.7.0`;当前处于 release docs / tag preparation,尚未执行 tag 命令。
+`v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。**`v1.7.0` annotated tag 已 cut**(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -163,22 +163,25 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Review 并提交 `v1.7.0` release docs。
-- **[Human]** 在 `main` 上执行 annotated tag `v1.7.0`。
-- **[Codex]** Human 确认 tag 完成后,同步 `docs/active_context.md` 的 tag 状态,并准备下一启动 phase = **D5 Adapter Discipline Codification**(单文档 phase,把 LTO-13 plan_audit Round 1-3 的 14 concerns 编纂为 `docs/engineering/ADAPTER_DISCIPLINE.md`)。
+- **[Claude]** D5 Adapter Discipline Codification 已落地(2026-05-03):
+  - 产出 `docs/engineering/ADAPTER_DISCIPLINE.md`(~178 行 → revision 后),六条规则(§1 Framework-Default Principle / §2 Adapter Forbidden Zone / §3 模块布局 / §4 Surface-identity / §5 错误映射)+ §6 worked examples 把 LTO-13 audit Round 1-3 + post-merge follow-up 共 16 项 concerns(R1 5+1 nit + Pydantic + R2 4+2 + R3 5+1 + C1 + N1)逐项映射到规则。
+  - design-auditor subagent 完成轻量交叉审,verdict = approve-with-fixes;两个 must-fix(TL;DR 14→16 计数、`errors.py` vs `exceptions.py` 命名冲突)+ 两个建议性改进(R2-6 多标签、§4 dated callout)全部已吸收。
+  - User 决定 D5 不走完整 plan / plan_audit / review / closeout 流程,直接产出文档(纯文档 phase 风险低,以省流程换实际收益)。
+- **[Codex / 主线]** 启动 **D4 Phase A** —— 纯 import-path rename:`surface_tools/cli/` → `adapters/cli/`、`surface_tools/web/` → `adapters/http/`。无逻辑改动,blast radius 小。同时更新 `tests/test_invariant_guards.py` 中 `surface_tools/web/` 路径引用、所有 callers 的 `from swallow.surface_tools...` import 路径、`pyproject.toml` `swl` entry point 等。
+- **[Codex / 主线]** D4 Phase A 落定后启动 **D1 / LTO-6 Knowledge Plane Facade Solidification**:替换 `knowledge_plane.py` 50 个 re-export → 6-10 个领域方法,~10 处 application/truth_governance import 切换,6 个 knowledge_retrieval 子模块 `_internal` 化。
+- **[Claude]** Roadmap 第二轮简化已落地(post-v1.7.0-tag),删除簇 C step 级历史,§五 跨阶段排序依据 8 条精简为 4 条;Roadmap 现 171 行。`ARCHITECTURE_DECISIONS.md` 与 `ADAPTER_DISCIPLINE.md` 都 untracked,等下次 commit 一起落。
 
 当前阻塞项:
 
-- 无 blocker。Release docs 已同步;等待 Human commit + tag。
+- 无 blocker。LTO-13 已 merge + v1.7.0 tagged;roadmap + ADR + ADAPTER_DISCIPLINE 三份长期文档都已起草;等待 D4 Phase A 启动。
 
 ## Tag 状态
 
-- 最新已执行 tag: **`v1.6.0`**(2026-05-03)
-- tag target: `0e6215a docs(release): sync v1.6.0 release docs`
-- 标记意义:**cluster C closure**(LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10 全部完成)
-- pending release tag: **`v1.7.0`**
-- tag 决策:Human 已决定打 tag;当前等待 release docs commit 后执行 annotated tag。
-- 标记意义:**local Web Control Center write surface**(LTO-13;首次本地 Web 写能力增量)。
+- 最新已执行 tag: **`v1.7.0`**(2026-05-03 同期 cut)
+- tag target: `2156d4a docs(release): sync v1.7.0 release docs`
+- 标记意义:**LTO-13 FastAPI Local Web UI Write Surface 首次落地**(本地 Web Control Center write surface;LLM-外可观察能力增量)
+- 上一 tag: `v1.6.0` at `0e6215a`(标记 cluster C closure)
+- 下一 tag 评估:无明确预期;留给后续 phase(D5 / D4 Phase A / D1 是工程纪律收口型,未必单独 cut tag;Wiki Compiler 等产品向 phase 触发再评估)
 
 ## 当前下一步
 
