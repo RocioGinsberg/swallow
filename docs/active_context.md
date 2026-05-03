@@ -13,13 +13,13 @@
 - latest_completed_slice: `v1.6.0 tagged; cluster C fully closed`
 - active_track: `Interface / Application Boundary`
 - active_phase: `LTO-13 — FastAPI Local Web UI Write Surface`
-- active_slice: `awaiting plan kickoff (context_brief / plan TBD)`
+- active_slice: `plan_audit absorbed; awaiting Human Plan Gate`
 - active_branch: `main`
-- status: `lto13_awaiting_plan_kickoff`
+- status: `lto13_plan_audit_absorbed`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`,工作树干净。HEAD 为:
+当前 git 分支为 `main`。进入 LTO-13 plan / audit 文档更新前,HEAD 为:
 
 - `0e6215a docs(release): sync v1.6.0 release docs`
 - `ea4a886 Orchestration Lifecycle Decomposition`(LTO-8 Step 2 merge commit)
@@ -83,6 +83,9 @@ LTO-7 long-running follow-ups(仍开放):
 - **[Human]** v1.6.0 release docs commit + annotated tag `v1.6.0` 已 cut(target `0e6215a`)。
 - **[Claude / roadmap-updater + 主线]** 一次性完成 7 项 roadmap 结构调整(post-merge LTO-8 Step 2 完成同步、簇 C 完全终结、LTO-13 从簇 C 移回簇 B、§三 当前 ticket = LTO-13、§四 v1.6.0 tag 决策标"已执行"、§五 顺序更新)+ 2 处轻量校正(§二 簇 C 子标题、§三 LTO-13 状态/Gate 列)。
 - **[Claude]** Direction Gate 讨论后决定:**直接做 LTO-13**(不先做 LTO-5 / LTO-6);理由 = application/commands 是 LTO-13 与下层重构的缓冲层,LTO-5 / LTO-6 重构不会让 LTO-13 重写。
+- **[Codex]** 产出 `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan.md`,明确 FastAPI 写路由范围、HTTP contract、guard 扩展和 milestone gate。
+- **[Claude / design-auditor]** 产出 `plan_audit.md`:has-concerns;0 blockers / 5 concerns / 1 nit。
+- **[Codex]** 已吸收 plan_audit 5 个 concern + 1 个 nit:workspace_root pre-existing gap、FastAPI dev dependency、proposal artifact relative path bridge、M2 `apply_proposal` UI guard、OperatorToken source 决策、static index test 归属。
 
 进行中:
 
@@ -90,20 +93,11 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Claude / context-analyst]** 产出 `docs/plans/lto-13-fastapi-write-surface/context_brief.md`(或 Codex / Human 直接命名 phase 目录;建议如 `docs/plans/web-ui-write-surface/`),盘点:
-  - 当前 `web/api.py` 9 个 read-only 路由的事实形状
-  - INTERACTION.md §4.2 UI runtime 标准的具体要求
-  - `tests/test_web_api.py` 当前覆盖
-  - `application/commands/*` 写命令现有公共 API 列表(LTO-9 Step 2 交付)
-  - `test_ui_backend_only_calls_governance_functions` guard 现状
-  - FastAPI 写路由模式的设计决策点(request body schema 库选型 / HTTP verb / error code mapping / 同步 vs async / static UI 是否同步引入 write form)
-- **[Codex]** 基于 brief 起草 `plan.md`。
-- **[Claude / design-auditor]** plan audit。
-- **[Human]** Plan Gate;通过后切 `feat/lto-13-fastapi-write-surface`(或类似名)。
+- **[Human]** Plan Gate;通过后切 `feat/lto-13-fastapi-local-web-ui-write-surface`(或类似名)。
 
 当前阻塞项:
 
-- 无 blocker。等待 LTO-13 phase kickoff(Codex / Human 启动 brief 或直接 plan)。
+- 无 blocker。plan_audit concerns 已吸收,等待 Human Plan Gate。
 
 ## Tag 状态
 
@@ -114,11 +108,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Codex / Human]** 决定 LTO-13 phase 目录名与是否产 context_brief。
-2. **[Claude / context-analyst]** 若需要,产出 brief。
-3. **[Codex]** 起草 plan.md。
-4. **[Claude / design-auditor]** plan audit。
-5. **[Human]** Plan Gate。
+1. **[Human]** Plan Gate。
+2. **[Human]** Plan Gate 通过后切 `feat/lto-13-fastapi-local-web-ui-write-surface`。
 
 ```markdown
 direction_gate:
@@ -127,7 +118,7 @@ direction_gate:
 - release_tag: v1.6.0 at 0e6215a docs(release): sync v1.6.0 release docs
 - active_branch: main
 - active_phase: LTO-13 — FastAPI Local Web UI Write Surface
-- active_slice: awaiting plan kickoff
+- active_slice: plan_audit absorbed; awaiting Human Plan Gate
 - cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
 - structural_changes_this_round: LTO-13 relocated 簇 C → 簇 B (interface boundary nature, not cluster C continuation); cluster C subheading dropped "+ 接续"; v1.6.0 tag decision marked executed
 - direction_decided: do LTO-13 directly; LTO-5 / LTO-6 do not block LTO-13 (application/commands is the buffer layer)
@@ -135,12 +126,14 @@ direction_gate:
 - closeout (prior phase): docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns (both absorbed)
 - new_invariants_landed: helper-side append_event allowlist (12 telemetry kinds + 2 disallowed) registered in INVARIANTS.md §9
-- next_gate: LTO-13 phase kickoff (brief or plan) → plan_audit → Human Plan Gate
+- next_gate: Human Plan Gate (plan_audit complete; 5 concerns + 1 nit absorbed; 0 blockers)
 ```
 
 ## 当前产出物
 
 - `docs/roadmap.md`(claude/roadmap-updater + claude 主线, 2026-05-03, post-merge LTO-8 Step 2 完成 + cluster C 完全终结 + LTO-13 移回簇 B + §三 切到 LTO-13 + §四 v1.6.0 已执行)
+- `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan.md`(codex, 2026-05-03, LTO-13 phase plan; plan_audit concerns absorbed)
+- `docs/plans/lto-13-fastapi-local-web-ui-write-surface/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns; 0 blockers / 5 concerns / 1 nit)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`(codex, 2026-05-03, LTO-8 Step 2 closeout final)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`(claude, 2026-05-03, recommend-merge;0 blockers / 2 non-blocking concerns)
 - `docs/active_context.md`(claude, 2026-05-03, post-tag state synced;awaiting LTO-13 kickoff;Direction Gate 决定记录)
