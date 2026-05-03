@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -12,6 +13,10 @@ from swallow.truth_governance.governance import (
     register_mps_policy_proposal,
     register_policy_proposal,
 )
+
+
+def _unique_policy_proposal_id(prefix: str) -> str:
+    return f"{prefix}:{time.time_ns():x}"
 
 
 @dataclass(frozen=True)
@@ -57,7 +62,7 @@ def set_audit_trigger_policy_command(
         policy.auditor_route = normalized_auditor_route
     proposal_id = register_policy_proposal(
         base_dir=base_dir,
-        proposal_id="audit-trigger-policy",
+        proposal_id=_unique_policy_proposal_id("audit-trigger-policy"),
         audit_trigger_policy=policy,
     )
     apply_proposal(proposal_id, OperatorToken(source="cli"), ProposalTarget.POLICY)
@@ -67,7 +72,7 @@ def set_audit_trigger_policy_command(
 def set_mps_policy_command(base_dir: Path, *, kind: str, value: int) -> MpsPolicySetCommandResult:
     proposal_id = register_mps_policy_proposal(
         base_dir=base_dir,
-        proposal_id=f"mps-policy:{kind}",
+        proposal_id=_unique_policy_proposal_id(f"mps-policy:{kind}"),
         kind=kind,
         value=int(value),
     )

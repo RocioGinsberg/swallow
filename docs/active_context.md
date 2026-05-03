@@ -13,15 +13,15 @@
 - latest_completed_slice: `governance.py 642 → 45 行 facade + handler 模块化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-9 Step 2 — broad CLI command-family migration`
-- active_slice: `M4 task write/control migration complete; awaiting Human review/commit`
+- active_slice: `M5 task read/report/artifact migration and cleanup complete; awaiting Human review/commit`
 - active_branch: `refactor/cli_command_family_migration`
-- status: `lto9_step2_m4_complete_awaiting_commit`
+- status: `lto9_step2_m5_complete_awaiting_commit`
 
 ## 当前状态说明
 
 当前 git 分支为 `refactor/cli_command_family_migration`,工作树进入 LTO-9 Step 2 实现阶段。当前 HEAD 为:
 
-- `cb7ac88 refactor(cli): migrate knowledge command family`
+- `470d3ca refactor(cli): migrate task write control commands`
 
 LTO-10 已合并到主线:
 
@@ -129,6 +129,8 @@ LTO-7 long-running follow-ups(仍开放):
   - `b067f02 refactor(cli): migrate governance-adjacent command families`
 - **[Human]** M3 knowledge family migration 已提交:
   - `cb7ac88 refactor(cli): migrate knowledge command family`
+- **[Human]** M4 task write/control migration 已提交:
+  - `470d3ca refactor(cli): migrate task write control commands`
 
 进行中:
 
@@ -136,8 +138,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** 审查并提交 M4 task write/control migration。
-- **[Codex]** Human 提交 M4 后进入 M5 task read/report/artifact migration and cleanup。
+- **[Human]** 审查并提交 M5 task read/report/artifact migration and cleanup。
+- **[Claude]** Human 提交 M5 后进入 PR review / consistency check。
 
 当前阻塞项:
 
@@ -151,8 +153,9 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审查并提交 M4 task write/control migration。
-2. **[Codex]** Human 提交 M4 后进入 M5 task read/report/artifact migration and cleanup。
+1. **[Human]** 审查并提交 M5 task read/report/artifact migration and cleanup。
+2. **[Claude]** 进行 PR review / consistency check。
+3. **[Codex]** 根据 review 结果同步 closeout / PR 文案。
 
 ```markdown
 plan_gate:
@@ -160,7 +163,7 @@ plan_gate:
 - merge_commit: b3f7f43 Governance Apply Handler Maintainability
 - active_branch: refactor/cli_command_family_migration
 - active_phase: LTO-9 Step 2 — broad CLI command-family migration
-- active_slice: M4 task write/control migration complete; awaiting Human review/commit
+- active_slice: M5 task read/report/artifact migration and cleanup complete; awaiting Human review/commit
 - direction_decided: LTO-9 Step 2 first, then LTO-8 Step 2 (cluster C closure)
 - roadmap: docs/roadmap.md current ticket = LTO-9 Step 2; next choice = LTO-8 Step 2
 - context_brief: docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md (170 lines)
@@ -171,7 +174,7 @@ plan_gate:
 - closeout (prior phase): docs/plans/governance-apply-handler-split/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns; 1 withdrawn
 - tag_decision: defer v1.6.0 until LTO-9 Step 2 + LTO-8 Step 2 both land (cluster C closure)
-- next_gate: Human review / commit → M5
+- next_gate: Human review / commit → Claude review / closeout
 ```
 
 ## 当前产出物
@@ -199,7 +202,7 @@ plan_gate:
 - `src/swallow/application/commands/knowledge.py`(codex, 2026-05-03, M3 knowledge write application command boundary)
 - `src/swallow/surface_tools/cli_commands/knowledge.py`(codex, 2026-05-03, M3 knowledge CLI adapter)
 - `src/swallow/application/commands/tasks.py`(codex, 2026-05-03, M4 task write/control application command boundary)
-- `src/swallow/surface_tools/cli_commands/tasks.py`(codex, 2026-05-03, M4 task write/control CLI adapter)
+- `src/swallow/surface_tools/cli_commands/tasks.py`(codex, 2026-05-03, M4 task write/control CLI adapter;M5 task read/report/artifact CLI adapter)
 
 ## 当前验证结果
 
@@ -227,6 +230,24 @@ git diff --check
 
 .venv/bin/python -m pytest tests/integration/cli tests/unit/application/test_command_boundaries.py tests/test_invariant_guards.py -q
 # 50 passed
+
+.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py tests/unit/application/test_command_boundaries.py tests/test_invariant_guards.py -q
+# 39 passed
+
+.venv/bin/python -m pytest tests/integration/cli tests/unit/application/test_command_boundaries.py tests/test_invariant_guards.py -q
+# 52 passed
+
+.venv/bin/python -m pytest tests/test_cli.py -q
+# 242 passed, 10 subtests passed
+
+.venv/bin/python -m pytest -q
+# 721 passed, 8 deselected, 10 subtests passed
+
+.venv/bin/python -m compileall -q src/swallow
+# passed
+
+git diff --check
+# passed
 
 git diff --check
 # passed

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 from pathlib import Path
 
 from swallow._io_helpers import read_json_or_empty
@@ -189,7 +190,7 @@ def run_task_command(
     reset_grounding: bool = False,
     skip_to_phase: str = "retrieval",
 ) -> TaskRunCommandResult:
-    state = run_task(
+    state = import_module("swallow.surface_tools.cli").run_task(
         base_dir=base_dir,
         task_id=task_id,
         executor_name=executor_name,

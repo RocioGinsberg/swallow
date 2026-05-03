@@ -38,6 +38,7 @@ from swallow.knowledge_retrieval.ingestion.pipeline import (
     run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
+from swallow.application.commands.knowledge import build_stage_promote_preflight_notices
 from swallow.knowledge_retrieval.knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
 )
@@ -48,10 +49,11 @@ from swallow.surface_tools.cli_commands.proposals import handle_proposal_command
 from swallow.surface_tools.cli_commands.route import handle_route_command
 from swallow.surface_tools.cli_commands.route_metadata import handle_route_metadata_command
 from swallow.surface_tools.cli_commands.synthesis import handle_synthesis_command
-from swallow.surface_tools.cli_commands.tasks import handle_task_write_command
+from swallow.surface_tools.cli_commands.tasks import handle_task_read_command, handle_task_write_command
 from swallow.knowledge_retrieval.knowledge_objects import summarize_canonicalization
 from swallow.knowledge_retrieval.knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from swallow.surface_tools.mps_policy_store import MPS_POLICY_KINDS
+from swallow.orchestration.orchestrator import run_task
 from swallow.surface_tools.paths import (
     artifacts_dir,
     canonical_registry_index_path,
@@ -652,59 +654,6 @@ def _print_canonical_reuse_eval(base_dir: Path, task_id: str | None) -> int:
     return _print_report(
         build_canonical_reuse_evaluation_report(records, build_canonical_reuse_evaluation_summary(records))
     )
-
-
-ARTIFACT_PRINTER_DISPATCH: dict[str, ArtifactPrinter] = {
-    **{command: _text_artifact_printer(artifact_name) for command, artifact_name in TEXT_ARTIFACT_PRINTERS.items()},
-    **{command: _json_artifact_printer(path_builder) for command, path_builder in JSON_ARTIFACT_PRINTERS.items()},
-    "knowledge-objects-json": lambda base_dir, task_id: _print_json_payload(
-        load_knowledge_objects(base_dir, _require_artifact_task_id(task_id))
-    ),
-    "knowledge-decisions": lambda base_dir, task_id: _print_report(
-        build_knowledge_decisions_report(
-            read_json_lines_or_empty(knowledge_decisions_path(base_dir, _require_artifact_task_id(task_id)))
-        )
-    ),
-    "canonical-registry": lambda base_dir, _task_id: _print_report(
-        build_canonical_registry_report(read_json_lines_or_empty(canonical_registry_path(base_dir)))
-    ),
-    "canonical-registry-index": lambda base_dir, _task_id: _print_report(
-        build_canonical_registry_index_report(read_json_or_empty(canonical_registry_index_path(base_dir)))
-    ),
-    "canonical-reuse": lambda base_dir, _task_id: _print_report(
-        build_canonical_reuse_report(read_json_or_empty(canonical_reuse_policy_path(base_dir)))
-    ),
-    "canonical-reuse-regression": _print_canonical_reuse_regression,
-    "canonical-reuse-eval": _print_canonical_reuse_eval,
-    "knowledge-decisions-json": lambda base_dir, task_id: _print_json_payload(
-        read_json_lines_or_empty(knowledge_decisions_path(base_dir, _require_artifact_task_id(task_id)))
-    ),
-    "canonical-registry-json": lambda base_dir, _task_id: _print_json_payload(
-        read_json_lines_or_empty(canonical_registry_path(base_dir))
-    ),
-    "canonical-registry-index-json": lambda base_dir, _task_id: _print_json_payload(
-        read_json_or_empty(canonical_registry_index_path(base_dir))
-    ),
-    "canonical-reuse-json": lambda base_dir, _task_id: _print_json_payload(
-        read_json_or_empty(canonical_reuse_policy_path(base_dir))
-    ),
-    "canonical-reuse-eval-json": lambda base_dir, task_id: _print_json_payload(
-        read_json_lines_or_empty(canonical_reuse_eval_path(base_dir, _require_artifact_task_id(task_id)))
-    ),
-    "canonical-reuse-regression-json": lambda base_dir, task_id: _print_json_payload(
-        read_json_or_empty(canonical_reuse_regression_path(base_dir, _require_artifact_task_id(task_id)))
-    ),
-}
-
-
-def _dispatch_artifact_printer(args: argparse.Namespace, base_dir: Path) -> int:
-    handler = ARTIFACT_PRINTER_DISPATCH.get(args.task_command)
-    if handler is None:
-        raise NotImplementedError(
-            f"Read-only printer dispatch table missing handler for {args.task_command!r}; "
-            "either add an entry or remove it from the Phase 67 M3 in-scope command set."
-        )
-    return handler(base_dir, getattr(args, "task_id", None))
 
 
 def summarize_text_preview(text: str, limit: int) -> str:
@@ -2282,97 +2231,10 @@ def main(argv: list[str] | None = None) -> int:
     if task_write_result is not None:
         return task_write_result
 
-    if args.command == "task" and args.task_command == "list":
-        states = sorted(
-            iter_task_states(base_dir),
-            key=lambda state: (state.updated_at, state.task_id),
-            reverse=True,
-        )
-        states = filter_task_states(states, args.focus)
-        if args.limit is not None:
-            states = states[: max(args.limit, 0)]
-        print(f"task_id\tstatus\tphase\tattempt\tupdated_at\ttitle\tfocus={args.focus}")
-        for state in states:
-            attempt_label = state.current_attempt_id or "-"
-            print(
-                "\t".join(
-                    [
-                        state.task_id,
-                        state.status,
-                        state.phase,
-                        attempt_label,
-                        state.updated_at,
-                        state.title,
-                    ]
-                )
-            )
-        return 0
+    task_read_result = handle_task_read_command(base_dir, args)
+    if task_read_result is not None:
+        return task_read_result
 
-    if args.command == "task" and args.task_command == "queue":
-        states = sorted(
-            iter_task_states(base_dir),
-            key=lambda state: (state.updated_at, state.task_id),
-            reverse=True,
-        )
-        queue_entries = [entry for state in states if (entry := build_task_queue_entry(base_dir, state)) is not None]
-        if args.limit is not None:
-            queue_entries = queue_entries[: max(args.limit, 0)]
-        print("task_id\taction\tstatus\tattempt\tupdated_at\treason\tregression\tknowledge\tnext\ttitle")
-        for entry in queue_entries:
-            print(
-                "\t".join(
-                    [
-                        entry["task_id"],
-                        entry["action"],
-                        entry["status"],
-                        entry["attempt"],
-                        entry["updated_at"],
-                        entry["reason"],
-                        entry["regression"],
-                        entry["knowledge"],
-                        entry["next"],
-                        entry["title"],
-                    ]
-                )
-            )
-        return 0
-
-    if args.command == "task" and args.task_command == "attempts":
-        state = load_state(base_dir, args.task_id)
-        attempts = build_attempt_summaries(base_dir, args.task_id)
-        print("attempt_id\tattempt_number\tstatus\texecutor_status\texecution_lifecycle\tretrieval_count\thandoff_status\tstarted_at\tfinished_at")
-        for attempt in attempts:
-            print(
-                "\t".join(
-                    [
-                        attempt["attempt_id"],
-                        attempt["attempt_number"],
-                        attempt["status"],
-                        attempt["executor_status"],
-                        attempt["execution_lifecycle"],
-                        attempt["retrieval_count"],
-                        attempt["handoff_status"],
-                        attempt["started_at"],
-                        attempt["finished_at"],
-                    ]
-                )
-            )
-        if not attempts and state.current_attempt_id:
-            print(
-                "\t".join(
-                    [
-                        state.current_attempt_id,
-                        str(state.current_attempt_number or 0),
-                        state.status,
-                        state.executor_status,
-                        state.execution_lifecycle,
-                        str(state.retrieval_count),
-                        "pending",
-                        state.updated_at,
-                        "-",
-                    ]
-                )
-            )
         return 0
 
     if args.command == "task" and args.task_command == "compare-attempts":
@@ -2610,30 +2472,6 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(lines))
         return 0
 
-    if args.command == "task" and args.task_command == "capabilities":
-        state = load_state(base_dir, args.task_id)
-        manifest = json.loads(capability_manifest_path(base_dir, args.task_id).read_text(encoding="utf-8"))
-        assembly = json.loads(capability_assembly_path(base_dir, args.task_id).read_text(encoding="utf-8"))
-        lines = [
-            f"Task Capabilities: {state.task_id}",
-            "",
-            "Requested Manifest",
-            f"profile_refs: {', '.join(manifest.get('profile_refs', [])) or '-'}",
-            f"workflow_refs: {', '.join(manifest.get('workflow_refs', [])) or '-'}",
-            f"validator_refs: {', '.join(manifest.get('validator_refs', [])) or '-'}",
-            f"skill_refs: {', '.join(manifest.get('skill_refs', [])) or '-'}",
-            f"tool_refs: {', '.join(manifest.get('tool_refs', [])) or '-'}",
-            "",
-            "Effective Assembly",
-            f"assembly_status: {assembly.get('assembly_status', 'pending')}",
-            f"resolver: {assembly.get('resolver', 'unknown')}",
-            f"effective_profiles: {', '.join(assembly.get('effective', {}).get('profile_refs', [])) or '-'}",
-            f"effective_workflows: {', '.join(assembly.get('effective', {}).get('workflow_refs', [])) or '-'}",
-            f"effective_validators: {', '.join(assembly.get('effective', {}).get('validator_refs', [])) or '-'}",
-            f"notes: {'; '.join(assembly.get('notes', [])) or '-'}",
-        ]
-        print("\n".join(lines))
-        return 0
 
     if args.command == "task" and args.task_command == "review":
         state = load_state(base_dir, args.task_id)
@@ -2786,44 +2624,6 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(lines))
         return 0
 
-    if args.command == "task" and args.task_command == "checkpoint":
-        print((artifacts_dir(base_dir, args.task_id) / "checkpoint_snapshot_report.md").read_text(encoding="utf-8"), end="")
-        return 0
-
-    if args.command == "task" and args.task_command == "policy":
-        state = load_state(base_dir, args.task_id)
-
-        retry_policy = read_json_or_empty(retry_policy_path(base_dir, args.task_id))
-        execution_budget_policy = read_json_or_empty(execution_budget_policy_path(base_dir, args.task_id))
-        stop_policy = read_json_or_empty(stop_policy_path(base_dir, args.task_id))
-        lines = [f"Task Policy: {state.task_id}", f"title: {state.title}", ""]
-        lines.extend(build_policy_snapshot(retry_policy, execution_budget_policy, stop_policy))
-        lines.extend(
-            [
-                "",
-                "Policy Artifacts",
-                f"retry_policy_report: {state.artifact_paths.get('retry_policy_report', '-')}",
-                f"execution_budget_policy_report: {state.artifact_paths.get('execution_budget_policy_report', '-')}",
-                f"stop_policy_report: {state.artifact_paths.get('stop_policy_report', '-')}",
-            ]
-        )
-        print("\n".join(lines))
-        return 0
-
-    if args.command == "task" and args.task_command == "artifacts":
-        state = load_state(base_dir, args.task_id)
-        print(build_grouped_artifact_index(state.artifact_paths), end="")
-        return 0
-
-    if args.command == "task" and args.task_command == "dispatch":
-        state = load_state(base_dir, args.task_id)
-        topology = read_json_or_empty(topology_path(base_dir, args.task_id))
-        if is_mock_remote_task(state, topology):
-            print("[MOCK-REMOTE]")
-        return _print_text_artifact(artifacts_dir(base_dir, args.task_id) / "dispatch_report.md")
-
-    if args.command == "task" and args.task_command in ARTIFACT_PRINTER_DISPATCH:
-        return _dispatch_artifact_printer(args, base_dir)
 
     if args.command == "migrate":
         if bool(args.status):
