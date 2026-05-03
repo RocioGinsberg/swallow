@@ -13,15 +13,29 @@
 - latest_completed_slice: `governance.py 642 → 45 行 facade + handler 模块化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-9 Step 2 — broad CLI command-family migration`
-- active_slice: `M5 task read/report/artifact migration and cleanup complete; awaiting Human review/commit`
+- active_slice: `review fixes complete; awaiting Human review/commit`
 - active_branch: `refactor/cli_command_family_migration`
-- status: `lto9_step2_m5_complete_awaiting_commit`
+- status: `lto9_step2_review_fixes_complete`
 
 ## 当前状态说明
 
-当前 git 分支为 `refactor/cli_command_family_migration`,工作树进入 LTO-9 Step 2 实现阶段。当前 HEAD 为:
+当前 git 分支为 `refactor/cli_command_family_migration`,5 个 milestone commit 已就位,HEAD:
 
-- `470d3ca refactor(cli): migrate task write control commands`
+- `e7cef69 refactor(cli): migrate task read report commands` (M5)
+- `470d3ca refactor(cli): migrate task write control commands` (M4)
+- `cb7ac88 refactor(cli): migrate knowledge command family` (M3)
+- `b067f02 refactor(cli): migrate governance-adjacent command families` (M2)
+- `5bb4660 test(cli): characterize broad command families` (M1)
+- `b80d3b8 docs(plan): add LTO-9 Step 2 plan` (Plan Gate)
+
+Review-fix 工作树变更已完成但尚未由 Human 提交:
+
+- 创建 `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md`。
+- 重写根目录 `pr.md` 为 LTO-9 Step 2 PR 草稿(`pr.md` 被 `.gitignore` 忽略,不进入 tracked diff,但已更新给 Human 使用)。
+- 修正 `application/commands/tasks.py` 反向 import,改为直接调用 Orchestrator `run_task`。
+- 移除 `cli.py` 中 help-string 的 `apply_proposal` 实现细节。
+- 将已迁移 application command modules 固定进边界测试,移除迁移期 optional skip。
+- 更新旧 `tests/test_cli.py` patch 目标到 `swallow.application.commands.tasks.run_task`。
 
 LTO-10 已合并到主线:
 
@@ -131,6 +145,35 @@ LTO-7 long-running follow-ups(仍开放):
   - `cb7ac88 refactor(cli): migrate knowledge command family`
 - **[Human]** M4 task write/control migration 已提交:
   - `470d3ca refactor(cli): migrate task write control commands`
+- **[Human]** M5 task read/report/artifact migration and cleanup 已提交:
+  - `e7cef69 refactor(cli): migrate task read report commands`
+- **[Codex]** M5 final validation passed:
+  - `.venv/bin/python -m pytest -q` -> `721 passed, 8 deselected, 10 subtests passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -q` -> `242 passed, 10 subtests passed`
+  - `.venv/bin/python -m compileall -q src/swallow` -> passed
+  - `git diff --check` -> passed
+- **[Claude]** Completed PR review:
+  - `docs/plans/surface-cli-meta-optimizer-split-step2/review_comments.md`
+  - verdict: `request-changes`(2 blockers + 1 layering concern + 3 polish 项)
+  - 独立复跑校验:`.venv/bin/python -m pytest -q` -> `721 passed, 8 deselected, 10 subtests passed`(与 Codex 报告一致;+19 vs LTO-10 baseline 702 = M1 baseline + M2-M5 boundary tests)
+  - `cli.py` 3653 → 2672 行(-981 行,-27%);6 个 application commands + 6 个 cli adapter + 5 个 integration test 文件
+  - 5 条 plan_audit concern 在代码层面均有对应实现(逐条交叉验证表格在 review 文档内);`test_state_transitions_only_via_orchestrator` allowlist 未广开
+- **[Claude]** PR review 关键发现:
+  - **[BLOCKER-1]** `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md` 缺失;每个 phase 都需要 final closeout 作为 phase-end 权威记录(LTO-7/8 Step 1/9 Step 1/10 都有)。
+  - **[BLOCKER-2]** `pr.md` 仍是 LTO-10 内容(标题 "Governance Apply Handler Split / LTO-10",slice 列表 M1 proposal-registry 等);若直接打开 PR 会发布错误描述。
+  - **[CONCERN-1]** Layering smell:`application/commands/tasks.py:193` 用 `import_module("swallow.surface_tools.cli").run_task(...)` 反向 import surface_tools — 而 cli.py:56 的 run_task 本身就是 `from swallow.orchestration.orchestrator import run_task` 的纯 re-export。application 层应直接 import orchestrator,违反 CODE_ORGANIZATION §5 的方向纪律。`cli_commands/tasks.py:_cli()` 的反向 import 同模式但同层,可作 follow-up。
+  - **[CONCERN-2 / 3 / 4]** non-blocking polish:Step 1 `cli_commands/route_metadata.py` 仍直调 `apply_proposal`(不在 Step 2 plan 范围,closeout 注记即可);`cli.py:1099` 残留 `apply_proposal` help-string(可选改写);`PLANNED_COMMAND_MODULES` 应在 closeout 后 promote 到 `COMMAND_MODULES`,删除从未创建的 `ingestion.py` 入口。
+- **[Codex]** Review-fix pass completed:
+  - `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md` 已创建,记录 M1-M5、review absorption、deferred work 与最终验证。
+  - `pr.md` 已重写为 LTO-9 Step 2 内容,替换 stale LTO-10 PR body。
+  - `application/commands/tasks.py` 已移除 application → `surface_tools.cli` 反向 import。
+  - 可选 polish 已处理:`cli.py` help-string 改为 "governed write";`PLANNED_COMMAND_MODULES` silent-skip 模式移除。
+  - 旧 CLI lifecycle tests 的 patch target 已改为 `swallow.application.commands.tasks.run_task`,与新 application command boundary 对齐。
+  - Review-fix validation:
+    - `.venv/bin/python -m pytest tests/unit/application/test_command_boundaries.py tests/test_invariant_guards.py tests/test_cli.py -q` -> `279 passed, 10 subtests passed`
+    - `.venv/bin/python -m pytest -q` -> `721 passed, 8 deselected, 10 subtests passed`
+    - `.venv/bin/python -m compileall -q src/swallow` -> passed
+    - `git diff --check` -> passed
 
 进行中:
 
@@ -138,12 +181,12 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** 审查并提交 M5 task read/report/artifact migration and cleanup。
-- **[Claude]** Human 提交 M5 后进入 PR review / consistency check。
+- **[Human]** 审查 review-fix 工作树变更并提交。
+- **[Human]** 使用已更新的 `pr.md` 创建/更新 PR,然后决定是否需要 Claude 复审或直接进入 merge decision。
 
 当前阻塞项:
 
-- 无 blocker。
+- 无实现 / 文档 blocker。当前只等待 Human review / commit / PR decision。
 
 ## Tag 状态
 
@@ -153,28 +196,29 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审查并提交 M5 task read/report/artifact migration and cleanup。
-2. **[Claude]** 进行 PR review / consistency check。
-3. **[Codex]** 根据 review 结果同步 closeout / PR 文案。
+1. **[Human]** 审查并提交 review-fix / closeout 工作树变更。
+2. **[Human]** 使用已更新的 `pr.md` 创建/更新 PR,决定是否需要 Claude 复审或直接进入 merge decision。
+3. **[Codex]** Merge 后做 post-merge state sync,触发 `roadmap-updater` 增量更新 LTO-9 Step 2 完成 + advance 当前 ticket 到 LTO-8 Step 2。
+4. **[Human + Claude]** post-merge 时一并处理之前 park 的 FastAPI 写路由单列决定(新增独立 LTO entry,LTO-5 收敛为 "Repository Ports — 真实需求触发")。
 
 ```markdown
-plan_gate:
+review_gate:
 - latest_completed_phase: Governance Apply Handler Split / LTO-10
-- merge_commit: b3f7f43 Governance Apply Handler Maintainability
+- merge_commit (prior): b3f7f43 Governance Apply Handler Maintainability
 - active_branch: refactor/cli_command_family_migration
 - active_phase: LTO-9 Step 2 — broad CLI command-family migration
-- active_slice: M5 task read/report/artifact migration and cleanup complete; awaiting Human review/commit
+- active_slice: review fixes complete; awaiting Human review/commit
 - direction_decided: LTO-9 Step 2 first, then LTO-8 Step 2 (cluster C closure)
 - roadmap: docs/roadmap.md current ticket = LTO-9 Step 2; next choice = LTO-8 Step 2
-- context_brief: docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md (170 lines)
 - plan: docs/plans/surface-cli-meta-optimizer-split-step2/plan.md (307 lines)
 - plan_audit: docs/plans/surface-cli-meta-optimizer-split-step2/plan_audit.md
-- audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed in plan.md
+- audit_verdict: has-concerns, 0 blockers, 5 concerns absorbed in plan.md AND in code
+- review: verdict request-changes; 2 blockers (closeout.md missing, pr.md stale); 1 layering concern (app/commands/tasks.py reverse import); 3 polish
+- review_validation: full pytest 721 passed, 8 deselected, 10 subtests passed; compileall + git diff --check clean
 - companion_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines, ready for LTO-8 Step 2)
-- closeout (prior phase): docs/plans/governance-apply-handler-split/closeout.md (status final)
-- review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns; 1 withdrawn
 - tag_decision: defer v1.6.0 until LTO-9 Step 2 + LTO-8 Step 2 both land (cluster C closure)
-- next_gate: Human review / commit → Claude review / closeout
+- parked_decision: FastAPI 写路由单列为新 LTO entry,post-LTO-9-Step-2 merge 时与 LTO-5 收敛一并处理
+- next_gate: Human review-fix commit + PR create/update decision
 ```
 
 ## 当前产出物
@@ -185,8 +229,11 @@ plan_gate:
 - `docs/plans/surface-cli-meta-optimizer-split-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-9 Step 2 事实盘点)
 - `docs/plans/surface-cli-meta-optimizer-split-step2/plan.md`(codex, 2026-05-02, LTO-9 Step 2 broad CLI command-family migration plan;已吸收 plan audit 5 条 concern)
 - `docs/plans/surface-cli-meta-optimizer-split-step2/plan_audit.md`(claude/design-auditor, 2026-05-02, has-concerns, 0 blockers / 5 concerns)
+- `docs/plans/surface-cli-meta-optimizer-split-step2/review_comments.md`(claude, 2026-05-03, request-changes;2 blockers / 1 layering concern / 3 polish)
+- `docs/plans/surface-cli-meta-optimizer-split-step2/closeout.md`(codex, 2026-05-03, LTO-9 Step 2 closeout final;review blockers resolved)
+- `pr.md`(codex, 2026-05-03, LTO-9 Step 2 PR body;ignored file, updated for Human PR creation/update)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md`(claude/context-analyst, 2026-05-02, LTO-8 Step 2 事实盘点;LTO-9 Step 2 完成后启用)
-- `docs/active_context.md`(codex, 2026-05-02, LTO-9 Step 2 plan_audit concern 吸收后切到 Human Plan Gate)
+- `docs/active_context.md`(codex, 2026-05-03, review-fix complete;等待 Human review/commit + PR decision)
 - `tests/integration/cli/test_audit_commands.py`(codex, 2026-05-02, M1 audit policy CLI characterization)
 - `tests/integration/cli/test_knowledge_commands.py`(codex, 2026-05-02, M1 knowledge stage/promote/reject/ingest characterization)
 - `tests/integration/cli/test_route_family_commands.py`(codex, 2026-05-02, M1 route registry/policy/select characterization)
@@ -203,6 +250,10 @@ plan_gate:
 - `src/swallow/surface_tools/cli_commands/knowledge.py`(codex, 2026-05-03, M3 knowledge CLI adapter)
 - `src/swallow/application/commands/tasks.py`(codex, 2026-05-03, M4 task write/control application command boundary)
 - `src/swallow/surface_tools/cli_commands/tasks.py`(codex, 2026-05-03, M4 task write/control CLI adapter;M5 task read/report/artifact CLI adapter)
+- `src/swallow/application/commands/tasks.py`(codex, 2026-05-03, review-fix:direct Orchestrator `run_task` import path, no application → surface_tools reverse import)
+- `src/swallow/surface_tools/cli.py`(codex, 2026-05-03, review-fix:remove `apply_proposal` implementation detail from synthesis policy help)
+- `tests/unit/application/test_command_boundaries.py`(codex, 2026-05-03, review-fix:promote migrated modules to required command modules)
+- `tests/test_cli.py`(codex, 2026-05-03, review-fix:update task run patch target to application command boundary)
 
 ## 当前验证结果
 
@@ -257,6 +308,18 @@ git diff --check
 
 .venv/bin/python -m pytest tests/integration/cli tests/unit/application/test_command_boundaries.py tests/test_invariant_guards.py -q
 # 52 passed
+
+git diff --check
+# passed
+
+.venv/bin/python -m pytest tests/unit/application/test_command_boundaries.py tests/test_invariant_guards.py tests/test_cli.py -q
+# 279 passed, 10 subtests passed
+
+.venv/bin/python -m pytest -q
+# 721 passed, 8 deselected, 10 subtests passed
+
+.venv/bin/python -m compileall -q src/swallow
+# passed
 
 git diff --check
 # passed
