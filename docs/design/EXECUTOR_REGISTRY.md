@@ -176,6 +176,44 @@ runtime_site       = hybrid
 
 理由:Meta-Optimizer 的输入是结构化遥测数据,不是文本检索召回。它的"召回"是直接 SQL 查询 event_telemetry / route_health 等表。
 
+#### Wiki Compiler
+
+```
+role               = specialist
+advancement_right  = propose_only
+truth_writes       = {task_artifacts, event_log, staged_knowledge}
+llm_call_path      = specialist_internal
+runtime_site       = hybrid
+```
+
+| 字段 | 说明 |
+|---|---|
+| 职责 | 把 raw_material / 多源素材编译为有结构的 wiki / canonical 草稿;产出可审 / 可追溯的 staged candidates |
+| 输入 | raw_material 引用、外部摄入产物、已有 wiki / canonical 引用(查重),task semantics 给出的主题与边界 |
+| 输出 | staged candidates(含 source pack、rationale、conflict flags、与现有 wiki/canonical 的关系标注) |
+| 边界 | **不写 canonical**(仍走 `apply_proposal`);产出 staged 后由 Librarian 做冲突检测与去重,再交 Operator review |
+| 与 Librarian 的关系 | **上游**:Wiki Compiler 起草 → Librarian 守门(冲突 / supersede 检测) → Operator review → `apply_proposal` |
+| 与 Ingestion 的关系 | **平行,不重叠**:Ingestion 把单源外部会话**结构化**为 staged;Wiki Compiler 从**多源 raw_material 综合**产出 wiki/canonical 草稿,需要 retrieval 召回查重 |
+| 操作模式 | **4 种 mode 显式区分**(下表)。`draft-wiki` / `refine-wiki` 走 LLM,`refresh-evidence` 不走 LLM 仅刷 evidence 锚点 |
+| `default_retrieval_sources` | `["knowledge", "artifacts", "raw_material"]` |
+
+**4 种操作模式**(authoritative;LTO-1 phase plan 起草时必须落实到命令参数与 `relation_metadata` 字段):
+
+| Mode | 触发场景 | 命令形态(示例) | LLM 调用 | `relation_metadata` 标注 | apply_proposal 行为 |
+|---|---|---|---|---|---|
+| **draft** | 从 raw_material 起草新 wiki entry,无对应旧对象 | `swl wiki draft --topic "..."` | 是 | `(无)`或仅 `derived_from`(标 ingestion 来源链)| 写入新 `know_wiki` + `know_canonical` |
+| **refine — supersede** | 旧 wiki 整体过时,被新 wiki 完全取代 | `swl wiki refine --mode supersede --target <wiki_id>` | 是 | `supersedes(<wiki_id>)` | 新 wiki 入库;旧 wiki 状态置 `superseded`(不删除,append-only)|
+| **refine — refines** | 旧 wiki 仍正确,补充细节 / 精化 | `swl wiki refine --mode refines --target <wiki_id>` | 是 | `refines(<wiki_id>)` | 新 wiki 独立入库;旧 wiki 仍 active;`refines` 关系记入 relations 表;retrieval 命中旧对象时通过 relation expansion 一并返回 |
+| **refresh-evidence** | 源文件 `content_hash` 变化但语义不变(例:措辞调整)| `swl wiki refresh-evidence --target <evidence_id>` | **否** | `(无;仅刷新 evidence 锚点)`| 仅更新 `know_evidence.content_hash` + `span` + `parser_version`(若 parser 升级);不创建新 wiki;`know_change_log` 记 `evidence_refreshed` 事件 |
+
+**冲突检测在 Librarian 阶段**:Wiki Compiler 起草时若 retrieval 召回到与新草稿矛盾的旧 wiki,标记 `conflict_flag = contradicts(<wiki_id>)` 进入 staged。Librarian 守门时验证冲突类型;Operator review 时人工二选一(supersede 旧 wiki / reject 新草稿 / 触发更深 audit)。系统**永远不**自动 supersede(P7 / P8)。
+
+**Evidence rebuild 反模式保护**(对应 `KNOWLEDGE.md §A "Unversioned Evidence Rebuild"`):`refresh-evidence` 必须更新 `parser_version` 字段(若 parser 升级);只更新 `content_hash` 不更新 `parser_version` = 静默破坏证据真值,LTO-1 实现需有 guard test。
+
+理由:Wiki Compiler 是 **knowledge authoring specialist**(创作型),与 Librarian 的 **knowledge governance specialist**(守门型)分工清晰;让一个 agent 同时做创作 + 守门会失去独立 verdict 的价值。`default_retrieval_sources` 包含 `knowledge` 用于查重防重复创作,`artifacts` 用于复用已有解析,`raw_material` 是其主输入源。
+
+`refine-wiki` 与 `refresh-evidence` 是**两条独立命令**,不允许混用 —— LLM 编译产出与技术性 hash 刷新走不同路径。
+
 ### 1.3 Validators
 
 #### Quality Validator
@@ -223,6 +261,7 @@ runtime_site       = hybrid
 | 高频 daily 实现 | Aider | 边界清晰的小步编辑循环 |
 | 受控认知任务(无 tool-loop) | HTTP Executor | brainstorm、review、synthesis、抽取 |
 | 知识沉淀主线 | Librarian | staged → review 收口 |
+| 知识起草主线 | Wiki Compiler | raw_material / 多源素材 → staged wiki/canonical 草稿(`draft-wiki` / `refine-wiki`) |
 | 外部会话摄入 | Ingestion Specialist | ChatGPT / Claude Web 等导出物 |
 | 领域资料深度解析 | Literature Specialist | PDF / 论文 / 长文档比较 |
 | 系统优化提案 | Meta-Optimizer | event truth 扫描 → proposal |
