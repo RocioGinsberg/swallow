@@ -21,7 +21,6 @@ status: living-document
 
 | 维度 | 当前状态 |
 |------|----------|
-| **稳定 checkpoint** | `v1.5.0` 已发布;Phase 67 module / hygiene cleanup + Phase 68 `RawMaterialStore` boundary 构成当前 knowledge plane baseline |
 | **知识治理** | Raw Material / Knowledge Truth / Retrieval & Serving 三层已成型;Wiki / Canonical 是默认语义入口;`RawMaterialStore` filesystem backend 已落地 |
 | **知识捕获** | `swl note` / clipboard / `generic_chat_json` / local file ingestion 已可进入 staged review 管线 |
 | **检索基础设施** | Retrieval U-T-Y 已落地:dedicated rerank boundary、retrieval trace、source policy warnings、EvidencePack compatibility view、RawMaterialStore-backed source pointer resolution、summary route boundary |
@@ -88,11 +87,11 @@ status: living-document
 
 近期队列只放下一两个可执行 ticket。Ticket 完成后移出本节,它的后续增量回到上面的长期目标。
 
-当前阶段 **簇 C 完全终结 + LTO-13 实现 milestone 已提交**。Claude PR review = recommend-merge,等待 Human merge gate。Merge 后近期工作转向**架构纪律收口**:把 LTO-13 R3 audit 暴露的 framework-rejection 教训编纂成独立工程纪律,把 `surface_tools/{cli,web}` 重命名为标准 `adapters/{cli,http}`,然后激活 LTO-6 主动 facade 化。
+当前阶段 **簇 C 完全终结 + LTO-13 已合并到 main**。Human 已决定打 `v1.7.0`,当前处于 release docs / tag preparation。Tag 完成后近期工作转向**架构纪律收口**:把 LTO-13 R3 audit 暴露的 framework-rejection 教训编纂成独立工程纪律,把 `surface_tools/{cli,web}` 重命名为标准 `adapters/{cli,http}`,然后激活 LTO-6 主动 facade 化。
 
 | 优先级 | Ticket | 对应长期目标 | 状态 / Gate | 默认下一步 |
 |--------|--------|--------------|-------------|------------|
-| 收口中 | **LTO-13 — FastAPI Local Web UI Write Surface** | LTO-13 | 实现 milestone 已提交;Claude PR review = recommend-merge;C1 / N1 follow-up Codex 已处理,等待 Human merge gate | Human merge → 评估 `v1.7.0` tag(WebUI write surface 是首次 LLM-外可观察能力增量) |
+| 收口中 | **v1.7.0 release docs / tag preparation** | LTO-13 | LTO-13 已合并到 `main`;Human 已决定打 `v1.7.0`;release docs 已同步 | Human commit release docs → annotated tag `v1.7.0` |
 | 下一启动 | **Adapter Discipline Codification**(D5;non-LTO independent phase) | 工程纪律 / LTO-4 邻接 | LTO-13 merge 后立即;single-commit phase | 起草 `docs/engineering/ADAPTER_DISCIPLINE.md`(~150 行):Framework-Default Principle(框架原语优先于自写 helper)+ Adapter forbidden zone(adapter 不许编 state machine、不许动 module global、不许在 schema 默认值编码"我是哪个 surface")+ Adapter 模块布局(`api.py` / `schemas.py` / `dependencies.py` / `errors.py`)+ Surface-identity 通过 `OperatorToken` 而非 schema 默认值传递。以 LTO-13 plan_audit Round 1-3 的 14 concerns 为 worked examples |
 | 紧随 | **Adapter Boundary Cleanup Phase A**(D4 Phase A;non-LTO independent phase) | 工程纪律 / LTO-13 后续 | D5 落定后;纯 import-path 重命名,无逻辑变化,blast radius 小 | `surface_tools/cli/` → `adapters/cli/`;`surface_tools/web/` → `adapters/http/`;后两波 Phase B(`surface_tools/{consistency_audit,meta_optimizer}.py` → `application/services/`)和 Phase C(`surface_tools/{paths,workspace}.py` → `application/infrastructure/`)按需触发 |
 | 然后 | **Knowledge Plane Facade Solidification**(D1;= LTO-6 主动化) | LTO-6 | D4 Phase A 落定后,或 Wiki Compiler 启动前必须先做(因为 Wiki Compiler 会扩大 knowledge_retrieval 调用面) | 替换 `knowledge_plane.py` 50 个 re-export → 6-10 个领域方法;`knowledge_retrieval` 子模块加 `_internal` 前缀;一次性迁移所有 application/truth_governance imports;~10 import 调整 + 6 模块 relabel |
@@ -121,13 +120,13 @@ status: living-document
 
 **v1.6.0 Tag 决策**:**已执行 v1.6.0**(2026-05-03,标记 cluster C closure;tag target = `0e6215a docs(release): sync v1.6.0 release docs`)。
 
-**v1.7.0 Tag 决策**:**待 LTO-13 merge 后评估**。LTO-13 FastAPI Local Web UI Write Surface 是首次 LLM-外可观察能力增量,值得单独 cut;也可累积 D5 Adapter Discipline + D4 Phase A rename + D1/LTO-6 Knowledge Plane Facade Solidification 一起作为"接口边界 + 工程纪律"小簇收口后再 cut。Human 决定。
+**v1.7.0 Tag 决策**:**Human 已决定打 tag;release docs 已同步,等待 commit + annotated tag**。LTO-13 FastAPI Local Web UI Write Surface 是首次 LLM-外可观察能力增量,单独 cut 为 `v1.7.0`。
 
 ---
 
 ## 五、推荐顺序
 
-**Retrieval 第一阶段(done) → Architecture first branch(done) → 簇 C 四金刚(done) → LTO-13 FastAPI Local Web UI(merge 中) → D5 Adapter Discipline → D4 Phase A 重命名 adapters → D1 / LTO-6 Knowledge Plane Facade Solidification → 后续视真实需求(Wiki Compiler / LTO-4 / D2 LTO-5 driven ports)**
+**Retrieval 第一阶段(done) → Architecture first branch(done) → 簇 C 四金刚(done) → LTO-13 FastAPI Local Web UI(done;v1.7.0 tag preparation) → D5 Adapter Discipline → D4 Phase A 重命名 adapters → D1 / LTO-6 Knowledge Plane Facade Solidification → 后续视真实需求(Wiki Compiler / LTO-4 / D2 LTO-5 driven ports)**
 
 ### 簇 C 内部顺序与理由
 
@@ -155,7 +154,7 @@ LTO-13 audit Round 1-3 共 14 项 concerns(R1 5+1 nit + Pydantic + R2 4+2 + R3 5
 1. **Retrieval 第一阶段已闭环**:trace、EvidencePack/source pointer、summary boundary 已进入 baseline;后续增量归入 LTO-2,真实使用触发再推进。
 2. **Architecture first branch 已 merge**:helper seed、Knowledge Plane facade、Control Center query pilot 提供了 facade-first migration 的样本;后续 subtrack 不能借 program plan 隐式进入实现。
 3. **簇 C 四金刚已完全终结**:LTO-7/8/9/10 各自独立 phase 完成;每条都涉及不同 invariant 边界(Provider Router → Path A/C;Orchestration → Control;Governance → Truth write;CLI → application/commands boundary)。v1.6.0 标签已发布标记闭合。
-4. **LTO-13 FastAPI Local Web UI 已落地**:Cluster C 已终结后,application/commands 写命令完整化的价值通过 Web UI 表面落地;LTO-13 不依赖簇 B 剩余项重构,作为接口边界首次落地。等待 Human merge gate;merge 后评估 v1.7.0 tag。
+4. **LTO-13 FastAPI Local Web UI 已落地**:Cluster C 已终结后,application/commands 写命令完整化的价值通过 Web UI 表面落地;LTO-13 不依赖簇 B 剩余项重构,作为接口边界首次落地。Human 已决定基于该能力增量打 `v1.7.0`。
 5. **D5 / D4 Phase A / D1 紧随 LTO-13**:这是 LTO-13 暴露的系统性教训的工程纪律收口;先文档(D5),再低风险 rename(D4 Phase A),再有真实工程价值的 facade 主动化(D1/LTO-6)。三者按风险升序、按阻断关系排列(Wiki Compiler 真要做就必须先有 D1)。
 6. **Wiki Compiler 后置**:LLM Wiki Compiler 依赖 D1 facade 完成、LTO-2 retrieval quality 完成后再启动。
 7. **D2 / LTO-5 driven ports + D6 HTTP client port + D3 orchestrator decomposition**:都属于"等真实需求触发"区。D2 触发条件 = 测试隔离 / 第二个 adapter 实现 / 注入复杂度提升;D6 必须在 D2 第一个 port 落定后做;D3 必须在 D2 部分落定后做。三者均为大 phase,不预先排日程。

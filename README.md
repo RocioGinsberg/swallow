@@ -10,16 +10,16 @@ swallow sustains multi-step, multi-session tasks by combining task orchestration
 
 ## Release Snapshot
 
-Current release: **v1.6.0**.
+Current release: **v1.7.0**.
 
-This snapshot closes the Cluster C architecture program after `v1.5.0`:
+This snapshot adds the first local Web Control Center write surface on top of the `v1.6.0` Cluster C architecture baseline:
 
-- Orchestration lifecycle decomposition: `orchestrator.py` and `harness.py` now delegate retrieval, execution attempts, artifact records, task reports, subtask helpers, task lifecycle payloads, and knowledge-flow helpers to focused modules while keeping Orchestrator as the sole task-state control owner.
-- Harness write-pipeline cleanup: `harness.py` was reduced from the 2077-line baseline to a 1028-line import-compatible orchestration facade with the policy / artifact pipeline extracted; summary, resume-note, and task-memory report builders remain intentionally deferred.
-- Surface and governance modularity: broad CLI command families moved out of `surface_tools/cli.py`, CLI-originated write paths now route through `application/commands/*`, and `truth_governance/governance.py` is a small `apply_proposal` facade over focused private handlers.
-- Provider Router maintainability: route registry, policy, metadata-store, selection, completion-gateway, reports, and facade compatibility are split across focused modules while preserving Path A / Path C governance boundaries.
-- Guard baseline strengthened: the new helper-side `append_event` allowlist guard records that orchestration helpers may emit only telemetry / artifact-completion events, while state-transition events stay in Orchestrator.
-- Governance baseline preserved: no task / knowledge / route / policy schema changes, no FastAPI write routes, no Provider Router behavior change, and `apply_proposal()` remains the only canonical / route / policy mutation entry.
+- Web Control Center write routes: `swl serve` now exposes local FastAPI `POST` routes for task creation, task lifecycle actions, staged knowledge promote/reject, and Meta-Optimizer proposal review/apply.
+- Shared application command boundary: Web writes call the same `application/commands/*` functions as CLI-originated writes; the Web adapter does request/response schema, dependency wiring, exception-to-HTTP mapping, and serialization only.
+- Typed HTTP contract: request and response bodies use scoped Pydantic models with a consistent success envelope, backend-derived action eligibility, and centralized FastAPI exception handlers for 400 / 404 / 409 style Swallow semantics.
+- Local safety guard: `swl serve` remains loopback-only for write-capable operation, so binding to broad LAN hosts is rejected by default.
+- UI capability parity: the static Control Center can create tasks, run/retry/resume/rerun/acknowledge task actions, promote/reject staged knowledge, and review/apply proposal bundles while refreshing the same read model used by the backend.
+- Governance baseline preserved: task state control remains with Orchestrator / Operator, Web writes do not bypass application commands, staged knowledge force promotion is not exposed in the Web UI, and `apply_proposal()` remains the only canonical / route / policy mutation entry.
 
 ---
 
@@ -191,16 +191,16 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 ## Release Snapshot
 
-当前 release:**v1.6.0**。
+当前 release:**v1.7.0**。
 
-这个快照闭合 `v1.5.0` 之后的簇 C 架构重构计划:
+这个快照在 `v1.6.0` 簇 C 架构基线之上,新增首个本地 Web Control Center 写表面:
 
-- Orchestration lifecycle decomposition:`orchestrator.py` 与 `harness.py` 已把 retrieval、execution attempts、artifact records、task reports、subtask helpers、task lifecycle payloads、knowledge-flow helpers 委托给聚焦模块,同时保持 Orchestrator 是唯一 task-state control owner。
-- Harness 写入流水线清理:`harness.py` 从 2077 行 baseline 降到 1028 行 import-compatible orchestration facade,policy / artifact pipeline 已外移;summary、resume-note、task-memory report builders 明确保留为后续 report-rendering slice。
-- Surface 与 governance 模块化:广泛 CLI 命令族已从 `surface_tools/cli.py` 外移,CLI-originated write paths 通过 `application/commands/*` 收口,`truth_governance/governance.py` 成为 `apply_proposal` 小 facade。
-- Provider Router 可维护性:route registry、policy、metadata-store、selection、completion-gateway、reports 与 facade compatibility 已拆成聚焦模块,同时保持 Path A / Path C 治理边界。
-- 守卫基线增强:新增 helper-side `append_event` allowlist guard,规定 orchestration helpers 只能发 telemetry / artifact-completion events,state-transition events 保留在 Orchestrator。
-- 治理基线保持不变:未修改 task / knowledge / route / policy schema,未新增 FastAPI write routes,未改变 Provider Router 行为,`apply_proposal()` 仍是 canonical / route / policy mutation 的唯一入口。
+- Web Control Center 写路由:`swl serve` 现在提供本地 FastAPI `POST` 路由,覆盖 task 创建、task lifecycle actions、staged knowledge promote/reject、Meta-Optimizer proposal review/apply。
+- 共享 application command 边界:Web 写入调用与 CLI 写入相同的 `application/commands/*` 函数;Web adapter 只负责 request/response schema、dependency wiring、exception-to-HTTP mapping 和 serialization。
+- Typed HTTP contract:请求体和响应体使用 scoped Pydantic models,统一 success envelope,读取 backend-derived action eligibility,并用集中 FastAPI exception handlers 映射 400 / 404 / 409 类 Swallow 语义错误。
+- 本地安全守卫:`swl serve` 的写能力保持 loopback-only,默认拒绝绑定到宽泛 LAN host。
+- UI 能力对等:静态 Control Center 可创建 task、run/retry/resume/rerun/acknowledge task action、promote/reject staged knowledge、review/apply proposal bundle,并刷新同一份 backend read model。
+- 治理基线保持不变:task state control 仍只属于 Orchestrator / Operator,Web 写入不绕过 application commands,Web UI 不暴露 staged knowledge force promote,`apply_proposal()` 仍是 canonical / route / policy mutation 的唯一入口。
 
 ---
 

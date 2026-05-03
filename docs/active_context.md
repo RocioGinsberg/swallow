@@ -8,24 +8,29 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Architecture / Engineering`
-- latest_completed_phase: `LTO-8 Step 2 — harness decomposition (cluster C closure)`
-- latest_completed_slice: `v1.6.0 tagged; cluster C fully closed`
-- active_track: `Interface / Application Boundary`
-- active_phase: `LTO-13 — FastAPI Local Web UI Write Surface`
-- active_slice: `review concerns addressed; roadmap updated for post-LTO-13 + ADR D1-D6; ready for Human merge gate`
-- active_branch: `feat/lto-13-fastapi-local-web-ui-write-surface`
-- status: `lto13_ready_for_merge_gate_with_roadmap_synced`
+- latest_completed_track: `Interface / Application Boundary`
+- latest_completed_phase: `LTO-13 — FastAPI Local Web UI Write Surface`
+- latest_completed_slice: `LTO-13 merged; roadmap updated for post-LTO-13 + ADR D1-D6`
+- active_track: `Release / Tag`
+- active_phase: `v1.7.0 release docs / tag preparation`
+- active_slice: `release docs synced; awaiting Human commit and tag`
+- active_branch: `main`
+- status: `v1_7_0_release_docs_ready_for_tag`
 
 ## 当前状态说明
 
-当前 git 分支为 `feat/lto-13-fastapi-local-web-ui-write-surface`。进入 LTO-13 实现前,HEAD 为:
+当前 git 分支为 `main`。当前 HEAD 为:
+
+- `52fd14c docs(state): update roadmap`
+- `4ea7a9d FastAPI Local Web UI Write Surface`
+
+进入 LTO-13 实现前,HEAD 为:
 
 - `5b18a7f docs(plan): local first write API`
 - `3d280ca docs(state): update roadmap`
 - `ea4a886 Orchestration Lifecycle Decomposition`(LTO-8 Step 2 merge commit)
 
-`v1.6.0` annotated tag 已 cut,标记 cluster C 完整闭合。
+`v1.6.0` annotated tag 已 cut,标记 cluster C 完整闭合。Human 已决定打 `v1.7.0`;当前处于 release docs / tag preparation,尚未执行 tag 命令。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -141,10 +146,16 @@ LTO-7 long-running follow-ups(仍开放):
   - §一 baseline `当前重构状态` 升级到 "簇 C 完全终结 + LTO-13 接口边界首次落地";新增 `架构身份` 行(Hexagonal + 6 项偏离 D1-D6)。
   - §二 簇 B 描述更新:LTO-5 重定义为 **Driven Ports Rollout**(N phases,首推 `TaskStorePort`);LTO-6 重定义为 **Knowledge Plane Facade Solidification**(主动收口,而非 touched-surface 慢推);LTO-13 行标已完成,列出全部 R1-R3 吸收点。
   - §三 近期队列重写:LTO-13(收口中)→ **D5 Adapter Discipline Codification** → **D4 Phase A 重命名 surface_tools/{cli,web} → adapters/{cli,http}** → **D1 Knowledge Plane Facade Solidification(=LTO-6)**。明确 D2/D6/D3 默认 deferred。
-  - §四 加 **v1.7.0 Tag 决策**(待 LTO-13 merge 后评估)。
+  - §四 加 **v1.7.0 Tag 决策**;当前已由 Human 决定打 tag,release docs 已同步。
   - §五 推荐顺序更新到 "...→ LTO-13 → D5 → D4 Phase A → D1/LTO-6 → 后续";新增"LTO-13 后续工程纪律 phase 顺序"小节,把 D5 → D4 Phase A → D1 三步的理由写清。跨阶段排序依据从 6 条扩到 8 条,加了 LTO-13 已落地 / D5/D4/D1 紧随 / D2/D6/D3 deferred 三条。
   - §一 工程纪律行加一句 ARCHITECTURE_DECISIONS.md 待提交、D5 文档化的指引。
   - 已通过 phase-guard scope check 与 format-validator(193 行,远在 300 行上限内)。
+- **[Human]** 已将 LTO-13 branch 合并回 `main`;当前 main HEAD = `52fd14c docs(state): update roadmap`。
+- **[Human]** 决定基于 LTO-13 能力增量打 `v1.7.0` tag。
+- **[Codex]** 已同步 tag-level release docs:
+  - `README.md` Release Snapshot 更新为 `v1.7.0 local Web Control Center write surface`。
+  - `current_state.md` 更新为 `v1_7_0_release_docs_ready_for_tag`。
+  - `docs/active_context.md` 更新为 release docs / tag preparation 状态。
 
 进行中:
 
@@ -152,38 +163,42 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** Review final closeout / `pr.md` / 新增 `docs/engineering/ARCHITECTURE_DECISIONS.md`(draft) / 更新后的 `docs/roadmap.md`,提交 review-fix + closeout + roadmap update + ADR 文档后创建 PR / merge 决策。
-- **[Codex]** Merge 后执行 post-merge state sync(`current_state.md` + `docs/active_context.md`),并准备下一启动 phase = **D5 Adapter Discipline Codification**(单文档 phase,把 LTO-13 plan_audit Round 1-3 的 14 concerns 编纂为 `docs/engineering/ADAPTER_DISCIPLINE.md`)。
+- **[Human]** Review 并提交 `v1.7.0` release docs。
+- **[Human]** 在 `main` 上执行 annotated tag `v1.7.0`。
+- **[Codex]** Human 确认 tag 完成后,同步 `docs/active_context.md` 的 tag 状态,并准备下一启动 phase = **D5 Adapter Discipline Codification**(单文档 phase,把 LTO-13 plan_audit Round 1-3 的 14 concerns 编纂为 `docs/engineering/ADAPTER_DISCIPLINE.md`)。
 
 当前阻塞项:
 
-- 无 blocker。Review concern 已处理;等待 Human merge gate。
+- 无 blocker。Release docs 已同步;等待 Human commit + tag。
 
 ## Tag 状态
 
 - 最新已执行 tag: **`v1.6.0`**(2026-05-03)
 - tag target: `0e6215a docs(release): sync v1.6.0 release docs`
 - 标记意义:**cluster C closure**(LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10 全部完成)
-- 下一 tag 评估:LTO-13 completed merge 后评估 `v1.7.0`(WebUI write surface 是首次 LLM-外可观察能力增量;也可累积更多产品向 phase 后再 cut)。
+- pending release tag: **`v1.7.0`**
+- tag 决策:Human 已决定打 tag;当前等待 release docs commit 后执行 annotated tag。
+- 标记意义:**local Web Control Center write surface**(LTO-13;首次本地 Web 写能力增量)。
 
 ## 当前下一步
 
-1. **[Human]** 提交 review-fix + closeout 文档,创建 PR / merge 决策。
-2. **[Codex]** Merge 后执行 post-merge state sync。
-3. **[Human / Claude]** Merge 后评估 `v1.7.0` tag;触发后续 phase(D5 Adapter Discipline Codification、D1 Knowledge Plane Facade Solidification、D4 Adapter / Service Boundary Cleanup 三选一,见 `ARCHITECTURE_DECISIONS.md`)。
+1. **[Human]** 审阅并提交 release docs:`README.md` / `current_state.md` / `docs/active_context.md`。
+2. **[Human]** 执行 `git tag -a v1.7.0 -m "v1.7.0 local web write surface"`。
+3. **[Codex]** tag 完成后同步 tag 状态,再进入下一 phase planning;当前 roadmap 推荐起点为 D5 Adapter Discipline Codification。
 
 ```markdown
 direction_gate:
-- latest_completed_phase: LTO-8 Step 2 — harness decomposition
-- merge_commit: ea4a886 Orchestration Lifecycle Decomposition
-- release_tag: v1.6.0 at 0e6215a docs(release): sync v1.6.0 release docs
-- active_branch: feat/lto-13-fastapi-local-web-ui-write-surface
-- active_phase: LTO-13 — FastAPI Local Web UI Write Surface
-- active_slice: review concerns addressed; ready for Human merge gate
+- latest_completed_phase: LTO-13 — FastAPI Local Web UI Write Surface
+- merge_commit: 4ea7a9d FastAPI Local Web UI Write Surface
+- latest_release_tag: v1.6.0 at 0e6215a docs(release): sync v1.6.0 release docs
+- pending_release_tag: v1.7.0
+- active_branch: main
+- active_phase: v1.7.0 release docs / tag preparation
+- active_slice: release docs synced; awaiting Human commit and tag
 - cluster_c_status: fully closed (LTO-7 + LTO-8 Step 1+Step 2 + LTO-9 Step 1+Step 2 + LTO-10)
 - structural_changes_this_round: LTO-13 relocated 簇 C → 簇 B (interface boundary nature, not cluster C continuation); cluster C subheading dropped "+ 接续"; v1.6.0 tag decision marked executed
 - direction_decided: do LTO-13 directly; LTO-5 / LTO-6 do not block LTO-13 (application/commands is the buffer layer)
-- roadmap: docs/roadmap.md current ticket = LTO-13; next choice = Wiki Compiler / LTO-6 / LTO-4 / LTO-5 (per real demand)
+- roadmap: docs/roadmap.md current ticket = v1.7.0 release docs / tag preparation; next startup = D5 Adapter Discipline Codification
 - closeout (prior phase): docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md (status final)
 - review (prior phase): recommend-merge; 0 blockers; 2 non-blocking concerns (both absorbed)
 - new_invariants_landed: helper-side append_event allowlist (12 telemetry kinds + 2 disallowed) registered in INVARIANTS.md §9
@@ -191,7 +206,7 @@ direction_gate:
 - implementation_commit: d4c25ac feat(web): harden local write API surface
 - pr_materials: docs/plans/lto-13-fastapi-local-web-ui-write-surface/closeout.md + ./pr.md + review_comments.md
 - review_outcome: recommend-merge; 14/14 audit findings absorbed; C1 and N1 fixed; N2 deferred to D2 driven ports
-- next_gate: Human merge decision
+- next_gate: Human release docs commit + annotated tag
 ```
 
 ## 当前产出物
@@ -207,4 +222,4 @@ direction_gate:
 - `tests/integration/http/test_web_write_routes.py` + Web/guard test updates(codex, 2026-05-03, LTO-13 HTTP write coverage)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`(codex, 2026-05-03, LTO-8 Step 2 closeout final)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/review_comments.md`(claude, 2026-05-03, recommend-merge;0 blockers / 2 non-blocking concerns)
-- `docs/active_context.md`(claude, 2026-05-03, post-tag state synced;awaiting LTO-13 kickoff;Direction Gate 决定记录)
+- `README.md` / `current_state.md` / `docs/active_context.md`(codex, 2026-05-03, `v1.7.0` release docs synced;awaiting Human commit + annotated tag)
