@@ -154,3 +154,38 @@ def test_m3_knowledge_apply_call_moved_out_of_cli() -> None:
 
     assert "register_canonical_proposal(" not in source
     assert "ProposalTarget.CANONICAL_KNOWLEDGE" not in source
+
+
+def test_task_commands_wrap_orchestrator_when_present() -> None:
+    relative_path = "application/commands/tasks.py"
+    if not (SRC_ROOT / relative_path).exists():
+        return
+    source = _source(relative_path)
+
+    for token in (
+        "create_task(",
+        "run_task(",
+        "acknowledge_task(",
+        "update_task_planning_handoff(",
+        "append_task_knowledge_capture(",
+        "decide_task_knowledge(",
+        "evaluate_task_canonical_reuse(",
+        "run_consistency_audit(",
+    ):
+        assert token in source
+
+
+def test_m4_task_write_calls_moved_out_of_cli() -> None:
+    source = _source("surface_tools/cli.py")
+
+    for token in (
+        "create_task(",
+        "run_task(",
+        "acknowledge_task(",
+        "update_task_planning_handoff(",
+        "append_task_knowledge_capture(",
+        "decide_task_knowledge(",
+        "evaluate_task_canonical_reuse(",
+        "run_consistency_audit(",
+    ):
+        assert token not in source

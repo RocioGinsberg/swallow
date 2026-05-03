@@ -16,9 +16,6 @@ from swallow.knowledge_retrieval.canonical_reuse_eval import (
     build_canonical_reuse_regression_report,
     compare_canonical_reuse_regression,
 )
-from swallow.surface_tools.consistency_audit import (
-    run_consistency_audit,
-)
 from swallow.knowledge_retrieval.canonical_reuse import build_canonical_reuse_report
 from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
 from swallow.knowledge_retrieval.canonical_registry import (
@@ -41,7 +38,6 @@ from swallow.knowledge_retrieval.ingestion.pipeline import (
     run_ingestion_bytes_pipeline,
     run_ingestion_pipeline,
 )
-from swallow.knowledge_retrieval.knowledge_store import OPERATOR_CANONICAL_WRITE_AUTHORITY
 from swallow.knowledge_retrieval.knowledge_relations import (
     KNOWLEDGE_RELATION_TYPES,
 )
@@ -52,18 +48,10 @@ from swallow.surface_tools.cli_commands.proposals import handle_proposal_command
 from swallow.surface_tools.cli_commands.route import handle_route_command
 from swallow.surface_tools.cli_commands.route_metadata import handle_route_metadata_command
 from swallow.surface_tools.cli_commands.synthesis import handle_synthesis_command
+from swallow.surface_tools.cli_commands.tasks import handle_task_write_command
 from swallow.knowledge_retrieval.knowledge_objects import summarize_canonicalization
 from swallow.knowledge_retrieval.knowledge_review import build_knowledge_decisions_report, build_review_queue, build_review_queue_report
 from swallow.surface_tools.mps_policy_store import MPS_POLICY_KINDS
-from swallow.orchestration.orchestrator import (
-    acknowledge_task,
-    append_task_knowledge_capture,
-    create_task,
-    decide_task_knowledge,
-    evaluate_task_canonical_reuse,
-    run_task,
-    update_task_planning_handoff,
-)
 from swallow.surface_tools.paths import (
     artifacts_dir,
     canonical_registry_index_path,
@@ -1078,39 +1066,6 @@ def resolve_attempt_pair(attempts: list[dict[str, str]], left: str | None, right
     if len(attempts) < 2:
         raise ValueError("At least two attempts are required for comparison.")
     return attempts[1], attempts[0]
-
-
-def execute_task_run(
-    base_dir: Path,
-    task_id: str,
-    executor_name: str | None,
-    capability_refs: list[str] | None,
-    route_mode: str | None,
-    reset_grounding: bool = False,
-    skip_to_phase: str = "retrieval",
-) -> int:
-    state = run_task(
-        base_dir=base_dir,
-        task_id=task_id,
-        executor_name=executor_name,
-        capability_refs=capability_refs,
-        route_mode=route_mode,
-        reset_grounding=reset_grounding,
-        skip_to_phase=skip_to_phase,
-    )
-    print(
-        f"{state.task_id} {state.status} retrieval={state.retrieval_count} "
-        f"execution_phase={state.execution_phase}"
-    )
-    return 0
-
-
-def is_acknowledged_dispatch_reentry(state: object) -> bool:
-    return (
-        getattr(state, "status", "") == "running"
-        and getattr(state, "phase", "") == "retrieval"
-        and getattr(state, "topology_dispatch_status", "") == "acknowledged"
-    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -2323,184 +2278,9 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         return 0
 
-    if args.command == "task" and args.task_command == "create":
-        input_context: dict[str, object] = {}
-        if args.executor.strip() == "literature-specialist" and args.document_paths:
-            document_paths: list[str] = []
-            seen_paths: set[str] = set()
-            for raw_path in args.document_paths:
-                normalized = str(resolve_path(raw_path))
-                if not normalized or normalized in seen_paths:
-                    continue
-                document_paths.append(normalized)
-                seen_paths.add(normalized)
-            if document_paths:
-                input_context["document_paths"] = document_paths
-        state = create_task(
-            base_dir=base_dir,
-            title=args.title.strip(),
-            goal=args.goal.strip(),
-            workspace_root=resolve_path(args.workspace_root),
-            executor_name=args.executor.strip(),
-            input_context=input_context,
-            constraints=args.constraint,
-            acceptance_criteria=args.acceptance_criterion,
-            priority_hints=args.priority_hint,
-            next_action_proposals=args.next_action_proposal,
-            planning_source=args.planning_source,
-            complexity_hint=args.complexity_hint,
-            knowledge_items=args.knowledge_item,
-            knowledge_stage=args.knowledge_stage,
-            knowledge_source=args.knowledge_source,
-            knowledge_artifact_refs=args.knowledge_artifact_ref,
-            knowledge_retrieval_eligible=args.knowledge_retrieval_eligible,
-            knowledge_canonicalization_intent=args.knowledge_canonicalization_intent,
-            capability_refs=args.capability,
-            route_mode=args.route_mode,
-        )
-        print(state.task_id)
-        return 0
-
-    if args.command == "task" and args.task_command == "planning-handoff":
-        state = update_task_planning_handoff(
-            base_dir=base_dir,
-            task_id=args.task_id,
-            constraints=args.constraint,
-            acceptance_criteria=args.acceptance_criterion,
-            priority_hints=args.priority_hint,
-            next_action_proposals=args.next_action_proposal,
-            planning_source=args.planning_source,
-            complexity_hint=args.complexity_hint,
-        )
-        print(
-            f"{state.task_id} planning_handoff_updated "
-            f"constraints={len(state.task_semantics.get('constraints', []))} "
-            f"next_actions={len(state.task_semantics.get('next_action_proposals', []))}"
-        )
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-capture":
-        state = append_task_knowledge_capture(
-            base_dir=base_dir,
-            task_id=args.task_id,
-            knowledge_items=args.knowledge_item,
-            knowledge_stage=args.knowledge_stage,
-            knowledge_source=args.knowledge_source,
-            knowledge_artifact_refs=args.knowledge_artifact_ref,
-            knowledge_retrieval_eligible=args.knowledge_retrieval_eligible,
-            knowledge_canonicalization_intent=args.knowledge_canonicalization_intent,
-        )
-        print(f"{state.task_id} knowledge_capture_added added={len(args.knowledge_item)} total={len(state.knowledge_objects)}")
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-promote":
-        caller_authority = OPERATOR_CANONICAL_WRITE_AUTHORITY if args.target == "canonical" else "task-state"
-        state = decide_task_knowledge(
-            base_dir,
-            args.task_id,
-            object_id=args.object_id,
-            decision_type="promote",
-            decision_target=args.target,
-            caller_authority=caller_authority,
-            note=args.note,
-        )
-        print(f"{state.task_id} knowledge_promoted object={args.object_id} target={args.target}")
-        return 0
-
-    if args.command == "task" and args.task_command == "knowledge-reject":
-        state = decide_task_knowledge(
-            base_dir,
-            args.task_id,
-            object_id=args.object_id,
-            decision_type="reject",
-            decision_target=args.target,
-            note=args.note,
-        )
-        print(f"{state.task_id} knowledge_rejected object={args.object_id} target={args.target}")
-        return 0
-
-    if args.command == "task" and args.task_command == "run":
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
-
-    if args.command == "task" and args.task_command == "acknowledge":
-        try:
-            state = acknowledge_task(base_dir, args.task_id)
-        except ValueError as exc:
-            state = load_state(base_dir, args.task_id)
-            print(
-                f"{state.task_id} acknowledge_blocked "
-                f"status={state.status} "
-                f"phase={state.phase} "
-                f"dispatch_status={state.topology_dispatch_status} "
-                f"reason={str(exc)}"
-            )
-            return 1
-        print(
-            f"{state.task_id} dispatch_acknowledged "
-            f"status={state.status} "
-            f"phase={state.phase} "
-            f"dispatch_status={state.topology_dispatch_status} "
-            f"route={state.route_name}"
-        )
-        return 0
-
-    if args.command == "task" and args.task_command == "retry":
-        state = load_state(base_dir, args.task_id)
-        if is_acknowledged_dispatch_reentry(state):
-            return execute_task_run(
-                base_dir,
-                args.task_id,
-                args.executor,
-                args.capability,
-                args.route_mode,
-                skip_to_phase=args.from_phase,
-            )
-        retry_policy = read_json_or_empty(retry_policy_path(base_dir, args.task_id))
-        stop_policy = read_json_or_empty(stop_policy_path(base_dir, args.task_id))
-        checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
-        if not (retry_policy.get("retryable", False) and stop_policy.get("checkpoint_kind", "") in {"retry_review", "detached_retry_review"}):
-            print(
-                f"{state.task_id} retry_blocked "
-                f"retry_decision={retry_policy.get('retry_decision', 'pending')} "
-                f"checkpoint_kind={stop_policy.get('checkpoint_kind', 'pending')} "
-                f"suggested_path={checkpoint_snapshot.get('recommended_path', 'pending')}"
-            )
-            return 1
-        return execute_task_run(
-            base_dir,
-            args.task_id,
-            args.executor,
-            args.capability,
-            args.route_mode,
-            reset_grounding=True,
-            skip_to_phase=args.from_phase,
-        )
-
-    if args.command == "task" and args.task_command == "resume":
-        state = load_state(base_dir, args.task_id)
-        if is_acknowledged_dispatch_reentry(state):
-            return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
-        checkpoint_snapshot = load_checkpoint_snapshot(base_dir, state)
-        if not (checkpoint_snapshot.get("resume_ready", False) and checkpoint_snapshot.get("recommended_path", "") == "resume"):
-            print(
-                f"{state.task_id} resume_blocked "
-                f"checkpoint_state={checkpoint_snapshot.get('checkpoint_state', 'pending')} "
-                f"recommended_path={checkpoint_snapshot.get('recommended_path', 'pending')} "
-                f"suggested_reason={checkpoint_snapshot.get('recommended_reason', 'pending')}"
-            )
-            return 1
-        return execute_task_run(base_dir, args.task_id, args.executor, args.capability, args.route_mode)
-
-    if args.command == "task" and args.task_command == "rerun":
-        return execute_task_run(
-            base_dir,
-            args.task_id,
-            args.executor,
-            args.capability,
-            args.route_mode,
-            reset_grounding=True,
-            skip_to_phase=args.from_phase,
-        )
+    task_write_result = handle_task_write_command(base_dir, args)
+    if task_write_result is not None:
+        return task_write_result
 
     if args.command == "task" and args.task_command == "list":
         states = sorted(
@@ -2640,32 +2420,6 @@ def main(argv: list[str] | None = None) -> int:
         knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
         decisions = read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id))
         print(build_review_queue_report(build_review_queue(knowledge_objects, decisions)))
-        return 0
-
-    if args.command == "task" and args.task_command == "canonical-reuse-evaluate":
-        result = evaluate_task_canonical_reuse(
-            base_dir=base_dir,
-            task_id=args.task_id,
-            citations=args.citation,
-            judgment=args.judgment,
-            note=args.note,
-        )
-        print(
-            f"{result['record']['task_id']} canonical_reuse_evaluated judgment={result['record']['judgment']} citations={result['record']['citation_count']}"
-        )
-        return 0
-
-    if args.command == "task" and args.task_command == "consistency-audit":
-        result = run_consistency_audit(
-            base_dir,
-            args.task_id,
-            auditor_route=args.auditor_route,
-            sample_artifact_path=args.artifact,
-        )
-        artifact_ref = result.audit_artifact or "-"
-        print(
-            f"{result.task_id} consistency_audit status={result.status} verdict={result.verdict} route={result.auditor_route} artifact={artifact_ref}"
-        )
         return 0
 
     if args.command == "task" and args.task_command == "inspect":
