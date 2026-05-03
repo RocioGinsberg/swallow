@@ -13,15 +13,15 @@
 - latest_completed_slice: `cli.py 3653 → 2672 行 (-27%) + application/commands 写命令完整化`
 - active_track: `Architecture / Engineering`
 - active_phase: `LTO-8 Step 2 — harness decomposition`
-- active_slice: `M1 baseline and facade characterization complete; awaiting Human review/commit`
+- active_slice: `M3 artifact layout and record helper split complete; awaiting Human review/commit`
 - active_branch: `feat/orchestration-lifecycle-decomposition-step2`
-- status: `lto8_step2_m1_complete_awaiting_commit`
+- status: `lto8_step2_m3_complete_awaiting_commit`
 
 ## 当前状态说明
 
 当前 git 分支为 `feat/orchestration-lifecycle-decomposition-step2`。LTO-8 Step 2 已进入实现阶段,当前 HEAD 为:
 
-- `8106390 docs(plan): add LTO-8 Step 2 plan`
+- `3f0973c refactor(orchestration): split retrieval and report helpers`
 
 LTO-9 Step 2 已合并到主线:
 
@@ -131,6 +131,21 @@ LTO-7 long-running follow-ups(仍开放):
   - 覆盖 `harness.py` compatibility exports:`run_execution` / `run_retrieval` / `run_retrieval_async` / `write_task_artifacts` / `write_task_artifacts_async` / `build_remote_handoff_contract_record` / `build_remote_handoff_contract_report` / `build_resume_note` / `build_retrieval_report` / `build_source_grounding`
   - 确认 `orchestrator.run_retrieval` / `orchestrator.write_task_artifacts` patch-target names 仍可 import
   - 建立 source grounding / retrieval report / remote handoff / resume note 的 pre-move output characterization
+- **[Human]** 已提交 M1 baseline/facade characterization:
+  - `c8a94f3 test(orchestration): characterize harness facade`
+- **[Codex]** M2 retrieval and retrieval-report split 已完成:
+  - 新增 `src/swallow/orchestration/task_report.py`,承接 `build_source_grounding` / `build_retrieval_report` / `_format_line_span`。
+  - `src/swallow/orchestration/retrieval_flow.py` 承接 `run_retrieval` / `run_retrieval_async` 实现,包含 retrieval persistence 与 `retrieval.completed` telemetry。
+  - `src/swallow/orchestration/harness.py` 保留 `run_retrieval` / `run_retrieval_async` compatibility wrappers,并继续保留 `harness.retrieve_context` patch 兼容性。
+  - `harness.py` 继续 re-export `build_source_grounding` / `build_retrieval_report`,保持 `tests/test_cli.py` 直接 import surface。
+  - 新增 `tests/unit/orchestration/test_task_report_module.py`;更新 retrieval_flow unit guard,允许 retrieval telemetry 但禁止 state-transition event strings。
+- **[Human]** 已提交 M2 retrieval and retrieval-report split:
+  - `3f0973c refactor(orchestration): split retrieval and report helpers`
+- **[Codex]** M3 artifact layout and record helper split 已完成:
+  - 新增 / 承接 `src/swallow/orchestration/artifact_writer.py` 中的 `build_route_record` / `build_route_report` / `build_topology_record` / `build_topology_report` / `build_execution_site_record` / `build_execution_site_report` / `build_dispatch_record` / `build_dispatch_report` / `build_remote_handoff_contract_record` / `build_remote_handoff_contract_report` / `build_handoff_record` / `build_handoff_report` / `build_compatibility_record`。
+  - `harness.py` 改为从 `artifact_writer.py` re-export 这些 builder,并保留 `build_handoff_record` 的 failure-guidance wrapper。
+  - 新增 `tests/unit/orchestration/test_artifact_writer_module.py`,覆盖路径映射、远程 handoff / handoff / route / topology / execution-site / dispatch / compatibility record-report 形状。
+  - `write_task_artifacts` 继续保持行为不变,只是 builder 责任从 `harness.py` 外移。
 
 进行中:
 
@@ -138,12 +153,12 @@ LTO-7 long-running follow-ups(仍开放):
 
 待执行:
 
-- **[Human]** 审查并提交 M1 baseline/facade characterization。
-- **[Codex]** Human 提交 M1 后开始 M2 retrieval and retrieval-report split。
+- **[Human]** 审查并提交 M3 artifact layout and record helper split。
+- **[Codex]** Human 提交 M3 后开始 M4 execution attempts and telemetry split。
 
 当前阻塞项:
 
-- 无 blocker。等待 Human review / commit M1。
+- 无 blocker。等待 Human review / commit M3。
 
 ## Tag 状态
 
@@ -153,8 +168,8 @@ LTO-7 long-running follow-ups(仍开放):
 
 ## 当前下一步
 
-1. **[Human]** 审查并提交 M1 baseline/facade characterization。
-2. **[Codex]** Human 提交 M1 后开始 M2 retrieval and retrieval-report split。
+1. **[Human]** 审查并提交 M3 artifact layout and record helper split。
+2. **[Codex]** Human 提交 M3 后开始 M4 execution attempts and telemetry split。
 
 ```markdown
 plan_gate:
@@ -162,7 +177,7 @@ plan_gate:
 - merge_commit (prior): 1251c3c LTO-9 Step 2 — broad CLI command-family migration
 - active_branch: feat/orchestration-lifecycle-decomposition-step2
 - active_phase: LTO-8 Step 2 — harness decomposition (cluster C closure phase)
-- active_slice: M1 baseline and facade characterization complete; awaiting Human review/commit
+- active_slice: M3 artifact layout and record helper split complete; awaiting Human review/commit
 - cluster_c_status: LTO-7 + LTO-9 + LTO-10 fully closed; LTO-8 Step 2 = cluster C closure
 - roadmap: docs/roadmap.md current ticket = LTO-8 Step 2; next choice = LTO-13; candidates = Wiki Compiler / other LTOs
 - context_brief: docs/plans/orchestration-lifecycle-decomposition-step2/context_brief.md (335 lines)
@@ -173,7 +188,7 @@ plan_gate:
 - review (prior phase): recommend-merge after fixes; 0 blockers; 3 polish concerns
 - new_invariant_design_point: helper-side append_event allowlist (12 telemetry kinds; state-transition kinds disallowed)
 - tag_decision: defer v1.6.0 until LTO-8 Step 2 merge (cluster C closure)
-- next_gate: Human M1 review/commit → Codex M2 implementation
+- next_gate: Human M3 review/commit → Codex M4 implementation
 ```
 
 ## 当前产出物
@@ -185,19 +200,34 @@ plan_gate:
 - `docs/plans/orchestration-lifecycle-decomposition-step2/plan.md`(codex, 2026-05-03, LTO-8 Step 2 harness decomposition plan;已吸收 plan_audit 5 条 concern)
 - `docs/plans/orchestration-lifecycle-decomposition-step2/plan_audit.md`(claude/design-auditor, 2026-05-03, has-concerns, 0 blockers / 5 concerns)
 - `tests/unit/orchestration/test_harness_facade.py`(codex, 2026-05-03, M1 harness facade compatibility + builder characterization)
-- `docs/active_context.md`(codex, 2026-05-03, M1 complete;awaiting Human review/commit)
+- `src/swallow/orchestration/task_report.py`(codex, 2026-05-03, M2 source-grounding and retrieval-report helper module)
+- `src/swallow/orchestration/retrieval_flow.py`(codex, 2026-05-03, M2 retrieval execution implementation owner)
+- `tests/unit/orchestration/test_task_report_module.py`(codex, 2026-05-03, M2 task-report helper characterization)
+- `tests/unit/orchestration/test_retrieval_flow_module.py`(codex, 2026-05-03, M2 retrieval-flow helper boundary update)
+- `src/swallow/orchestration/artifact_writer.py`(codex, 2026-05-03, M3 artifact layout / record helper owner)
+- `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-03, M3 artifact writer helper characterization)
+- `docs/active_context.md`(codex, 2026-05-03, M3 complete;awaiting Human review/commit)
 
 ## 当前验证结果
 
 ```bash
-.venv/bin/python -m pytest tests/unit/orchestration/test_harness_facade.py -q
-# 7 passed
+.venv/bin/python -m pytest tests/unit/orchestration/test_harness_facade.py tests/unit/orchestration/test_task_report_module.py tests/unit/orchestration/test_retrieval_flow_module.py tests/unit/orchestration/test_artifact_writer_module.py -q
+# 24 passed
 
 .venv/bin/python -m pytest tests/unit/orchestration -q
-# 42 passed
+# 45 passed
 
-.venv/bin/python -m pytest tests/test_invariant_guards.py -q
-# 26 passed
+.venv/bin/python -m pytest tests/test_grounding.py tests/test_cli.py -q
+# 247 passed, 10 subtests passed
+
+.venv/bin/python -m pytest tests/test_debate_loop.py tests/test_librarian_executor.py tests/test_invariant_guards.py -q
+# 37 passed
+
+.venv/bin/python -m pytest tests/test_cost_estimation.py tests/test_executor_protocol.py tests/test_executor_async.py -q
+# 35 passed
+
+.venv/bin/python -m compileall -q src/swallow
+# passed
 
 git diff --check
 # passed
