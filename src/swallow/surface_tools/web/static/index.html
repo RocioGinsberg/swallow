@@ -84,7 +84,9 @@
       }
 
       button,
-      select {
+      input,
+      select,
+      textarea {
         appearance: none;
         border: 1px solid var(--line);
         background: var(--panel);
@@ -92,6 +94,20 @@
         font: inherit;
         border-radius: 999px;
         padding: 10px 14px;
+      }
+
+      input,
+      textarea {
+        width: 100%;
+        border-radius: 12px;
+        background: #f4efe4;
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+
+      textarea {
+        min-height: 78px;
+        resize: vertical;
       }
 
       button {
@@ -111,6 +127,55 @@
         display: grid;
         grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
         gap: 18px;
+      }
+
+      .command-panel {
+        margin-bottom: 18px;
+        padding: 16px 18px;
+      }
+
+      .command-grid {
+        display: grid;
+        grid-template-columns: 1.1fr 0.9fr 1fr;
+        gap: 14px;
+      }
+
+      .command-block {
+        display: grid;
+        gap: 10px;
+      }
+
+      .field-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+      }
+
+      .field label,
+      .command-label {
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .button-row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .command-status {
+        min-height: 20px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
       }
 
       .panel {
@@ -452,7 +517,9 @@
         }
 
         .viewer-toolbar,
-        .viewer-grid {
+        .viewer-grid,
+        .command-grid,
+        .field-grid {
           grid-template-columns: 1fr;
         }
 
@@ -472,7 +539,7 @@
         <div class="headline">
           <p class="eyebrow">Swallow Workbench</p>
           <h1>Control Center</h1>
-          <p class="subhead">Read-only task visibility over <code>.swl/</code>. Inspect status, events, and artifacts without leaving the browser.</p>
+          <p class="subhead">Local task workbench over <code>.swl/</code>. Inspect status, events, artifacts, and operator actions without leaving the browser.</p>
         </div>
         <div class="toolbar">
           <select id="focus-select" aria-label="Task focus filter">
@@ -486,6 +553,83 @@
           <span class="stamp" id="last-refresh">Not loaded</span>
         </div>
       </header>
+
+      <section class="panel command-panel" id="operator-actions-panel">
+        <div class="command-grid">
+          <form class="command-block" id="task-create-form">
+            <span class="command-label">Task</span>
+            <div class="field-grid">
+              <div class="field">
+                <label for="task-create-title">Title</label>
+                <input id="task-create-title" name="title" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="task-create-executor">Executor</label>
+                <input id="task-create-executor" name="executor" value="local" autocomplete="off">
+              </div>
+            </div>
+            <div class="field">
+              <label for="task-create-goal">Goal</label>
+              <textarea id="task-create-goal" name="goal"></textarea>
+            </div>
+            <div class="button-row">
+              <button id="task-create-submit" type="submit">Create</button>
+              <button id="task-run-button" type="button" data-task-action="run">Run</button>
+              <button id="task-retry-button" type="button" data-task-action="retry">Retry</button>
+              <button id="task-resume-button" type="button" data-task-action="resume">Resume</button>
+              <button id="task-rerun-button" type="button" data-task-action="rerun">Rerun</button>
+              <button id="task-acknowledge-button" type="button" data-task-action="acknowledge">Acknowledge</button>
+            </div>
+          </form>
+
+          <form class="command-block" id="knowledge-review-form">
+            <span class="command-label">Staged Knowledge</span>
+            <div class="field">
+              <label for="staged-candidate-id">Candidate ID</label>
+              <input id="staged-candidate-id" name="candidate_id" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="staged-candidate-note">Note</label>
+              <textarea id="staged-candidate-note" name="note"></textarea>
+            </div>
+            <div class="button-row">
+              <button id="staged-promote-button" type="button">Promote</button>
+              <button id="staged-reject-button" type="button">Reject</button>
+            </div>
+          </form>
+
+          <form class="command-block" id="proposal-review-form">
+            <span class="command-label">Proposal</span>
+            <div class="field">
+              <label for="proposal-bundle-path">Bundle Path</label>
+              <input id="proposal-bundle-path" name="bundle_path" autocomplete="off">
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="proposal-review-decision">Decision</label>
+                <select id="proposal-review-decision" name="decision">
+                  <option value="approved">approved</option>
+                  <option value="rejected">rejected</option>
+                  <option value="deferred">deferred</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="proposal-review-path">Review Path</label>
+                <input id="proposal-review-path" name="review_path" autocomplete="off">
+              </div>
+            </div>
+            <div class="field">
+              <label for="proposal-review-note">Note</label>
+              <input id="proposal-review-note" name="note" autocomplete="off">
+            </div>
+            <div class="button-row">
+              <button id="proposal-review-button" type="button">Review</button>
+              <button id="proposal-apply-button" type="button">Apply</button>
+            </div>
+          </form>
+        </div>
+        <div class="command-status" id="command-status"></div>
+      </section>
 
       <main class="workspace">
         <section class="panel">
@@ -594,6 +738,8 @@
         tasks: [],
         artifacts: [],
         selectedTaskId: "",
+        selectedTask: null,
+        pendingTaskAction: "",
         selectedArtifacts: {
           left: "",
           right: ""
@@ -625,6 +771,18 @@
       const artifactRightContent = document.getElementById("artifact-right-content");
       const artifactCompareMode = document.getElementById("artifact-compare-mode");
       const lastRefresh = document.getElementById("last-refresh");
+      const commandStatus = document.getElementById("command-status");
+      const taskCreateForm = document.getElementById("task-create-form");
+      const taskCreateTitle = document.getElementById("task-create-title");
+      const taskCreateGoal = document.getElementById("task-create-goal");
+      const taskCreateExecutor = document.getElementById("task-create-executor");
+      const stagedCandidateId = document.getElementById("staged-candidate-id");
+      const stagedCandidateNote = document.getElementById("staged-candidate-note");
+      const proposalBundlePath = document.getElementById("proposal-bundle-path");
+      const proposalReviewDecision = document.getElementById("proposal-review-decision");
+      const proposalReviewPath = document.getElementById("proposal-review-path");
+      const proposalReviewNote = document.getElementById("proposal-review-note");
+      const taskActionButtons = Array.from(document.querySelectorAll("[data-task-action]"));
 
       function escapeHtml(value) {
         return String(value)
@@ -639,6 +797,43 @@
           throw new Error(`${response.status} ${response.statusText}`);
         }
         return response.json();
+      }
+
+      async function postJson(path, body) {
+        const response = await fetch(path, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(body || {})
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const detail = typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail || payload);
+          throw new Error(`${response.status} ${detail}`);
+        }
+        return payload;
+      }
+
+      function setCommandStatus(message) {
+        commandStatus.textContent = message;
+      }
+
+      async function runCommand(label, callback) {
+        try {
+          setCommandStatus(`${label}...`);
+          const payload = await callback();
+          await refresh();
+          setCommandStatus(`${label} ok`);
+          return payload;
+        } catch (error) {
+          setCommandStatus(`${label} failed: ${error.message}`);
+          return null;
+        }
+      }
+
+      function commandData(payload) {
+        return payload && payload.data ? payload.data : payload;
       }
 
       function statusClass(status) {
@@ -691,6 +886,18 @@
             <span>${escapeHtml(value || "-")}</span>
           </div>
         `).join("");
+      }
+
+      function renderTaskActions(task) {
+        const eligibility = task && task.action_eligibility ? task.action_eligibility : {};
+        taskActionButtons.forEach((button) => {
+          const action = button.dataset.taskAction || "";
+          const actionEligibility = eligibility[action] || { eligible: false, reason: "action is unavailable" };
+          const isPending = state.pendingTaskAction === action;
+          button.disabled = !state.selectedTaskId || !actionEligibility.eligible || Boolean(state.pendingTaskAction);
+          button.title = actionEligibility.eligible ? "" : String(actionEligibility.reason || "action is unavailable");
+          button.textContent = isPending ? `${action}...` : action.charAt(0).toUpperCase() + action.slice(1);
+        });
       }
 
       function renderEvents(events) {
@@ -899,6 +1106,8 @@
           detailTitle.textContent = "Task Detail";
           detailSummary.textContent = "Select a task to inspect its status, events, and artifacts.";
           detailMeta.innerHTML = '<p class="empty">No task selected.</p>';
+          state.selectedTask = null;
+          renderTaskActions(null);
           renderSubtaskTree([]);
           renderEvents([]);
           renderTimeline({ entries: [], total_cost: 0, total_latency_ms: 0, debate_rounds: 0 });
@@ -916,7 +1125,9 @@
 
         detailTitle.textContent = task.title || state.selectedTaskId;
         detailSummary.textContent = task.goal || "No goal recorded.";
+        state.selectedTask = task;
         renderMeta(task);
+        renderTaskActions(task);
         renderSubtaskTree(subtaskTreePayload.children || []);
         renderEvents(eventsPayload.events || []);
         renderTimeline(timelinePayload || { entries: [], total_cost: 0, total_latency_ms: 0, debate_rounds: 0 });
@@ -963,6 +1174,74 @@
         state.selectedArtifacts.right = event.target.value;
         renderArtifacts(state.artifacts);
         await loadArtifactViewer("right");
+      });
+
+      taskCreateForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        await runCommand("Create task", async () => {
+          const payload = await postJson("/api/tasks", {
+            title: taskCreateTitle.value,
+            goal: taskCreateGoal.value,
+            executor_name: taskCreateExecutor.value || "local"
+          });
+          state.selectedTaskId = commandData(payload).task.task_id;
+          taskCreateTitle.value = "";
+          taskCreateGoal.value = "";
+          return payload;
+        });
+      });
+
+      async function runSelectedTaskAction(action) {
+        if (!state.selectedTaskId) {
+          setCommandStatus("Select a task first.");
+          return;
+        }
+        state.pendingTaskAction = action;
+        renderTaskActions(state.selectedTask);
+        try {
+          await runCommand(action, async () => postJson(`/api/tasks/${encodeURIComponent(state.selectedTaskId)}/${action}`, {}));
+        } finally {
+          state.pendingTaskAction = "";
+          renderTaskActions(state.selectedTask);
+        }
+      }
+
+      document.getElementById("task-run-button").addEventListener("click", () => runSelectedTaskAction("run"));
+      document.getElementById("task-retry-button").addEventListener("click", () => runSelectedTaskAction("retry"));
+      document.getElementById("task-resume-button").addEventListener("click", () => runSelectedTaskAction("resume"));
+      document.getElementById("task-rerun-button").addEventListener("click", () => runSelectedTaskAction("rerun"));
+      document.getElementById("task-acknowledge-button").addEventListener("click", () => runSelectedTaskAction("acknowledge"));
+
+      document.getElementById("staged-promote-button").addEventListener("click", async () => {
+        await runCommand("Promote staged candidate", async () => postJson(
+          `/api/knowledge/staged/${encodeURIComponent(stagedCandidateId.value)}/promote`,
+          { note: stagedCandidateNote.value }
+        ));
+      });
+
+      document.getElementById("staged-reject-button").addEventListener("click", async () => {
+        await runCommand("Reject staged candidate", async () => postJson(
+          `/api/knowledge/staged/${encodeURIComponent(stagedCandidateId.value)}/reject`,
+          { note: stagedCandidateNote.value }
+        ));
+      });
+
+      document.getElementById("proposal-review-button").addEventListener("click", async () => {
+        const payload = await runCommand("Review proposal", async () => postJson("/api/proposals/review", {
+          bundle_path: proposalBundlePath.value,
+          decision: proposalReviewDecision.value,
+          note: proposalReviewNote.value
+        }));
+        const data = commandData(payload);
+        if (data && data.record_path) {
+          proposalReviewPath.value = data.record_path;
+        }
+      });
+
+      document.getElementById("proposal-apply-button").addEventListener("click", async () => {
+        await runCommand("Apply proposal", async () => postJson("/api/proposals/apply", {
+          review_path: proposalReviewPath.value
+        }));
       });
 
       refresh().catch((error) => {

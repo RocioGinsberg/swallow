@@ -26,6 +26,26 @@ from swallow.truth_governance.governance import (
 from swallow.truth_governance.store import load_state
 
 
+__all__ = [
+    "IngestionPipelineResult",
+    "StagePromoteCommandResult",
+    "StagePromotePreflightError",
+    "StagedCandidate",
+    "UnknownStagedCandidateError",
+    "apply_relation_suggestions_command",
+    "build_stage_canonical_record",
+    "build_stage_promote_preflight_notices",
+    "create_knowledge_relation_command",
+    "delete_knowledge_relation_command",
+    "ingest_knowledge_file_command",
+    "migrate_knowledge_command",
+    "promote_stage_candidate_command",
+    "reject_stage_candidate_command",
+    "resolve_stage_candidate",
+    "summarize_text_preview",
+]
+
+
 @dataclass(frozen=True)
 class StagePromoteCommandResult:
     candidate: StagedCandidate
@@ -38,12 +58,16 @@ class StagePromotePreflightError(ValueError):
         self.notices = notices
 
 
+class UnknownStagedCandidateError(ValueError):
+    pass
+
+
 def resolve_stage_candidate(base_dir: Path, candidate_id: str) -> StagedCandidate:
     normalized_id = candidate_id.strip()
     for candidate in load_staged_candidates(base_dir):
         if candidate.candidate_id == normalized_id:
             return candidate
-    raise ValueError(f"Unknown staged candidate: {normalized_id}")
+    raise UnknownStagedCandidateError(f"Unknown staged candidate: {normalized_id}")
 
 
 def summarize_text_preview(text: str, limit: int) -> str:

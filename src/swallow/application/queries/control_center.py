@@ -4,7 +4,16 @@ import hashlib
 from pathlib import Path
 
 from swallow.orchestration.models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED
+from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
+from swallow._io_helpers import read_json_or_empty
 from swallow.surface_tools.paths import artifacts_dir
+from swallow.surface_tools.paths import (
+    checkpoint_snapshot_path,
+    execution_budget_policy_path,
+    handoff_path,
+    retry_policy_path,
+    stop_policy_path,
+)
 from swallow.surface_tools.workspace import resolve_path
 from swallow.truth_governance.store import iter_task_states, load_events, load_knowledge_objects, load_state
 
@@ -109,6 +118,68 @@ def _filter_task_states(states: list[object], focus: str) -> list[object]:
     return states
 
 
+def _is_acknowledged_dispatch_reentry(state: object) -> bool:
+    return (
+        getattr(state, "status", "") == "running"
+        and getattr(state, "phase", "") == "retrieval"
+        and getattr(state, "topology_dispatch_status", "") == "acknowledged"
+    )
+
+
+def _checkpoint_snapshot(base_dir: Path, state: object) -> dict[str, object]:
+    checkpoint_snapshot = read_json_or_empty(checkpoint_snapshot_path(base_dir, state.task_id))
+    if checkpoint_snapshot:
+        return checkpoint_snapshot
+    handoff = read_json_or_empty(handoff_path(base_dir, state.task_id))
+    retry_policy = read_json_or_empty(retry_policy_path(base_dir, state.task_id))
+    stop_policy = read_json_or_empty(stop_policy_path(base_dir, state.task_id))
+    execution_budget_policy = read_json_or_empty(execution_budget_policy_path(base_dir, state.task_id))
+    return evaluate_checkpoint_snapshot(state, handoff, retry_policy, stop_policy, execution_budget_policy).to_dict()
+
+
+def _eligibility(eligible: bool, reason: str = "") -> dict[str, object]:
+    return {"eligible": eligible, "reason": None if eligible else reason}
+
+
+def build_task_action_eligibility(base_dir: Path, state: object) -> dict[str, dict[str, object]]:
+    retry_policy = read_json_or_empty(retry_policy_path(base_dir, state.task_id))
+    stop_policy = read_json_or_empty(stop_policy_path(base_dir, state.task_id))
+    checkpoint_snapshot = _checkpoint_snapshot(base_dir, state)
+    is_reentry = _is_acknowledged_dispatch_reentry(state)
+    retry_ready = is_reentry or (
+        bool(retry_policy.get("retryable", False))
+        and str(stop_policy.get("checkpoint_kind", "")) in {"retry_review", "detached_retry_review"}
+    )
+    resume_ready = is_reentry or (
+        bool(checkpoint_snapshot.get("resume_ready", False))
+        and str(checkpoint_snapshot.get("recommended_path", "")) == "resume"
+    )
+    acknowledge_ready = getattr(state, "status", "") == "dispatch_blocked"
+    return {
+        "run": _eligibility(True),
+        "retry": _eligibility(retry_ready, "retry policy is not satisfied"),
+        "resume": _eligibility(resume_ready, "checkpoint is not resume-ready"),
+        "rerun": _eligibility(True),
+        "acknowledge": _eligibility(acknowledge_ready, "task is not awaiting acknowledgement"),
+    }
+
+
+def _task_summary(base_dir: Path, state: object) -> dict[str, object]:
+    return {
+        "task_id": state.task_id,
+        "title": state.title,
+        "goal": state.goal,
+        "status": state.status,
+        "phase": state.phase,
+        "updated_at": state.updated_at,
+        "executor_name": state.executor_name,
+        "route_name": state.route_name,
+        "attempt_id": state.current_attempt_id,
+        "attempt_number": state.current_attempt_number,
+        "action_eligibility": build_task_action_eligibility(base_dir, state),
+    }
+
+
 def build_tasks_payload(base_dir: Path, focus: str = "all") -> dict[str, object]:
     states = sorted(
         iter_task_states(base_dir),
@@ -119,26 +190,15 @@ def build_tasks_payload(base_dir: Path, focus: str = "all") -> dict[str, object]
     return {
         "focus": focus,
         "count": len(filtered),
-        "tasks": [
-            {
-                "task_id": state.task_id,
-                "title": state.title,
-                "goal": state.goal,
-                "status": state.status,
-                "phase": state.phase,
-                "updated_at": state.updated_at,
-                "executor_name": state.executor_name,
-                "route_name": state.route_name,
-                "attempt_id": state.current_attempt_id,
-                "attempt_number": state.current_attempt_number,
-            }
-            for state in filtered
-        ],
+        "tasks": [_task_summary(base_dir, state) for state in filtered],
     }
 
 
 def build_task_payload(base_dir: Path, task_id: str) -> dict[str, object]:
-    return load_state(base_dir, task_id).to_dict()
+    state = load_state(base_dir, task_id)
+    payload = state.to_dict()
+    payload["action_eligibility"] = build_task_action_eligibility(base_dir, state)
+    return payload
 
 
 def build_task_events_payload(base_dir: Path, task_id: str) -> dict[str, object]:
