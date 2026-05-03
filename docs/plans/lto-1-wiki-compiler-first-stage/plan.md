@@ -2,7 +2,7 @@
 author: codex
 phase: lto-1-wiki-compiler-first-stage
 slice: phase-plan
-status: review
+status: approved
 depends_on:
   - docs/active_context.md
   - docs/roadmap.md
@@ -26,8 +26,8 @@ LTO-1 第一阶段落地 Wiki Compiler authoring specialist:从 raw material / a
 
 ## Plan Gate Status
 
-- 当前状态:`review`;`plan_audit.md` verdict = `has-concerns`,0 blockers / 5 concerns / 2 nits。本 revision 已吸收全部 concerns/nits 为 M1 约束或显式 deferred 决策。
-- 当前分支:`main`。
+- 当前状态:`approved`;`plan_audit.md` verdict = `has-concerns`,0 blockers / 5 concerns / 2 nits。本 revision 已吸收全部 concerns/nits 为 M1 约束或显式 deferred 决策,Human Plan Gate 已通过。
+- 当前分支:`feat/lto-1-wiki-compiler-first-stage`。
 - 推荐实现分支:`feat/lto-1-wiki-compiler-first-stage`。
 - 实现开始条件:本 plan 经 `design-auditor` 产出 `plan_audit.md`,Human Plan Gate 通过,且 Human 从 `main` 切到推荐 feature branch。
 - `context_brief.md`:本 phase 尚未产出。当前 factual context 来自 `docs/active_context.md`、`docs/roadmap.md`、Human 指定锚点和已 merge 的设计文档。若 Human 需要 Claude context-analyst 补 `context_brief.md`,应在 plan audit 前补齐;否则本 plan 以这些已读文件作为事实输入。

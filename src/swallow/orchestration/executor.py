@@ -270,6 +270,12 @@ def _lazy_quality_reviewer() -> ExecutorProtocol:
     return QualityReviewerExecutor()
 
 
+def _lazy_wiki_compiler() -> ExecutorProtocol:
+    from swallow.surface_tools.wiki_compiler import WikiCompilerExecutor
+
+    return WikiCompilerExecutor()
+
+
 EXECUTOR_REGISTRY: dict[str, Callable[[], ExecutorProtocol]] = {
     "consistency-reviewer": _lazy_consistency_reviewer,
     "ingestion-specialist": _lazy_ingestion_specialist,
@@ -279,6 +285,7 @@ EXECUTOR_REGISTRY: dict[str, Callable[[], ExecutorProtocol]] = {
     "meta_optimizer": _lazy_meta_optimizer,
     "quality-reviewer": _lazy_quality_reviewer,
     "validator": _lazy_validator,
+    "wiki-compiler": _lazy_wiki_compiler,
 }
 
 

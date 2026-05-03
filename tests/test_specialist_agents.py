@@ -26,6 +26,11 @@ from swallow.surface_tools.literature_specialist import (
     LITERATURE_SPECIALIST_SYSTEM_ROLE,
     LiteratureSpecialistAgent,
 )
+from swallow.surface_tools.wiki_compiler import (
+    WIKI_COMPILER_MEMORY_AUTHORITY,
+    WIKI_COMPILER_SYSTEM_ROLE,
+    WikiCompilerAgent,
+)
 from swallow.orchestration.models import (
     ExecutorResult,
     RetrievalItem,
@@ -248,6 +253,54 @@ class SpecialistAgentTest(unittest.TestCase):
         self.assertIn("# Literature Analysis", result.output)
         self.assertIn("shared_headings: Overview", result.output)
         self.assertIn("analysis_method: heuristic", result.output)
+
+    def test_wiki_compiler_agent_stages_candidate_with_prompt_artifacts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "wiki-source.md"
+            source.write_text("# Source\n\nWiki Compiler keeps staging separate from promotion.\n", encoding="utf-8")
+            state = TaskState(
+                task_id="wiki-task",
+                title="Compile wiki",
+                goal="Stage a wiki draft",
+                workspace_root=str(tmp_path),
+            )
+            card = TaskCard(
+                goal="Draft a wiki note",
+                parent_task_id=state.task_id,
+                input_context={
+                    "action": "draft",
+                    "topic": "wiki compiler",
+                    "source_refs": ["file://workspace/wiki-source.md"],
+                },
+            )
+
+            with patch(
+                "swallow.surface_tools.wiki_compiler.call_agent_llm",
+                return_value=AgentLLMResponse(
+                    content=json.dumps(
+                        {
+                            "title": "Wiki Compiler",
+                            "text": "The wiki compiler stages drafts and keeps promotion separate.",
+                            "rationale": "The source describes the separation.",
+                            "relation_metadata": [],
+                            "conflict_flag": "",
+                        }
+                    ),
+                    input_tokens=5,
+                    output_tokens=7,
+                    model="mock-model",
+                ),
+            ):
+                result = WikiCompilerAgent().execute(tmp_path, state, card, [])
+
+        self.assertEqual(WikiCompilerAgent.system_role, WIKI_COMPILER_SYSTEM_ROLE)
+        self.assertEqual(WikiCompilerAgent.memory_authority, WIKI_COMPILER_MEMORY_AUTHORITY)
+        self.assertEqual(result.executor_name, "wiki-compiler")
+        self.assertEqual(result.status, "completed")
+        self.assertIn("wiki_compiler_prompt_pack.json", result.side_effects["prompt_artifact"])
+        self.assertIn("wiki_compiler_result.json", result.side_effects["result_artifact"])
+        self.assertEqual(result.side_effects["source_count"], 1)
 
     def test_literature_specialist_uses_llm_when_available(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

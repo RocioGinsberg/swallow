@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from uuid import uuid4
 
@@ -26,6 +26,12 @@ class StagedCandidate:
     submitted_at: str = ""
     taxonomy_role: str = ""
     taxonomy_memory_authority: str = ""
+    wiki_mode: str = ""
+    target_object_id: str = ""
+    source_pack: list[dict[str, object]] = field(default_factory=list)
+    rationale: str = ""
+    relation_metadata: list[dict[str, object]] = field(default_factory=list)
+    conflict_flag: str = ""
     status: str = "pending"
     decided_at: str = ""
     decided_by: str = ""
@@ -43,6 +49,12 @@ class StagedCandidate:
         self.submitted_at = self.submitted_at.strip() or utc_now()
         self.taxonomy_role = self.taxonomy_role.strip()
         self.taxonomy_memory_authority = self.taxonomy_memory_authority.strip()
+        self.wiki_mode = self.wiki_mode.strip()
+        self.target_object_id = self.target_object_id.strip()
+        self.source_pack = _dict_list(self.source_pack)
+        self.rationale = self.rationale.strip()
+        self.relation_metadata = _dict_list(self.relation_metadata)
+        self.conflict_flag = self.conflict_flag.strip()
         self.status = self.status.strip() or "pending"
         self.decided_at = self.decided_at.strip()
         self.decided_by = self.decided_by.strip()
@@ -79,6 +91,12 @@ class StagedCandidate:
             submitted_at=str(payload.get("submitted_at", "")).strip(),
             taxonomy_role=str(payload.get("taxonomy_role", "")).strip(),
             taxonomy_memory_authority=str(payload.get("taxonomy_memory_authority", "")).strip(),
+            wiki_mode=str(payload.get("wiki_mode", "")).strip(),
+            target_object_id=str(payload.get("target_object_id", "")).strip(),
+            source_pack=_dict_list(payload.get("source_pack", [])),
+            rationale=str(payload.get("rationale", "")).strip(),
+            relation_metadata=_dict_list(payload.get("relation_metadata", [])),
+            conflict_flag=str(payload.get("conflict_flag", "")).strip(),
             status=str(payload.get("status", "pending")).strip(),
             decided_at=str(payload.get("decided_at", "")).strip(),
             decided_by=str(payload.get("decided_by", "")).strip(),
@@ -138,6 +156,12 @@ def update_staged_candidate(
             submitted_at=candidate.submitted_at,
             taxonomy_role=candidate.taxonomy_role,
             taxonomy_memory_authority=candidate.taxonomy_memory_authority,
+            wiki_mode=candidate.wiki_mode,
+            target_object_id=candidate.target_object_id,
+            source_pack=candidate.source_pack,
+            rationale=candidate.rationale,
+            relation_metadata=candidate.relation_metadata,
+            conflict_flag=candidate.conflict_flag,
             status=normalized_status,
             decided_at=utc_now(),
             decided_by=normalized_decided_by,
@@ -154,3 +178,9 @@ def update_staged_candidate(
         encoding="utf-8",
     )
     return selected_candidate
+
+
+def _dict_list(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]

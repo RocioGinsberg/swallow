@@ -50,6 +50,7 @@ from swallow.adapters.cli_commands.route import handle_route_command
 from swallow.adapters.cli_commands.route_metadata import handle_route_metadata_command
 from swallow.adapters.cli_commands.synthesis import handle_synthesis_command
 from swallow.adapters.cli_commands.tasks import handle_task_read_command, handle_task_write_command
+from swallow.adapters.cli_commands.wiki import handle_wiki_command
 from swallow.surface_tools.mps_policy_store import MPS_POLICY_KINDS
 from swallow.orchestration.orchestrator import run_task
 from swallow.surface_tools.paths import (
@@ -1215,6 +1216,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     task_parser = subparsers.add_parser("task", help="Task workbench and lifecycle commands.")
     task_subparsers = task_parser.add_subparsers(dest="task_command", required=True)
+    wiki_parser = subparsers.add_parser("wiki", help="Wiki Compiler authoring commands.")
+    wiki_subparsers = wiki_parser.add_subparsers(dest="wiki_command", required=True)
     knowledge_parser = subparsers.add_parser("knowledge", help="Global staged knowledge review commands.")
     knowledge_subparsers = knowledge_parser.add_subparsers(dest="knowledge_command", required=True)
     doctor_parser = subparsers.add_parser("doctor", help="Diagnostic commands.")
@@ -1444,6 +1447,72 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Scan file-based knowledge and report migration candidates without writing SQLite records.",
     )
+
+    wiki_draft_parser = wiki_subparsers.add_parser(
+        "draft",
+        help="Draft a staged wiki entry from raw material or artifacts.",
+        description="Draft a staged wiki entry from raw material or artifacts.",
+    )
+    wiki_draft_parser.add_argument("--task-id", required=True, help="Task identifier that anchors the draft artifacts.")
+    wiki_draft_parser.add_argument("--topic", required=True, help="Topic label for the staged wiki draft.")
+    wiki_draft_parser.add_argument(
+        "--source-ref",
+        dest="source_refs",
+        action="append",
+        default=[],
+        required=True,
+        help="Raw material source_ref. Repeat to provide multiple sources.",
+    )
+    wiki_draft_parser.add_argument("--model", default="", help="Optional model override for the Provider Router LLM call.")
+    wiki_draft_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build the prompt pack and source anchors without calling the LLM or writing staged knowledge.",
+    )
+
+    wiki_refine_parser = wiki_subparsers.add_parser(
+        "refine",
+        help="Draft a staged wiki refinement for an existing wiki object.",
+        description="Draft a staged wiki refinement for an existing wiki object.",
+    )
+    wiki_refine_parser.add_argument("--task-id", required=True, help="Task identifier that anchors the draft artifacts.")
+    wiki_refine_parser.add_argument(
+        "--mode",
+        required=True,
+        choices=("supersede", "refines"),
+        help="Refinement mode.",
+    )
+    wiki_refine_parser.add_argument("--target", required=True, help="Target wiki or canonical object id.")
+    wiki_refine_parser.add_argument(
+        "--source-ref",
+        dest="source_refs",
+        action="append",
+        default=[],
+        required=True,
+        help="Raw material source_ref. Repeat to provide multiple sources.",
+    )
+    wiki_refine_parser.add_argument("--model", default="", help="Optional model override for the Provider Router LLM call.")
+    wiki_refine_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Build the prompt pack and source anchors without calling the LLM or writing staged knowledge.",
+    )
+
+    wiki_refresh_parser = wiki_subparsers.add_parser(
+        "refresh-evidence",
+        help="Refresh source anchors for one existing evidence object without an LLM call.",
+        description="Refresh source anchors for one existing evidence object without an LLM call.",
+    )
+    wiki_refresh_parser.add_argument("--task-id", required=True, help="Task identifier for the evidence object.")
+    wiki_refresh_parser.add_argument("--target", required=True, help="Evidence object id to refresh.")
+    wiki_refresh_parser.add_argument("--source-ref", required=True, help="Raw material source_ref backing the evidence.")
+    wiki_refresh_parser.add_argument(
+        "--parser-version",
+        required=True,
+        help="Parser version that produced this refreshed evidence anchor.",
+    )
+    wiki_refresh_parser.add_argument("--span", default="", help="Source span, for example L3-L7.")
+    wiki_refresh_parser.add_argument("--heading-path", default="", help="Optional heading path anchor.")
 
     create_parser = task_subparsers.add_parser("create", help="Create a task.")
     create_parser.add_argument("--title", required=True, help="Short task title.")
@@ -2174,6 +2243,10 @@ def main(argv: list[str] | None = None) -> int:
     route_metadata_result = handle_route_metadata_command(base_dir, args)
     if route_metadata_result is not None:
         return route_metadata_result
+
+    wiki_result = handle_wiki_command(base_dir, args)
+    if wiki_result is not None:
+        return wiki_result
 
     if args.command == "note":
         result = ingest_operator_note(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -131,6 +132,77 @@ class StagedKnowledgeTest(unittest.TestCase):
         self.assertEqual(candidate.topic, "retrieval")
         self.assertEqual(updated.topic, "retrieval")
         self.assertEqual(reloaded[0].topic, "retrieval")
+
+    def test_old_staged_candidate_record_loads_with_wiki_compiler_defaults(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            staged_knowledge_registry_path(tmp_path).parent.mkdir(parents=True)
+            staged_knowledge_registry_path(tmp_path).write_text(
+                json.dumps(
+                    {
+                        "candidate_id": "staged-oldrecord",
+                        "text": "Legacy staged note.",
+                        "source_task_id": "task-legacy",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            candidates = load_staged_candidates(tmp_path)
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0].wiki_mode, "")
+        self.assertEqual(candidates[0].target_object_id, "")
+        self.assertEqual(candidates[0].source_pack, [])
+        self.assertEqual(candidates[0].rationale, "")
+        self.assertEqual(candidates[0].relation_metadata, [])
+        self.assertEqual(candidates[0].conflict_flag, "")
+
+    def test_wiki_compiler_metadata_round_trips_through_registry_and_update(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            candidate = submit_staged_candidate(
+                tmp_path,
+                StagedCandidate(
+                    candidate_id="",
+                    text="Compiled wiki draft.",
+                    source_task_id="task-wiki",
+                    topic="compiler",
+                    submitted_by="wiki-compiler",
+                    wiki_mode="refines",
+                    target_object_id="wiki-target",
+                    source_pack=[
+                        {
+                            "source_ref": "file://workspace/notes.md",
+                            "content_hash": "sha256:abc",
+                            "parser_version": "wiki-compiler-v1",
+                            "span": "L1-L2",
+                        }
+                    ],
+                    rationale="Sources support the draft.",
+                    relation_metadata=[{"relation_type": "refines", "target_object_id": "wiki-target"}],
+                    conflict_flag="contradicts(wiki-old)",
+                ),
+            )
+
+            updated = update_staged_candidate(
+                tmp_path,
+                candidate.candidate_id,
+                "rejected",
+                "human-operator",
+                "Needs stronger evidence.",
+            )
+            reloaded = load_staged_candidates(tmp_path)
+
+        self.assertEqual(updated.wiki_mode, "refines")
+        self.assertEqual(updated.target_object_id, "wiki-target")
+        self.assertEqual(updated.source_pack[0]["content_hash"], "sha256:abc")
+        self.assertEqual(updated.rationale, "Sources support the draft.")
+        self.assertEqual(updated.relation_metadata[0]["relation_type"], "refines")
+        self.assertEqual(updated.conflict_flag, "contradicts(wiki-old)")
+        self.assertEqual(reloaded[0].source_pack, updated.source_pack)
+        self.assertEqual(reloaded[0].relation_metadata, updated.relation_metadata)
 
     def test_load_staged_candidates_returns_empty_list_when_registry_missing(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
