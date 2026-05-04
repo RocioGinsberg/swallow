@@ -23,7 +23,7 @@ depends_on:
 ---
 
 TL;DR:
-LTO-1 Wiki Compiler 第二阶段实现已完成，当前分支已通过 focused guard/eval/full validation，等待 Human 对 M5 closeout 材料审阅并提交。
+LTO-1 Wiki Compiler 第二阶段实现已完成，Claude review 为 recommend-merge，C1 已通过 relation creation site decision matrix 吸收到本 closeout。
 This phase extends the first-stage propose-only Wiki Compiler into a Web authoring / review workflow, keeps canonical mutation behind governed promotion, materializes resolved source anchors into evidence objects, and adds phase-specific guard/eval coverage for the long-term risk surfaces documented in the plan.
 
 # LTO-1 Closeout: Wiki Compiler Second Stage
@@ -77,6 +77,15 @@ Evidence objectization stays bounded to the stage-2 decision:
 - materialize task-scoped evidence objects
 - persist `derived_from` edges only to evidence object ids
 - keep raw source refs as metadata for review/display
+
+Relation creation site decision matrix:
+
+| Signal | Persistence | Creation site | Reason |
+|---|---|---|---|
+| `refines` | persisted relation row | `application.commands.knowledge._create_promoted_relation_records` after `apply_proposal` | Operator-approved composition edge; canonical write already succeeded and relation is a rebuildable adjacency/index side effect. |
+| `derived_from` | persisted relation row | `truth_governance.truth.knowledge._persist_source_evidence_relations` inside canonical apply path | Evidence objects are created as part of governed promotion; the relation must target those evidence ids and stay atomic with evidence materialization. |
+| `supersedes` | no relation row; canonical status fields | `KnowledgeRepo._promote_canonical` / store helper inside canonical apply path | Supersede is a truth status transition, not an adjacency row; old records remain append-only and are marked `superseded`. |
+| raw `derived_from` / source refs | metadata only | staged/canonical `relation_metadata` and `source_pack` | Raw refs remain review/display metadata unless backed by materialized evidence objects. |
 
 ## Guard Behavior
 
@@ -159,14 +168,21 @@ Intentionally deferred:
 - a future global evidence schema reconciliation beyond the task-scoped store reuse decision.
 - broader retrieval quality and ranking work.
 - any graph visualization or richer Web workbench beyond the current Knowledge surface.
-- PR review and merge gate, which remain a Human decision after this phase closeout prep.
+- durable worker semantics beyond the current task-anchored best-effort fire-and-poll job records.
+- merge and tag decisions, which remain Human-owned after this review-absorbed closeout.
 
 ## Review Status
 
-This closeout is prepared for Human review/commit.
+Claude review is complete:
+
+- verdict: `recommend-merge`
+- findings: 0 blockers / 1 concern / 1 nit
+- C1 relation creation site path split: absorbed above via decision matrix.
+- N1 application-layer `refines` creation asymmetry: covered by the same matrix.
+- Tag suggestion: do not cut a separate tag for LTO-1 second stage; final tag decision remains Human-owned.
 
 Current next steps:
 
-- Human reviews the final M5 diff and commits the implementation / guard / closeout state.
-- Human updates or creates `./pr.md` from the phase summary.
-- Human decides merge readiness after the review pass.
+- Human reviews and commits this review absorption / closeout sync.
+- Human checks `./pr.md` and decides merge readiness.
+- After merge, Codex performs post-merge state sync for `docs/active_context.md`, `current_state.md`, and `docs/roadmap.md`.

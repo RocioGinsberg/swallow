@@ -13,9 +13,9 @@
 - latest_completed_slice: `merged to main at e656bd3; roadmap synced at 449653a`
 - active_track: `Knowledge Authoring`
 - active_phase: `lto-1-wiki-compiler-second-stage`
-- active_slice: `M5 - Guards, eval, closeout prep`
+- active_slice: `PR review absorbed; final closeout ready for merge gate`
 - active_branch: `feat/lto-1-wiki-compiler-second-stage`
-- status: `m5_validation_passed_waiting_human_commit`
+- status: `lto1_stage2_review_absorbed_ready_for_merge`
 
 ## 当前状态说明
 
@@ -37,7 +37,7 @@
 
 `v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。`v1.8.0` annotated tag 已 cut(标记 LTO-1 Wiki Compiler 第一阶段;tag target `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`)。
 
-**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。Human 已提交 M4 milestone `d578964 feat(web): add wiki compiler authoring UX`;Codex 已完成 M5 guards / eval / closeout prep,当前等待 Human closeout / commit。
+**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。Human 已提交 M5 milestone `42c6b3d test(wiki): lock compiler second stage guards`;Claude review 已产出 `review_comments.md`(recommend-merge;0 blockers / 1 concern / 1 nit)。Codex 已按 review 推荐的 option (a) 把 C1 relation creation site decision matrix 吸收到 closeout,并同步 `./pr.md` / 状态文档。当前等待 Human final closeout sync commit 与 merge gate。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -60,19 +60,20 @@ LTO-7 long-running follow-ups:
 2. `current_state.md`
 3. `docs/roadmap.md`
 4. `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`
-5. `README.md`
-6. `docs/plans/lto-1-wiki-compiler-first-stage/closeout.md`
-7. `docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md`
-8. `docs/design/INVARIANTS.md`
-9. `docs/design/EXECUTOR_REGISTRY.md`
-10. `docs/design/SELF_EVOLUTION.md`
-11. `docs/design/KNOWLEDGE.md`
-12. `docs/engineering/ADAPTER_DISCIPLINE.md`
-13. `docs/engineering/CODE_ORGANIZATION.md`
-14. `docs/engineering/TEST_ARCHITECTURE.md`
-15. `docs/engineering/ARCHITECTURE_DECISIONS.md`
-16. `docs/plans/lto-1-wiki-compiler-first-stage/plan.md`
-17. `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md`
+5. `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`
+6. `docs/plans/lto-1-wiki-compiler-second-stage/closeout.md`
+7. `docs/plans/lto-1-wiki-compiler-second-stage/review_comments.md`
+8. `README.md`
+9. `docs/design/INVARIANTS.md`
+10. `docs/design/EXECUTOR_REGISTRY.md`
+11. `docs/design/SELF_EVOLUTION.md`
+12. `docs/design/KNOWLEDGE.md`
+13. `docs/engineering/ADAPTER_DISCIPLINE.md`
+14. `docs/engineering/CODE_ORGANIZATION.md`
+15. `docs/engineering/TEST_ARCHITECTURE.md`
+16. `docs/engineering/ARCHITECTURE_DECISIONS.md`
+17. `docs/plans/lto-1-wiki-compiler-first-stage/closeout.md`
+18. `docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md`
 
 ## 当前推进
 
@@ -252,7 +253,7 @@ LTO-7 long-running follow-ups:
 
 进行中:
 
-- **[Human]** M4 - Web authoring and review UX milestone review/commit。
+- **[Human]** Final review absorption / closeout sync review and commit, then merge readiness decision。
 
 已完成(当前轮):
 
@@ -299,11 +300,15 @@ LTO-7 long-running follow-ups:
   - 新增 `tests/eval/test_wiki_compiler_second_stage_quality.py`,提供 deterministic second-stage eval 信号:resolved source anchors materialize 为 evidence objects、supersede 需要 target id、conflict 信号可见、job payload 携带 candidate/source anchors。
   - 新增 `docs/plans/lto-1-wiki-compiler-second-stage/closeout.md` 与 `pr.md`,准备 Human 关闭阶段 / 审阅提交。
   - 验证通过:M5 eval `8 passed`;M5 invariant guards `40 passed`;`compileall`;`git diff --check`;full pytest `793 passed, 16 deselected`。
+- **[Claude]** 完成 PR review,产出 `docs/plans/lto-1-wiki-compiler-second-stage/review_comments.md`:**recommend-merge**;0 blockers / 1 concern / 1 nit。
+- **[Codex]** 完成 final review absorption / closeout sync:C1 relation creation site path split 通过 closeout decision matrix 固化,N1 由同一矩阵覆盖;`./pr.md` Review 段与 tag note 已同步。
 
 待执行:
 
-- **[Human]** 审阅并提交 M5 closeout / guard / eval / status sync。
-- **[Codex]** Human 提交后按 merge/tag 流程继续状态同步。
+- **[Human]** Review and commit final closeout sync(`closeout.md` decision matrix + `review_comments.md` + `active_context.md` + `current_state.md`;`./pr.md` is ignored unless Human chooses to force-add it)。
+- **[Human]** Check `./pr.md`, then decide merge readiness for LTO-1 第二阶段。
+- **[Codex]** Merge 后执行 post-merge state sync(`current_state.md` + `docs/active_context.md` + `docs/roadmap.md` 把 LTO-1 第二阶段标 done)。
+- **[Human]** Tag 决策:Claude review 建议**不为本阶段单独 cut tag**(本阶段是 v1.8.0 能力的质量提升与可观察面拓宽,非新能力跃迁)。可累积 Wiki Compiler 第三阶段 / LTO-2 retrieval quality / 真实 Operator workflow 反馈后 cut v1.9.0,语义为"知识 authoring 闭环成熟"。最终 Human 决定。
 
 当前验证:
 
@@ -359,7 +364,7 @@ LTO-7 long-running follow-ups:
 
 当前阻塞项:
 
-- 无。M5 validation 已通过;等待 Human closeout / commit。
+- 无。Review 已完成 = recommend-merge;C1 relation creation site path 分裂已通过 closeout decision matrix 吸收,N1 被同一矩阵覆盖。当前只等待 Human final docs commit / merge gate。
 
 ## Tag 状态
 
@@ -367,12 +372,13 @@ LTO-7 long-running follow-ups:
 - tag target: `d6f2442 docs(release): sync v1.8.0 release docs`
 - 标记意义:**LTO-1 Wiki Compiler 第一阶段落地**(首次 LLM-内知识编译能力进入本地 operator workflow)
 - 上一 tag: `v1.7.0` at `2156d4a`(标记 LTO-13 FastAPI Local Web UI Write Surface)
-- 下一 tag:无;Hygiene Bundle 不 cut tag。
+- 下一 tag:无;Claude review 建议 LTO-1 第二阶段不单独 cut tag,最终由 Human 决策。
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 M5 closeout / guard / eval / status sync。
-2. **[Codex]** Human 提交后按 merge/tag 流程继续状态同步。
+1. **[Human]** 审阅并提交 final review absorption / closeout sync。
+2. **[Human]** 检查 `./pr.md` 并决定 merge readiness。
+3. **[Codex]** Human merge 后按 post-merge 流程同步 `docs/active_context.md`、`current_state.md`、`docs/roadmap.md`;tag 是否进入 release docs 同步取决于 Human 决策。
 
 ```markdown
 plan_gate:
@@ -380,8 +386,8 @@ plan_gate:
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
 - active_branch: feat/lto-1-wiki-compiler-second-stage
 - active_phase: lto-1-wiki-compiler-second-stage
-- active_slice: M5 - Guards, eval, closeout prep
-- status: m5_validation_passed_waiting_human_commit
+- active_slice: PR review absorbed; final closeout ready for merge gate
+- status: lto1_stage2_review_absorbed_ready_for_merge
 - roadmap: docs/roadmap.md §三 Direction Gate candidate selected by Human: Wiki Compiler 第二阶段
 - plan: docs/plans/lto-1-wiki-compiler-second-stage/plan.md (review; Codex; plan_audit blockers/concerns absorbed)
 - plan_audit: docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md (Claude/design-auditor; has-blockers; 3 blockers / 5 concerns / 2 nits)
@@ -390,8 +396,9 @@ plan_gate:
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
-- last_commit: d578964 feat(web): add wiki compiler authoring UX
-- next_gate: Human M5 closeout / commit -> merge/tag flow
+- review_comments: docs/plans/lto-1-wiki-compiler-second-stage/review_comments.md (Claude; recommend-merge; 0 blockers / 1 concern / 1 nit)
+- last_commit: 42c6b3d test(wiki): lock compiler second stage guards
+- next_gate: Human final closeout sync commit -> merge gate -> post-merge state sync
 ```
 
 ## 当前产出物
@@ -405,7 +412,9 @@ plan_gate:
 - `src/swallow/adapters/http/static/index.html`(codex, 2026-05-04, M4 Wiki Compiler authoring panel, job tray polling, selected-detail prefill, candidate review promote/reject with structured supersede/conflict confirmations)
 - `src/swallow/application/commands/knowledge.py` + `src/swallow/adapters/http/api.py` + `src/swallow/adapters/http/schemas.py`(codex, 2026-05-04, M4 Web structured confirmation fields for staged promote;raw `force` remains unavailable to HTTP)
 - `tests/integration/http/test_web_write_routes.py` + `tests/test_web_api.py`(codex, 2026-05-04, M4 structured confirmation integration coverage and static smoke for authoring/review wiring)
-- `docs/plans/lto-1-wiki-compiler-second-stage/closeout.md`(codex, 2026-05-04, M5 closeout draft/final prep;phase outcome, guard/eval validation, deferred follow-ups, Human review/commit readiness)
+- `docs/plans/lto-1-wiki-compiler-second-stage/closeout.md`(codex, 2026-05-04, final closeout;review C1 absorbed via Relation creation site decision matrix;review status recommend-merge recorded)
+- `docs/plans/lto-1-wiki-compiler-second-stage/review_comments.md`(claude, 2026-05-04, **recommend-merge**;3/3 plan_audit blockers + 5/5 concerns + 2/2 nits absorbed;0 blockers / 1 concern(C1 relation creation site path 分裂)/ 1 nit;`derived_from` 类型守卫 + evidence id 单点 + FastAPI BackgroundTasks fire-and-poll 三处实现强于 plan 要求;tag 建议 = 不为本阶段单独 cut,累积后续 phase 后 cut v1.9.0)
+- `./pr.md`(codex, 2026-05-04, ignored PR body draft for LTO-1 second stage;Review section synced, C1 disposition and tag note recorded)
 - `tests/eval/test_wiki_compiler_second_stage_quality.py`(codex, 2026-05-04, M5 deterministic eval signal for evidence materialization, supersede target discipline, conflict visibility, and job payload shape)
 - `src/swallow/knowledge_retrieval/{_internal_knowledge_store.py,_internal_knowledge_relations.py,knowledge_plane.py}` + `src/swallow/truth_governance/{truth/knowledge.py,apply_canonical.py,sqlite_store.py}`(codex, 2026-05-04, M2 source_pack evidence materialization inside canonical apply path + deterministic `derived_from` relation upsert)
 - `tests/integration/cli/test_wiki_commands.py` + `tests/integration/http/test_knowledge_browse_routes.py` + `tests/test_governance.py` + `tests/test_knowledge_relations.py` + `tests/unit/application/test_knowledge_queries.py` + `tests/test_invariant_guards.py`(codex, 2026-05-04, M2 evidence objectization, wiki-to-evidence-only `derived_from`, query/HTTP relation grouping, and guard coverage)
