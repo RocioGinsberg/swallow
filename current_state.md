@@ -19,13 +19,13 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `post-LTO-4 Test Architecture;R-entry ready`
-- latest_main_checkpoint: `ac2d3ff docs(state): mark lto4 r-entry ready`
+- latest_main_checkpoint_phase: `post-LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
+- latest_main_checkpoint: `d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
-- current_working_phase: `lto-2-retrieval-source-scoping`
-- checkpoint_type: `feature_branch_closeout_ready`
-- active_branch: `feat/lto-2-retrieval-source-scoping`
+- current_working_phase: `none;post-merge checkpoint`
+- checkpoint_type: `main_post_lto2_source_scoping`
+- active_branch: `main`
 - last_checked: `2026-05-04`
 
 说明:
@@ -33,9 +33,9 @@
 - LTO-1 Wiki Compiler 第二阶段已 merge 到 `main` at `21f8dc8 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`,不单独 cut tag。
 - LTO-2 Retrieval Quality / Evidence Serving 已 merge 到 `main` at `03744f0`,不单独 cut tag。
 - LTO-4 Test Architecture 已按压缩流程完成:CLI test split、shared builders/assertions、AST guard helper extraction、global builder fixture entry;最终 `806/825` collected、`806 passed,19 deselected`。
-- 历史 phase 文档已归档到 `docs/archive_phases/` at `795aa4d docs(store): move history plans to archive`;`docs/plans/` 当前保留 R-entry runbook 与 active LTO-2 source scoping phase 文档。
+- 历史 phase 文档已归档到 `docs/archive_phases/` at `795aa4d docs(store): move history plans to archive`;`docs/plans/` 当前保留 R-entry runbook 与已完成的 LTO-2 source scoping phase 文档。
 - R-entry Real Usage 已完成本机可验证部分并触发 `lto-2-retrieval-source-scoping`。
-- 当前 feature branch 已完成 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 实现、Claude review、concerns backlog 登记、closeout 与 PR 文案同步。
+- LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已 merge 到 `main` at `d4288a1`。
 - Claude review verdict:`acceptable to merge`;0 blocks / 3 tracked concerns。3 个 concerns 已聚合登记为 `docs/concerns_backlog.md` Active Open 的 `LTO-2 Source Scoping review follow-ups`。
 
 ---
@@ -44,18 +44,18 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `feat/lto-2-retrieval-source-scoping`
+- active_branch: `main`
 - active_track: `LTO-2 Retrieval Quality / Evidence Serving`
-- active_phase: `lto-2-retrieval-source-scoping`
-- active_slice: `closeout ready;awaiting human merge decision`
-- workflow_status: `closeout_ready_acceptable_to_merge`
-- recommended_implementation_branch: `feat/lto-2-retrieval-source-scoping`
+- active_phase: `none;post-merge checkpoint`
+- active_slice: `post-merge state sync`
+- workflow_status: `main_checkpoint_synced`
+- recommended_implementation_branch: `none`
 
 下一步:
 
-1. Human 审阅 `docs/plans/lto-2-retrieval-source-scoping/closeout.md` / `review_comments.md` / `pr.md`。
-2. Human 提交收口材料并决定是否 merge。
-3. merge 后 Codex 同步 `current_state.md` / `docs/active_context.md` 到新的 main checkpoint。
+1. Claude 评估 `main@d4288a1` 是否需要 cut tag。
+2. Human 决定是否进入 tag 流程或选择下一轮 phase。
+3. Codex 根据 Human 决策同步 release docs 或输出下一轮 plan。
 
 ---
 
@@ -83,7 +83,7 @@
 
 ## 最小验证命令
 
-恢复当前 feature-branch closeout-ready 状态时,建议至少执行以下检查:
+恢复当前 main post-merge checkpoint 状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -97,7 +97,7 @@ sed -n '1,220p' docs/plans/lto-2-retrieval-source-scoping/review_comments.md
 sed -n '1,180p' docs/concerns_backlog.md
 ```
 
-当前 closeout-ready 状态已记录在 `docs/active_context.md`;最低状态检查:
+当前 post-merge checkpoint 状态已记录在 `docs/active_context.md`;最低状态检查:
 
 ```bash
 git diff --check
@@ -107,35 +107,33 @@ git diff --check
 
 ## 当前已知边界
 
-- 当前 feature branch 已完成实现与 review,处于 merge decision 前。
+- 当前 `main` 已包含 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility merge commit `d4288a1`。
 - 不新增 Dockerfile;当前远端展示只考虑 host `swl serve` loopback + host nginx 反代到 Tailscale。
 - 不把 `swl serve` 直接绑定到 `0.0.0.0` / Tailscale IP;不引入认证、多用户、公网语义。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
 - 不新增 object storage、durable background worker、Graph RAG、项目级全图谱可视化、remote worker 或 Planner/DAG。
-- Review concerns C1-C3 已登记为后续项,不在本 merge 前继续扩 scope。
+- Review concerns C1-C3 已登记为后续项,不在 post-merge state sync 中扩 scope。
 
 ---
 
 ## 当前建议提交范围
 
-当前实现 milestone 已提交为:
+当前 phase 已 merge:
 
-- `03ef358 feat(retrieval): scope sources from declared documents`
+- `d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
 
-当前建议提交收口材料:
+当前建议提交 post-merge state sync:
 
 ```bash
 git add \
-  docs/plans/lto-2-retrieval-source-scoping/review_comments.md \
-  docs/plans/lto-2-retrieval-source-scoping/closeout.md \
-  docs/concerns_backlog.md \
   docs/active_context.md \
-  current_state.md
+  current_state.md \
+  docs/roadmap.md
 
-git commit -m "docs(state): close lto2 source scoping review"
+git commit -m "docs(state): sync lto2 source scoping merge"
 ```
 
-`pr.md` 是本地 PR body 草稿且被 `.gitignore` 忽略;默认不纳入收口提交。如 Human 决定把它作为仓库产物提交,需显式执行 `git add -f pr.md`。
+`pr.md` 是本地 PR body 草稿且被 `.gitignore` 忽略;merge 后默认不纳入 state sync 提交。
 
 ---
 
@@ -165,7 +163,6 @@ sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
 sed -n '1,260p' docs/roadmap.md
 sed -n '1,220p' docs/plans/lto-2-retrieval-source-scoping/closeout.md
-sed -n '1,220p' pr.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。

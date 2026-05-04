@@ -8,30 +8,31 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Test Architecture`
-- latest_completed_phase: `lto-4-test-architecture`
-- latest_completed_slice: `M4 fixture consolidation complete;final full suite passed;R-entry ready`
+- latest_completed_track: `LTO-2 Retrieval Quality / Evidence Serving`
+- latest_completed_phase: `lto-2-retrieval-source-scoping`
+- latest_completed_slice: `merged to main at d4288a1`
 - active_track: `LTO-2 Retrieval Quality / Evidence Serving`
-- active_phase: `lto-2-retrieval-source-scoping`
-- active_slice: `closeout ready;awaiting human merge decision`
-- active_branch: `feat/lto-2-retrieval-source-scoping`
-- status: `closeout_ready_acceptable_to_merge`
+- active_phase: `none;post-merge checkpoint`
+- active_slice: `post-merge state sync`
+- active_branch: `main`
+- status: `main_checkpoint_synced`
 
 ## 当前状态说明
 
-当前 git 分支为 `feat/lto-2-retrieval-source-scoping`。LTO-4 Test Architecture 已 merge 到 `main`;R-entry 真实使用验证已完成本机可验证部分,并触发下一轮正式 phase:`lto-2-retrieval-source-scoping`。Plan drafting 已完成;plan audit 已由 Claude design-auditor 产出(0 blockers, 5 concerns, 2 nits);Codex 已吸收 concerns 并修订 plan。Human 已切换到 feature branch;Codex 已完成 M1-M4 实现与验证;Claude review verdict 为 acceptable to merge with 3 concerns;Codex 已完成 closeout / PR 文案同步。
+当前 git 分支为 `main`。LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已由 Human merge 到 `main` at `d4288a1`。该 phase 完成了 plan drafting、plan audit absorption、M1-M4 实现、Claude review、concerns backlog 登记、closeout 和 PR 文案同步;review verdict 为 acceptable to merge with 3 tracked concerns。
 
-Codex 已产出并根据 `plan_audit.md` 修订 `docs/plans/lto-2-retrieval-source-scoping/plan.md`,作为 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility phase 的唯一计划入口。实现已完成:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
+LTO-2 source scoping 实现内容:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
 
 本轮另外按 Human direction 取消 model_review gate 层:删除 `.agents/workflows/model_review.md`,并从 `claude/rules` `claude/role` `codex/rules` `codex/role` `shared/rules` `feature.md` `AGENTS.md` `.codex/session_bootstrap.md` 中移除所有 model_review 引用;plan gate 前不再要求第二模型审查,plan_audit 直接进入 Human Plan Gate。
 
-LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AST guard helper extraction、global builder fixture entry。最终 `collect-only` 为 `806/825 tests collected (19 deselected)`,比 LTO-4 起始 baseline `802/821` 增加 4 个 helper self-tests,没有测试数量减少。最终全量 pytest `806 passed, 19 deselected in 131.76s`,real `2m12.909s`,处于 LTO-4 允许耗时区间内。完成后不触发后续 phase,不 cut tag;下一步只进入真实使用 R-entry。
+LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AST guard helper extraction、global builder fixture entry。最终 `collect-only` 为 `806/825 tests collected (19 deselected)`,比 LTO-4 起始 baseline `802/821` 增加 4 个 helper self-tests,没有测试数量减少。最终全量 pytest `806 passed, 19 deselected in 131.76s`,real `2m12.909s`,处于 LTO-4 允许耗时区间内。LTO-4 完成后没有 cut tag,随后进入 R-entry 并触发本次 LTO-2 source scoping phase。
 
 最近稳定 checkpoint:
 
 - LTO-2 Retrieval Quality / Evidence Serving 已 merge 到 `main` at `03744f0`;post-merge state sync 已提交为 `a3c1844`。
 - LTO-4 Test Architecture 已 merge / synced 到 `main` at `ac2d3ff`;历史 phase 文档已归档到 `docs/archive_phases/`。
-- R-entry Real Usage 不是开发 phase;R-entry runbook 与 findings 保留为本 phase 的 evidence input。当前正式 phase 计划入口为 `docs/plans/lto-2-retrieval-source-scoping/plan.md`。
+- R-entry Real Usage 不是开发 phase;R-entry runbook 与 findings 保留为 LTO-2 source scoping 的 evidence input。
+- LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已 merge 到 `main` at `d4288a1`。
 
 ## 当前关键文档
 
@@ -52,7 +53,7 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 已完成:
 
 - **[Human]** LTO-4 Test Architecture 已完成并 merge/sync 到 `main` at `ac2d3ff`;不 cut tag。
-- **[Human]** 历史 phase 文档已移动到 `docs/archive_phases/` at `795aa4d docs(store): move history plans to archive`;`docs/plans/` 只保留当前 R-entry 计划。
+- **[Human]** 历史 phase 文档已移动到 `docs/archive_phases/` at `795aa4d docs(store): move history plans to archive`;`docs/plans/` 保留 R-entry runbook 与当前已完成的 LTO-2 source scoping phase 文档。
 - **[Codex]** 已产出 `docs/plans/r-entry-real-usage/plan.md`,覆盖 CLI + knowledge chain + Wiki Compiler + Web UI + Tailscale/nginx smoke。
 - **[Codex]** 已同步 `docs/roadmap.md` 到 LTO-4 complete / R-entry active 状态。
 - **[Codex]** 已执行 R-entry 本机可验证部分并整理 `docs/plans/r-entry-real-usage/findings.md`,记录 retrieval source scoping / truth reuse visibility / note-only offline semantics / wiki ergonomics / nginx host smoke 等 Direction Gate 候选。
@@ -62,27 +63,28 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 - **[Codex]** 已产出 `docs/plans/lto-2-retrieval-source-scoping/plan.md`,拆分 M1 request context plumbing、M2 candidate source scoping、M3 truth reuse visibility、M4 R-entry regression smoke。
 - **[Claude/design-auditor]** 已产出 `docs/plans/lto-2-retrieval-source-scoping/plan_audit.md`:0 blockers,5 concerns,2 nits。
 - **[Codex]** 已吸收 plan audit:明确 `build_task_retrieval_request` 为 M1 唯一注入点;M2 指名 `source_policy_label_for` / `SOURCE_POLICY_NOISE_LABELS` 与 `score_breakdown` 验收;M4 使用 `pytest.mark.eval` 与显式 eval gate;移除 premature closeout 与 `harness.py` 主触点。
-- **[Human]** 已切换到 `feat/lto-2-retrieval-source-scoping`。
+- **[Human]** 已切换到 `feat/lto-2-retrieval-source-scoping` 并在完成 review/closeout 后 merge 回 `main`。
 - **[Codex]** 已完成 M1-M4 实现:request context plumbing、candidate source scoping、truth reuse visibility report/memory、R-entry regression eval fixture。
 - **[Claude]** 已产出 `docs/plans/lto-2-retrieval-source-scoping/review_comments.md`:0 blocks,3 concerns,3 nits;独立验证 focused/eval/full pytest 与 Codex 报告一致(`812 passed, 20 deselected in 139.11s`)。
 - **[Claude]** 已把 3 个 [CONCERN] 聚合为 `LTO-2 Source Scoping review follow-ups` 写入 `docs/concerns_backlog.md` Active Open。
 - **[Codex]** 已产出 `docs/plans/lto-2-retrieval-source-scoping/closeout.md`,同步 review disposition / validation / deferred follow-ups / merge readiness。
 - **[Codex]** 已更新 `pr.md` Review 段,记录 Claude review verdict、独立验证和 3 个 tracked concerns。
+- **[Human]** 已 merge LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 到 `main` at `d4288a1`。
+- **[Codex]** 已同步 post-merge `docs/active_context.md` / `current_state.md` / `docs/roadmap.md`。
 
 待执行:
 
-- **[Human]** 审阅 closeout / PR 文案,决定是否带 3 个 tracked concerns merge。
-- **[Human]** 如接受 merge,提交收口材料并创建/更新 PR;merge 后通知 Codex 进行 post-merge state sync。
+- **[Claude]** 评估 `main@d4288a1` 是否需要 cut tag。
+- **[Human]** 决定是否进入 tag 流程或选择下一轮 phase。
 - **[Human]** 如需完成 R9,在 host nginx + 第二台 Tailscale 设备执行反代 smoke,再把结果补入 findings 或后续部署 runbook。
 
 ## 当前验证
 
-文档同步后需完成:
+Post-merge state sync validation:
 
-```bash
-git diff --check
-git status --short --branch
-```
+- `git diff --check` -> passed
+- `git status --short --branch` -> `## main...origin/main`;modified `current_state.md`, `docs/active_context.md`, `docs/roadmap.md`
+- `wc -l docs/roadmap.md` -> `180 docs/roadmap.md`(低于 300 行上限)
 
 本轮文档同步验证:
 
@@ -123,6 +125,7 @@ LTO-2 source scoping review / closeout validation:
 - Claude full pytest -> `812 passed,20 deselected in 139.11s`
 - `docs/concerns_backlog.md` -> appended `LTO-2 Source Scoping review follow-ups`
 - closeout / PR sync -> `git diff --check` passed
+- Human merge -> `d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
 
 R-entry UX fixes validation:
 
@@ -165,7 +168,7 @@ LTO-4 compressed-flow validation:
 
 ## 当前阻塞项
 
-- 无 code blocker。Review acceptable to merge with 3 tracked concerns;等待 Human 收口提交与 merge decision。
+- 无 code blocker。LTO-2 source scoping 已 merge 到 `main`;3 个 review concerns 已登记为后续项。
 
 ## Tag 状态
 
@@ -175,25 +178,25 @@ LTO-4 compressed-flow validation:
 - LTO-1 第二阶段已 merge,但 roadmap / review 建议不单独 cut tag。
 - LTO-2 已 merge,Claude review 建议不单独 cut tag。
 - LTO-4 已完成,压缩流程不 cut tag。
-- 下一 tag: 无 pending decision;后续可在 R-entry 反馈触发的产品 phase 完成后再评估 `v1.9.0`。
+- 下一 tag: 等待 Claude 对 `main@d4288a1` 做 tag evaluation;Human 决定是否进入 release docs / tag 流程。
 
 ## 当前下一步
 
-1. **[Human]** 审阅 `closeout.md` / `review_comments.md` / `pr.md`。
-2. **[Human]** 提交收口材料并决定是否 merge。
-3. **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md` 到 main checkpoint。
+1. **[Claude]** 评估 `main@d4288a1` 是否构成 tag-worthy checkpoint。
+2. **[Human]** 决定是否 cut tag,或选择下一轮 phase。
+3. **[Codex]** 根据 Human 决策同步 release docs 或输出下一轮 plan。
 
 ```markdown
 compressed_gate:
-- active_phase: lto-2-retrieval-source-scoping
-- active_slice: closeout ready;awaiting human merge decision
-- active_branch: feat/lto-2-retrieval-source-scoping
-- status: closeout_ready_acceptable_to_merge
-- latest_completed_phase: lto-4-test-architecture
-- latest_completed_commit: ac2d3ff docs(state): mark lto4 r-entry ready
+- active_phase: none;post-merge checkpoint
+- active_slice: post-merge state sync
+- active_branch: main
+- status: main_checkpoint_synced
+- latest_completed_phase: lto-2-retrieval-source-scoping
+- latest_completed_commit: d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
-- workflow: formal phase plan;plan_audit.md produced and absorbed;implementation complete;Claude review acceptable to merge;closeout ready
+- workflow: formal phase plan;plan_audit.md produced and absorbed;implementation complete;Claude review acceptable to merge;merged to main;post-merge state synced
 - boundary: docs/plans/lto-2-retrieval-source-scoping/plan.md is current plan
 - baseline_count: 802/821 collected;19 deselected
 - current_count: 806/825 collected;19 deselected
@@ -203,7 +206,7 @@ compressed_gate:
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human closeout commit and merge decision
+- next_gate: Claude tag evaluation and Human next-direction decision
 ```
 
 ## 当前产出物
@@ -213,9 +216,9 @@ compressed_gate:
 - `src/swallow/adapters/cli_commands/wiki.py`(codex, 2026-05-04, operator-facing LLM unavailable handling for wiki CLI)
 - `src/swallow/adapters/cli.py` / `src/swallow/adapters/cli_commands/tasks.py`(codex, 2026-05-04, task staged hint for task-scoped knowledge surface)
 - `tests/integration/cli/test_wiki_commands.py` / `tests/integration/cli/test_task_commands.py`(codex, 2026-05-04, regression coverage for R-entry UX fixes)
-- `docs/active_context.md`(codex, 2026-05-04, current R-entry state and checkpoint cleanup)
+- `docs/active_context.md`(codex, 2026-05-04, current state and checkpoint cleanup)
 - `docs/roadmap.md`(codex, 2026-05-04, LTO-4 complete / R-entry active roadmap sync;LTO-2 Retrieval Source Scoping And Truth Reuse Visibility Direction Gate proposal)
-- `current_state.md`(codex, 2026-05-04, recovery checkpoint sync to post-LTO-4 / R-entry-ready main state)
+- `current_state.md`(codex, 2026-05-04, recovery checkpoint sync to post-LTO-2 source scoping main state)
 - `docs/plans/lto-2-retrieval-source-scoping/plan.md`(codex, 2026-05-04, LTO-2 source scoping / truth reuse visibility phase plan;revised after plan_audit)
 - `docs/plans/lto-2-retrieval-source-scoping/plan_audit.md`(claude:design-auditor, 2026-05-04, plan gate audit — has-concerns;0 blockers, 5 concerns, 2 nits)
 - `src/swallow/orchestration/models.py` / `src/swallow/orchestration/retrieval_flow.py`(codex, 2026-05-04, declared document request plumbing)
@@ -227,3 +230,4 @@ compressed_gate:
 - `docs/concerns_backlog.md`(claude, 2026-05-04, append LTO-2 Source Scoping review follow-ups Active Open row)
 - `docs/plans/lto-2-retrieval-source-scoping/closeout.md`(codex, 2026-05-04, phase closeout — acceptable to merge with tracked concerns)
 - `pr.md`(codex, 2026-05-04, PR body updated with Claude review disposition)
+- `docs/active_context.md` / `current_state.md` / `docs/roadmap.md`(codex, 2026-05-04, post-merge state sync for `main@d4288a1`)
