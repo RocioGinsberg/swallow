@@ -19,9 +19,8 @@ status: living-document
 
 ## 当前位置
 
-- **最新 tag**: `v1.8.0` at `d6f2442`(LTO-1 Wiki Compiler 第一阶段)
-- **最新 main**: `d4288a1`(LTO-2 Retrieval Source Scoping And Truth Reuse Visibility)
-- **pending release tag**: **v1.9.0** (Retrieval Quality + Wiki Authoring 二代 + R-entry-driven source scoping)
+- **最新 tag**: `v1.9.0` at `d598e58`(Retrieval Quality + Wiki Authoring 二代 + R-entry-driven source scoping)
+- **最新 main**: `d598e58`(v1.9.0 release docs;能力基线含 `d4288a1` LTO-2 Retrieval Source Scoping And Truth Reuse Visibility)
 - **近期队列**: 空 —— 等 R-entry 真实使用反馈触发下一 phase
 
 自 v1.8.0 以来累积 5 个 phase(LTO-1 stage 2 / LTO-2 retrieval quality / Hygiene Bundle / LTO-4 / LTO-2 source scoping),其中 3 个 operator-visible 增量,2 个工程纪律。详情见 git log 与 closeout。
@@ -114,7 +113,7 @@ status: living-document
 | v1.6.0 | `0e6215a` | 簇 C 四金刚 cluster closure | 2026-05-03 |
 | v1.7.0 | `2156d4a` | LTO-13 FastAPI Local Web UI 写表面(首次 LLM-外可观察写表面) | 2026-05-04 |
 | v1.8.0 | `d6f2442` | LTO-1 Wiki Compiler 第一阶段(首次 LLM-内编译能力) | 2026-05-04 |
-| **v1.9.0** | **pending release-docs commit** | **Retrieval Quality 累积闭环 + R-entry-driven source scoping** | pre-tag docs ready |
+| **v1.9.0** | `d598e58` | Retrieval Quality 累积闭环 + R-entry-driven source scoping | 2026-05-04 |
 
 规则:tag 是稳定 checkpoint,不与 phase 一一对应;不补打历史 tag。决策流程见 `AGENTS.md`。
 

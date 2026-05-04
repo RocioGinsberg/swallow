@@ -20,11 +20,11 @@
 
 - repository_state: `runnable`
 - latest_main_checkpoint_phase: `post-LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
-- latest_main_checkpoint: `7fa5019 docs(state): sync lto2 source scoping merge`
-- latest_executed_public_tag: `v1.8.0`
-- pending_release_tag: `v1.9.0`
+- latest_main_checkpoint: `d598e58 docs(release): sync v1.9.0 release docs`
+- latest_executed_public_tag: `v1.9.0`
+- pending_release_tag: `none`
 - current_working_phase: `none;post-merge checkpoint`
-- checkpoint_type: `pre_v1.9.0_release_docs`
+- checkpoint_type: `post_v1.9.0_tag_checkpoint`
 - active_branch: `main`
 - last_checked: `2026-05-04`
 
@@ -36,6 +36,7 @@
 - 历史 phase 文档已归档到 `docs/archive_phases/` at `795aa4d docs(store): move history plans to archive`;`docs/plans/` 当前保留 R-entry runbook 与已完成的 LTO-2 source scoping phase 文档。
 - R-entry Real Usage 已完成本机可验证部分并触发 `lto-2-retrieval-source-scoping`。
 - LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已 merge 到 `main` at `d4288a1`。
+- v1.9.0 release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`;tag `v1.9.0` 已打在该 commit。
 - Claude review verdict:`acceptable to merge`;0 blocks / 3 tracked concerns。3 个 concerns 已聚合登记为 `docs/concerns_backlog.md` Active Open 的 `LTO-2 Source Scoping review follow-ups`。
 
 ---
@@ -47,15 +48,15 @@
 - active_branch: `main`
 - active_track: `LTO-2 Retrieval Quality / Evidence Serving`
 - active_phase: `none;post-merge checkpoint`
-- active_slice: `pre-v1.9.0 release docs`
-- workflow_status: `release_docs_ready_for_review`
+- active_slice: `post-v1.9.0 tag checkpoint`
+- workflow_status: `tag_complete_ready_for_next_direction`
 - recommended_implementation_branch: `none`
 
 下一步:
 
-1. Human 审阅 `README.md` / `current_state.md` / `docs/active_context.md` / `docs/roadmap.md` 的 `v1.9.0` release-docs diff。
-2. Human 提交 release docs 后执行 `git tag -a v1.9.0 -m "v1.9.0"`。
-3. tag 完成后 Codex 同步 `latest_executed_public_tag` 与 active context tag 状态。
+1. Human 决定下一轮方向:继续 R-entry 真实使用,或从 roadmap Direction Gate 候选中选择下一 phase。
+2. 如选择新 phase,Codex 按流程输出 `docs/plans/<phase>/plan.md`。
+3. 如继续 R-entry,记录真实使用反馈并按需更新 `docs/plans/r-entry-real-usage/findings.md`。
 
 ---
 
@@ -118,27 +119,21 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前 phase 已 merge,release docs 正在准备:
+当前 phase 已 merge,release tag 已完成:
 
 - `d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
-- pending tag: `v1.9.0`
+- `d598e58 docs(release): sync v1.9.0 release docs`
+- `v1.9.0`
 
-当前建议提交 release docs:
+当前建议提交 tag 状态同步:
 
 ```bash
 git add \
-  README.md \
   docs/active_context.md \
   current_state.md \
   docs/roadmap.md
 
-git commit -m "docs(release): sync v1.9.0 release docs"
-```
-
-提交后由 Human 执行 tag:
-
-```bash
-git tag -a v1.9.0 -m "v1.9.0"
+git commit -m "docs(state): mark v1.9.0 tagged"
 ```
 
 ---
