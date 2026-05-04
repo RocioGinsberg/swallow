@@ -50,7 +50,7 @@ status: living-document
 | ID | 长期目标 | 当前状态 | 下一类增量 | 工程锚点 |
 |----|----------|----------|------------|----------------|
 | **LTO-1** | Knowledge Authoring / LLM Wiki Compiler(authoring specialist) | **第一阶段已完成,merge `349efa9`**(2026-05-04;v1.8.0 tagged at `d6f2442`):`swl wiki draft` / `swl wiki refine --mode supersede\|refines` / `swl wiki refresh-evidence` 三命令;Wiki Compiler specialist 注册为 `WikiCompilerAgent`;LLM Path C 经 Provider Router;只写 task artifacts + staged knowledge;staged candidate 保留 source pack / rationale / relation metadata / conflict_flag;Knowledge Browse read routes + Web Knowledge panel(read-only);M5 guard/eval。**第二阶段已完成,merge `21f8dc8`**(2026-05-04,不 cut tag):`_CanonicalProposal.supersede_target_ids` + `_promote_canonical` target-id flip(governed supersede 走 `apply_proposal`);`materialize_source_evidence_from_canonical_record` 把 source_pack 锚点物化为 evidence object 并通过 `derived_from` relation 持久(类型守卫 source=wiki / target=evidence);Web fire-and-poll API(FastAPI `BackgroundTasks` 原语);静态 Web authoring 面板 + 结构化 `confirmed_notice_types` 替代 raw `force`;5 个 M5 guard 强制 propose-only / adapter boundary / supersede apply ownership / derived_from target / evidence anchor versioning。`KNOWLEDGE_RELATION_TYPES` 加入 `derived_from`(双枚举分层延续:metadata 5 类型 vs persisted 6 类型,`supersedes` 仍只翻 status field 不持 row)。 | 后续触发模式。下一类增量(stage 3 候选,真实需求触发):cross-candidate evidence dedup(已在 backlog Roadmap-Bound 由 LTO-2 消化)、`know_evidence` schema migration(已在 backlog Active Open)、Wiki Compiler 视图 3 全图谱可视化(deferred to Graph RAG)、relation creation site decision matrix(LTO-1 stage 2 review C1 已 fold 进 closeout,但未来若引入新 relation 类型需要重新审视) | `KNOWLEDGE.md`, `SELF_EVOLUTION.md`, `EXECUTOR_REGISTRY.md`, `ADAPTER_DISCIPLINE.md` |
-| **LTO-2** | Retrieval Quality / Evidence Serving | Retrieval U-T-Y 第一阶段完成:trace、dedicated rerank、source policy、EvidencePack view、source pointers、summary boundary。**LTO-2 Retrieval Quality / Evidence Serving 已完成,merge `03744f0`**(2026-05-04,不 cut tag):`source-anchor-v1` five-field canonical JSON identity;stable `evidence-src-<source_anchor_key>` evidence ids;cross-candidate evidence object reuse through `knowledge_object_exists(base_dir, evidence_id)`;`derived-from-v1` deterministic relation id by source object + evidence id;retrieval metadata path A enrichment;EvidencePack supporting evidence / fallback hits / source pointers dedup by metadata;operator report source-anchor key / dedup counts / pointer status / stored preview excerpt;M5 deterministic eval + invariant guard。LTO-1 stage 2 Roadmap-Bound cross-candidate evidence dedup concern 已移到 Resolved;`know_evidence` schema migration 仍 deferred。 | 后续触发模式:bounded excerpt/report UX 继续打磨、conflict flags、eval hardening、`know_evidence` schema migration 或 evidence lookup index 仅在真实规模 / schema 需求触发。 | `KNOWLEDGE.md`, `HARNESS.md` |
+| **LTO-2** | Retrieval Quality / Evidence Serving | Retrieval U-T-Y 第一阶段完成:trace、dedicated rerank、source policy、EvidencePack view、source pointers、summary boundary。**LTO-2 Retrieval Quality / Evidence Serving 已完成,merge `03744f0`**(2026-05-04,不 cut tag):`source-anchor-v1` five-field canonical JSON identity;stable `evidence-src-<source_anchor_key>` evidence ids;cross-candidate evidence object reuse through `knowledge_object_exists(base_dir, evidence_id)`;`derived-from-v1` deterministic relation id by source object + evidence id;retrieval metadata path A enrichment;EvidencePack supporting evidence / fallback hits / source pointers dedup by metadata;operator report source-anchor key / dedup counts / pointer status / stored preview excerpt;M5 deterministic eval + invariant guard。LTO-1 stage 2 Roadmap-Bound cross-candidate evidence dedup concern 已移到 Resolved;`know_evidence` schema migration 仍 deferred。R-entry 真实使用在 OpenRouter rerank 已工作后暴露下一处产品缺口:task-declared `document_paths` 没有约束候选池,生成/归档/代码路径噪声进入 top hits,且 canonical/task knowledge 是否被 considered/matched/skipped 不透明。 | 下一优先增量候选:`Retrieval Source Scoping And Truth Reuse Visibility`。先让 `document_paths` 影响候选 scope/priority,默认降权或排除 generated/archive 噪声路径,并在 retrieval report 中显示 declared source docs 与 canonical/task knowledge 的 considered/matched/skipped/absent 原因。Chunk 调整保持次级;`know_evidence` schema migration 或 evidence lookup index 仍仅在真实规模 / schema 需求触发。 | `KNOWLEDGE.md`, `HARNESS.md`, `docs/plans/r-entry-real-usage/findings.md` |
 
 ### 簇 B:架构重构 + 接口边界 + 工程纪律(活跃推进)
 
@@ -95,7 +95,7 @@ D5 Adapter Discipline + D4 Phase A + LTO-6 Knowledge Plane Facade Solidification
 | 候选方向 | 触发条件 / 信号 | 性质 |
 |---|---|---|
 | **Wiki Compiler 第三阶段** | R-entry 真实 Operator 使用反馈:cross-task evidence schema migration / 视图 3 全图谱 / 多 worker durable job runner / 文件上传 source ingestion 等 | 产品向 / LTO-1 增量 |
-| **LTO-2 retrieval quality 后续增量** | R-entry 真实样本显示 report UX / eval / conflict flag / lookup scale 仍不足 | 产品向 / LTO-2 增量 |
+| **LTO-2 Retrieval Source Scoping And Truth Reuse Visibility** | R-entry 真实使用显示 task-declared `document_paths` 没有塑造 retrieval candidate scope:OpenRouter rerank 已可用,但 top hits 仍被 repo code、generated metadata、archive docs 抢占;canonical registry 有 active item 时 report 仍显示 `reused_knowledge_count=0`,缺少 considered/skipped reason。 | 产品向 / LTO-2 增量 |
 | **D2 LTO-5 Driven Ports Rollout 第一个 port** | 测试需要 mock application boundary / 引入 second adapter / 注入复杂度提升(LTO-4 完成后 builders 形态会让这个边界更清晰) | 架构重构 |
 
 **未列入近期队列(deferred)**:
@@ -133,13 +133,13 @@ D5 Adapter Discipline + D4 Phase A + LTO-6 Knowledge Plane Facade Solidification
 
 ## 五、推荐顺序
 
-**Retrieval 第一阶段(done) → Architecture first branch(done) → 簇 C 四金刚(done;v1.6.0) → LTO-13 FastAPI Local Web UI(done;v1.7.0) → D5 Adapter Discipline + D4 Phase A(done) → LTO-6 Knowledge Plane Facade Solidification(done) → LTO-1 Wiki Compiler 第一阶段(done;v1.8.0) → Hygiene Bundle(done;不 cut tag) → LTO-1 Wiki Compiler 第二阶段(done;不 cut tag) → LTO-2 Retrieval Quality / Evidence Serving(done;不 cut tag) → LTO-4 Test Architecture(done;压缩流程,不 cut tag) → R-entry Real Usage(active;runbook ready) → 等待真实使用反馈触发下一 Direction Gate**
+**Retrieval 第一阶段(done) → Architecture first branch(done) → 簇 C 四金刚(done;v1.6.0) → LTO-13 FastAPI Local Web UI(done;v1.7.0) → D5 Adapter Discipline + D4 Phase A(done) → LTO-6 Knowledge Plane Facade Solidification(done) → LTO-1 Wiki Compiler 第一阶段(done;v1.8.0) → Hygiene Bundle(done;不 cut tag) → LTO-1 Wiki Compiler 第二阶段(done;不 cut tag) → LTO-2 Retrieval Quality / Evidence Serving(done;不 cut tag) → LTO-4 Test Architecture(done;压缩流程,不 cut tag) → R-entry Real Usage(active;findings captured) → 建议下一 Direction Gate:`LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`**
 
 簇 C 四金刚的内部排序与每条 LTO 的逐步骤理由已归档,详情见 git log 与 `docs/archive_phases/` 下的 archived closeout。
 
 ### 近期 phase 顺序
 
-当前无开发 phase 排队。**R-entry Real Usage** 是当前活动项,入口为 `docs/plans/r-entry-real-usage/plan.md`;执行后把真实问题沉淀为 issue log,再进入下一 Direction Gate。LTO-4 Test Architecture 已完成,不再作为近期启动项保留。
+当前无开发 phase 排队。**R-entry Real Usage** 是当前活动项,入口为 `docs/plans/r-entry-real-usage/plan.md`;真实问题已沉淀到 `docs/plans/r-entry-real-usage/findings.md`。下一步建议由 Human gate 后开 `docs/plans/lto-2-retrieval-source-scoping/plan.md`,聚焦 `Retrieval Source Scoping And Truth Reuse Visibility`。LTO-4 Test Architecture 已完成,不再作为近期启动项保留。
 
 ### 跨阶段排序依据
 
@@ -150,7 +150,8 @@ D5 Adapter Discipline + D4 Phase A + LTO-6 Knowledge Plane Facade Solidification
 5. **D2 / LTO-5 driven ports + D6 HTTP client port + D3 orchestrator decomposition**:都属于"等真实需求触发"区。D2 触发条件 = 测试隔离 / 第二个 adapter 实现 / 注入复杂度提升;D6 必须在 D2 第一个 port 落定后做;D3 必须在 D2 部分落定后做。三者均为大 phase,不预先排日程。**LTO-4 完成后 builders 形态会让 D2 注入边界更清晰**,但仍需要真实需求作为最终触发。
 6. **Wiki Compiler 第三阶段候选**:cross-task evidence schema migration / 视图 3 全图谱 / 多 worker durable job runner / 文件上传 source ingestion 等;每一项都需要真实 Operator 使用反馈作为锚点 —— LTO-2 刚 merge,加上 LTO-4 一并落地后,反馈环境才完整。
 7. **LTO-8 `debate_loop_core` deferred 到 LTO-11**:9 callable 注入纪律边缘问题,callables 是 telemetry-only,技术上守住 INVARIANTS;待 LTO-11 Planner / DAG / Strategy Router 首次设计 loop control pattern 时一并处理。
-8. **后续视真实使用反馈**:Wiki Compiler 视图 3(全图谱)与 Graph RAG 远期方向同步,真实需求触发再做;`know_evidence` schema migration 等跨任务 evidence lookup / 全局 evidence id 唯一性需求触发。
+8. **R-entry 后的首选 Direction Gate = LTO-2 Retrieval Source Scoping And Truth Reuse Visibility**:这是 R-entry issue log 中最直接影响真实使用质量的问题,且 rerank connectivity 已排除。建议下一 phase 只处理候选池 source scoping / generated-archive 噪声策略 / report truth reuse visibility / 相关 eval fixture,不顺手推进 Graph RAG、schema migration、vector index overhaul 或 chunk 策略大改。
+9. **后续视真实使用反馈**:Wiki Compiler 视图 3(全图谱)与 Graph RAG 远期方向同步,真实需求触发再做;`know_evidence` schema migration 等跨任务 evidence lookup / 全局 evidence id 唯一性需求触发。
 
 ---
 

@@ -13,15 +13,15 @@
 - latest_completed_slice: `M4 fixture consolidation complete;final full suite passed;R-entry ready`
 - active_track: `R-entry Real Usage`
 - active_phase: `r-entry-real-usage`
-- active_slice: `r-entry ux fixes complete;direction gate candidates ready`
+- active_slice: `r-entry ux fixes complete;lto2 source scoping gate proposed`
 - active_branch: `main`
-- status: `r_entry_ux_fixes_complete`
+- status: `r_entry_direction_gate_proposed`
 
 ## 当前状态说明
 
 当前 git 分支为 `main`。LTO-4 Test Architecture 已 merge 到 `main`;本轮进入 R-entry 真实使用验证,不触发新开发 phase,不走 plan audit / review / closeout,不 cut tag。
 
-Codex 已产出 `docs/plans/r-entry-real-usage/plan.md`,作为本轮真实使用 runbook。R-entry 本机可执行部分已完成并整理到 `docs/plans/r-entry-real-usage/findings.md`:CLI task / knowledge / Wiki Compiler / promotion / retrieval 链路已跑通到真实问题定位;本机 Web UI smoke 通过;Wiki LLM 与 OpenRouter rerank 已验证可用;nginx/Tailscale 仍需 Human 在 host nginx 与第二台 tailnet 设备上执行。R-entry 小修已完成:Wiki LLM unavailable 不再 traceback,`task staged --task` 会提示 task-scoped knowledge 的正确 surface,runbook 补充 `.env` 与 OpenRouter rerank 配置。
+Codex 已产出 `docs/plans/r-entry-real-usage/plan.md`,作为本轮真实使用 runbook。R-entry 本机可执行部分已完成并整理到 `docs/plans/r-entry-real-usage/findings.md`:CLI task / knowledge / Wiki Compiler / promotion / retrieval 链路已跑通到真实问题定位;本机 Web UI smoke 通过;Wiki LLM 与 OpenRouter rerank 已验证可用;nginx/Tailscale 仍需 Human 在 host nginx 与第二台 tailnet 设备上执行。R-entry 小修已完成并由 Human 提交为 `449ccda fix(cli): polish r-entry operator guidance`:Wiki LLM unavailable 不再 traceback,`task staged --task` 会提示 task-scoped knowledge 的正确 surface,runbook 补充 `.env` 与 OpenRouter rerank 配置。`docs/roadmap.md` 已把下一 Direction Gate 候选收敛为 `LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`。
 
 LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AST guard helper extraction、global builder fixture entry。最终 `collect-only` 为 `806/825 tests collected (19 deselected)`,比 LTO-4 起始 baseline `802/821` 增加 4 个 helper self-tests,没有测试数量减少。最终全量 pytest `806 passed, 19 deselected in 131.76s`,real `2m12.909s`,处于 LTO-4 允许耗时区间内。完成后不触发后续 phase,不 cut tag;下一步只进入真实使用 R-entry。
 
@@ -55,10 +55,12 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 - **[Codex]** 已同步 `docs/roadmap.md` 到 LTO-4 complete / R-entry active 状态。
 - **[Codex]** 已执行 R-entry 本机可验证部分并整理 `docs/plans/r-entry-real-usage/findings.md`,记录 retrieval source scoping / truth reuse visibility / note-only offline semantics / wiki ergonomics / nginx host smoke 等 Direction Gate 候选。
 - **[Codex]** 已完成 R-entry UX 小修:Wiki CLI 捕获 `AgentLLMUnavailable` 并给出 `source .env` / `--dry-run` 提示;`task staged --task` 空 global staged 结果会提示 task-scoped knowledge surface;`plan.md` 补充 `.env` 与 OpenRouter rerank 配置示例。
+- **[Human]** 已提交 R-entry UX 小修:`449ccda fix(cli): polish r-entry operator guidance`。
+- **[Codex]** 已更新 `docs/roadmap.md`,将泛化的 `LTO-2 retrieval quality 后续增量` 收敛为 `LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`,并明确 chunk 调整 / schema migration / Graph RAG 均不进入首个 slice。
 
 待执行:
 
-- **[Human]** 审阅 `docs/plans/r-entry-real-usage/findings.md`,决定下一轮 Direction Gate 是否优先进入 Retrieval Source Scoping And Truth Reuse Visibility。
+- **[Human]** 审批是否按 roadmap 建议开启 `lto-2-retrieval-source-scoping` phase plan。
 - **[Human]** 如需完成 R9,在 host nginx + 第二台 Tailscale 设备执行反代 smoke,再把结果补入 findings 或后续部署 runbook。
 
 ## 当前验证
@@ -74,6 +76,12 @@ git status --short --branch
 
 - `git diff --check` -> passed
 - `git status --short --branch` -> `## main...origin/main`;modified `current_state.md`, `docs/active_context.md`, `docs/roadmap.md`;untracked `docs/plans/`(contains `docs/plans/r-entry-real-usage/plan.md`)
+
+Roadmap Direction Gate 同步验证:
+
+- `git diff --check` -> passed
+- `git status --short --branch` -> `## main...origin/main [ahead 2]`;modified `docs/active_context.md`, `docs/roadmap.md`
+- `wc -l docs/roadmap.md` -> `184 docs/roadmap.md`(低于 300 行上限)
 
 R-entry UX fixes validation:
 
@@ -116,7 +124,7 @@ LTO-4 compressed-flow validation:
 
 ## 当前阻塞项
 
-- 无 blocker。R-entry plan ready;等待 Human 按 runbook 执行真实使用验证。
+- 无 blocker。等待 Human 审批是否开启 `lto-2-retrieval-source-scoping` phase plan。
 
 ## Tag 状态
 
@@ -130,16 +138,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 `docs/plans/r-entry-real-usage/findings.md`。
-2. **[Human]** 决定下一轮 Direction Gate 的优先方向;当前 Codex 建议首选 `Retrieval Source Scoping And Truth Reuse Visibility`。
+1. **[Human]** 审批是否按 roadmap 建议开启 `lto-2-retrieval-source-scoping` phase plan。
+2. **[Codex]** 如获批准,创建 `docs/plans/lto-2-retrieval-source-scoping/plan.md`,以 retrieval source scoping / truth reuse visibility 为边界。
 3. **[Human]** 可选执行 R9 host nginx/Tailscale smoke,补齐个人 tailnet UI 展示验证。
 
 ```markdown
 compressed_gate:
 - active_phase: r-entry-real-usage
-- active_slice: r-entry ux fixes complete;direction gate candidates ready
+- active_slice: r-entry ux fixes complete;lto2 source scoping gate proposed
 - active_branch: main
-- status: r_entry_ux_fixes_complete
+- status: r_entry_direction_gate_proposed
 - latest_completed_phase: lto-4-test-architecture
 - latest_completed_commit: ac2d3ff docs(state): mark lto4 r-entry ready
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
@@ -152,7 +160,7 @@ compressed_gate:
 - r_entry_plan: docs/plans/r-entry-real-usage/plan.md
 - findings: docs/plans/r-entry-real-usage/findings.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human reviews findings and selects next Direction Gate priority
+- next_gate: Human approves whether to open lto-2-retrieval-source-scoping plan
 ```
 
 ## 当前产出物
@@ -163,5 +171,5 @@ compressed_gate:
 - `src/swallow/adapters/cli.py` / `src/swallow/adapters/cli_commands/tasks.py`(codex, 2026-05-04, task staged hint for task-scoped knowledge surface)
 - `tests/integration/cli/test_wiki_commands.py` / `tests/integration/cli/test_task_commands.py`(codex, 2026-05-04, regression coverage for R-entry UX fixes)
 - `docs/active_context.md`(codex, 2026-05-04, current R-entry state and checkpoint cleanup)
-- `docs/roadmap.md`(codex, 2026-05-04, LTO-4 complete / R-entry active roadmap sync)
+- `docs/roadmap.md`(codex, 2026-05-04, LTO-4 complete / R-entry active roadmap sync;LTO-2 Retrieval Source Scoping And Truth Reuse Visibility Direction Gate proposal)
 - `current_state.md`(codex, 2026-05-04, recovery checkpoint sync to post-LTO-4 / R-entry-ready main state)
