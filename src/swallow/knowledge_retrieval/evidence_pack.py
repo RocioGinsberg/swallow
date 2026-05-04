@@ -162,6 +162,7 @@ def _evidence_entry(index: int, item: RetrievalItem, label: str, flags: list[str
         "heading_path": _heading_path(item),
         "source_anchor_key": str(item.metadata.get("source_anchor_key", "")),
         "source_anchor_version": str(item.metadata.get("source_anchor_version", "")),
+        "source_preview_excerpt": _source_preview_excerpt(item),
         "duplicate_count": 0,
         "dedup_reason": str(item.metadata.get("dedup_reason", "")),
         "expansion_path_count": _positive_int_metadata(item, "expansion_path_count", default=1),
@@ -331,6 +332,10 @@ def _append_deduped_pointer(
 
 def _source_anchor_key(item: RetrievalItem) -> str:
     return str(item.metadata.get("source_anchor_key", "")).strip()
+
+
+def _source_preview_excerpt(item: RetrievalItem) -> str:
+    return str(item.metadata.get("source_preview", "")).strip()
 
 
 def _raw_store_for(

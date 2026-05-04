@@ -249,6 +249,7 @@ def build_knowledge_item_metadata(
         "source_anchor_version": knowledge_object.get("source_anchor_version", ""),
         "source_pack_reference": knowledge_object.get("source_pack_reference", ""),
         "source_pack_index": knowledge_object.get("source_pack_index", 0),
+        "source_preview": knowledge_object.get("preview", ""),
         "task_linked": bool(knowledge_object.get("task_linked", False)),
         "retrieval_eligible": bool(knowledge_object.get("retrieval_eligible", False)),
         "knowledge_task_id": knowledge_task_id,

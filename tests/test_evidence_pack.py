@@ -148,6 +148,7 @@ class EvidencePackTest(unittest.TestCase):
                     "heading_path": "Design > Anchors",
                     "source_anchor_key": "anchor-1",
                     "source_anchor_version": "source-anchor-v1",
+                    "source_preview": "Stored source preview excerpt.",
                 },
             ),
             RetrievalItem(
@@ -201,6 +202,7 @@ class EvidencePackTest(unittest.TestCase):
         self.assertEqual(pack.supporting_evidence[0]["source_policy_label"], "supporting_evidence")
         self.assertEqual(pack.supporting_evidence[0]["source_policy_flags"], ["source_anchor_support"])
         self.assertEqual(pack.supporting_evidence[0]["source_anchor_key"], "anchor-1")
+        self.assertEqual(pack.supporting_evidence[0]["source_preview_excerpt"], "Stored source preview excerpt.")
         self.assertEqual(pack.supporting_evidence[0]["duplicate_count"], 2)
         self.assertEqual(pack.supporting_evidence[0]["dedup_reason"], "duplicate_source_anchor")
         self.assertEqual(pack.fallback_hits[0]["source_policy_label"], "artifact_source")

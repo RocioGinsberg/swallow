@@ -752,6 +752,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
                         "heading_path": "Design > Anchors",
                         "source_anchor_key": "anchor-1",
                         "source_anchor_version": "source-anchor-v1",
+                        "preview": "Stored source preview excerpt.",
                         "evidence_status": "artifact_backed",
                         "artifact_ref": ".swl/tasks/task-evidence/artifacts/source.md",
                         "retrieval_eligible": True,
@@ -795,6 +796,7 @@ class RetrievalAdaptersTest(unittest.TestCase):
         self.assertEqual(item.metadata["heading_path"], "Design > Anchors")
         self.assertEqual(item.metadata["source_pack_reference"], "source-pack:1")
         self.assertEqual(item.metadata["source_pack_index"], 1)
+        self.assertEqual(item.metadata["source_preview"], "Stored source preview excerpt.")
         self.assertEqual(item.metadata["source_policy_label"], "supporting_evidence")
         self.assertEqual(item.metadata["source_policy_flags"], ["source_anchor_support"])
 
