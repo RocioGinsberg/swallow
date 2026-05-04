@@ -3,6 +3,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from swallow.application.commands.knowledge import (
+    StagePromotePreflightError,
+    promote_stage_candidate_command,
+    summarize_text_preview,
+)
 from swallow.knowledge_retrieval.knowledge_plane import (
     StagedCandidate,
     list_staged_knowledge as load_staged_candidates,
@@ -47,6 +54,85 @@ def test_knowledge_stage_promote_characterization_stdout_stderr_exit_code(tmp_pa
         if line.strip()
     ]
     assert canonical_records[0]["canonical_id"] == f"canonical-{candidate.candidate_id}"
+
+
+def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_old_record(tmp_path: Path) -> None:
+    old = submit_staged_candidate(
+        tmp_path,
+        StagedCandidate(
+            candidate_id="",
+            text="Old wiki entry that should be superseded by explicit target id.",
+            source_task_id="task-stage-target-old",
+            source_object_id="knowledge-old",
+            submitted_by="integration-test",
+        ),
+    )
+    old_result = run_cli(
+        tmp_path,
+        "knowledge",
+        "stage-promote",
+        old.candidate_id,
+        "--note",
+        "Approve old target.",
+    )
+    old_result.assert_success()
+
+    replacement = submit_staged_candidate(
+        tmp_path,
+        StagedCandidate(
+            candidate_id="",
+            text="Replacement wiki entry with a different canonical key.",
+            source_task_id="task-stage-target-new",
+            source_object_id="knowledge-new",
+            submitted_by="integration-test",
+            relation_metadata=[
+                {
+                    "relation_type": "supersedes",
+                    "target_object_id": f"canonical-{old.candidate_id}",
+                }
+            ],
+        ),
+    )
+
+    with pytest.raises(StagePromotePreflightError) as raised:
+        promote_stage_candidate_command(
+            tmp_path,
+            replacement.candidate_id,
+            note="Approve replacement.",
+        )
+
+    assert raised.value.notices == [
+        {
+            "notice_type": "supersede",
+            "canonical_id": f"canonical-{old.candidate_id}",
+            "target_object_id": f"canonical-{old.candidate_id}",
+            "text_preview": summarize_text_preview(old.text, 60),
+        }
+    ]
+    assert load_staged_candidates(tmp_path)[1].status == "pending"
+
+    force_result = run_cli(
+        tmp_path,
+        "knowledge",
+        "stage-promote",
+        replacement.candidate_id,
+        "--note",
+        "Approve replacement.",
+        "--force",
+    )
+    force_result.assert_success()
+    assert force_result.stderr == ""
+    assert f"[SUPERSEDE] canonical_id=canonical-{old.candidate_id}" in force_result.stdout
+
+    canonical_records = [
+        json.loads(line)
+        for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert canonical_records[0]["canonical_status"] == "superseded"
+    assert canonical_records[0]["superseded_by"] == f"canonical-{replacement.candidate_id}"
+    assert canonical_records[0]["superseded_at"] == canonical_records[1]["promoted_at"]
+    assert canonical_records[1]["canonical_status"] == "active"
 
 
 def test_knowledge_stage_reject_characterization_stdout_stderr_exit_code(tmp_path: Path) -> None:

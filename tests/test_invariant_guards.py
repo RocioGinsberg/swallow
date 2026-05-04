@@ -171,6 +171,31 @@ HTTP_KNOWLEDGE_QUERY_CALLS = {
     "build_staged_knowledge_payload",
     "build_wiki_knowledge_payload",
 }
+HTTP_WIKI_ROUTE_CALLS = {
+    "create_wiki_draft_job",
+    "create_wiki_refine_job",
+    "load_wiki_job_record",
+    "load_wiki_job_result",
+    "refresh_wiki_evidence_command",
+}
+HTTP_WIKI_FORBIDDEN_IMPORTS = {
+    "swallow.application.services.wiki_compiler",
+    "swallow.provider_router.agent_llm",
+    "swallow.truth_governance.governance",
+    "swallow.truth_governance.store",
+}
+HTTP_WIKI_FORBIDDEN_CALLS = {
+    "WikiCompilerAgent",
+    "append_canonical_record",
+    "append_event",
+    "apply_proposal",
+    "call_agent_llm",
+    "compile",
+    "draft_wiki_command",
+    "refine_wiki_command",
+    "submit_staged_candidate",
+    "write_artifact",
+}
 
 
 def _src_py_files() -> list[Path]:
@@ -468,6 +493,228 @@ def test_http_knowledge_routes_only_call_application_queries() -> None:
     assert violations == []
 
 
+def test_wiki_compiler_web_routes_only_call_application_boundary() -> None:
+    rel_path = "src/swallow/adapters/http/api.py"
+    tree = ast.parse((REPO_ROOT / rel_path).read_text(encoding="utf-8"), filename=rel_path)
+    violations: list[str] = []
+    wiki_routes: list[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module in HTTP_WIKI_FORBIDDEN_IMPORTS:
+                violations.append(f"{rel_path}:{node.lineno} imports forbidden wiki module {module}")
+            if module.startswith("swallow.knowledge_retrieval"):
+                violations.append(f"{rel_path}:{node.lineno} imports knowledge internals {module}")
+            if module.startswith("swallow.provider_router"):
+                violations.append(f"{rel_path}:{node.lineno} imports provider router module {module}")
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        route_paths = [
+            _fastapi_route_path(decorator, method)
+            for decorator in node.decorator_list
+            for method in ("get", "post")
+        ]
+        route_paths = [path for path in route_paths if path.startswith("/api/wiki")]
+        if not route_paths:
+            continue
+        wiki_routes.extend(route_paths)
+        calls = {_call_name(call) for call in ast.walk(node) if isinstance(call, ast.Call)}
+        if not calls & HTTP_WIKI_ROUTE_CALLS:
+            violations.append(f"{rel_path}:{node.lineno} route {route_paths[0]} does not call application boundary")
+        for call_name in sorted(calls & HTTP_WIKI_FORBIDDEN_CALLS):
+            violations.append(f"{rel_path}:{node.lineno} route {route_paths[0]} calls forbidden {call_name}")
+
+    assert set(wiki_routes) == {
+        "/api/wiki/draft",
+        "/api/wiki/refine",
+        "/api/wiki/refresh-evidence",
+        "/api/wiki/jobs/{job_id}",
+        "/api/wiki/jobs/{job_id}/result",
+    }
+    assert violations == []
+
+
+def test_wiki_compiler_web_llm_actions_are_fire_and_poll() -> None:
+    rel_path = "src/swallow/adapters/http/api.py"
+    tree = ast.parse((REPO_ROOT / rel_path).read_text(encoding="utf-8"), filename=rel_path)
+    expected_job_creators = {
+        "/api/wiki/draft": "create_wiki_draft_job",
+        "/api/wiki/refine": "create_wiki_refine_job",
+    }
+    violations: list[str] = []
+    seen_routes: set[str] = set()
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        route_paths = [
+            _fastapi_route_path(decorator, "post")
+            for decorator in node.decorator_list
+        ]
+        route_paths = [path for path in route_paths if path in expected_job_creators]
+        if not route_paths:
+            continue
+        route_path = route_paths[0]
+        seen_routes.add(route_path)
+        calls = {_call_name(call) for call in ast.walk(node) if isinstance(call, ast.Call)}
+        if expected_job_creators[route_path] not in calls:
+            violations.append(f"{rel_path}:{node.lineno} route {route_path} does not create queued job")
+        if "add_task" not in calls:
+            violations.append(f"{rel_path}:{node.lineno} route {route_path} does not schedule background task")
+        for call_name in sorted(calls & {"WikiCompilerAgent", "compile", "draft_wiki_command", "refine_wiki_command"}):
+            violations.append(f"{rel_path}:{node.lineno} route {route_path} calls inline compiler path {call_name}")
+
+    assert seen_routes == set(expected_job_creators)
+    assert violations == []
+
+
+def test_wiki_compiler_supersede_status_flip_only_in_apply_proposal_path() -> None:
+    status_fields = {"canonical_status", "superseded_by", "superseded_at"}
+    physical_writer_files = {
+        "src/swallow/truth_governance/store.py",
+    }
+    repository_caller_files = {
+        "src/swallow/truth_governance/truth/knowledge.py",
+    }
+    violations: list[str] = []
+
+    def _write_target_fields(target: ast.AST) -> list[str]:
+        if isinstance(target, ast.Attribute):
+            return [target.attr]
+        if isinstance(target, ast.Subscript):
+            return _target_names(target)
+        if isinstance(target, ast.Tuple | ast.List):
+            names: list[str] = []
+            for item in target.elts:
+                names.extend(_write_target_fields(item))
+            return names
+        return []
+
+    for path in _src_py_files():
+        rel_path = _relative(path)
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                target_names = {
+                    name
+                    for target in node.targets
+                    for name in _write_target_fields(target)
+                }
+                if (target_names & status_fields) and rel_path not in physical_writer_files:
+                    violations.append(f"{rel_path}:{node.lineno} assigns canonical supersede status field")
+            elif isinstance(node, ast.AnnAssign | ast.AugAssign):
+                target_names = set(_write_target_fields(node.target))
+                if (target_names & status_fields) and rel_path not in physical_writer_files:
+                    violations.append(f"{rel_path}:{node.lineno} assigns canonical supersede status field")
+            elif (
+                isinstance(node, ast.Call)
+                and _call_name(node) == "mark_canonical_records_superseded_by_targets"
+                and rel_path not in physical_writer_files | repository_caller_files
+            ):
+                violations.append(f"{rel_path}:{node.lineno} calls target-id supersede writer outside repository path")
+
+    apply_tree = ast.parse(
+        (SRC_ROOT / "truth_governance" / "apply_canonical.py").read_text(encoding="utf-8"),
+        filename="src/swallow/truth_governance/apply_canonical.py",
+    )
+    apply_calls = [
+        call
+        for call in ast.walk(apply_tree)
+        if isinstance(call, ast.Call) and _call_name(call) == "_promote_canonical"
+    ]
+    assert len(apply_calls) == 1
+    assert any(keyword.arg == "supersede_target_ids" for keyword in apply_calls[0].keywords)
+
+    repo_tree = ast.parse(
+        (SRC_ROOT / "truth_governance" / "truth" / "knowledge.py").read_text(encoding="utf-8"),
+        filename="src/swallow/truth_governance/truth/knowledge.py",
+    )
+    repo_calls = [
+        call
+        for call in ast.walk(repo_tree)
+        if isinstance(call, ast.Call) and _call_name(call) == "mark_canonical_records_superseded_by_targets"
+    ]
+    assert len(repo_calls) == 2
+    assert violations == []
+
+
+def test_wiki_compiler_derived_from_relation_targets_evidence_only() -> None:
+    relation_tree = ast.parse(
+        (SRC_ROOT / "knowledge_retrieval" / "_internal_knowledge_relations.py").read_text(encoding="utf-8"),
+        filename="src/swallow/knowledge_retrieval/_internal_knowledge_relations.py",
+    )
+    validation_function = _function_named(relation_tree, "_validated_relation_payload")
+    validation_strings = set(_constant_strings(validation_function))
+
+    assert "derived_from relation target must be an evidence object." in validation_strings
+    assert "derived_from relation source must be a wiki object." in validation_strings
+
+    repo_tree = ast.parse(
+        (SRC_ROOT / "truth_governance" / "truth" / "knowledge.py").read_text(encoding="utf-8"),
+        filename="src/swallow/truth_governance/truth/knowledge.py",
+    )
+    persist_function = _function_named(repo_tree, "_persist_source_evidence_relations")
+    derived_from_calls: list[ast.Call] = []
+    for node in ast.walk(persist_function):
+        if isinstance(node, ast.Call) and _call_name(node) == "upsert_knowledge_relation":
+            relation_type = next((keyword.value for keyword in node.keywords if keyword.arg == "relation_type"), None)
+            if isinstance(relation_type, ast.Constant) and relation_type.value == "derived_from":
+                derived_from_calls.append(node)
+
+    assert len(derived_from_calls) == 1
+    keywords = {keyword.arg: keyword.value for keyword in derived_from_calls[0].keywords}
+    assert isinstance(keywords["target_object_id"], ast.Name)
+    assert keywords["target_object_id"].id == "evidence_id"
+    assert isinstance(keywords["source_object_id"], ast.Name)
+    assert keywords["source_object_id"].id == "source_id"
+
+
+def test_wiki_compiler_evidence_objectization_preserves_parser_version_anchor() -> None:
+    store_tree = ast.parse(
+        (SRC_ROOT / "knowledge_retrieval" / "_internal_knowledge_store.py").read_text(encoding="utf-8"),
+        filename="src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
+    )
+    evidence_function = _function_named(store_tree, "_source_pack_evidence_entry")
+    evidence_strings = set(_constant_strings(evidence_function))
+    assert {
+        "content_hash",
+        "parser_version",
+        "span",
+        "heading_path",
+        "source_pack_reference",
+        "source_pack_index",
+        "candidate_id",
+        "canonical_id",
+    } <= evidence_strings
+
+    materialize_function = _function_named(store_tree, "materialize_source_evidence_from_canonical_record")
+    materialize_calls = {_call_name(call) for call in ast.walk(materialize_function) if isinstance(call, ast.Call)}
+    assert "_source_pack_evidence_entry" in materialize_calls
+    assert "persist_task_knowledge_view" in materialize_calls
+
+    repo_tree = ast.parse(
+        (SRC_ROOT / "truth_governance" / "truth" / "knowledge.py").read_text(encoding="utf-8"),
+        filename="src/swallow/truth_governance/truth/knowledge.py",
+    )
+    promote_function = _function_named(repo_tree, "_promote_canonical")
+    call_lines = {
+        _call_name(call): call.lineno
+        for call in ast.walk(promote_function)
+        if isinstance(call, ast.Call)
+        and _call_name(call) in {
+            "materialize_source_evidence_from_canonical_record",
+            "append_canonical_record",
+            "_persist_source_evidence_relations",
+        }
+    }
+    assert (
+        call_lines["materialize_source_evidence_from_canonical_record"]
+        < call_lines["append_canonical_record"]
+        < call_lines["_persist_source_evidence_relations"]
+    )
+
+
 def test_knowledge_relation_metadata_types_cover_design_modes() -> None:
     from swallow.knowledge_retrieval.knowledge_plane import KNOWLEDGE_RELATION_TYPES
     from swallow.application.services.wiki_compiler import WIKI_COMPILER_METADATA_RELATION_TYPES
@@ -482,16 +729,19 @@ def test_knowledge_relation_metadata_types_cover_design_modes() -> None:
     legacy_relation_types = {"cites", "extends", "related_to"}
 
     assert set(WIKI_COMPILER_METADATA_RELATION_TYPES) == design_metadata_types
-    assert {"refines", "contradicts"} <= set(KNOWLEDGE_RELATION_TYPES)
+    assert {"refines", "contradicts", "derived_from"} <= set(KNOWLEDGE_RELATION_TYPES)
     assert legacy_relation_types <= set(KNOWLEDGE_RELATION_TYPES)
-    assert "derived_from" not in KNOWLEDGE_RELATION_TYPES
     assert "supersedes" not in KNOWLEDGE_RELATION_TYPES
     assert "refers_to" not in KNOWLEDGE_RELATION_TYPES
 
 
 def test_canonical_write_only_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
-        protected_names={"append_canonical_record", "persist_wiki_entry_from_record"},
+        protected_names={
+            "append_canonical_record",
+            "mark_canonical_records_superseded_by_targets",
+            "persist_wiki_entry_from_record",
+        },
         allowed_files={
             "src/swallow/truth_governance/truth/knowledge.py",
             "src/swallow/truth_governance/store.py",
@@ -590,6 +840,7 @@ def test_only_apply_proposal_calls_private_writers() -> None:
     violations = _find_protected_writer_uses(
         protected_names={
             "append_canonical_record",
+            "mark_canonical_records_superseded_by_targets",
             "persist_wiki_entry_from_record",
             "save_route_registry",
             "save_route_policy",
@@ -654,6 +905,7 @@ def test_route_metadata_handler_owns_repository_write_methods() -> None:
 def test_no_module_outside_governance_imports_store_writes() -> None:
     protected_imports = {
         "append_canonical_record",
+        "mark_canonical_records_superseded_by_targets",
         "persist_wiki_entry_from_record",
         "save_route_weights",
         "save_route_registry",

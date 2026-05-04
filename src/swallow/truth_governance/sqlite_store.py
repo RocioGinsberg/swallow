@@ -695,6 +695,34 @@ class SqliteTaskStore:
         finally:
             connection.close()
 
+    def knowledge_object_store_type(self, base_dir: Path, object_id: str) -> str:
+        normalized_id = str(object_id).strip()
+        if not normalized_id:
+            return ""
+        connection = self._connect_existing(base_dir)
+        if connection is None:
+            return ""
+        try:
+            evidence_table = _table_exists(connection, "knowledge_evidence")
+            wiki_table = _table_exists(connection, "knowledge_wiki")
+            if evidence_table:
+                row = connection.execute(
+                    "SELECT 1 FROM knowledge_evidence WHERE object_id = ? LIMIT 1",
+                    (normalized_id,),
+                ).fetchone()
+                if row is not None:
+                    return "evidence"
+            if wiki_table:
+                row = connection.execute(
+                    "SELECT 1 FROM knowledge_wiki WHERE entry_id = ? LIMIT 1",
+                    (normalized_id,),
+                ).fetchone()
+                if row is not None:
+                    return "wiki"
+            return ""
+        finally:
+            connection.close()
+
     def create_knowledge_relation(
         self,
         base_dir: Path,
@@ -715,6 +743,49 @@ class SqliteTaskStore:
                     created_by
                 )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    str(payload.get("relation_id", "")).strip(),
+                    str(payload.get("source_object_id", "")).strip(),
+                    str(payload.get("target_object_id", "")).strip(),
+                    str(payload.get("relation_type", "")).strip(),
+                    float(payload.get("confidence", 1.0)),
+                    str(payload.get("context", "")).strip(),
+                    str(payload.get("created_at", "")).strip(),
+                    str(payload.get("created_by", "operator")).strip() or "operator",
+                ),
+            )
+        self._checkpoint(base_dir)
+        return payload
+
+    def upsert_knowledge_relation(
+        self,
+        base_dir: Path,
+        relation: dict[str, object],
+    ) -> dict[str, object]:
+        payload = dict(relation)
+        with self._connect(base_dir) as connection:
+            connection.execute(
+                """
+                INSERT INTO knowledge_relations (
+                    relation_id,
+                    source_object_id,
+                    target_object_id,
+                    relation_type,
+                    confidence,
+                    context,
+                    created_at,
+                    created_by
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(relation_id) DO UPDATE SET
+                    source_object_id = excluded.source_object_id,
+                    target_object_id = excluded.target_object_id,
+                    relation_type = excluded.relation_type,
+                    confidence = excluded.confidence,
+                    context = excluded.context,
+                    created_at = excluded.created_at,
+                    created_by = excluded.created_by
                 """,
                 (
                     str(payload.get("relation_id", "")).strip(),

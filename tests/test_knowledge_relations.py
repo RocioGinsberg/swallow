@@ -13,6 +13,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     create_knowledge_relation,
     delete_knowledge_relation,
     list_knowledge_relations,
+    upsert_knowledge_relation,
 )
 from swallow.truth_governance.store import append_canonical_record, save_knowledge_objects
 
@@ -95,6 +96,112 @@ class KnowledgeRelationsTest(unittest.TestCase):
                 )
 
         self.assertIn("related_to", KNOWLEDGE_RELATION_TYPES)
+        self.assertIn("derived_from", KNOWLEDGE_RELATION_TYPES)
+        self.assertNotIn("supersedes", KNOWLEDGE_RELATION_TYPES)
+
+    def test_derived_from_relation_targets_evidence_object(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-a",
+                [{"object_id": "wiki-a", "text": "A", "stage": "canonical"}],
+                write_authority="operator-gated",
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "task-b",
+                [{"object_id": "evidence-b", "text": "B", "stage": "raw"}],
+            )
+
+            relation = create_knowledge_relation(
+                tmp_path,
+                source_object_id="wiki-a",
+                target_object_id="evidence-b",
+                relation_type="derived_from",
+            )
+            relations = list_knowledge_relations(tmp_path, "wiki-a")
+
+        self.assertEqual(relation["relation_type"], "derived_from")
+        self.assertEqual(relations[0]["target_object_id"], "evidence-b")
+
+    def test_upsert_knowledge_relation_reuses_relation_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-a",
+                [{"object_id": "wiki-a", "text": "A", "stage": "canonical"}],
+                write_authority="operator-gated",
+            )
+            save_knowledge_objects(
+                tmp_path,
+                "task-b",
+                [{"object_id": "evidence-b", "text": "B", "stage": "raw"}],
+            )
+
+            first = upsert_knowledge_relation(
+                tmp_path,
+                relation_id="relation-derived-from-staged-a-1",
+                source_object_id="wiki-a",
+                target_object_id="evidence-b",
+                relation_type="derived_from",
+                context="first",
+            )
+            second = upsert_knowledge_relation(
+                tmp_path,
+                relation_id="relation-derived-from-staged-a-1",
+                source_object_id="wiki-a",
+                target_object_id="evidence-b",
+                relation_type="derived_from",
+                context="second",
+            )
+            relations = list_knowledge_relations(tmp_path, "wiki-a")
+
+        self.assertEqual(first["relation_id"], second["relation_id"])
+        self.assertEqual(len(relations), 1)
+        self.assertEqual(relations[0]["context"], "second")
+
+    def test_derived_from_relation_rejects_non_evidence_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-a",
+                [
+                    {"object_id": "wiki-a", "text": "A", "stage": "canonical"},
+                    {"object_id": "wiki-b", "text": "B", "stage": "canonical"},
+                ],
+                write_authority="operator-gated",
+            )
+
+            with self.assertRaisesRegex(ValueError, "target must be an evidence object"):
+                create_knowledge_relation(
+                    tmp_path,
+                    source_object_id="wiki-a",
+                    target_object_id="wiki-b",
+                    relation_type="derived_from",
+                )
+
+    def test_derived_from_relation_rejects_non_wiki_source(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-a",
+                [
+                    {"object_id": "evidence-a", "text": "A", "stage": "raw"},
+                    {"object_id": "evidence-b", "text": "B", "stage": "raw"},
+                ],
+            )
+
+            with self.assertRaisesRegex(ValueError, "source must be a wiki object"):
+                create_knowledge_relation(
+                    tmp_path,
+                    source_object_id="evidence-a",
+                    target_object_id="evidence-b",
+                    relation_type="derived_from",
+                )
 
     def test_delete_relation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

@@ -247,6 +247,21 @@ def persist_task_knowledge_view(
     )
 
 
+def materialize_source_evidence_from_canonical_record(
+    base_dir: Path,
+    record: dict[str, object],
+    *,
+    mirror_files: bool = True,
+    write_authority: str = LIBRARIAN_AGENT_WRITE_AUTHORITY,
+) -> list[str]:
+    return _knowledge_store.materialize_source_evidence_from_canonical_record(
+        base_dir,
+        record,
+        mirror_files=mirror_files,
+        write_authority=write_authority,
+    )
+
+
 def build_wiki_entry_from_canonical_record(record: dict[str, object]) -> dict[str, object]:
     return _knowledge_store.build_wiki_entry_from_canonical_record(record)
 
@@ -386,6 +401,29 @@ def create_knowledge_relation(
 ) -> dict[str, object]:
     return _knowledge_relations.create_knowledge_relation(
         base_dir,
+        source_object_id=source_object_id,
+        target_object_id=target_object_id,
+        relation_type=relation_type,
+        confidence=confidence,
+        context=context,
+        created_by=created_by,
+    )
+
+
+def upsert_knowledge_relation(
+    base_dir: Path,
+    *,
+    relation_id: str,
+    source_object_id: str,
+    target_object_id: str,
+    relation_type: str,
+    confidence: float = 1.0,
+    context: str = "",
+    created_by: str = "operator",
+) -> dict[str, object]:
+    return _knowledge_relations.upsert_knowledge_relation(
+        base_dir,
+        relation_id=relation_id,
         source_object_id=source_object_id,
         target_object_id=target_object_id,
         relation_type=relation_type,

@@ -1359,7 +1359,7 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge_stage_promote_parser.add_argument(
         "--force",
         action="store_true",
-        help="Allow promotion to proceed when it would supersede an existing active canonical record.",
+        help="Allow promotion to proceed after supersede or conflict preflight notices.",
     )
     knowledge_stage_reject_parser = knowledge_subparsers.add_parser(
         "stage-reject",

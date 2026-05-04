@@ -17,6 +17,7 @@ from swallow.application.commands.tasks import (
     retry_task_command,
     run_task_command,
 )
+from swallow.application.commands.wiki import refresh_wiki_evidence_command
 from swallow.application.queries.control_center import (
     build_task_artifact_diff_payload,
     build_task_artifact_payload,
@@ -35,6 +36,13 @@ from swallow.application.queries.knowledge import (
     build_knowledge_relations_payload,
     build_staged_knowledge_payload,
     build_wiki_knowledge_payload,
+)
+from swallow.application.services.wiki_jobs import (
+    create_wiki_draft_job,
+    create_wiki_refine_job,
+    load_wiki_job_record,
+    load_wiki_job_result,
+    run_wiki_job,
 )
 from swallow.adapters.http.exceptions import TaskActionBlockedError
 
@@ -81,7 +89,7 @@ def _task_acknowledge_or_raise(result: TaskAcknowledgeCommandResult) -> TaskAckn
 
 def create_fastapi_app(base_dir: Path):
     try:
-        from fastapi import Depends, FastAPI, Request
+        from fastapi import BackgroundTasks, Depends, FastAPI, Request
         from fastapi.responses import FileResponse, JSONResponse
         from fastapi.staticfiles import StaticFiles
         from swallow.adapters.http.dependencies import get_base_dir, resolve_workspace_relative_file
@@ -100,6 +108,12 @@ def create_fastapi_app(base_dir: Path):
             TaskActionRequest,
             TaskEnvelope,
             TaskRecoveryEnvelope,
+            WikiDraftRequest,
+            WikiEvidenceRefreshEnvelope,
+            WikiJobEnvelope,
+            WikiJobResultEnvelope,
+            WikiRefineRequest,
+            WikiRefreshEvidenceRequest,
         )
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
@@ -321,6 +335,69 @@ def create_fastapi_app(base_dir: Path):
     ) -> KnowledgeRelationsEnvelope:
         return KnowledgeRelationsEnvelope.from_payload(build_knowledge_relations_payload(request_base_dir, object_id))
 
+    @app.post("/api/wiki/draft", response_model=WikiJobEnvelope)
+    def wiki_draft(
+        request: WikiDraftRequest,
+        background_tasks: BackgroundTasks,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> WikiJobEnvelope:
+        job = create_wiki_draft_job(
+            request_base_dir,
+            task_id=request.task_id,
+            topic=request.topic,
+            source_refs=request.source_refs,
+            model=request.model,
+        )
+        background_tasks.add_task(run_wiki_job, request_base_dir, job.job_id)
+        return WikiJobEnvelope.from_record(job)
+
+    @app.post("/api/wiki/refine", response_model=WikiJobEnvelope)
+    def wiki_refine(
+        request: WikiRefineRequest,
+        background_tasks: BackgroundTasks,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> WikiJobEnvelope:
+        job = create_wiki_refine_job(
+            request_base_dir,
+            task_id=request.task_id,
+            mode=request.mode,
+            target_object_id=request.target_object_id,
+            source_refs=request.source_refs,
+            model=request.model,
+        )
+        background_tasks.add_task(run_wiki_job, request_base_dir, job.job_id)
+        return WikiJobEnvelope.from_record(job)
+
+    @app.post("/api/wiki/refresh-evidence", response_model=WikiEvidenceRefreshEnvelope)
+    def wiki_refresh_evidence(
+        request: WikiRefreshEvidenceRequest,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> WikiEvidenceRefreshEnvelope:
+        result = refresh_wiki_evidence_command(
+            request_base_dir,
+            task_id=request.task_id,
+            target_object_id=request.target_object_id,
+            source_ref=request.source_ref,
+            parser_version=request.parser_version,
+            span=request.span,
+            heading_path=request.heading_path,
+        )
+        return WikiEvidenceRefreshEnvelope.from_result(result)
+
+    @app.get("/api/wiki/jobs/{job_id}", response_model=WikiJobEnvelope)
+    def wiki_job_status(
+        job_id: str,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> WikiJobEnvelope:
+        return WikiJobEnvelope.from_record(load_wiki_job_record(request_base_dir, job_id))
+
+    @app.get("/api/wiki/jobs/{job_id}/result", response_model=WikiJobResultEnvelope)
+    def wiki_job_result(
+        job_id: str,
+        request_base_dir: Path = Depends(get_base_dir),
+    ) -> WikiJobResultEnvelope:
+        return WikiJobResultEnvelope.from_payload(load_wiki_job_result(request_base_dir, job_id))
+
     @app.get("/api/tasks/{task_id}/subtask-tree")
     def task_subtask_tree(task_id: str, request_base_dir: Path = Depends(get_base_dir)) -> dict[str, object]:
         return build_task_subtask_tree_payload(request_base_dir, task_id)
@@ -342,6 +419,9 @@ def create_fastapi_app(base_dir: Path):
             note=stage_request.note,
             refined_text=stage_request.refined_text,
             force=False,
+            confirmed_notice_types=stage_request.confirmed_notice_types,
+            confirmed_supersede_target_ids=stage_request.confirmed_supersede_target_ids,
+            confirmed_conflict_flags=stage_request.confirmed_conflict_flags,
         )
         return StagePromoteEnvelope.from_result(result)
 

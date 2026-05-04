@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,7 @@ class _CanonicalProposal:
     persist_wiki: bool
     persist_wiki_first: bool
     refresh_derived: bool
+    supersede_target_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,7 @@ def register_canonical_proposal(
     persist_wiki: bool = True,
     persist_wiki_first: bool = True,
     refresh_derived: bool = False,
+    supersede_target_ids: Iterable[str] | None = None,
 ) -> str:
     """Register a canonical proposal payload for the next apply call.
 
@@ -78,6 +81,7 @@ def register_canonical_proposal(
             persist_wiki=persist_wiki,
             persist_wiki_first=persist_wiki_first,
             refresh_derived=refresh_derived,
+            supersede_target_ids=_normalize_supersede_target_ids(supersede_target_ids),
         ),
     )
 
@@ -228,3 +232,23 @@ def _normalize_proposal_id(proposal_id: str) -> str:
     if not normalized_id:
         raise ValueError("proposal_id must be a non-empty string.")
     return normalized_id
+
+
+def _normalize_supersede_target_ids(target_ids: Iterable[str] | None) -> tuple[str, ...]:
+    if target_ids is None:
+        return ()
+    values: Iterable[str]
+    if isinstance(target_ids, str):
+        values = (target_ids,)
+    else:
+        values = target_ids
+
+    normalized_ids: list[str] = []
+    seen: set[str] = set()
+    for target_id in values:
+        normalized_id = str(target_id).strip()
+        if not normalized_id or normalized_id in seen:
+            continue
+        seen.add(normalized_id)
+        normalized_ids.append(normalized_id)
+    return tuple(normalized_ids)

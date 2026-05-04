@@ -191,6 +191,104 @@ def test_knowledge_stage_promote_does_not_expose_force_bypass(tmp_path: Path) ->
     assert "force" in str(response.json()["detail"])
 
 
+def test_knowledge_stage_promote_accepts_structured_supersede_confirmation(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    old_candidate = submit_staged_candidate(
+        tmp_path,
+        StagedCandidate(
+            candidate_id="",
+            text="Old staged wiki entry.",
+            source_task_id="http-task",
+            source_object_id="wiki-old",
+            submitted_by="integration-test",
+        ),
+    )
+    first_response = client.post(
+        f"/api/knowledge/staged/{old_candidate.candidate_id}/promote",
+        json={"note": "Approve old entry."},
+    )
+    assert first_response.status_code == 200
+
+    replacement = submit_staged_candidate(
+        tmp_path,
+        StagedCandidate(
+            candidate_id="",
+            text="Replacement staged wiki entry.",
+            source_task_id="http-task",
+            source_object_id="wiki-new",
+            submitted_by="integration-test",
+            wiki_mode="supersede",
+            target_object_id=f"canonical-{old_candidate.candidate_id}",
+            relation_metadata=[
+                {
+                    "relation_type": "supersedes",
+                    "target_object_id": f"canonical-{old_candidate.candidate_id}",
+                }
+            ],
+        ),
+    )
+
+    unconfirmed = client.post(
+        f"/api/knowledge/staged/{replacement.candidate_id}/promote",
+        json={"note": "Missing structured confirmation."},
+    )
+    confirmed = client.post(
+        f"/api/knowledge/staged/{replacement.candidate_id}/promote",
+        json={
+            "note": "Confirmed target-id supersede.",
+            "confirmed_notice_types": ["supersede"],
+            "confirmed_supersede_target_ids": [f"canonical-{old_candidate.candidate_id}"],
+        },
+    )
+
+    assert unconfirmed.status_code == 409
+    assert unconfirmed.json()["detail"]["notices"][0]["notice_type"] == "supersede"
+    assert confirmed.status_code == 200
+    assert confirmed.json()["data"]["candidate"]["status"] == "promoted"
+    canonical_records = [
+        json.loads(line)
+        for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert canonical_records[0]["canonical_status"] == "superseded"
+    assert canonical_records[0]["superseded_by"] == f"canonical-{replacement.candidate_id}"
+
+
+def test_knowledge_stage_promote_accepts_structured_conflict_confirmation(tmp_path: Path) -> None:
+    candidate = submit_staged_candidate(
+        tmp_path,
+        StagedCandidate(
+            candidate_id="",
+            text="Conflict-bearing staged wiki entry.",
+            source_task_id="http-task",
+            source_object_id="wiki-conflict",
+            submitted_by="integration-test",
+            wiki_mode="draft",
+            conflict_flag="contradicts(wiki-old)",
+        ),
+    )
+    client = _client(tmp_path)
+
+    unconfirmed = client.post(
+        f"/api/knowledge/staged/{candidate.candidate_id}/promote",
+        json={"note": "Missing conflict confirmation."},
+    )
+    confirmed = client.post(
+        f"/api/knowledge/staged/{candidate.candidate_id}/promote",
+        json={
+            "note": "Confirmed conflict flag.",
+            "confirmed_notice_types": ["conflict"],
+            "confirmed_conflict_flags": ["contradicts(wiki-old)"],
+        },
+    )
+
+    assert unconfirmed.status_code == 409
+    assert unconfirmed.json()["detail"]["notices"][0]["notice_type"] == "conflict"
+    assert unconfirmed.json()["detail"]["notices"][0]["conflict_flag"] == "contradicts(wiki-old)"
+    assert confirmed.status_code == 200
+    assert confirmed.json()["data"]["candidate"]["status"] == "promoted"
+
+
 def test_proposal_review_apply_routes_use_workspace_relative_paths(tmp_path: Path) -> None:
     route = route_by_name("local-codex")
     assert route is not None

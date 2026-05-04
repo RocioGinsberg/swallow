@@ -64,6 +64,13 @@ def _seed_knowledge(base_dir: Path) -> None:
         "task-http-knowledge",
         [
             {
+                "object_id": "evidence-source",
+                "text": "HTTP evidence text.",
+                "stage": "raw",
+                "source_ref": "file://workspace/evidence.md",
+                "evidence_status": "source_only",
+            },
+            {
                 "object_id": "wiki-old",
                 "text": "Old HTTP wiki text.",
                 "stage": "canonical",
@@ -106,6 +113,13 @@ def _seed_knowledge(base_dir: Path) -> None:
         target_object_id="wiki-old",
         relation_type="refines",
         context="HTTP relation",
+    )
+    create_knowledge_relation(
+        base_dir,
+        source_object_id="wiki-new",
+        target_object_id="evidence-source",
+        relation_type="derived_from",
+        context="HTTP evidence relation",
     )
     submit_staged_knowledge(
         base_dir,
@@ -156,7 +170,9 @@ def test_knowledge_detail_and_relations_routes_include_metadata_edges(tmp_path: 
     groups = relations_response.json()["data"]["groups"]
     assert groups["refines"][0]["edge_source"] == "persisted"
     assert groups["supersedes"][0]["edge_source"] == "metadata"
-    assert groups["derived_from"][0]["target_ref"] == "file://workspace/wiki-new.md"
+    assert groups["derived_from"][0]["edge_source"] == "persisted"
+    assert groups["derived_from"][0]["target_object_id"] == "evidence-source"
+    assert groups["derived_from"][1]["target_ref"] == "file://workspace/wiki-new.md"
 
 
 def test_knowledge_routes_report_validation_and_not_found_errors(tmp_path: Path) -> None:
