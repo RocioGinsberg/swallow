@@ -491,7 +491,11 @@ def test_knowledge_relation_metadata_types_cover_design_modes() -> None:
 
 def test_canonical_write_only_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
-        protected_names={"append_canonical_record", "persist_wiki_entry_from_record"},
+        protected_names={
+            "append_canonical_record",
+            "mark_canonical_records_superseded_by_targets",
+            "persist_wiki_entry_from_record",
+        },
         allowed_files={
             "src/swallow/truth_governance/truth/knowledge.py",
             "src/swallow/truth_governance/store.py",
@@ -590,6 +594,7 @@ def test_only_apply_proposal_calls_private_writers() -> None:
     violations = _find_protected_writer_uses(
         protected_names={
             "append_canonical_record",
+            "mark_canonical_records_superseded_by_targets",
             "persist_wiki_entry_from_record",
             "save_route_registry",
             "save_route_policy",
@@ -654,6 +659,7 @@ def test_route_metadata_handler_owns_repository_write_methods() -> None:
 def test_no_module_outside_governance_imports_store_writes() -> None:
     protected_imports = {
         "append_canonical_record",
+        "mark_canonical_records_superseded_by_targets",
         "persist_wiki_entry_from_record",
         "save_route_weights",
         "save_route_registry",

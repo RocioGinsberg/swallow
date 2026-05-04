@@ -561,6 +561,83 @@ def append_canonical_record(base_dir: Path, payload: dict[str, object]) -> None:
     )
 
 
+def mark_canonical_records_superseded_by_targets(
+    base_dir: Path,
+    target_ids: Iterable[str],
+    *,
+    superseded_by: str,
+    superseded_at: str,
+    dry_run: bool = False,
+) -> list[dict[str, object]]:
+    normalized_targets = _normalize_canonical_supersede_targets(target_ids)
+    if not normalized_targets:
+        return []
+
+    normalized_superseded_by = str(superseded_by).strip()
+    if not normalized_superseded_by:
+        raise ValueError("superseded_by must be a non-empty canonical id.")
+    normalized_superseded_at = str(superseded_at).strip() or utc_now()
+
+    registry_file = canonical_registry_path(base_dir)
+    records = read_json_lines_strict_or_empty(registry_file) if registry_file.exists() else []
+    target_set = set(normalized_targets)
+    found_targets: set[str] = set()
+    updated_records: list[dict[str, object]] = []
+    superseded_records: list[dict[str, object]] = []
+
+    for record in records:
+        record_targets = {
+            str(record.get("canonical_id", "")).strip(),
+            str(record.get("source_object_id", "")).strip(),
+        }
+        record_targets.discard("")
+        matched_targets = target_set & record_targets
+        if not matched_targets:
+            updated_records.append(record)
+            continue
+
+        found_targets.update(matched_targets)
+        if str(record.get("canonical_id", "")).strip() == normalized_superseded_by:
+            updated_records.append(record)
+            continue
+        if str(record.get("canonical_status", "active")).strip() == "superseded":
+            updated_records.append(record)
+            continue
+
+        updated_record = dict(record)
+        updated_record["canonical_status"] = "superseded"
+        if "state" in updated_record:
+            updated_record["state"] = "superseded"
+        updated_record["superseded_by"] = normalized_superseded_by
+        updated_record["superseded_at"] = normalized_superseded_at
+        updated_records.append(updated_record)
+        superseded_records.append(updated_record)
+
+    unresolved_targets = [target_id for target_id in normalized_targets if target_id not in found_targets]
+    if unresolved_targets:
+        raise ValueError(f"Unknown canonical supersede target: {', '.join(unresolved_targets)}")
+
+    if superseded_records and not dry_run:
+        canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
+        registry_file.write_text(
+            "".join(json.dumps(record) + "\n" for record in updated_records),
+            encoding="utf-8",
+        )
+    return superseded_records
+
+
+def _normalize_canonical_supersede_targets(target_ids: Iterable[str]) -> tuple[str, ...]:
+    normalized_ids: list[str] = []
+    seen: set[str] = set()
+    for target_id in target_ids:
+        normalized_id = str(target_id).strip()
+        if not normalized_id or normalized_id in seen:
+            continue
+        seen.add(normalized_id)
+        normalized_ids.append(normalized_id)
+    return tuple(normalized_ids)
+
+
 def save_canonical_registry_index(base_dir: Path, payload: dict[str, object]) -> None:
     canonical_registry_root(base_dir).mkdir(parents=True, exist_ok=True)
     canonical_registry_index_path(base_dir).write_text(

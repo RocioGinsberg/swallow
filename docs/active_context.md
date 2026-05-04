@@ -13,9 +13,9 @@
 - latest_completed_slice: `merged to main at e656bd3; roadmap synced at 449653a`
 - active_track: `Knowledge Authoring`
 - active_phase: `lto-1-wiki-compiler-second-stage`
-- active_slice: `plan_audit absorbed; revised plan awaiting Human Plan Gate`
+- active_slice: `M1 - Governed supersede apply`
 - active_branch: `feat/lto-1-wiki-compiler-second-stage`
-- status: `human_plan_gate_pending`
+- status: `m1_implementation_complete_pending_human_commit`
 
 ## 当前状态说明
 
@@ -37,7 +37,7 @@
 
 `v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。`v1.8.0` annotated tag 已 cut(标记 LTO-1 Wiki Compiler 第一阶段;tag target `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`)。
 
-**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。当前重新提交 Human Plan Gate;未获通过前不得开始实现。
+**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。Human 已提交 plan/audit absorption 并要求开始实现;Codex 已完成 M1 - Governed supersede apply implementation + focused validation。当前等待 Human review / commit M1 milestone,提交后再进入 M2。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -252,7 +252,7 @@ LTO-7 long-running follow-ups:
 
 进行中:
 
-- **[Human]** 审阅已修订的 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md` + `plan_audit.md`,决定是否通过 Plan Gate。
+- 无。M1 implementation 已完成,当前等待 Human review / commit。
 
 已完成(当前轮):
 
@@ -265,14 +265,29 @@ LTO-7 long-running follow-ups:
   - M3 明确 job records 写 `.swl/tasks/<task_id>/artifacts/wiki_jobs/<job_id>.json`,best-effort in-process background,不做 durable worker。
   - M5 补 HTTP adapter 禁止 import `application.services.wiki_compiler`,并新增 second-stage eval file。
   - `docs/concerns_backlog.md` Active Open + Roadmap-Bound 已各新增一条长期风险记录。
+- **[Codex]** 完成 **M1 - Governed supersede apply**:
+  - `_CanonicalProposal.supersede_target_ids` 承载 apply-time target-id supersede payload;`apply_proposal(proposal_id, operator_token, target)` public signature 保持不变。
+  - `KnowledgeRepo._promote_canonical(...)` 在 append 新 canonical record 后、`refresh_derived` 前调用 store helper,把 target old canonical/wiki record 标为 `superseded`；旧记录 append-only 保留,不删除。
+  - `promote_stage_candidate_command` preflight 同时扫描 same-key collision 与 `relation_metadata` 中的 `supersedes(<target_object_id>)`;CLI `--force` 仍作为本地 Operator 显式确认。
+  - `ApplyResult.detail/payload` 报告 `superseded_canonical_ids`;guard 将 target-id supersede helper 纳入 canonical write boundary。
+  - 验证通过:knowledge CLI focused `4 passed`;governance full `11 passed`;CLI stage-promote/canonical subset `13 passed`;invariant guards `35 passed`;governance boundary `5 passed`;application command boundary `11 passed`;`compileall -q src/swallow`;`git diff --check`。
 
 待执行:
 
-- **[Human]** 审阅修订后 plan + audit,决定是否通过 Plan Gate。
-- **[Codex]** Human Plan Gate 通过后,确认当前分支仍为 `feat/lto-1-wiki-compiler-second-stage`,再进入 M1 implementation。
+- **[Human]** 审阅并提交 M1 milestone。
+- **[Codex]** Human 提交 M1 后,进入 M2 - Derived-from evidence objectization。
 
 当前验证:
 
+- M1 focused validation:
+  - `.venv/bin/python -m pytest tests/integration/cli/test_knowledge_commands.py -q` → `4 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q` → `11 passed`
+  - `.venv/bin/python -m pytest tests/test_cli.py -q -k "stage_promote or append_canonical_record"` → `13 passed, 229 deselected`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` → `35 passed`
+  - `.venv/bin/python -m pytest tests/unit/truth_governance/test_governance_boundary.py -q` → `5 passed`
+  - `.venv/bin/python -m pytest tests/unit/application/test_command_boundaries.py -q` → `11 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` passed
+  - `git diff --check` passed
 - plan audit absorption doc validation:`git diff --check` passed after revised plan + concerns backlog sync.
 - plan/status doc validation:`git diff --check` passed after Wiki Compiler 第二阶段 plan authoring.
 - `compileall -q src/swallow` passed.
@@ -283,7 +298,7 @@ LTO-7 long-running follow-ups:
 
 当前阻塞项:
 
-- 等待 Human Plan Gate。`plan_audit.md` 初版 blockers 已在 `plan.md` 中显式吸收,但尚未获得 Human approval,因此不得开始实现。
+- 等待人工审批/提交:M1 milestone code + tests 已完成;Human review / commit 后再进入 M2。
 
 ## Tag 状态
 
@@ -295,8 +310,8 @@ LTO-7 long-running follow-ups:
 
 ## 当前下一步
 
-1. **[Human]** 审阅修订后 plan/audit 并决定 Plan Gate。
-2. **[Codex]** 若 Human Plan Gate 通过,确认当前分支为 `feat/lto-1-wiki-compiler-second-stage` 后从 M1 开始实现。
+1. **[Human]** Review 并提交 M1 milestone。
+2. **[Codex]** Human 提交后开始 M2 - Derived-from evidence objectization。
 
 ```markdown
 plan_gate:
@@ -304,7 +319,8 @@ plan_gate:
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
 - active_branch: feat/lto-1-wiki-compiler-second-stage
 - active_phase: lto-1-wiki-compiler-second-stage
-- active_slice: phase-plan
+- active_slice: M1 - Governed supersede apply
+- status: m1_implementation_complete_pending_human_commit
 - roadmap: docs/roadmap.md §三 Direction Gate candidate selected by Human: Wiki Compiler 第二阶段
 - plan: docs/plans/lto-1-wiki-compiler-second-stage/plan.md (review; Codex; plan_audit blockers/concerns absorbed)
 - plan_audit: docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md (Claude/design-auditor; has-blockers; 3 blockers / 5 concerns / 2 nits)
@@ -313,7 +329,7 @@ plan_gate:
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
-- next_gate: Human Plan Gate -> M1 implementation
+- next_gate: Human M1 milestone review/commit -> M2 implementation
 ```
 
 ## 当前产出物
@@ -321,6 +337,9 @@ plan_gate:
 - `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`(claude/design-auditor, 2026-05-04, has-blockers;3 blockers / 5 concerns / 2 nits;M1 blocker:_CanonicalProposal 无 supersede_target_ids 字段 + _promote_canonical 无 target-id flip 路径;M2 blocker:know_evidence 表未在 sqlite_store 创建;M2 blocker:evidence write boundary 相对 INVARIANTS §0 rule 4 未显式声明;M2 concern:KNOWLEDGE_RELATION_TYPES 不含 "derived_from";M3 concern:job storage path 未指定;M4 confirmed ready)
 - `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(codex, 2026-05-04, review;plan_audit absorbed;M1 `_CanonicalProposal.supersede_target_ids` + `_promote_canonical` target flip;M2 task-scoped `knowledge_evidence` reuse + per-candidate idempotency deferred;M3 artifact-backed fire-and-poll jobs;M5 guards/eval updated)
 - `docs/concerns_backlog.md`(codex, 2026-05-04, LTO-1 Stage2 deferred risks logged:Active Open for evidence schema reuse, Roadmap-Bound LTO-2 for cross-candidate source-anchor dedup)
+- `src/swallow/truth_governance/{proposal_registry.py,apply_canonical.py,truth/knowledge.py,store.py}`(codex, 2026-05-04, M1 governed target-id supersede apply path;proposal payload + apply result + store helper)
+- `src/swallow/application/commands/knowledge.py` + `src/swallow/adapters/cli.py`(codex, 2026-05-04, M1 target-id supersede preflight + CLI force confirmation wording)
+- `tests/integration/cli/test_knowledge_commands.py` + `tests/test_governance.py` + `tests/test_invariant_guards.py`(codex, 2026-05-04, M1 target-id supersede behavior and boundary coverage)
 - `src/swallow/application/services/`(codex, 2026-05-04, Hygiene Bundle D4 Phase B:service-like residual modules moved out of `surface_tools`)
 - `src/swallow/application/infrastructure/`(codex, 2026-05-04, Hygiene Bundle D4 Phase C:`paths` / `workspace` / `identity` moved out of `surface_tools`)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py` + `src/swallow/adapters/cli_commands/tasks.py`(codex, 2026-05-04, Hygiene Bundle LTO-6 C1:remove paired report `build_*` aliases and use `render_*`)

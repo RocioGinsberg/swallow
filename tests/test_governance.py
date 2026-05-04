@@ -94,6 +94,73 @@ def test_apply_canonical_proposal_writes_registry_wiki_and_derivatives(tmp_path)
     assert reuse_policy["reuse_visible_count"] == 1
 
 
+def test_apply_canonical_proposal_supersedes_explicit_target_inside_apply_path(tmp_path) -> None:
+    existing_record = {
+        "canonical_id": "canonical-old",
+        "canonical_key": "task-object:task-old:knowledge-old",
+        "source_task_id": "task-old",
+        "source_object_id": "knowledge-old",
+        "promoted_at": "2026-04-27T00:00:00+00:00",
+        "promoted_by": "swl_cli",
+        "decision_note": "old approved",
+        "decision_ref": ".swl/staged_knowledge/registry.jsonl#staged-old",
+        "artifact_ref": "",
+        "source_ref": "chat://old",
+        "text": "Old target wiki entry.",
+        "evidence_status": "source_only",
+        "canonical_stage": "canonical",
+        "canonical_status": "active",
+        "superseded_by": "",
+        "superseded_at": "",
+    }
+    canonical_registry_path(tmp_path).parent.mkdir(parents=True, exist_ok=True)
+    canonical_registry_path(tmp_path).write_text(json.dumps(existing_record) + "\n", encoding="utf-8")
+
+    canonical_record = {
+        "canonical_id": "canonical-new",
+        "canonical_key": "task-object:task-new:knowledge-new",
+        "source_task_id": "task-new",
+        "source_object_id": "knowledge-new",
+        "promoted_at": "2026-04-28T00:00:00+00:00",
+        "promoted_by": "swl_cli",
+        "decision_note": "new approved",
+        "decision_ref": ".swl/staged_knowledge/registry.jsonl#staged-new",
+        "artifact_ref": "",
+        "source_ref": "chat://new",
+        "text": "New superseding wiki entry.",
+        "evidence_status": "source_only",
+        "canonical_stage": "canonical",
+        "canonical_status": "active",
+        "superseded_by": "",
+        "superseded_at": "",
+    }
+    register_canonical_proposal(
+        base_dir=tmp_path,
+        proposal_id="staged-new",
+        canonical_record=canonical_record,
+        supersede_target_ids=[" knowledge-old ", "knowledge-old"],
+    )
+
+    result = apply_proposal("staged-new", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
+
+    assert result.applied_writes == ("wiki_entry", "canonical_registry", "canonical_supersede_targets")
+    assert result.payload == {
+        "supersede_target_ids": ["knowledge-old"],
+        "superseded_canonical_ids": ["canonical-old"],
+    }
+    assert result.detail == "canonical_applied canonical_id=canonical-new superseded_canonical_ids=canonical-old"
+    registry_records = [
+        json.loads(line)
+        for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+    assert registry_records[0]["canonical_status"] == "superseded"
+    assert registry_records[0]["superseded_by"] == "canonical-new"
+    assert registry_records[0]["superseded_at"] == "2026-04-28T00:00:00+00:00"
+    assert registry_records[1] == canonical_record
+
+
 def test_apply_canonical_proposal_requires_registered_payload() -> None:
     with pytest.raises(ValueError, match="Unknown proposal artifact"):
         apply_proposal("missing", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)

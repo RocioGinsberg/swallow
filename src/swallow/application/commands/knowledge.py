@@ -161,6 +161,25 @@ def build_stage_promote_preflight_notices(
                     "text_preview": summarize_text_preview(str(active_match.get("text", "")), 60),
                 }
             )
+    for target_id in _supersede_target_ids(candidate):
+        target_record = _find_canonical_supersede_target(canonical_records, target_id)
+        notice = {
+            "notice_type": "supersede",
+            "canonical_id": (
+                str(target_record.get("canonical_id", "")).strip()
+                if target_record is not None
+                else target_id
+            )
+            or "unknown",
+            "target_object_id": target_id,
+            "text_preview": (
+                summarize_text_preview(str(target_record.get("text", "")), 60)
+                if target_record is not None
+                else summarize_text_preview(candidate.text, 60)
+            ),
+        }
+        if not _has_stage_promote_notice(notices, notice):
+            notices.append(notice)
     if candidate.conflict_flag or any(
         str(item.get("relation_type", "")).strip() == "contradicts" for item in candidate.relation_metadata
     ):
@@ -208,6 +227,7 @@ def promote_stage_candidate_command(
         canonical_record=canonical_record,
         write_authority=OPERATOR_CANONICAL_WRITE_AUTHORITY,
         refresh_derived=True,
+        supersede_target_ids=_supersede_target_ids(updated),
     )
     apply_proposal(updated.candidate_id, OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
     relation_records = _create_promoted_relation_records(base_dir, updated)
@@ -291,3 +311,50 @@ def _create_promoted_relation_records(base_dir: Path, candidate: StagedCandidate
             )
         )
     return created
+
+
+def _supersede_target_ids(candidate: StagedCandidate) -> tuple[str, ...]:
+    target_ids: list[str] = []
+    seen: set[str] = set()
+    for item in candidate.relation_metadata:
+        relation_type = str(item.get("relation_type", "")).strip()
+        if relation_type != "supersedes":
+            continue
+        target_id = str(item.get("target_object_id", "")).strip()
+        if not target_id or target_id in seen:
+            continue
+        seen.add(target_id)
+        target_ids.append(target_id)
+    return tuple(target_ids)
+
+
+def _find_canonical_supersede_target(
+    canonical_records: list[dict[str, object]],
+    target_id: str,
+) -> dict[str, object] | None:
+    normalized_target = target_id.strip()
+    for record in canonical_records:
+        record_ids = {
+            str(record.get("canonical_id", "")).strip(),
+            str(record.get("source_object_id", "")).strip(),
+        }
+        if (
+            normalized_target in record_ids
+            and str(record.get("canonical_status", "active")).strip() != "superseded"
+        ):
+            return record
+    return None
+
+
+def _has_stage_promote_notice(notices: list[dict[str, str]], notice: dict[str, str]) -> bool:
+    notice_type = notice.get("notice_type", "")
+    canonical_id = notice.get("canonical_id", "")
+    target_object_id = notice.get("target_object_id", "")
+    for existing in notices:
+        if existing.get("notice_type", "") != notice_type:
+            continue
+        if existing.get("canonical_id", "") == canonical_id:
+            return True
+        if target_object_id and existing.get("target_object_id", "") == target_object_id:
+            return True
+    return False
