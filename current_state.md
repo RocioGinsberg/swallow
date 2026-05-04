@@ -24,8 +24,8 @@
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
 - current_working_phase: `lto-2-retrieval-quality-evidence-serving`
-- checkpoint_type: `plan_audit_absorbed_ready_for_gate`
-- active_branch: `main`
+- checkpoint_type: `feature_branch_m1_complete_waiting_human_commit`
+- active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 - last_checked: `2026-05-04`
 
 说明:
@@ -34,8 +34,8 @@
 - post-merge roadmap 已同步 at `25f7848 docs(state): update roadmap`。
 - roadmap 当前近期队列为空,Direction Gate 候选中 **LTO-2 retrieval quality 增量**优先级最高,原因是 LTO-1 stage 2 已把 cross-candidate evidence dedup 风险 Roadmap-Bound 到 LTO-2。
 - Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`;Claude / design-auditor 已产出 `plan_audit.md`(has-concerns;0 blockers / 5 concerns / 2 nits);Codex 已吸收 C1-C5 / N1-N2 到 plan。
-- 当前等待 Human Plan Gate。
-- 尚未切实现分支,尚未开始代码实现。
+- Human 已提交 plan/audit absorption commit `8878fd7 docs(plan): absorb lto-2 retrieval audit`,并切至 `feat/lto-2-retrieval-quality-evidence-serving`。
+- M1 Source-anchor identity contract 已完成实现与 focused validation;当前等待 Human 审阅并提交 milestone。
 
 ---
 
@@ -43,18 +43,17 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `main`
+- active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 - active_track: `Retrieval Quality`
 - active_phase: `lto-2-retrieval-quality-evidence-serving`
-- active_slice: `plan-definition`
-- workflow_status: `plan_audit_absorbed_ready_for_gate`
+- active_slice: `M1 source-anchor identity contract`
+- workflow_status: `m1_complete_waiting_human_commit`
 - recommended_implementation_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 
 下一步:
 
-1. Human 审阅 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md` 与 `plan_audit.md`,执行 Plan Gate。
-2. Gate 通过后 Human 从 `main` 切出 `feat/lto-2-retrieval-quality-evidence-serving`。
-3. Codex 再开始 M1 Source-anchor identity contract 实现。
+1. Human 审阅并提交 M1 milestone。
+2. M1 commit 后继续 M2 governed evidence dedup on promotion。
 
 ---
 
@@ -83,7 +82,7 @@
 
 ## 最小验证命令
 
-恢复当前 plan-gate 状态时,建议至少执行以下检查:
+恢复当前 M1 implementation 状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -96,7 +95,7 @@ sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md
 sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
 ```
 
-当前 docs-only validation:
+当前 M1 validation 已记录在 `docs/active_context.md`;最低状态检查:
 
 ```bash
 git diff --check
@@ -106,8 +105,8 @@ git diff --check
 
 ## 当前已知边界
 
-- 当前只做 LTO-2 retrieval quality / evidence serving plan gate,不开始实现。
-- 实现必须等待 Human Plan Gate。
+- 当前只做 LTO-2 M1 Source-anchor identity contract,不提前进入 M2 promotion dedup。
+- Human Plan Gate 已通过;实现分支为 `feat/lto-2-retrieval-quality-evidence-serving`。
 - 不新增 `know_evidence` 物理表或 DATA_MODEL schema migration,除非 audit / Human 明确升级为本 phase blocker。
 - 不 backfill / rewrite 既有 `evidence-<candidate>-<index>` legacy rows。
 - Evidence 仍是 supporting material,不是 primary Knowledge Truth。
@@ -119,14 +118,19 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前建议提交 LTO-2 plan-definition docs:
+当前建议提交 M1 implementation milestone:
 
 ```bash
-git add docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md \
-  docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md \
-  docs/active_context.md current_state.md
-git commit -m "docs(plan): add lto-2 retrieval quality plan"
+git add docs/active_context.md current_state.md \
+  src/swallow/knowledge_retrieval/_internal_knowledge_store.py \
+  src/swallow/knowledge_retrieval/knowledge_plane.py \
+  tests/test_knowledge_store.py tests/test_governance.py \
+  tests/integration/cli/test_wiki_commands.py \
+  tests/eval/test_wiki_compiler_second_stage_quality.py
+git commit -m "feat(wiki): add source anchor evidence identity"
 ```
+
+上一提交:`8878fd7 docs(plan): absorb lto-2 retrieval audit`。
 
 ---
 

@@ -10,7 +10,9 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.knowledge_retrieval.knowledge_plane import (
+    build_source_anchor_identity,
     load_task_knowledge_view,
+    materialize_source_evidence_from_canonical_record,
     persist_wiki_entry_from_canonical_record as persist_wiki_entry_from_record,
 )
 from swallow.application.infrastructure.paths import knowledge_evidence_entry_path, knowledge_objects_path
@@ -18,6 +20,85 @@ from swallow.truth_governance.store import save_knowledge_objects
 
 
 class KnowledgeStoreTest(unittest.TestCase):
+    def test_source_anchor_identity_normalizes_heading_path_and_hashes_all_fields(self) -> None:
+        anchor = {
+            "source_ref": "file://workspace/source.md",
+            "content_hash": "sha256:source",
+            "parser_version": "wiki-compiler-v1",
+            "span": "L1-L3",
+            "heading_path": ["Design", "Evidence"],
+        }
+        identity = build_source_anchor_identity(anchor)
+        string_heading_identity = build_source_anchor_identity(
+            {
+                **anchor,
+                "heading_path": "Design > Evidence",
+            }
+        )
+
+        self.assertEqual(identity["source_anchor_version"], "source-anchor-v1")
+        self.assertEqual(identity["heading_path"], "Design > Evidence")
+        self.assertEqual(identity["source_anchor_key"], string_heading_identity["source_anchor_key"])
+        self.assertEqual(identity["evidence_id"], f"evidence-src-{identity['source_anchor_key']}")
+
+        changed_fields = {
+            "source_ref": "file://workspace/other.md",
+            "content_hash": "sha256:other",
+            "parser_version": "wiki-compiler-v2",
+            "span": "L4-L7",
+            "heading_path": ["Design", "Other"],
+        }
+        for field_name, changed_value in changed_fields.items():
+            changed_anchor = {**anchor, field_name: changed_value}
+            changed_identity = build_source_anchor_identity(changed_anchor)
+            self.assertNotEqual(
+                identity["source_anchor_key"],
+                changed_identity["source_anchor_key"],
+                field_name,
+            )
+
+    def test_materialize_source_pack_evidence_writes_source_anchor_metadata_and_stable_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            anchor = {
+                "reference": "source-1",
+                "path": "source.md",
+                "source_type": "raw_material",
+                "source_ref": "file://workspace/source.md",
+                "resolved_ref": "file://workspace/source.md",
+                "resolved_path": "source.md",
+                "resolution_status": "resolved",
+                "line_start": 10,
+                "line_end": 12,
+                "content_hash": "sha256:source",
+                "parser_version": "wiki-compiler-v1",
+                "heading_path": ["Design", "Evidence"],
+                "preview": "Source preview for stable identity.",
+            }
+            expected_identity = build_source_anchor_identity(anchor)
+
+            evidence_ids = materialize_source_evidence_from_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": "canonical-staged-source",
+                    "source_task_id": "task-source",
+                    "promoted_at": "2026-05-04T00:00:00+00:00",
+                    "decision_ref": ".swl/staged_knowledge/registry.jsonl#staged-source",
+                    "source_pack": [anchor],
+                },
+            )
+            view = load_task_knowledge_view(tmp_path, "task-source")
+
+        self.assertEqual(evidence_ids, [expected_identity["evidence_id"]])
+        self.assertEqual(len(view), 1)
+        entry = view[0]
+        self.assertEqual(entry["object_id"], expected_identity["evidence_id"])
+        self.assertEqual(entry["source_anchor_version"], "source-anchor-v1")
+        self.assertEqual(entry["source_anchor_key"], expected_identity["source_anchor_key"])
+        self.assertEqual(entry["span"], "line:10-12")
+        self.assertEqual(entry["heading_path"], "Design > Evidence")
+        self.assertEqual(entry["text"], "Source preview for stable identity.")
+
     def test_persist_wiki_entry_from_record_overlays_legacy_view(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

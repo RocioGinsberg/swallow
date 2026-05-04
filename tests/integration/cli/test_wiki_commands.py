@@ -7,6 +7,7 @@ from unittest.mock import patch
 from swallow.knowledge_retrieval.knowledge_plane import (
     StagedCandidate,
     TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+    build_source_anchor_identity,
     load_canonical_registry_records,
     load_task_knowledge_view,
     list_knowledge_relations,
@@ -285,8 +286,10 @@ def test_stage_promote_materializes_source_pack_evidence_and_derived_relation(tm
     )
 
     result.assert_success()
+    expected_identity = build_source_anchor_identity(candidate.source_pack[0])
+    expected_evidence_id = expected_identity["evidence_id"]
     view = load_task_knowledge_view(tmp_path, state.task_id)
-    evidence = next(item for item in view if item["object_id"] == "evidence-staged-evidence-1")
+    evidence = next(item for item in view if item["object_id"] == expected_evidence_id)
     wiki = next(item for item in view if item["object_id"] == "canonical-staged-evidence")
     registry_record = next(
         item
@@ -303,10 +306,12 @@ def test_stage_promote_materializes_source_pack_evidence_and_derived_relation(tm
     assert evidence["text"] == "Source preview for evidence materialization."
     assert evidence["source_type"] == "raw_material"
     assert evidence["display_path"] == "source-evidence.md"
-    assert wiki["source_evidence_ids"] == ["evidence-staged-evidence-1"]
-    assert registry_record["source_evidence_ids"] == ["evidence-staged-evidence-1"]
+    assert evidence["source_anchor_key"] == expected_identity["source_anchor_key"]
+    assert evidence["source_anchor_version"] == "source-anchor-v1"
+    assert wiki["source_evidence_ids"] == [expected_evidence_id]
+    assert registry_record["source_evidence_ids"] == [expected_evidence_id]
     assert registry_record["relation_metadata"] == [{"relation_type": "derived_from", "target_ref": source_ref}]
     assert len(relations) == 1
     assert relations[0]["relation_id"] == "relation-derived-from-staged-evidence-1"
     assert relations[0]["relation_type"] == "derived_from"
-    assert relations[0]["target_object_id"] == "evidence-staged-evidence-1"
+    assert relations[0]["target_object_id"] == expected_evidence_id

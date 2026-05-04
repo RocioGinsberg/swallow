@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,8 @@ from swallow.application.infrastructure.paths import (
 
 WIKI_ONLY_FIELDS = ("promoted_by", "promoted_at", "change_log_ref", "source_evidence_ids")
 SOURCE_EVIDENCE_PREVIEW_LIMIT = 1000
+SOURCE_ANCHOR_VERSION = "source-anchor-v1"
+SOURCE_ANCHOR_KEY_LENGTH = 16
 LIBRARIAN_AGENT_WRITE_AUTHORITY = "librarian-agent"
 KNOWLEDGE_MIGRATION_WRITE_AUTHORITY = "knowledge-migration"
 OPERATOR_CANONICAL_WRITE_AUTHORITY = "operator-gated"
@@ -55,6 +58,25 @@ def normalize_evidence_entry(payload: dict[str, object]) -> dict[str, object]:
     for field_name in WIKI_ONLY_FIELDS:
         normalized.pop(field_name, None)
     return normalized
+
+
+def build_source_anchor_identity(anchor: dict[str, object]) -> dict[str, str]:
+    normalized = _normalized_source_anchor_fields(anchor)
+    payload = [
+        SOURCE_ANCHOR_VERSION,
+        normalized["source_ref"],
+        normalized["content_hash"],
+        normalized["parser_version"],
+        normalized["span"],
+        normalized["heading_path"],
+    ]
+    key = hashlib.sha256(_canonical_json(payload).encode("utf-8")).hexdigest()[:SOURCE_ANCHOR_KEY_LENGTH]
+    return {
+        **normalized,
+        "source_anchor_version": SOURCE_ANCHOR_VERSION,
+        "source_anchor_key": key,
+        "evidence_id": f"evidence-src-{key}",
+    }
 
 
 def normalize_wiki_entry(payload: dict[str, object]) -> dict[str, object]:
@@ -408,12 +430,13 @@ def _source_pack_evidence_entry(
 ) -> dict[str, object]:
     canonical_id = str(record.get("canonical_id", "")).strip()
     promoted_at = str(record.get("promoted_at", "")).strip() or utc_now()
-    source_ref = _source_ref_from_anchor(anchor)
+    source_anchor = build_source_anchor_identity(anchor)
+    source_ref = source_anchor["source_ref"]
     preview = _bounded_source_preview(anchor.get("preview", "") or source_ref)
     display_path = _display_path_from_anchor(anchor)
     return normalize_evidence_entry(
         {
-            "object_id": f"evidence-{_safe_id_token(candidate_id)}-{index}",
+            "object_id": source_anchor["evidence_id"],
             "text": preview,
             "stage": "raw",
             "source_kind": "wiki_compiler_source_pack",
@@ -425,10 +448,12 @@ def _source_pack_evidence_entry(
             "retrieval_eligible": False,
             "knowledge_reuse_scope": "task_only",
             "canonicalization_intent": "support",
-            "content_hash": str(anchor.get("content_hash", "")).strip(),
-            "parser_version": str(anchor.get("parser_version", "")).strip(),
-            "span": str(anchor.get("span", "")).strip(),
-            "heading_path": str(anchor.get("heading_path", "")).strip(),
+            "content_hash": source_anchor["content_hash"],
+            "parser_version": source_anchor["parser_version"],
+            "span": source_anchor["span"],
+            "heading_path": source_anchor["heading_path"],
+            "source_anchor_key": source_anchor["source_anchor_key"],
+            "source_anchor_version": source_anchor["source_anchor_version"],
             "line_start": _int_value(anchor.get("line_start", 0)),
             "line_end": _int_value(anchor.get("line_end", 0)),
             "source_type": str(anchor.get("source_type", "")).strip(),
@@ -443,6 +468,52 @@ def _source_pack_evidence_entry(
             "preview": preview,
         }
     )
+
+
+def _normalized_source_anchor_fields(anchor: dict[str, object]) -> dict[str, str]:
+    return {
+        "source_ref": _source_ref_from_anchor(anchor),
+        "content_hash": str(anchor.get("content_hash", "")).strip(),
+        "parser_version": str(anchor.get("parser_version", "")).strip(),
+        "span": _normalize_anchor_span(anchor),
+        "heading_path": _normalize_heading_path(anchor.get("heading_path", "")),
+    }
+
+
+def _normalize_anchor_span(anchor: dict[str, object]) -> str:
+    value = anchor.get("span", "")
+    if isinstance(value, (dict, list, tuple)):
+        normalized = _canonical_json(value)
+    else:
+        normalized = str(value).strip()
+    if normalized:
+        return normalized
+
+    line_start = _int_value(anchor.get("line_start", 0))
+    line_end = _int_value(anchor.get("line_end", 0))
+    if not line_start and not line_end:
+        return ""
+    if line_start and not line_end:
+        line_end = line_start
+    if line_end and not line_start:
+        line_start = line_end
+    return f"line:{line_start}-{line_end}"
+
+
+def _normalize_heading_path(value: object) -> str:
+    if isinstance(value, (list, tuple)):
+        return " > ".join(str(item).strip() for item in value if str(item).strip())
+
+    text = str(value).strip()
+    if not text:
+        return ""
+    if ">" not in text:
+        return text
+    return " > ".join(part.strip() for part in text.split(">") if part.strip())
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str)
 
 
 def _candidate_id_from_canonical_record(record: dict[str, object]) -> str:

@@ -28,6 +28,7 @@ from swallow.application.infrastructure.paths import (
     route_weights_path,
 )
 from swallow.knowledge_retrieval.knowledge_plane import (
+    build_source_anchor_identity,
     list_knowledge_relations,
     load_task_knowledge_view,
 )
@@ -141,6 +142,7 @@ def test_apply_canonical_proposal_materializes_source_evidence_inside_apply_path
         canonical_record=canonical_record,
         write_authority="operator-gated",
     )
+    expected_evidence_id = build_source_anchor_identity(canonical_record["source_pack"][0])["evidence_id"]
 
     result = apply_proposal("staged-source", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
 
@@ -151,7 +153,7 @@ def test_apply_canonical_proposal_materializes_source_evidence_inside_apply_path
         "derived_from_relations",
     )
     assert result.payload == {
-        "source_evidence_ids": ["evidence-staged-source-1"],
+        "source_evidence_ids": [expected_evidence_id],
         "derived_relation_ids": ["relation-derived-from-staged-source-1"],
     }
     registry_records = [
@@ -162,10 +164,10 @@ def test_apply_canonical_proposal_materializes_source_evidence_inside_apply_path
     view = load_task_knowledge_view(tmp_path, "task-governance")
     relations = list_knowledge_relations(tmp_path, "canonical-staged-source")
 
-    assert registry_records[0]["source_evidence_ids"] == ["evidence-staged-source-1"]
-    assert {item["object_id"] for item in view} == {"evidence-staged-source-1", "canonical-staged-source"}
+    assert registry_records[0]["source_evidence_ids"] == [expected_evidence_id]
+    assert {item["object_id"] for item in view} == {expected_evidence_id, "canonical-staged-source"}
     assert relations[0]["relation_type"] == "derived_from"
-    assert relations[0]["target_object_id"] == "evidence-staged-source-1"
+    assert relations[0]["target_object_id"] == expected_evidence_id
 
 
 def test_apply_canonical_proposal_supersedes_explicit_target_inside_apply_path(tmp_path) -> None:
