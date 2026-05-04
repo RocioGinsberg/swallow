@@ -372,7 +372,15 @@ def _handle_task_staged(base_dir: Path, args: object) -> int:
         candidates = [candidate for candidate in candidates if candidate.status == getattr(args, "status")]
     if task_filter:
         candidates = [candidate for candidate in candidates if candidate.source_task_id == task_filter]
-    print(c.build_task_staged_report(candidates, status_filter=getattr(args, "status"), task_filter=task_filter))
+    task_knowledge_count = len(load_knowledge_objects(base_dir, task_filter)) if task_filter and not candidates else 0
+    print(
+        c.build_task_staged_report(
+            candidates,
+            status_filter=getattr(args, "status"),
+            task_filter=task_filter,
+            task_knowledge_count=task_knowledge_count,
+        )
+    )
     return 0
 
 

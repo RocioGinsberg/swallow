@@ -7,6 +7,7 @@ from swallow.application.commands.wiki import (
     refine_wiki_command,
     refresh_wiki_evidence_command,
 )
+from swallow.provider_router._http_helpers import AgentLLMUnavailable
 
 
 def handle_wiki_command(base_dir: Path, args: object) -> int | None:
@@ -15,27 +16,35 @@ def handle_wiki_command(base_dir: Path, args: object) -> int | None:
 
     wiki_command = getattr(args, "wiki_command", None)
     if wiki_command == "draft":
-        result = draft_wiki_command(
-            base_dir,
-            task_id=getattr(args, "task_id"),
-            topic=getattr(args, "topic"),
-            source_refs=list(getattr(args, "source_refs") or []),
-            model=getattr(args, "model"),
-            dry_run=bool(getattr(args, "dry_run")),
-        )
+        try:
+            result = draft_wiki_command(
+                base_dir,
+                task_id=getattr(args, "task_id"),
+                topic=getattr(args, "topic"),
+                source_refs=list(getattr(args, "source_refs") or []),
+                model=getattr(args, "model"),
+                dry_run=bool(getattr(args, "dry_run")),
+            )
+        except AgentLLMUnavailable as exc:
+            print(_format_llm_unavailable_error("wiki draft", exc))
+            return 1
         print(_format_compile_result("wiki_draft", result))
         return 0
 
     if wiki_command == "refine":
-        result = refine_wiki_command(
-            base_dir,
-            task_id=getattr(args, "task_id"),
-            mode=getattr(args, "mode"),
-            target_object_id=getattr(args, "target"),
-            source_refs=list(getattr(args, "source_refs") or []),
-            model=getattr(args, "model"),
-            dry_run=bool(getattr(args, "dry_run")),
-        )
+        try:
+            result = refine_wiki_command(
+                base_dir,
+                task_id=getattr(args, "task_id"),
+                mode=getattr(args, "mode"),
+                target_object_id=getattr(args, "target"),
+                source_refs=list(getattr(args, "source_refs") or []),
+                model=getattr(args, "model"),
+                dry_run=bool(getattr(args, "dry_run")),
+            )
+        except AgentLLMUnavailable as exc:
+            print(_format_llm_unavailable_error("wiki refine", exc))
+            return 1
         print(_format_compile_result("wiki_refine", result))
         return 0
 
@@ -57,6 +66,14 @@ def handle_wiki_command(base_dir: Path, args: object) -> int | None:
         return 0
 
     return None
+
+
+def _format_llm_unavailable_error(command_label: str, exc: AgentLLMUnavailable) -> str:
+    return (
+        f"{command_label} failed: {exc}\n"
+        "hint: source .env before running real LLM-backed wiki commands, "
+        "or add --dry-run to inspect sources without calling the LLM."
+    )
 
 
 def _format_compile_result(label: str, result: object) -> str:

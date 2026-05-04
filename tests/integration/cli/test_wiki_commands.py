@@ -18,6 +18,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
 )
 from swallow.orchestration.orchestrator import create_task
 from swallow.provider_router.agent_llm import AgentLLMResponse
+from swallow.provider_router._http_helpers import AgentLLMUnavailable
 from swallow.application.infrastructure.paths import artifacts_dir
 from tests.helpers.assertions import assert_artifact_exists, assert_cli_success
 from tests.helpers.builders import TaskBuilder, WorkspaceBuilder
@@ -95,6 +96,41 @@ def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(
 
     assert_artifact_exists(tmp_path, state.task_id, "wiki_compiler_prompt_pack.json")
     assert_artifact_exists(tmp_path, state.task_id, "wiki_compiler_result.json")
+
+
+def test_wiki_draft_cli_reports_llm_unavailable_without_traceback(
+    tmp_path: Path,
+    task_builder: TaskBuilder,
+    workspace_builder: WorkspaceBuilder,
+) -> None:
+    state = task_builder.create(
+        title="Compile wiki note",
+        goal="Draft a wiki entry from raw notes.",
+    )
+    workspace_builder.write_text("compiler-source.md", "# Compiler\n\nSource text.\n")
+
+    with patch(
+        "swallow.application.services.wiki_compiler.call_agent_llm",
+        side_effect=AgentLLMUnavailable("LLM enhancement unavailable: API key not configured."),
+    ):
+        result = run_cli(
+            tmp_path,
+            "wiki",
+            "draft",
+            "--task-id",
+            state.task_id,
+            "--topic",
+            "compiler",
+            "--source-ref",
+            "file://workspace/compiler-source.md",
+        )
+
+    assert result.exit_code == 1
+    assert "wiki draft failed: LLM enhancement unavailable: API key not configured." in result.stdout
+    assert "hint: source .env" in result.stdout
+    assert "--dry-run" in result.stdout
+    assert "Traceback" not in result.stdout
+    assert "Traceback" not in result.stderr
 
 
 def test_wiki_refine_cli_records_requested_relation_metadata(

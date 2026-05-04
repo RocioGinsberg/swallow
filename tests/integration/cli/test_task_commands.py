@@ -61,6 +61,41 @@ def test_task_acknowledge_characterization_stdout_stderr_exit_code(tmp_path: Pat
     assert "dispatch_status=acknowledged" in result.stdout
 
 
+def test_task_staged_points_to_task_knowledge_surface_when_no_global_candidate(
+    tmp_path: Path,
+    task_builder: TaskBuilder,
+) -> None:
+    state = task_builder.create(
+        title="Capture task knowledge",
+        goal="Show the right knowledge surface.",
+    )
+    capture = run_cli(
+        tmp_path,
+        "task",
+        "knowledge-capture",
+        state.task_id,
+        "--knowledge-item",
+        "Task-scoped knowledge should remain discoverable.",
+        "--knowledge-stage",
+        "candidate",
+        "--knowledge-source",
+        "operator:test",
+        "--knowledge-retrieval-eligible",
+        "--knowledge-canonicalization-intent",
+        "review",
+    )
+    assert_cli_success(capture)
+
+    result = run_cli(tmp_path, "task", "staged", "--status", "all", "--task", state.task_id)
+
+    assert_cli_success(result)
+    assert "- no matching staged candidates" in result.stdout
+    assert "task_scoped_knowledge_count: 1" in result.stdout
+    assert "task-scoped captured knowledge is not a global staged candidate" in result.stdout
+    assert f"swl task inspect {state.task_id}" in result.stdout
+    assert f"swl task knowledge-review-queue {state.task_id}" in result.stdout
+
+
 # --- Moved mechanically from tests/test_cli.py during LTO-4. ---
 import json
 import shutil

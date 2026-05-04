@@ -668,6 +668,7 @@ def build_task_staged_report(
     *,
     status_filter: str,
     task_filter: str,
+    task_knowledge_count: int = 0,
 ) -> str:
     lines = [
         "# Task Staged Knowledge",
@@ -680,6 +681,17 @@ def build_task_staged_report(
     ]
     if not candidates:
         lines.append("- no matching staged candidates")
+        if task_filter and task_knowledge_count > 0:
+            lines.extend(
+                [
+                    "",
+                    "## Task Knowledge",
+                    f"- task_scoped_knowledge_count: {task_knowledge_count}",
+                    "- note: task-scoped captured knowledge is not a global staged candidate.",
+                    f"- inspect: swl task inspect {task_filter}",
+                    f"- review_queue: swl task knowledge-review-queue {task_filter}",
+                ]
+            )
         return "\n".join(lines)
 
     for candidate in candidates:

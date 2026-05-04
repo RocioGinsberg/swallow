@@ -62,14 +62,16 @@ This may be policy-correct, but the operator cannot tell whether canonical reuse
 
 This looks like a surface/boundary clarity issue rather than data loss. The CLI should either show task-scoped captured knowledge there or explain that `task staged` only covers global staged candidates and direct the operator to the right command.
 
+Follow-up small fix: `task staged --task <id>` now points to `swl task inspect <id>` and `swl task knowledge-review-queue <id>` when task-scoped knowledge exists but no global staged candidate matches.
+
 ### Wiki Compiler Environment And Observability Improved, But Dry-run Still Has A Gap
 
 Without `.env` sourced, `wiki draft` failed with a Python traceback ending in `AgentLLMUnavailable: LLM enhancement unavailable: API key not configured.` After sourcing `.env`, the same real draft succeeded and wrote a proper staged candidate and prompt/result artifacts.
 
 Remaining gaps:
 
-- Swallow does not auto-load `.env`; this is acceptable for now, but runbooks should say `source .env` explicitly before real LLM paths.
-- Missing LLM config should be rendered as an operator-facing error, not a traceback.
+- Swallow does not auto-load `.env`; this is acceptable for now, and the R-entry runbook now says `source .env` explicitly before real LLM/rerank paths.
+- Missing LLM config should be rendered as an operator-facing error, not a traceback. This was covered by the follow-up small fix slice.
 - `wiki draft --dry-run` returned `prompt_artifact=-`; dry-run did not expose a prompt/source-pack artifact through `task artifacts`, which limits operator review before real LLM calls.
 
 ### Note-only Offline Lifecycle Semantics Are Confusing

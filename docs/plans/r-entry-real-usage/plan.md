@@ -64,6 +64,23 @@ mkdir -p "$BASE"
 export SWL=".venv/bin/swl"
 ```
 
+如果要执行 Wiki real draft、HTTP LLM executor、embedding 或 dedicated rerank,先加载仓库根目录的本机环境配置:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+当前实现不会自动读取 `.env`;必须让 shell 环境里存在 `SWL_API_KEY` / `SWL_API_BASE_URL` 等变量后再启动 `swl`。OpenRouter dedicated rerank 的可用配置示例:
+
+```bash
+export SWL_RETRIEVAL_RERANK_ENABLED=true
+export SWL_RETRIEVAL_RERANK_MODEL=cohere/rerank-v3.5
+export SWL_RETRIEVAL_RERANK_URL=https://openrouter.ai/api/v1/rerank
+export SWL_RETRIEVAL_RERANK_API_KEY=<openrouter-key>
+```
+
 预期:
 
 - `git branch --show-current` 是 `main`
