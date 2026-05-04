@@ -23,14 +23,15 @@
 - latest_main_checkpoint: `449653a docs(state): update roadmap`
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
-- current_working_phase: `Direction Gate`
-- checkpoint_type: `direction_gate_pending`
+- current_working_phase: `lto-1-wiki-compiler-second-stage`
+- checkpoint_type: `plan_review_pending`
 - active_branch: `main`
 - last_checked: `2026-05-04`
 
 说明:
 
 - 当前工作分支为 `main`;HEAD 为 `449653a docs(state): update roadmap`。Hygiene Bundle 已提交并完成 roadmap factual sync。
+- Human 已选择下一启动方向为 **Wiki Compiler 第二阶段**。Codex 已产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`;当前等待 plan audit / Human Plan Gate,尚未切 feature branch。
 - LTO-13 已合并并完成 `v1.7.0` annotated tag;tag target 为 `2156d4a docs(release): sync v1.7.0 release docs`。
 - LTO-1 已合并并完成 `v1.8.0` annotated tag;tag target 为 `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit 为 `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`。
 - LTO-6 已合并到 `main` at `883e2a9 Knowledge Plane Facade Solidification`;Knowledge Plane facade 已从 barrel file 收口为 functional facade,旧 direct reach imports 已由 guard 保护。
@@ -47,16 +48,17 @@
 当前推荐从以下状态继续:
 
 - active_branch: `main`
-- active_track: `Direction Gate`
-- active_phase: `awaiting next phase selection`
-- active_slice: `roadmap candidates listed; no active implementation ticket`
-- workflow_status: `direction_gate_pending`
+- active_track: `Knowledge Authoring`
+- active_phase: `lto-1-wiki-compiler-second-stage`
+- active_slice: `phase-plan`
+- workflow_status: `plan_review_pending`
 
 下一步:
 
-1. Human 从 `docs/roadmap.md` Direction Gate 候选中选择下一启动方向。
-2. Codex 产出对应 `docs/plans/<phase>/plan.md`。
-3. Plan audit / Human gate 通过后再进入实现分支。
+1. Claude / design-auditor 产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`。
+2. Human 审阅 plan + audit,决定是否通过 Plan Gate。
+3. Plan audit / Human gate 通过后,Human 从 `main` 切到 `feat/lto-1-wiki-compiler-second-stage`。
+4. Codex 分支确认后再进入实现。
 
 ---
 
@@ -115,6 +117,7 @@ git diff --check
 
 - 当前不再做 LTO-13 / LTO-6 / LTO-1 功能实现;三者均已合并到 `main`,且 `v1.8.0` tag 已执行。
 - Hygiene Bundle 已完成;当前不继续扩张该 bundle。
+- Wiki Compiler 第二阶段当前只处于 plan review gate;未完成 plan audit / Human gate 前不开始实现。
 - 不改变 Orchestrator / Operator 的 task-state control authority。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
 - 不新增 auth/multi-user、remote worker、Planner/DAG 或项目级全图谱可视化。
@@ -124,7 +127,12 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前无实现提交建议。下一步应先由 Human 选择 Direction Gate 候选,再由 Codex 写 plan。
+当前建议提交 plan / state 文档,不含实现代码:
+
+```bash
+git add docs/plans/lto-1-wiki-compiler-second-stage/plan.md docs/active_context.md current_state.md
+git commit -m "docs(plan): add wiki compiler second stage plan"
+```
 
 
 ---

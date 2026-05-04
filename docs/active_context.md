@@ -11,11 +11,11 @@
 - latest_completed_track: `Knowledge Authoring`
 - latest_completed_phase: `Hygiene Bundle`
 - latest_completed_slice: `merged to main at e656bd3; roadmap synced at 449653a`
-- active_track: `Direction Gate`
-- active_phase: `awaiting next phase selection`
-- active_slice: `roadmap candidates listed; no active implementation ticket`
+- active_track: `Knowledge Authoring`
+- active_phase: `lto-1-wiki-compiler-second-stage`
+- active_slice: `phase-plan`
 - active_branch: `main`
-- status: `direction_gate_pending`
+- status: `plan_review_pending`
 
 ## 当前状态说明
 
@@ -37,7 +37,7 @@
 
 `v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。`v1.8.0` annotated tag 已 cut(标记 LTO-1 Wiki Compiler 第一阶段;tag target `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`)。
 
-**当前真实入口**:Hygiene Bundle 已 merge 到 `main` at `e656bd3`,roadmap 已同步到 `449653a`。`docs/roadmap.md` §三 当前明确为“近期队列:空”,并列出 Direction Gate 候选方向。尚无 Human 选定的下一 active phase / active slice,因此当前不应产出具体 phase plan 或进入实现。
+**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Codex 已产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,当前等待 `design-auditor` 产出 `plan_audit.md` 与 Human Plan Gate。尚未切 feature branch,因此当前不进入实现。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -59,19 +59,20 @@ LTO-7 long-running follow-ups:
 1. `docs/active_context.md`(本文)
 2. `current_state.md`
 3. `docs/roadmap.md`
-4. `README.md`
-5. `docs/plans/lto-1-wiki-compiler-first-stage/closeout.md`
-6. `docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md`
-7. `docs/design/INVARIANTS.md`
-8. `docs/design/EXECUTOR_REGISTRY.md`
-9. `docs/design/SELF_EVOLUTION.md`
-10. `docs/design/KNOWLEDGE.md`
-11. `docs/engineering/ADAPTER_DISCIPLINE.md`
-12. `docs/engineering/CODE_ORGANIZATION.md`
-13. `docs/engineering/TEST_ARCHITECTURE.md`
-14. `docs/engineering/ARCHITECTURE_DECISIONS.md`
-15. `docs/plans/lto-1-wiki-compiler-first-stage/plan.md`
-16. `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md`
+4. `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`
+5. `README.md`
+6. `docs/plans/lto-1-wiki-compiler-first-stage/closeout.md`
+7. `docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md`
+8. `docs/design/INVARIANTS.md`
+9. `docs/design/EXECUTOR_REGISTRY.md`
+10. `docs/design/SELF_EVOLUTION.md`
+11. `docs/design/KNOWLEDGE.md`
+12. `docs/engineering/ADAPTER_DISCIPLINE.md`
+13. `docs/engineering/CODE_ORGANIZATION.md`
+14. `docs/engineering/TEST_ARCHITECTURE.md`
+15. `docs/engineering/ARCHITECTURE_DECISIONS.md`
+16. `docs/plans/lto-1-wiki-compiler-first-stage/plan.md`
+17. `docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md`
 
 ## 当前推进
 
@@ -251,15 +252,18 @@ LTO-7 long-running follow-ups:
 
 进行中:
 
-- 无。等待 Human 从 `docs/roadmap.md` §三 Direction Gate 候选中选择下一 phase。
+- **[Codex]** 已产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(status:`review`)。当前等待 plan audit / Human Plan Gate。
 
 待执行:
 
-- **[Human]** 从 `docs/roadmap.md` Direction Gate 候选中选择下一启动方向。
-- **[Codex]** Human 选定方向后产出对应 `docs/plans/<phase>/plan.md`,再进入 plan audit / Human gate。
+- **[Claude / design-auditor]** 读取 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`。
+- **[Human]** 审阅 plan + audit,决定是否通过 Plan Gate。
+- **[Human]** Plan Gate 通过后从 `main` 切到 `feat/lto-1-wiki-compiler-second-stage`。
+- **[Codex]** 分支切换完成后再进入 M1 implementation。
 
 当前验证:
 
+- plan/status doc validation:`git diff --check` passed after Wiki Compiler 第二阶段 plan authoring.
 - `compileall -q src/swallow` passed.
 - focused gates passed: invariant guards `35 passed`; provider router `35 passed`; meta/executor/specialist `48 passed`; CLI/services `306 passed`; Web/API `22 passed`; knowledge/service `36 passed`.
 - full pytest passed: `773 passed, 12 deselected`.
@@ -268,7 +272,7 @@ LTO-7 long-running follow-ups:
 
 当前阻塞项:
 
-- 等待 Human Direction Gate 决策。Roadmap 当前列出候选,但没有选定 active ticket。
+- 等待 `plan_audit.md` 与 Human Plan Gate。尚未切 feature branch,不得开始实现。
 
 ## Tag 状态
 
@@ -280,26 +284,30 @@ LTO-7 long-running follow-ups:
 
 ## 当前下一步
 
-1. **[Human]** 从 roadmap Direction Gate 候选中选择下一启动方向。
-2. **[Codex]** 产出对应 `docs/plans/<phase>/plan.md`。
+1. **[Claude / design-auditor]** 产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`。
+2. **[Human]** 审阅 plan/audit 并决定 Plan Gate。
+3. **[Human]** 如通过,切至 `feat/lto-1-wiki-compiler-second-stage`。
+4. **[Codex]** 分支确认后从 M1 开始实现。
 
 ```markdown
-direction_gate:
+plan_gate:
 - latest_completed_phase: Hygiene Bundle
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
 - active_branch: main
-- active_phase: awaiting next phase selection
-- active_slice: roadmap candidates listed; no active implementation ticket
-- roadmap: docs/roadmap.md §三 Hygiene Bundle complete; Direction Gate candidates listed
+- active_phase: lto-1-wiki-compiler-second-stage
+- active_slice: phase-plan
+- roadmap: docs/roadmap.md §三 Direction Gate candidate selected by Human: Wiki Compiler 第二阶段
+- plan: docs/plans/lto-1-wiki-compiler-second-stage/plan.md (review; Codex)
 - lto1_design_docs: docs/design/EXECUTOR_REGISTRY.md + docs/design/SELF_EVOLUTION.md updated with Wiki Compiler specialist + 4 modes
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
-- next_gate: Human Direction Gate decision -> Codex plan.md
+- next_gate: design-auditor plan_audit.md -> Human Plan Gate -> feature branch
 ```
 
 ## 当前产出物
 
+- `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(codex, 2026-05-04, review;Wiki Compiler 第二阶段 plan:governed supersede apply、derived_from evidence objectization、Web fire-and-poll authoring、conflict/supersede review UX、guards/eval)
 - `src/swallow/application/services/`(codex, 2026-05-04, Hygiene Bundle D4 Phase B:service-like residual modules moved out of `surface_tools`)
 - `src/swallow/application/infrastructure/`(codex, 2026-05-04, Hygiene Bundle D4 Phase C:`paths` / `workspace` / `identity` moved out of `surface_tools`)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py` + `src/swallow/adapters/cli_commands/tasks.py`(codex, 2026-05-04, Hygiene Bundle LTO-6 C1:remove paired report `build_*` aliases and use `render_*`)
