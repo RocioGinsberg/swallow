@@ -9,18 +9,20 @@
 ## 当前轮次
 
 - latest_completed_track: `Knowledge Authoring`
-- latest_completed_phase: `LTO-1 — Wiki Compiler 第一阶段`
-- latest_completed_slice: `merged to main at 349efa9; v1.8.0 tagged at d6f2442`
-- active_track: `Architecture / Hygiene`
-- active_phase: `Hygiene Bundle`
-- active_slice: `validated; pending human commit`
+- latest_completed_phase: `Hygiene Bundle`
+- latest_completed_slice: `merged to main at e656bd3; roadmap synced at 449653a`
+- active_track: `Direction Gate`
+- active_phase: `awaiting next phase selection`
+- active_slice: `roadmap candidates listed; no active implementation ticket`
 - active_branch: `main`
-- status: `hygiene_bundle_validation_passed_pending_commit`
+- status: `direction_gate_pending`
 
 ## 当前状态说明
 
 当前 git 分支为 `main`。当前 HEAD 为:
 
+- `449653a docs(state): update roadmap`
+- `e656bd3 refactor(hygiene): close service boundaries and router follow-ups`
 - `f81503b docs(state): update roadmap`
 - `d6f2442 docs(release): sync v1.8.0 release docs`
 - `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`
@@ -35,7 +37,7 @@
 
 `v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。`v1.8.0` annotated tag 已 cut(标记 LTO-1 Wiki Compiler 第一阶段;tag target `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`)。
 
-**当前真实入口**:按 Human 指令完成压缩流程 **Hygiene Bundle**。本轮不创建 `plan.md` / `plan_audit.md` / `review_comments.md` / `closeout.md`;范围以 `docs/roadmap.md` §三为准:D4 Phase B/C、LTO-6 review C1 alias cleanup、LTO-7 follow-up (2)/(3)。当前 working tree 已完成结构清理与验证,等待 Human 审阅并提交;不 cut 新 tag。
+**当前真实入口**:Hygiene Bundle 已 merge 到 `main` at `e656bd3`,roadmap 已同步到 `449653a`。`docs/roadmap.md` §三 当前明确为“近期队列:空”,并列出 Direction Gate 候选方向。尚无 Human 选定的下一 active phase / active slice,因此当前不应产出具体 phase plan 或进入实现。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -249,12 +251,12 @@ LTO-7 long-running follow-ups:
 
 进行中:
 
-- 无。Hygiene Bundle 已实现并通过验证,等待 Human 审阅提交。
+- 无。等待 Human 从 `docs/roadmap.md` §三 Direction Gate 候选中选择下一 phase。
 
 待执行:
 
-- **[Human]** 审阅 diff 并执行提交;本 bundle 不 cut tag。
 - **[Human]** 从 `docs/roadmap.md` Direction Gate 候选中选择下一启动方向。
+- **[Codex]** Human 选定方向后产出对应 `docs/plans/<phase>/plan.md`,再进入 plan audit / Human gate。
 
 当前验证:
 
@@ -266,8 +268,7 @@ LTO-7 long-running follow-ups:
 
 当前阻塞项:
 
-- 无 blocker。Hygiene Bundle 属于 Human 明确批准的压缩流程,不等待 plan / audit / review gate。
-- 当前仅等待 Human commit 决策。
+- 等待 Human Direction Gate 决策。Roadmap 当前列出候选,但没有选定 active ticket。
 
 ## Tag 状态
 
@@ -279,22 +280,22 @@ LTO-7 long-running follow-ups:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 diff,按 bundle 内语义选择一个或多个 commit。
-2. **[Human]** 从 roadmap Direction Gate 候选中选择下一启动方向。
+1. **[Human]** 从 roadmap Direction Gate 候选中选择下一启动方向。
+2. **[Codex]** 产出对应 `docs/plans/<phase>/plan.md`。
 
 ```markdown
 direction_gate:
-- latest_completed_phase: LTO-1 — Wiki Compiler 第一阶段
+- latest_completed_phase: Hygiene Bundle
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
 - active_branch: main
-- active_phase: Hygiene Bundle
-- active_slice: validated; pending human commit
+- active_phase: awaiting next phase selection
+- active_slice: roadmap candidates listed; no active implementation ticket
 - roadmap: docs/roadmap.md §三 Hygiene Bundle complete; Direction Gate candidates listed
 - lto1_design_docs: docs/design/EXECUTOR_REGISTRY.md + docs/design/SELF_EVOLUTION.md updated with Wiki Compiler specialist + 4 modes
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
-- next_gate: Human commit decision -> Direction Gate
+- next_gate: Human Direction Gate decision -> Codex plan.md
 ```
 
 ## 当前产出物

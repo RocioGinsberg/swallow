@@ -19,22 +19,22 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `post-v1.8.0 roadmap sync`
-- latest_main_checkpoint: `f81503b docs(state): update roadmap`
+- latest_main_checkpoint_phase: `post-Hygiene Bundle roadmap sync`
+- latest_main_checkpoint: `449653a docs(state): update roadmap`
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
-- current_working_phase: `Hygiene Bundle`
-- checkpoint_type: `hygiene_bundle_validation_passed_pending_commit`
+- current_working_phase: `Direction Gate`
+- checkpoint_type: `direction_gate_pending`
 - active_branch: `main`
 - last_checked: `2026-05-04`
 
 说明:
 
-- 当前工作分支为 `main`;HEAD 为 `f81503b docs(state): update roadmap`。Hygiene Bundle 当前处于 validated dirty working tree,等待 Human 审阅并提交。
+- 当前工作分支为 `main`;HEAD 为 `449653a docs(state): update roadmap`。Hygiene Bundle 已提交并完成 roadmap factual sync。
 - LTO-13 已合并并完成 `v1.7.0` annotated tag;tag target 为 `2156d4a docs(release): sync v1.7.0 release docs`。
 - LTO-1 已合并并完成 `v1.8.0` annotated tag;tag target 为 `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit 为 `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`。
 - LTO-6 已合并到 `main` at `883e2a9 Knowledge Plane Facade Solidification`;Knowledge Plane facade 已从 barrel file 收口为 functional facade,旧 direct reach imports 已由 guard 保护。
-- Hygiene Bundle 已在当前 working tree 完成并验证:
+- Hygiene Bundle 已 merge to `main` at `e656bd3 refactor(hygiene): close service boundaries and router follow-ups`:
   - D4 Phase B/C:`surface_tools` 残余 service-like modules 移至 `application/services/`;`paths.py` / `workspace.py` / `identity.py` 移至 `application/infrastructure/`;repo 内 production/test imports 已无 `swallow.surface_tools`。
   - LTO-6 C1:`knowledge_plane.py` 删除冗余 report `build_*` aliases,报告渲染统一保留 `render_*`。
   - LTO-7 follow-up:`router.py` 不再调用 provider-router 子模块私有名;默认 fallback baseline 由 `route_registry.py` 持有。
@@ -47,16 +47,16 @@
 当前推荐从以下状态继续:
 
 - active_branch: `main`
-- active_track: `Architecture / Hygiene`
-- active_phase: `Hygiene Bundle`
-- active_slice: `validated; pending human commit`
-- workflow_status: `hygiene_bundle_validation_passed_pending_commit`
+- active_track: `Direction Gate`
+- active_phase: `awaiting next phase selection`
+- active_slice: `roadmap candidates listed; no active implementation ticket`
+- workflow_status: `direction_gate_pending`
 
 下一步:
 
-1. Human 审阅 Hygiene Bundle diff。
-2. Human 按 bundle 内语义执行一个或多个 commit。
-3. Human 从 `docs/roadmap.md` Direction Gate 候选中选择下一启动方向。
+1. Human 从 `docs/roadmap.md` Direction Gate 候选中选择下一启动方向。
+2. Codex 产出对应 `docs/plans/<phase>/plan.md`。
+3. Plan audit / Human gate 通过后再进入实现分支。
 
 ---
 
@@ -85,7 +85,7 @@
 
 ## 最小验证命令
 
-Hygiene Bundle commit 前建议至少执行以下检查:
+Direction Gate / plan 启动前建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -114,7 +114,7 @@ git diff --check
 ## 当前已知边界
 
 - 当前不再做 LTO-13 / LTO-6 / LTO-1 功能实现;三者均已合并到 `main`,且 `v1.8.0` tag 已执行。
-- Hygiene Bundle 是压缩流程工程收口,不新增功能、不新增 LLM 调用、不变更 schema、不 cut tag。
+- Hygiene Bundle 已完成;当前不继续扩张该 bundle。
 - 不改变 Orchestrator / Operator 的 task-state control authority。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
 - 不新增 auth/multi-user、remote worker、Planner/DAG 或项目级全图谱可视化。
@@ -124,14 +124,8 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前建议提交 Hygiene Bundle:
+当前无实现提交建议。下一步应先由 Human 选择 Direction Gate 候选,再由 Codex 写 plan。
 
-```bash
-git add -A
-git commit -m "refactor(hygiene): close service boundaries and router follow-ups"
-```
-
-本 bundle 不建议 cut 新 tag。
 
 ---
 
