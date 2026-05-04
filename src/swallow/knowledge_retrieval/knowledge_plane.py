@@ -645,6 +645,7 @@ def build_retrieval_request(
     context_layers: list[str] | None = None,
     current_task_id: str = "",
     strategy: str = "system_baseline",
+    declared_document_paths: tuple[str, ...] | list[str] | None = None,
 ) -> RetrievalRequest:
     return _retrieval.build_retrieval_request(
         query=query,
@@ -653,6 +654,7 @@ def build_retrieval_request(
         context_layers=context_layers,
         current_task_id=current_task_id,
         strategy=strategy,
+        declared_document_paths=declared_document_paths,
     )
 
 
@@ -674,6 +676,19 @@ def retrieve_knowledge_context(
 
 def summarize_reused_knowledge(retrieval_items: list[RetrievalItem]) -> dict[str, Any]:
     return _retrieval.summarize_reused_knowledge(retrieval_items)
+
+
+def summarize_truth_reuse_visibility(
+    retrieval_items: list[RetrievalItem],
+    *,
+    task_knowledge_objects: list[dict[str, Any]] | None = None,
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    return _retrieval.summarize_truth_reuse_visibility(
+        retrieval_items,
+        task_knowledge_objects=task_knowledge_objects,
+        base_dir=base_dir,
+    )
 
 
 def summarize_retrieval_trace(retrieval_items: list[RetrievalItem]) -> dict[str, Any]:

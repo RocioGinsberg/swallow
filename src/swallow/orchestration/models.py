@@ -598,6 +598,7 @@ class RetrievalRequest:
     current_task_id: str = ""
     limit: int = 8
     strategy: str = "system_baseline"
+    declared_document_paths: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

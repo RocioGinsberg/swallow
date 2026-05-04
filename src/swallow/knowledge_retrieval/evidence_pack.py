@@ -16,7 +16,14 @@ from swallow.orchestration.models import RetrievalItem
 
 ARTIFACTS_SOURCE_TYPE = "artifacts"
 KNOWLEDGE_SOURCE_TYPE = "knowledge"
-SOURCE_POLICY_NOISE_LABELS = {"archive_note", "current_state", "observation_doc"}
+SOURCE_POLICY_NOISE_LABELS = {
+    "archive_note",
+    "build_cache",
+    "current_state",
+    "generated_artifact",
+    "generated_metadata",
+    "observation_doc",
+}
 SUPPORTING_EVIDENCE_LABELS = {"supporting_evidence"}
 WORKSPACE_FILE_PREFIX = "file://workspace/"
 
@@ -212,6 +219,14 @@ def _source_policy_label(item: RetrievalItem) -> str:
         return "current_state"
     if path.startswith("docs/archive/") or path.startswith("docs/archive_phases/"):
         return "archive_note"
+    if ".egg-info/" in path or path.endswith(".egg-info"):
+        return "generated_metadata"
+    if path.startswith((".mypy_cache/", ".pytest_cache/", ".ruff_cache/", "build/", "dist/")):
+        return "build_cache"
+    if "/__pycache__/" in path or "/build/" in path or "/dist/" in path:
+        return "build_cache"
+    if path.startswith(".swl/tasks/") and "/artifacts/" in path:
+        return "generated_artifact"
     if _is_observation_doc_path(path):
         return "observation_doc"
     if item.source_type == "repo":

@@ -20,6 +20,7 @@ from swallow.orchestration.models import (
     infer_task_family,
 )
 from swallow.orchestration.task_semantics import normalize_retrieval_source_types
+from swallow.application.infrastructure.workspace import resolve_path
 from swallow.application.infrastructure.paths import retrieval_path
 from swallow.truth_governance.store import append_event, save_retrieval
 
@@ -84,6 +85,31 @@ def _select_source_types(route_policy_family: str, task_family: str) -> list[str
     return ["knowledge", "notes"]
 
 
+def _declared_document_paths(state: TaskState) -> tuple[str, ...]:
+    input_context = state.input_context if isinstance(state.input_context, dict) else {}
+    raw_paths = input_context.get("document_paths")
+    if not isinstance(raw_paths, (list, tuple)):
+        return ()
+
+    workspace_root = resolve_path(state.workspace_root)
+    normalized_paths: list[str] = []
+    seen_paths: set[str] = set()
+    for raw_path in raw_paths:
+        text = str(raw_path).strip()
+        if not text:
+            continue
+        try:
+            resolved = resolve_path(text, base=workspace_root)
+            relative_path = resolved.relative_to(workspace_root).as_posix()
+        except (OSError, ValueError):
+            continue
+        if not relative_path or relative_path in seen_paths:
+            continue
+        normalized_paths.append(relative_path)
+        seen_paths.add(relative_path)
+    return tuple(normalized_paths)
+
+
 def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
     semantics = state.task_semantics if isinstance(state.task_semantics, dict) else {}
     explicit_source_types = normalize_retrieval_source_types(semantics.get("retrieval_source_types"))
@@ -96,6 +122,7 @@ def build_task_retrieval_request(state: TaskState) -> RetrievalRequest:
         current_task_id=state.task_id,
         limit=8,
         strategy="system_baseline",
+        declared_document_paths=_declared_document_paths(state),
     )
 
 
@@ -119,6 +146,7 @@ def run_retrieval(
                 "count": len(retrieval_items),
                 "query": request.query,
                 "source_types_requested": request.source_types,
+                "declared_document_paths": list(request.declared_document_paths),
                 "context_layers": request.context_layers,
                 "limit": request.limit,
                 "strategy": request.strategy,

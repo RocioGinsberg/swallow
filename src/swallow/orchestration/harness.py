@@ -16,6 +16,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     persist_executor_side_effects,
     retrieve_knowledge_context as retrieve_context,
     summarize_reused_knowledge,
+    summarize_truth_reuse_visibility,
     summarize_canonicalization,
     summarize_knowledge_evidence,
     summarize_knowledge_reuse,
@@ -397,6 +398,10 @@ def build_task_memory(
     checkpoint_snapshot: dict[str, object],
 ) -> dict[str, object]:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    truth_reuse_visibility = summarize_truth_reuse_visibility(
+        retrieval_items,
+        task_knowledge_objects=state.knowledge_objects,
+    )
     knowledge_index = build_knowledge_index(state.knowledge_objects)
     canonicalization_counts = summarize_canonicalization(state.knowledge_objects)
     return {
@@ -481,6 +486,7 @@ def build_task_memory(
             "reused_knowledge_references": reused_knowledge["references"],
             "reused_knowledge_object_ids": reused_knowledge["object_ids"],
             "reused_knowledge_evidence_counts": reused_knowledge["evidence_counts"],
+            "truth_reuse_visibility": truth_reuse_visibility,
             "grounding_artifact": state.artifact_paths.get("source_grounding", ""),
             "retrieval_record_path": state.artifact_paths.get("retrieval_json", ""),
             "retrieval_report_artifact": state.artifact_paths.get("retrieval_report", ""),
@@ -561,6 +567,10 @@ def build_summary(
     execution_budget_policy_result: ExecutionBudgetPolicyResult | None,
 ) -> str:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    truth_reuse_visibility = summarize_truth_reuse_visibility(
+        retrieval_items,
+        task_knowledge_objects=state.knowledge_objects,
+    )
     knowledge_index = build_knowledge_index(state.knowledge_objects)
     canonicalization_counts = summarize_canonicalization(state.knowledge_objects)
     summary_surface = _summary_surface_fields(state)
@@ -596,6 +606,8 @@ def build_summary(
         f"- retrieval_reused_canonical_registry_count: {reused_knowledge.get('canonical_registry_count', 0)}",
         f"- retrieval_reused_knowledge_current_task_count: {reused_knowledge['current_task_count']}",
         f"- retrieval_reused_knowledge_cross_task_count: {reused_knowledge['cross_task_count']}",
+        f"- retrieval_task_knowledge_visibility_status: {truth_reuse_visibility['task_knowledge']['status']}",
+        f"- retrieval_canonical_registry_visibility_status: {truth_reuse_visibility['canonical_registry']['status']}",
         f"- executor: {state.executor_name}",
         f"- executor_status: {state.executor_status}",
         f"- execution_lifecycle: {state.execution_lifecycle}",

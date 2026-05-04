@@ -10,6 +10,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     summarize_retrieval_trace,
     summarize_reused_knowledge,
     summarize_source_policy_warnings,
+    summarize_truth_reuse_visibility,
 )
 from swallow.orchestration.models import RetrievalItem, TaskState
 
@@ -79,6 +80,11 @@ def build_retrieval_report(
     base_dir: str | Path | None = None,
 ) -> str:
     reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    truth_reuse_visibility = summarize_truth_reuse_visibility(
+        retrieval_items,
+        task_knowledge_objects=state.knowledge_objects,
+        base_dir=Path(base_dir) if base_dir is not None else None,
+    )
     retrieval_trace = summarize_retrieval_trace(retrieval_items)
     source_policy_warnings = summarize_source_policy_warnings(retrieval_items)
     evidence_pack = build_evidence_pack(retrieval_items, workspace_root=state.workspace_root, base_dir=base_dir)
@@ -138,8 +144,22 @@ def build_retrieval_report(
             f"- deduped_fallback_hits: {evidence_pack_summary['deduped_fallback_hit_count']}",
             f"- deduped_source_pointers: {evidence_pack_summary['deduped_source_pointer_count']}",
             f"- deduped_total: {evidence_pack_summary['deduped_total_count']}",
+            "",
+            "## Truth Reuse Visibility",
         ]
     )
+    for section_name, section in truth_reuse_visibility.items():
+        lines.extend(
+            [
+                f"- {section_name}",
+                f"  status: {section.get('status', 'unknown')}",
+                f"  considered_count: {section.get('considered_count', 0)}",
+                f"  matched_count: {section.get('matched_count', 0)}",
+                f"  skipped_count: {section.get('skipped_count', 0)}",
+                f"  absent_count: {section.get('absent_count', 0)}",
+                f"  skipped_reasons: {_format_reason_counts(section.get('reason_counts', {}))}",
+            ]
+        )
     duplicate_count_by_anchor = _duplicate_count_by_anchor(evidence_pack)
     if evidence_pack.source_pointers:
         lines.extend(["", "## EvidencePack Source Pointers"])
@@ -219,6 +239,17 @@ def _duplicate_count_by_anchor(evidence_pack: Any) -> dict[str, int]:
             if duplicate_count > counts.get(source_anchor_key, 0):
                 counts[source_anchor_key] = duplicate_count
     return counts
+
+
+def _format_reason_counts(reason_counts: object) -> str:
+    if not isinstance(reason_counts, dict) or not reason_counts:
+        return "none"
+    parts = [
+        f"{key}={value}"
+        for key, value in sorted(reason_counts.items())
+        if _safe_int(value) > 0
+    ]
+    return ", ".join(parts) if parts else "none"
 
 
 def _source_preview_excerpt(item: RetrievalItem) -> str:
