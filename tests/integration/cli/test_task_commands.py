@@ -41,8 +41,8 @@ def test_task_create_and_list_characterization_stdout_stderr_exit_code(tmp_path:
     assert "Focused CLI task" in list_result.stdout
 
 
-def test_task_acknowledge_characterization_stdout_stderr_exit_code(tmp_path: Path) -> None:
-    created = TaskBuilder(tmp_path).create(
+def test_task_acknowledge_characterization_stdout_stderr_exit_code(tmp_path: Path, task_builder: TaskBuilder) -> None:
+    created = task_builder.create(
         title="Dispatch blocked task",
         goal="Allow operator acknowledgement from CLI.",
     )

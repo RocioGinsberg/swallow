@@ -32,12 +32,16 @@ def _expected_derived_from_relation_id(source_object_id: str, evidence_id: str) 
     return f"relation-derived-from-{token}"
 
 
-def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(tmp_path: Path) -> None:
-    state = TaskBuilder(tmp_path).create(
+def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(
+    tmp_path: Path,
+    task_builder: TaskBuilder,
+    workspace_builder: WorkspaceBuilder,
+) -> None:
+    state = task_builder.create(
         title="Compile wiki note",
         goal="Draft a wiki entry from raw notes.",
     )
-    WorkspaceBuilder(tmp_path).write_text(
+    workspace_builder.write_text(
         "compiler-source.md",
         "# Compiler\n\nUse staged review before canonical promotion.\n",
     )
@@ -93,12 +97,16 @@ def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(tmp_path
     assert_artifact_exists(tmp_path, state.task_id, "wiki_compiler_result.json")
 
 
-def test_wiki_refine_cli_records_requested_relation_metadata(tmp_path: Path) -> None:
-    state = TaskBuilder(tmp_path).create(
+def test_wiki_refine_cli_records_requested_relation_metadata(
+    tmp_path: Path,
+    task_builder: TaskBuilder,
+    workspace_builder: WorkspaceBuilder,
+) -> None:
+    state = task_builder.create(
         title="Refine wiki note",
         goal="Draft a wiki refinement.",
     )
-    WorkspaceBuilder(tmp_path).write_text(
+    workspace_builder.write_text(
         "refine-source.md",
         "The existing wiki entry needs a narrower follow-up.\n",
     )
@@ -141,12 +149,16 @@ def test_wiki_refine_cli_records_requested_relation_metadata(tmp_path: Path) -> 
     assert candidate.relation_metadata[0] == {"relation_type": "refines", "target_object_id": "wiki-target"}
 
 
-def test_wiki_refresh_evidence_updates_anchor_without_llm(tmp_path: Path) -> None:
-    state = TaskBuilder(tmp_path).create(
+def test_wiki_refresh_evidence_updates_anchor_without_llm(
+    tmp_path: Path,
+    task_builder: TaskBuilder,
+    workspace_builder: WorkspaceBuilder,
+) -> None:
+    state = task_builder.create(
         title="Refresh evidence",
         goal="Refresh one evidence source anchor.",
     )
-    WorkspaceBuilder(tmp_path).write_text("evidence.md", "# Evidence\n\nFresh source anchor.\n")
+    workspace_builder.write_text("evidence.md", "# Evidence\n\nFresh source anchor.\n")
     persist_task_knowledge_view(
         tmp_path,
         state.task_id,

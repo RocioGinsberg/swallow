@@ -21,8 +21,11 @@ from tests.helpers.builders import KnowledgeBuilder
 from tests.helpers.cli_runner import run_cli
 
 
-def test_knowledge_stage_promote_characterization_stdout_stderr_exit_code(tmp_path: Path) -> None:
-    candidate = KnowledgeBuilder(tmp_path).staged_candidate(
+def test_knowledge_stage_promote_characterization_stdout_stderr_exit_code(
+    tmp_path: Path,
+    knowledge_builder: KnowledgeBuilder,
+) -> None:
+    candidate = knowledge_builder.staged_candidate(
         text="Promote this focused integration note.",
         source_task_id="task-stage-promote",
         source_object_id="knowledge-0001",
@@ -52,9 +55,11 @@ def test_knowledge_stage_promote_characterization_stdout_stderr_exit_code(tmp_pa
     assert canonical_records[0]["canonical_id"] == f"canonical-{candidate.candidate_id}"
 
 
-def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_old_record(tmp_path: Path) -> None:
-    knowledge = KnowledgeBuilder(tmp_path)
-    old = knowledge.staged_candidate(
+def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_old_record(
+    tmp_path: Path,
+    knowledge_builder: KnowledgeBuilder,
+) -> None:
+    old = knowledge_builder.staged_candidate(
         text="Old wiki entry that should be superseded by explicit target id.",
         source_task_id="task-stage-target-old",
         source_object_id="knowledge-old",
@@ -69,7 +74,7 @@ def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_ol
     )
     assert_cli_success(old_result)
 
-    replacement = knowledge.staged_candidate(
+    replacement = knowledge_builder.staged_candidate(
         text="Replacement wiki entry with a different canonical key.",
         source_task_id="task-stage-target-new",
         source_object_id="knowledge-new",
@@ -121,8 +126,11 @@ def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_ol
     assert canonical_records[1]["canonical_status"] == "active"
 
 
-def test_knowledge_stage_reject_characterization_stdout_stderr_exit_code(tmp_path: Path) -> None:
-    candidate = KnowledgeBuilder(tmp_path).staged_candidate(
+def test_knowledge_stage_reject_characterization_stdout_stderr_exit_code(
+    tmp_path: Path,
+    knowledge_builder: KnowledgeBuilder,
+) -> None:
+    candidate = knowledge_builder.staged_candidate(
         text="Reject this focused integration note.",
         source_task_id="task-stage-reject",
     )
