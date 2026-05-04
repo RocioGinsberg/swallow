@@ -80,7 +80,6 @@
 
 条件文档：
 
-- `model_review.md`：高风险或 Human 要求第二模型审查时产出
 - `consistency_report.md`：高风险 / 跨模块实现后,由 `consistency-checker` subagent 产出
 - `commit_summary.md`：可选
 - legacy: `kickoff.md` / `design_decision.md` / `risk_assessment.md` / `breakdown.md` 只为旧 phase 或 Human 明确要求保留;新 phase 默认不再拆这些文件

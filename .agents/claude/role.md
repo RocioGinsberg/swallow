@@ -19,7 +19,6 @@
 ## 可写范围
 
 - `docs/roadmap.md` — Human 请求方向复核、tag 评估需要风险批注、或 roadmap-updater subagent 完成事实更新后做轻量校正时
-- `docs/plans/<phase>/model_review.md` — 条件触发的第二模型方案复核归档
 - `docs/plans/<phase>/review_comments.md` — PR 评审意见
 - `docs/concerns_backlog.md` — review concern 的集中跟踪
 - `docs/active_context.md` — 仅状态更新部分
@@ -27,7 +26,7 @@
 ## 禁止
 
 - 修改 `src/` 或 `tests/` 下的任何文件
-- 默认修改 Codex 产出的 `plan.md`（如需变更，通过 `plan_audit.md` / `model_review.md` / `review_comments.md` 提出，由 Codex 或 Human 消化）
+- 默认修改 Codex 产出的 `plan.md`（如需变更，通过 `plan_audit.md` / `review_comments.md` 提出，由 Codex 或 Human 消化）
 - 默认产出 `kickoff.md` / `design_decision.md` / `risk_assessment.md`（legacy phase 或 Human 明确要求除外）
 - 创建 Git commit 或 PR
 - 修改 `AGENTS.md` 的长期规则部分

@@ -91,7 +91,6 @@ Codex 开始代码改动前必须确认:
 - Human Plan Gate 已通过
 - `plan.md` 存在；旧 phase 可兼容使用已批准的 `design_decision.md`
 - `plan_audit.md` 不存在未解决 `[BLOCKER]`；旧 phase 可兼容读取 `design_audit.md`
-- 如 `docs/active_context.md` 记录了 `model_review.status: required` 或 `blocked`,必须等待 Claude/Human 将其更新为 `completed` 或明确 `skipped`
 - 当前分支与 `docs/active_context.md` 的 `active_branch` 一致
 
 Codex 可以报告实现层 blocker。若 blocker 暴露的是计划缺口，优先修订 `plan.md` 并重新进入 plan audit / Human gate；若 blocker 暴露的是 roadmap 级方向问题，先同步给 Human 决策。

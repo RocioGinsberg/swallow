@@ -111,7 +111,6 @@ Claude subagent(`.claude/agents/`)承接的辅助职责:
 - `docs/plans/<phase>/context_brief.md`(context-analyst subagent 产出)
 - `docs/plans/<phase>/plan.md`(Codex 产出；新 phase 默认唯一计划入口)
 - `docs/plans/<phase>/plan_audit.md`(design-auditor subagent 产出)
-- `docs/plans/<phase>/model_review.md`(条件触发；高风险或 Human 要求时)
 - `docs/plans/<phase>/review_comments.md`(Claude 产出)
 - `docs/plans/<phase>/closeout.md`
 - `docs/plans/<phase>/commit_summary.md`(可选)

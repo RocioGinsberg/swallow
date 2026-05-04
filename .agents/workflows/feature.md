@@ -18,7 +18,6 @@
 
 条件产物：
 
-- `docs/plans/<phase>/model_review.md` — 仅高风险或 Human 要求第二模型审查时产出。
 - `docs/plans/<phase>/consistency_report.md` — 高风险跨模块实现后，可由 `consistency-checker` subagent 先行产出。
 - `docs/plans/<phase>/commit_summary.md` — 仅当人工提交、release note 或 PR 梳理明显受益时产出。
 
@@ -191,24 +190,7 @@ Human chooses the next phase / candidate and confirms whether Codex should start
 
 **Completion**:
 
-- Claude main or the invoking workflow owner updates `docs/active_context.md`: register `plan_audit.md`, set next step to model review gate or Human Plan Gate.
-
----
-
-## Step 2.6: Claude — Model Review Gate (Conditional)
-
-**Trigger**: `plan_audit.md` exists and Human Plan Gate has not started.
-
-Rules live in `.agents/workflows/model_review.md`.
-
-Default is skipped. Set required only when:
-
-- Roadmap direction or plan boundary is uncertain.
-- The plan touches invariants, schema, state transitions, truth write path, provider routing, public CLI/API, or self-evolution policy.
-- `plan_audit.md` has `[BLOCKER]` or multiple `[CONCERN]`.
-- Human explicitly asks for a second-model review.
-
-If required, Claude produces `docs/plans/<phase>/model_review.md`. If skipped, Claude records skipped status and reason in `docs/active_context.md`.
+- Claude main or the invoking workflow owner updates `docs/active_context.md`: register `plan_audit.md`, set next step to Human Plan Gate.
 
 ---
 
@@ -218,14 +200,12 @@ If required, Claude produces `docs/plans/<phase>/model_review.md`. If skipped, C
 
 - `plan.md` exists.
 - `plan_audit.md` exists and has no unresolved `[BLOCKER]`, or Human explicitly accepts the blocker.
-- Required model review is completed, or explicitly skipped by Human / Claude.
 
 **Human reviews**:
 
 - `context_brief.md` TL;DR for factual context.
 - `plan.md` goals, non-goals, slices, risks, milestone gates, validation.
 - `plan_audit.md` verdict and findings.
-- `model_review.md` if present.
 
 **Decision**:
 
@@ -242,7 +222,7 @@ If required, Claude produces `docs/plans/<phase>/model_review.md`. If skipped, C
 **Input**:
 
 - `plan.md`.
-- `plan_audit.md` and `model_review.md` if present.
+- `plan_audit.md` if present.
 - Relevant `src/` and `tests/`.
 
 **Actions**:

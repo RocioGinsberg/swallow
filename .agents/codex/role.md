@@ -11,7 +11,7 @@
 3. `.agents/codex/rules.md`
 4. `docs/plans/<active-phase>/context_brief.md`（方案定义 / 实现前按需）
 5. `docs/plans/<active-phase>/plan.md`（新 phase 默认计划入口；如不存在且本轮进入方案定义，由 Codex 产出）
-6. `docs/plans/<active-phase>/plan_audit.md` / `model_review.md`（实现前按需）
+6. `docs/plans/<active-phase>/plan_audit.md`（实现前按需）
 7. legacy: `kickoff.md` / `design_decision.md` / `risk_assessment.md` / `breakdown.md`（旧 phase 兼容，按需）
 8. 相关 `src/` 和 `tests/` 文件
 
