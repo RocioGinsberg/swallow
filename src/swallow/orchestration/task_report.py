@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from swallow.knowledge_retrieval.knowledge_plane import (
     build_evidence_pack,
@@ -26,20 +27,29 @@ def build_source_grounding(
 
     evidence_pack = build_evidence_pack(retrieval_items, workspace_root=workspace_root, base_dir=base_dir)
     source_pointers_by_reference = {pointer.reference: pointer for pointer in evidence_pack.source_pointers}
+    source_pointers_by_anchor = {
+        pointer.source_anchor_key: pointer for pointer in evidence_pack.source_pointers if pointer.source_anchor_key
+    }
+    duplicate_count_by_anchor = _duplicate_count_by_anchor(evidence_pack)
     for item in retrieval_items:
         score_context = ", ".join(f"{key}={value}" for key, value in item.score_breakdown.items()) or "none"
         matched_terms = ", ".join(item.matched_terms) or "none"
         source_policy_label = str(item.metadata.get("source_policy_label", "") or source_policy_label_for(item))
         source_policy_flags = item.metadata.get("source_policy_flags", source_policy_flags_for(item, source_policy_label))
         source_policy_flag_text = ", ".join(str(flag) for flag in source_policy_flags) or "none"
-        source_pointer = source_pointers_by_reference.get(item.reference())
+        source_anchor_key = _metadata_text(item, "source_anchor_key")
+        source_pointer = source_pointers_by_reference.get(item.reference()) or source_pointers_by_anchor.get(source_anchor_key)
         line_span = _format_line_span(source_pointer.line_start, source_pointer.line_end) if source_pointer else "none"
+        duplicate_anchor_count = duplicate_count_by_anchor.get(source_anchor_key, 0) if source_anchor_key else 0
         lines.extend(
             [
                 f"- [{item.source_type}] {item.reference()}",
                 f"  title: {item.display_title()}",
                 f"  source_policy_label: {source_policy_label}",
                 f"  source_policy_flags: {source_policy_flag_text}",
+                f"  source_anchor_key: {source_anchor_key or 'none'}",
+                f"  source_anchor_version: {_metadata_text(item, 'source_anchor_version') or 'none'}",
+                f"  duplicate_anchor_count: {duplicate_anchor_count}",
                 f"  source_pointer_status: {source_pointer.resolution_status if source_pointer else 'unresolved'}",
                 f"  source_pointer_ref: {source_pointer.resolved_ref if source_pointer and source_pointer.resolved_ref else 'none'}",
                 f"  source_pointer_path: {source_pointer.resolved_path if source_pointer and source_pointer.resolved_path else 'none'}",
@@ -52,6 +62,7 @@ def build_source_grounding(
                 f"  canonical_policy: {item.metadata.get('canonical_policy', '') or 'none'}",
                 f"  source_ref: {item.metadata.get('source_ref', '') or 'none'}",
                 f"  artifact_ref: {item.metadata.get('artifact_ref', '') or 'none'}",
+                f"  source_preview_excerpt: {_source_preview_excerpt(item)}",
                 f"  score: {item.score}",
                 f"  matched_terms: {matched_terms}",
                 f"  score_breakdown: {score_context}",
@@ -94,6 +105,10 @@ def build_retrieval_report(
         f"- evidence_pack_supporting_evidence_count: {evidence_pack_summary['supporting_evidence_count']}",
         f"- evidence_pack_fallback_hit_count: {evidence_pack_summary['fallback_hit_count']}",
         f"- evidence_pack_source_pointer_count: {evidence_pack_summary['source_pointer_count']}",
+        f"- evidence_pack_deduped_supporting_evidence_count: {evidence_pack_summary['deduped_supporting_evidence_count']}",
+        f"- evidence_pack_deduped_fallback_hit_count: {evidence_pack_summary['deduped_fallback_hit_count']}",
+        f"- evidence_pack_deduped_source_pointer_count: {evidence_pack_summary['deduped_source_pointer_count']}",
+        f"- evidence_pack_deduped_total_count: {evidence_pack_summary['deduped_total_count']}",
         f"- reused_knowledge_count: {reused_knowledge['count']}",
         f"- reused_task_knowledge_count: {reused_knowledge.get('task_knowledge_count', 0)}",
         f"- reused_canonical_registry_count: {reused_knowledge.get('canonical_registry_count', 0)}",
@@ -119,15 +134,27 @@ def build_retrieval_report(
             f"- supporting_evidence: {evidence_pack_summary['supporting_evidence_count']}",
             f"- fallback_hits: {evidence_pack_summary['fallback_hit_count']}",
             f"- source_pointers: {evidence_pack_summary['source_pointer_count']}",
+            f"- deduped_supporting_evidence: {evidence_pack_summary['deduped_supporting_evidence_count']}",
+            f"- deduped_fallback_hits: {evidence_pack_summary['deduped_fallback_hit_count']}",
+            f"- deduped_source_pointers: {evidence_pack_summary['deduped_source_pointer_count']}",
+            f"- deduped_total: {evidence_pack_summary['deduped_total_count']}",
         ]
     )
+    duplicate_count_by_anchor = _duplicate_count_by_anchor(evidence_pack)
     if evidence_pack.source_pointers:
         lines.extend(["", "## EvidencePack Source Pointers"])
         for pointer in evidence_pack.source_pointers[:8]:
+            duplicate_anchor_count = (
+                duplicate_count_by_anchor.get(pointer.source_anchor_key, 0) if pointer.source_anchor_key else 0
+            )
             lines.extend(
                 [
                     f"- {pointer.reference}",
+                    f"  source_anchor_key: {pointer.source_anchor_key or 'none'}",
+                    f"  source_anchor_version: {pointer.source_anchor_version or 'none'}",
+                    f"  duplicate_anchor_count: {duplicate_anchor_count}",
                     f"  status: {pointer.resolution_status}",
+                    f"  source_ref: {pointer.source_ref or 'none'}",
                     f"  resolved_ref: {pointer.resolved_ref or 'none'}",
                     f"  resolved_path: {pointer.resolved_path or 'none'}",
                     f"  reason: {pointer.resolution_reason or 'none'}",
@@ -149,12 +176,17 @@ def build_retrieval_report(
         source_policy_label = str(item.metadata.get("source_policy_label", "") or source_policy_label_for(item))
         source_policy_flags = item.metadata.get("source_policy_flags", source_policy_flags_for(item, source_policy_label))
         source_policy_flag_text = ", ".join(str(flag) for flag in source_policy_flags) or "none"
+        source_anchor_key = _metadata_text(item, "source_anchor_key")
+        duplicate_anchor_count = duplicate_count_by_anchor.get(source_anchor_key, 0) if source_anchor_key else 0
         lines.extend(
             [
                 f"- [{item.source_type}] {item.reference()}",
                 f"  title: {item.display_title()}",
                 f"  source_policy_label: {source_policy_label}",
                 f"  source_policy_flags: {source_policy_flag_text}",
+                f"  source_anchor_key: {source_anchor_key or 'none'}",
+                f"  source_anchor_version: {_metadata_text(item, 'source_anchor_version') or 'none'}",
+                f"  duplicate_anchor_count: {duplicate_anchor_count}",
                 f"  final_rank: {item.metadata.get('final_rank', 'unknown')}",
                 f"  score: {item.score}",
                 f"  raw_score: {item.metadata.get('raw_score', item.score)}",
@@ -168,9 +200,41 @@ def build_retrieval_report(
                 f"  canonical_policy: {item.metadata.get('canonical_policy', '') or 'none'}",
                 f"  source_ref: {item.metadata.get('source_ref', '') or 'none'}",
                 f"  artifact_ref: {item.metadata.get('artifact_ref', '') or 'none'}",
+                f"  source_preview_excerpt: {_source_preview_excerpt(item)}",
             ]
         )
     return "\n".join(lines)
+
+
+def _duplicate_count_by_anchor(evidence_pack: Any) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for collection_name in ("supporting_evidence", "fallback_hits"):
+        for entry in getattr(evidence_pack, collection_name, []):
+            if not isinstance(entry, dict):
+                continue
+            source_anchor_key = str(entry.get("source_anchor_key", "")).strip()
+            if not source_anchor_key:
+                continue
+            duplicate_count = _safe_int(entry.get("duplicate_count", 0))
+            if duplicate_count > counts.get(source_anchor_key, 0):
+                counts[source_anchor_key] = duplicate_count
+    return counts
+
+
+def _source_preview_excerpt(item: RetrievalItem) -> str:
+    preview = _metadata_text(item, "source_preview")
+    return preview or "none"
+
+
+def _metadata_text(item: RetrievalItem, key: str) -> str:
+    return str(item.metadata.get(key, "")).strip()
+
+
+def _safe_int(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _format_line_span(line_start: int, line_end: int) -> str:

@@ -262,6 +262,10 @@ def materialize_source_evidence_from_canonical_record(
     )
 
 
+def build_source_anchor_identity(anchor: dict[str, object]) -> dict[str, str]:
+    return _knowledge_store.build_source_anchor_identity(anchor)
+
+
 def build_wiki_entry_from_canonical_record(record: dict[str, object]) -> dict[str, object]:
     return _knowledge_store.build_wiki_entry_from_canonical_record(record)
 

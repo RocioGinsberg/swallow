@@ -64,3 +64,66 @@ def test_task_report_module_exports_and_shape_are_stable(tmp_path: Path) -> None
     assert "- retrieval_record_path: .swl/tasks/task-report-test/retrieval.json" in retrieval_report
     assert "- source_grounding_artifact: .swl/tasks/task-report-test/artifacts/source_grounding.md" in retrieval_report
     assert "## Top References" in retrieval_report
+
+
+def test_reports_surface_source_anchor_dedup_missing_pointer_and_stored_preview(tmp_path: Path) -> None:
+    state = _state(workspace_root=str(tmp_path))
+    items = [
+        _retrieval_item(
+            path=".swl/tasks/task-1/knowledge/evidence-src-anchor-1.json",
+            source_type="knowledge",
+            preview="Retrieval preview from stored support.",
+            citation=".swl/tasks/task-1/knowledge/evidence-src-anchor-1.json#evidence-src-anchor-1",
+            metadata={
+                "source_policy_label": "supporting_evidence",
+                "source_policy_flags": ["source_anchor_support"],
+                "storage_scope": "task_knowledge",
+                "knowledge_object_id": "evidence-src-anchor-1",
+                "source_ref": "file://workspace/docs/missing-source.md",
+                "source_anchor_key": "anchor-1",
+                "source_anchor_version": "source-anchor-v1",
+                "content_hash": "sha256:abc",
+                "parser_version": "wiki-compiler-v1",
+                "span": "line:10-12",
+                "heading_path": "Design > Anchors",
+                "source_preview": "Stored source preview excerpt.",
+            },
+        ),
+        _retrieval_item(
+            path=".swl/tasks/task-2/artifacts/missing-source.md",
+            source_type="artifacts",
+            preview="Duplicate fallback preview.",
+            citation=".swl/tasks/task-2/artifacts/missing-source.md#L10-L12",
+            metadata={
+                "source_policy_label": "artifact_source",
+                "source_policy_flags": ["fallback_text_hit"],
+                "source_ref": "file://workspace/docs/missing-source.md",
+                "source_anchor_key": "anchor-1",
+                "source_anchor_version": "source-anchor-v1",
+                "content_hash": "sha256:abc",
+                "parser_version": "wiki-compiler-v1",
+                "span": "line:10-12",
+                "heading_path": "Design > Anchors",
+            },
+        ),
+    ]
+
+    source_grounding = task_report.build_source_grounding(items, workspace_root=tmp_path, base_dir=tmp_path)
+    retrieval_report = task_report.build_retrieval_report(state, items, base_dir=tmp_path)
+
+    assert "source_anchor_key: anchor-1" in source_grounding
+    assert "source_anchor_version: source-anchor-v1" in source_grounding
+    assert "duplicate_anchor_count: 1" in source_grounding
+    assert "source_pointer_status: missing" in source_grounding
+    assert "source_pointer_reason: raw_material_missing" in source_grounding
+    assert "source_preview_excerpt: Stored source preview excerpt." in source_grounding
+
+    assert "evidence_pack_deduped_supporting_evidence_count: 1" in retrieval_report
+    assert "evidence_pack_deduped_source_pointer_count: 1" in retrieval_report
+    assert "deduped_total: 2" in retrieval_report
+    assert "## EvidencePack Source Pointers" in retrieval_report
+    assert "source_anchor_key: anchor-1" in retrieval_report
+    assert "duplicate_anchor_count: 1" in retrieval_report
+    assert "status: missing" in retrieval_report
+    assert "reason: raw_material_missing" in retrieval_report
+    assert "source_preview_excerpt: Stored source preview excerpt." in retrieval_report

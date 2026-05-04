@@ -18,6 +18,7 @@ from swallow.application.infrastructure.paths import artifacts_dir, canonical_re
 from swallow.application.services.wiki_compiler import WikiCompilerAgent
 from swallow.application.services.wiki_jobs import create_wiki_draft_job, load_wiki_job_result, run_wiki_job
 from swallow.knowledge_retrieval.knowledge_plane import (
+    build_source_anchor_identity,
     list_knowledge_relations,
     load_task_knowledge_view,
     submit_staged_knowledge,
@@ -100,16 +101,14 @@ def test_second_stage_eval_source_pack_materializes_matching_evidence_objects(tm
         if record["canonical_id"] == f"canonical-{candidate.candidate_id}"
     )
 
-    assert [item["object_id"] for item in evidence_entries] == [
-        "evidence-staged-stage2-source-1",
-        "evidence-staged-stage2-source-2",
+    expected_evidence_ids = [
+        build_source_anchor_identity(candidate.source_pack[0])["evidence_id"],
+        build_source_anchor_identity(candidate.source_pack[1])["evidence_id"],
     ]
+    assert [item["object_id"] for item in evidence_entries] == expected_evidence_ids
     assert wiki_entry["source_evidence_ids"] == [item["object_id"] for item in evidence_entries]
     assert registry_record["source_evidence_ids"] == [item["object_id"] for item in evidence_entries]
-    assert {relation["target_object_id"] for relation in relations} == {
-        "evidence-staged-stage2-source-1",
-        "evidence-staged-stage2-source-2",
-    }
+    assert {relation["target_object_id"] for relation in relations} == set(expected_evidence_ids)
     assert all(str(relation.get("target_object_id", "")).startswith("evidence-") for relation in relations)
     assert all("://" not in str(relation.get("target_object_id", "")) for relation in relations)
 

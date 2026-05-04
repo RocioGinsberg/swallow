@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import pytest
@@ -28,6 +29,7 @@ from swallow.application.infrastructure.paths import (
     route_weights_path,
 )
 from swallow.knowledge_retrieval.knowledge_plane import (
+    build_source_anchor_identity,
     list_knowledge_relations,
     load_task_knowledge_view,
 )
@@ -39,6 +41,14 @@ from swallow.provider_router.router import (
     load_route_weights,
 )
 from swallow.application.services.consistency_audit import load_audit_trigger_policy
+
+
+def _expected_derived_from_relation_id(source_object_id: str, evidence_id: str) -> str:
+    payload = ["derived-from-v1", source_object_id, evidence_id]
+    token = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"relation-derived-from-{token}"
 
 
 def test_operator_token_rejects_invalid_source() -> None:
@@ -141,6 +151,8 @@ def test_apply_canonical_proposal_materializes_source_evidence_inside_apply_path
         canonical_record=canonical_record,
         write_authority="operator-gated",
     )
+    expected_evidence_id = build_source_anchor_identity(canonical_record["source_pack"][0])["evidence_id"]
+    expected_relation_id = _expected_derived_from_relation_id("canonical-staged-source", expected_evidence_id)
 
     result = apply_proposal("staged-source", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
 
@@ -151,8 +163,8 @@ def test_apply_canonical_proposal_materializes_source_evidence_inside_apply_path
         "derived_from_relations",
     )
     assert result.payload == {
-        "source_evidence_ids": ["evidence-staged-source-1"],
-        "derived_relation_ids": ["relation-derived-from-staged-source-1"],
+        "source_evidence_ids": [expected_evidence_id],
+        "derived_relation_ids": [expected_relation_id],
     }
     registry_records = [
         json.loads(line)
@@ -162,10 +174,74 @@ def test_apply_canonical_proposal_materializes_source_evidence_inside_apply_path
     view = load_task_knowledge_view(tmp_path, "task-governance")
     relations = list_knowledge_relations(tmp_path, "canonical-staged-source")
 
-    assert registry_records[0]["source_evidence_ids"] == ["evidence-staged-source-1"]
-    assert {item["object_id"] for item in view} == {"evidence-staged-source-1", "canonical-staged-source"}
+    assert registry_records[0]["source_evidence_ids"] == [expected_evidence_id]
+    assert {item["object_id"] for item in view} == {expected_evidence_id, "canonical-staged-source"}
     assert relations[0]["relation_type"] == "derived_from"
-    assert relations[0]["target_object_id"] == "evidence-staged-source-1"
+    assert relations[0]["relation_id"] == expected_relation_id
+    assert relations[0]["target_object_id"] == expected_evidence_id
+
+
+def test_apply_canonical_proposal_reuses_source_evidence_across_candidates(tmp_path) -> None:
+    source_anchor = {
+        "reference": "source-1",
+        "source_ref": "file://workspace/shared.md",
+        "resolved_ref": "file://workspace/shared.md",
+        "resolution_status": "resolved",
+        "content_hash": "sha256:shared",
+        "parser_version": "wiki-compiler-v1",
+        "span": "L1-L3",
+        "preview": "Shared source evidence preview.",
+    }
+    expected_evidence_id = build_source_anchor_identity(source_anchor)["evidence_id"]
+
+    for suffix, task_id, source_object_id in (
+        ("a", "task-a", "wiki-a"),
+        ("b", "task-b", "wiki-b"),
+    ):
+        register_canonical_proposal(
+            base_dir=tmp_path,
+            proposal_id=f"staged-{suffix}",
+            canonical_record={
+                "canonical_id": f"canonical-{suffix}",
+                "canonical_key": f"staged-candidate:staged-{suffix}",
+                "source_task_id": task_id,
+                "source_object_id": source_object_id,
+                "promoted_at": "2026-04-28T00:00:00+00:00",
+                "promoted_by": "swl_cli",
+                "decision_note": "approved",
+                "decision_ref": f".swl/staged_knowledge/registry.jsonl#staged-{suffix}",
+                "artifact_ref": "",
+                "source_ref": "file://workspace/shared.md",
+                "text": f"Governance promotion {suffix} carries shared source evidence.",
+                "evidence_status": "source_only",
+                "canonical_stage": "canonical",
+                "canonical_status": "active",
+                "superseded_by": "",
+                "superseded_at": "",
+                "source_pack": [source_anchor],
+                "relation_metadata": [
+                    {"relation_type": "derived_from", "target_ref": "file://workspace/shared.md"}
+                ],
+            },
+            write_authority="operator-gated",
+        )
+        result = apply_proposal(f"staged-{suffix}", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
+        assert result.payload["source_evidence_ids"] == [expected_evidence_id]
+
+    task_a_view = load_task_knowledge_view(tmp_path, "task-a")
+    task_b_view = load_task_knowledge_view(tmp_path, "task-b")
+    relations_a = list_knowledge_relations(tmp_path, "wiki-a")
+    relations_b = list_knowledge_relations(tmp_path, "wiki-b")
+
+    assert [item["object_id"] for item in task_a_view if item.get("store_type") == "evidence"] == [
+        expected_evidence_id
+    ]
+    assert [item["object_id"] for item in task_b_view if item.get("store_type") == "evidence"] == []
+    assert relations_a[0]["target_object_id"] == expected_evidence_id
+    assert relations_b[0]["target_object_id"] == expected_evidence_id
+    assert relations_a[0]["relation_id"] == _expected_derived_from_relation_id("wiki-a", expected_evidence_id)
+    assert relations_b[0]["relation_id"] == _expected_derived_from_relation_id("wiki-b", expected_evidence_id)
+    assert relations_a[0]["relation_id"] != relations_b[0]["relation_id"]
 
 
 def test_apply_canonical_proposal_supersedes_explicit_target_inside_apply_path(tmp_path) -> None:

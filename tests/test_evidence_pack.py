@@ -127,6 +127,90 @@ class EvidencePackTest(unittest.TestCase):
         self.assertEqual(pack.primary_objects[0]["source_policy_flags"], ["primary_truth_candidate"])
         self.assertEqual(pack.fallback_hits[0]["source_policy_label"], "archive_note")
 
+    def test_build_evidence_pack_dedupes_source_anchor_support_and_pointers(self) -> None:
+        items = [
+            RetrievalItem(
+                path=".swl/tasks/task-1/knowledge/evidence-src-anchor-1.json",
+                source_type="knowledge",
+                score=30,
+                preview="Source anchored support.",
+                citation=".swl/tasks/task-1/knowledge/evidence-src-anchor-1.json#evidence-src-anchor-1",
+                metadata={
+                    "final_rank": 1,
+                    "storage_scope": "task_knowledge",
+                    "knowledge_object_id": "evidence-src-anchor-1",
+                    "knowledge_source_kind": "wiki_compiler_source_pack",
+                    "canonicalization_intent": "support",
+                    "source_ref": "file://workspace/docs/source.md",
+                    "content_hash": "sha256:abc",
+                    "parser_version": "wiki-compiler-v1",
+                    "span": "line:10-12",
+                    "heading_path": "Design > Anchors",
+                    "source_anchor_key": "anchor-1",
+                    "source_anchor_version": "source-anchor-v1",
+                    "source_preview": "Stored source preview excerpt.",
+                },
+            ),
+            RetrievalItem(
+                path="docs/source.md",
+                source_type="artifacts",
+                score=12,
+                preview="Fallback source hit.",
+                citation="docs/source.md#L10-L12",
+                metadata={
+                    "final_rank": 2,
+                    "source_ref": "file://workspace/docs/source.md",
+                    "content_hash": "sha256:abc",
+                    "parser_version": "wiki-compiler-v1",
+                    "span": "line:10-12",
+                    "heading_path": "Design > Anchors",
+                    "source_anchor_key": "anchor-1",
+                    "source_anchor_version": "source-anchor-v1",
+                },
+            ),
+            RetrievalItem(
+                path=".swl/tasks/task-2/artifacts/source.md",
+                source_type="artifacts",
+                score=10,
+                preview="Duplicate fallback source hit.",
+                citation=".swl/tasks/task-2/artifacts/source.md#L10-L12",
+                metadata={
+                    "final_rank": 3,
+                    "artifact_ref": ".swl/tasks/task-2/artifacts/source.md",
+                    "source_ref": "file://workspace/docs/source.md",
+                    "content_hash": "sha256:abc",
+                    "parser_version": "wiki-compiler-v1",
+                    "span": "line:10-12",
+                    "heading_path": "Design > Anchors",
+                    "source_anchor_key": "anchor-1",
+                    "source_anchor_version": "source-anchor-v1",
+                },
+            ),
+        ]
+
+        pack = build_evidence_pack(items)
+        summary = pack.summary()
+
+        self.assertEqual(summary["primary_object_count"], 0)
+        self.assertEqual(summary["supporting_evidence_count"], 1)
+        self.assertEqual(summary["fallback_hit_count"], 1)
+        self.assertEqual(summary["source_pointer_count"], 1)
+        self.assertEqual(summary["deduped_supporting_evidence_count"], 2)
+        self.assertEqual(summary["deduped_fallback_hit_count"], 1)
+        self.assertEqual(summary["deduped_source_pointer_count"], 2)
+        self.assertEqual(summary["deduped_total_count"], 5)
+        self.assertEqual(pack.supporting_evidence[0]["source_policy_label"], "supporting_evidence")
+        self.assertEqual(pack.supporting_evidence[0]["source_policy_flags"], ["source_anchor_support"])
+        self.assertEqual(pack.supporting_evidence[0]["source_anchor_key"], "anchor-1")
+        self.assertEqual(pack.supporting_evidence[0]["source_preview_excerpt"], "Stored source preview excerpt.")
+        self.assertEqual(pack.supporting_evidence[0]["duplicate_count"], 2)
+        self.assertEqual(pack.supporting_evidence[0]["dedup_reason"], "duplicate_source_anchor")
+        self.assertEqual(pack.fallback_hits[0]["source_policy_label"], "artifact_source")
+        self.assertIn("fallback_text_hit", pack.fallback_hits[0]["source_policy_flags"])
+        self.assertEqual(pack.source_pointers[0].source_anchor_key, "anchor-1")
+        self.assertEqual(pack.source_pointers[0].content_hash, "sha256:abc")
+        self.assertEqual(pack.source_pointers[0].span, "line:10-12")
+
     def test_source_pointers_resolve_workspace_files_and_legacy_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base_dir = Path(tmp)

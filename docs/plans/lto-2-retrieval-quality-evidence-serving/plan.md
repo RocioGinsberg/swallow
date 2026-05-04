@@ -2,7 +2,7 @@
 author: codex
 phase: lto-2-retrieval-quality-evidence-serving
 slice: plan-definition
-status: review
+status: final
 depends_on:
   - docs/roadmap.md
   - docs/concerns_backlog.md
@@ -16,6 +16,7 @@ depends_on:
   - docs/plans/lto-1-wiki-compiler-second-stage/closeout.md
   - docs/plans/lto-1-wiki-compiler-second-stage/review_comments.md
   - docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
+  - docs/plans/lto-2-retrieval-quality-evidence-serving/review_comments.md
 ---
 
 TL;DR:
