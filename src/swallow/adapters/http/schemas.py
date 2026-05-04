@@ -50,6 +50,9 @@ class TaskActionRequest(WebRequestModel):
 class StageDecisionRequest(WebRequestModel):
     note: str = ""
     refined_text: str = ""
+    confirmed_notice_types: list[Literal["supersede", "conflict"]] = Field(default_factory=list)
+    confirmed_supersede_target_ids: list[str] = Field(default_factory=list)
+    confirmed_conflict_flags: list[str] = Field(default_factory=list)
 
 
 class ProposalReviewRequest(WebRequestModel):

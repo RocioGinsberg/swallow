@@ -142,6 +142,12 @@
         box-shadow: 0 8px 20px rgba(15, 118, 110, 0.18);
       }
 
+      button:disabled {
+        cursor: default;
+        opacity: 0.48;
+        box-shadow: none;
+      }
+
       .stamp {
         color: var(--muted);
         font-size: 13px;
@@ -559,7 +565,7 @@
 
       .knowledge-detail {
         display: grid;
-        grid-template-rows: auto auto minmax(140px, 0.7fr) minmax(180px, 0.9fr) minmax(180px, 0.9fr);
+        grid-template-rows: auto auto auto minmax(140px, 0.7fr) minmax(180px, 0.9fr) minmax(180px, 0.9fr);
         min-height: 72vh;
       }
 
@@ -607,6 +613,43 @@
         letter-spacing: 0.06em;
       }
 
+      .wiki-authoring-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.25fr) minmax(260px, 0.75fr);
+        gap: 14px;
+      }
+
+      .wiki-job-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+        display: grid;
+        gap: 8px;
+        max-height: 256px;
+        overflow: auto;
+      }
+
+      .wiki-job-item {
+        border: 1px solid rgba(216, 205, 184, 0.85);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.46);
+        padding: 10px 12px;
+        font-family: var(--mono);
+        font-size: 12px;
+      }
+
+      .wiki-job-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .candidate-review-block {
+        display: grid;
+        gap: 10px;
+      }
+
       @media (max-width: 980px) {
         .workspace {
           grid-template-columns: 1fr;
@@ -615,6 +658,7 @@
         .viewer-toolbar,
         .viewer-grid,
         .command-grid,
+        .wiki-authoring-grid,
         .field-grid {
           grid-template-columns: 1fr;
         }
@@ -838,6 +882,71 @@
       </section>
 
       <section class="surface" id="knowledge-surface">
+      <section class="panel command-panel" id="wiki-authoring-panel">
+        <div class="wiki-authoring-grid">
+          <form class="command-block" id="wiki-authoring-form">
+            <span class="command-label">Wiki Compiler</span>
+            <div class="field-grid">
+              <div class="field">
+                <label for="wiki-authoring-mode">Mode</label>
+                <select id="wiki-authoring-mode" name="mode">
+                  <option value="draft">draft</option>
+                  <option value="refine-supersede">refine/supersede</option>
+                  <option value="refine-refines">refine/refines</option>
+                  <option value="refresh-evidence">refresh-evidence</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="wiki-task-id">Task ID</label>
+                <input id="wiki-task-id" name="task_id" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="wiki-topic">Topic</label>
+                <input id="wiki-topic" name="topic" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="wiki-target-object-id">Target Object ID</label>
+                <input id="wiki-target-object-id" name="target_object_id" autocomplete="off">
+              </div>
+            </div>
+            <div class="field">
+              <label for="wiki-source-refs">Source Refs</label>
+              <textarea id="wiki-source-refs" name="source_refs"></textarea>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="wiki-model">Model</label>
+                <input id="wiki-model" name="model" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="wiki-parser-version">Parser Version</label>
+                <input id="wiki-parser-version" name="parser_version" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="wiki-source-span">Span</label>
+                <input id="wiki-source-span" name="span" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="wiki-heading-path">Heading Path</label>
+                <input id="wiki-heading-path" name="heading_path" autocomplete="off">
+              </div>
+            </div>
+            <div class="button-row">
+              <button id="wiki-authoring-submit" type="submit">Run</button>
+              <button id="wiki-prefill-selected-button" type="button">Use Selected</button>
+            </div>
+          </form>
+
+          <div class="command-block" id="wiki-job-tray">
+            <span class="command-label">Wiki Jobs</span>
+            <ul class="wiki-job-list" id="wiki-job-list">
+              <li class="empty">No wiki jobs in this browser session.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="command-status" id="wiki-authoring-status"></div>
+      </section>
+
       <main class="workspace knowledge-workspace">
         <section class="panel">
           <div class="panel-header">
@@ -870,6 +979,55 @@
           <div class="detail-block">
             <div class="meta-grid" id="knowledge-detail-meta">
               <p class="empty">No knowledge selected.</p>
+            </div>
+          </div>
+
+          <div class="detail-block candidate-review-block" id="knowledge-candidate-review-block">
+            <div class="panel-header" style="padding:0 0 12px; border:0; background:none;">
+              <h3 class="panel-title">Candidate Review</h3>
+              <span class="stamp" id="knowledge-candidate-review-status">inactive</span>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="knowledge-review-candidate-id">Candidate ID</label>
+                <input id="knowledge-review-candidate-id" name="candidate_id" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="knowledge-review-note">Note</label>
+                <input id="knowledge-review-note" name="note" autocomplete="off">
+              </div>
+            </div>
+            <div class="field">
+              <label for="knowledge-review-refined-text">Refined Text</label>
+              <textarea id="knowledge-review-refined-text" name="refined_text"></textarea>
+            </div>
+            <div class="field-grid">
+              <div class="field">
+                <label for="knowledge-confirm-supersede">Confirm Supersede</label>
+                <select id="knowledge-confirm-supersede" name="confirm_supersede">
+                  <option value="">no</option>
+                  <option value="supersede">supersede</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="knowledge-confirm-supersede-targets">Supersede Target IDs</label>
+                <input id="knowledge-confirm-supersede-targets" name="confirmed_supersede_target_ids" autocomplete="off">
+              </div>
+              <div class="field">
+                <label for="knowledge-confirm-conflict">Confirm Conflict</label>
+                <select id="knowledge-confirm-conflict" name="confirm_conflict">
+                  <option value="">no</option>
+                  <option value="conflict">conflict</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="knowledge-confirm-conflict-flags">Conflict Flags</label>
+                <input id="knowledge-confirm-conflict-flags" name="confirmed_conflict_flags" autocomplete="off">
+              </div>
+            </div>
+            <div class="button-row">
+              <button id="knowledge-detail-promote-button" type="button">Promote</button>
+              <button id="knowledge-detail-reject-button" type="button">Reject</button>
             </div>
           </div>
 
@@ -929,7 +1087,8 @@
           selectedObjectId: "",
           detail: null,
           relations: null
-        }
+        },
+        wikiJobs: []
       };
 
       const taskSurface = document.getElementById("task-surface");
@@ -985,6 +1144,29 @@
       const knowledgeRelationList = document.getElementById("knowledge-relation-list");
       const knowledgeTextStatus = document.getElementById("knowledge-text-status");
       const knowledgeText = document.getElementById("knowledge-text");
+      const wikiAuthoringForm = document.getElementById("wiki-authoring-form");
+      const wikiAuthoringMode = document.getElementById("wiki-authoring-mode");
+      const wikiTaskId = document.getElementById("wiki-task-id");
+      const wikiTopic = document.getElementById("wiki-topic");
+      const wikiTargetObjectId = document.getElementById("wiki-target-object-id");
+      const wikiSourceRefs = document.getElementById("wiki-source-refs");
+      const wikiModel = document.getElementById("wiki-model");
+      const wikiParserVersion = document.getElementById("wiki-parser-version");
+      const wikiSourceSpan = document.getElementById("wiki-source-span");
+      const wikiHeadingPath = document.getElementById("wiki-heading-path");
+      const wikiAuthoringStatus = document.getElementById("wiki-authoring-status");
+      const wikiJobList = document.getElementById("wiki-job-list");
+      const wikiPrefillSelectedButton = document.getElementById("wiki-prefill-selected-button");
+      const knowledgeReviewCandidateId = document.getElementById("knowledge-review-candidate-id");
+      const knowledgeReviewNote = document.getElementById("knowledge-review-note");
+      const knowledgeReviewRefinedText = document.getElementById("knowledge-review-refined-text");
+      const knowledgeConfirmSupersede = document.getElementById("knowledge-confirm-supersede");
+      const knowledgeConfirmSupersedeTargets = document.getElementById("knowledge-confirm-supersede-targets");
+      const knowledgeConfirmConflict = document.getElementById("knowledge-confirm-conflict");
+      const knowledgeConfirmConflictFlags = document.getElementById("knowledge-confirm-conflict-flags");
+      const knowledgeCandidateReviewStatus = document.getElementById("knowledge-candidate-review-status");
+      const knowledgeDetailPromoteButton = document.getElementById("knowledge-detail-promote-button");
+      const knowledgeDetailRejectButton = document.getElementById("knowledge-detail-reject-button");
       const knowledgeStatusOptions = {
         wiki: ["active", "superseded", "all"],
         canonical: ["active", "superseded", "all"],
@@ -1017,13 +1199,20 @@
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) {
           const detail = typeof payload.detail === "string" ? payload.detail : JSON.stringify(payload.detail || payload);
-          throw new Error(`${response.status} ${detail}`);
+          const error = new Error(`${response.status} ${detail}`);
+          error.payload = payload;
+          error.status = response.status;
+          throw error;
         }
         return payload;
       }
 
       function setCommandStatus(message) {
         commandStatus.textContent = message;
+      }
+
+      function setWikiAuthoringStatus(message) {
+        wikiAuthoringStatus.textContent = message;
       }
 
       async function runCommand(label, callback) {
@@ -1041,6 +1230,94 @@
 
       function commandData(payload) {
         return payload && payload.data ? payload.data : payload;
+      }
+
+      function splitInputTokens(value) {
+        return String(value || "")
+          .split(/[\n,]+/)
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+
+      function selectedKnowledgeDetail() {
+        return state.knowledge.detail || {};
+      }
+
+      function syncWikiAuthoringFromSelection() {
+        const detail = selectedKnowledgeDetail();
+        if (detail.task_id) {
+          wikiTaskId.value = detail.task_id;
+        } else if (state.selectedTaskId) {
+          wikiTaskId.value = state.selectedTaskId;
+        }
+        if (detail.object_id) {
+          wikiTargetObjectId.value = detail.object_id;
+          if (!wikiTopic.value && detail.topic) {
+            wikiTopic.value = detail.topic;
+          }
+        }
+        const sourceRefs = sourcePackRefs(Array.isArray(detail.source_pack) ? detail.source_pack : []);
+        if (!wikiSourceRefs.value && sourceRefs.length) {
+          wikiSourceRefs.value = sourceRefs.join("\n");
+        }
+        setWikiAuthoringStatus(detail.object_id ? `Prefilled from ${detail.object_id}.` : "Prefilled from selected task.");
+      }
+
+      function renderWikiJobs() {
+        if (!state.wikiJobs.length) {
+          wikiJobList.innerHTML = '<li class="empty">No wiki jobs in this browser session.</li>';
+          return;
+        }
+
+        wikiJobList.innerHTML = state.wikiJobs.map((job) => `
+          <li class="wiki-job-item">
+            <div class="wiki-job-row">
+              <span>${escapeHtml(job.job_id)}</span>
+              <span class="task-meta">${escapeHtml(job.status)}</span>
+            </div>
+            <div class="artifact-path">${escapeHtml(job.action)} · ${escapeHtml(job.task_id)} · ${escapeHtml(job.candidate_id || "-")}</div>
+            ${job.error ? `<div class="artifact-path">${escapeHtml(job.error)}</div>` : ""}
+            ${job.candidate_id ? `<button type="button" class="artifact-button" data-wiki-candidate-id="${escapeHtml(job.candidate_id)}">${escapeHtml(job.candidate_id)}</button>` : ""}
+          </li>
+        `).join("");
+
+        document.querySelectorAll("[data-wiki-candidate-id]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            await openStagedCandidate(button.dataset.wikiCandidateId || "");
+          });
+        });
+      }
+
+      function recordWikiJob(job) {
+        if (!job || !job.job_id) {
+          return;
+        }
+        state.wikiJobs = [job]
+          .concat(state.wikiJobs.filter((item) => item.job_id !== job.job_id))
+          .slice(0, 12);
+        renderWikiJobs();
+      }
+
+      async function pollWikiJobs() {
+        const activeJobs = state.wikiJobs.filter((job) => ["queued", "running"].includes(String(job.status || "")));
+        if (!activeJobs.length) {
+          renderWikiJobs();
+          return;
+        }
+        const updates = await Promise.all(activeJobs.map((job) => fetchJson(`/api/wiki/jobs/${encodeURIComponent(job.job_id)}`)));
+        updates.forEach((payload) => recordWikiJob(commandData(payload).job));
+      }
+
+      async function openStagedCandidate(candidateId) {
+        if (!candidateId) {
+          return;
+        }
+        state.surface = "knowledge";
+        state.knowledge.kind = "staged";
+        state.knowledge.statusByKind.staged = "pending";
+        state.knowledge.selectedObjectId = candidateId;
+        renderSurface();
+        await refreshKnowledge();
       }
 
       function statusClass(status) {
@@ -1193,6 +1470,126 @@
           `).join("");
       }
 
+      function relationMetadata(detail) {
+        return Array.isArray(detail.relation_metadata) ? detail.relation_metadata : [];
+      }
+
+      function supersedeTargetsFromDetail(detail) {
+        return relationMetadata(detail)
+          .filter((item) => item.relation_type === "supersedes")
+          .map((item) => String(item.target_object_id || item.canonical_id || "").trim())
+          .filter(Boolean);
+      }
+
+      function renderCandidateReview(detail) {
+        const isPendingStaged = Boolean(detail && detail.object_kind === "staged" && detail.status === "pending");
+        const candidateId = isPendingStaged ? (detail.candidate_id || detail.object_id || "") : "";
+        const supersedeTargets = isPendingStaged ? supersedeTargetsFromDetail(detail) : [];
+        const conflictFlag = isPendingStaged ? String(detail.conflict_flag || "").trim() : "";
+        const candidateChanged = knowledgeReviewCandidateId.value !== candidateId;
+
+        knowledgeReviewCandidateId.value = candidateId;
+        if (candidateChanged) {
+          knowledgeReviewNote.value = "";
+          knowledgeReviewRefinedText.value = "";
+        }
+        knowledgeConfirmSupersede.value = "";
+        knowledgeConfirmConflict.value = "";
+        knowledgeConfirmSupersedeTargets.value = supersedeTargets.join(", ");
+        knowledgeConfirmConflictFlags.value = conflictFlag;
+        knowledgeCandidateReviewStatus.textContent = isPendingStaged ? "pending" : "inactive";
+        knowledgeDetailPromoteButton.disabled = !isPendingStaged;
+        knowledgeDetailRejectButton.disabled = !isPendingStaged;
+      }
+
+      function stageReviewPayload() {
+        const confirmedNoticeTypes = [];
+        if (knowledgeConfirmSupersede.value) {
+          confirmedNoticeTypes.push(knowledgeConfirmSupersede.value);
+        }
+        if (knowledgeConfirmConflict.value) {
+          confirmedNoticeTypes.push(knowledgeConfirmConflict.value);
+        }
+        return {
+          note: knowledgeReviewNote.value,
+          refined_text: knowledgeReviewRefinedText.value,
+          confirmed_notice_types: confirmedNoticeTypes,
+          confirmed_supersede_target_ids: splitInputTokens(knowledgeConfirmSupersedeTargets.value),
+          confirmed_conflict_flags: splitInputTokens(knowledgeConfirmConflictFlags.value)
+        };
+      }
+
+      function renderPromotePreflight(notices) {
+        const supersedeTargets = [];
+        const conflictFlags = [];
+        (notices || []).forEach((notice) => {
+          if (notice.notice_type === "supersede") {
+            const target = String(notice.target_object_id || notice.canonical_id || "").trim();
+            if (target) {
+              supersedeTargets.push(target);
+            }
+          }
+          if (notice.notice_type === "conflict") {
+            const flag = String(notice.conflict_flag || "").trim();
+            if (flag) {
+              conflictFlags.push(flag);
+            }
+          }
+        });
+        if (supersedeTargets.length) {
+          knowledgeConfirmSupersedeTargets.value = Array.from(new Set(supersedeTargets)).join(", ");
+        }
+        if (conflictFlags.length) {
+          knowledgeConfirmConflictFlags.value = Array.from(new Set(conflictFlags)).join(", ");
+        }
+        knowledgeCandidateReviewStatus.textContent = (notices || [])
+          .map((notice) => `${notice.notice_type}:${notice.target_object_id || notice.conflict_flag || notice.canonical_id || ""}`)
+          .join(" · ") || "confirmation required";
+      }
+
+      function wikiAuthoringPayload() {
+        const mode = wikiAuthoringMode.value;
+        const taskId = wikiTaskId.value || state.selectedTaskId;
+        const sourceRefs = splitInputTokens(wikiSourceRefs.value);
+        if (mode === "draft") {
+          return {
+            path: "/api/wiki/draft",
+            label: "Wiki draft",
+            body: {
+              task_id: taskId,
+              topic: wikiTopic.value,
+              source_refs: sourceRefs,
+              model: wikiModel.value
+            }
+          };
+        }
+        if (mode === "refresh-evidence") {
+          return {
+            path: "/api/wiki/refresh-evidence",
+            label: "Refresh evidence",
+            body: {
+              task_id: taskId,
+              target_object_id: wikiTargetObjectId.value,
+              source_ref: sourceRefs[0] || "",
+              parser_version: wikiParserVersion.value,
+              span: wikiSourceSpan.value,
+              heading_path: wikiHeadingPath.value
+            }
+          };
+        }
+        return {
+          path: "/api/wiki/refine",
+          label: mode === "refine-supersede" ? "Wiki refine supersede" : "Wiki refine refines",
+          body: {
+            task_id: taskId,
+            mode: mode === "refine-supersede" ? "supersede" : "refines",
+            target_object_id: wikiTargetObjectId.value,
+            source_refs: sourceRefs,
+            model: wikiModel.value
+          }
+        };
+      }
+
       function renderKnowledgeDetail(detail, relations) {
         if (!detail) {
           knowledgeDetailTitle.textContent = "Knowledge Detail";
@@ -1204,6 +1601,7 @@
           knowledgeRelationList.innerHTML = '<p class="empty">Relations will appear here.</p>';
           knowledgeTextStatus.textContent = "empty";
           knowledgeText.textContent = "No knowledge selected.";
+          renderCandidateReview(null);
           return;
         }
 
@@ -1212,6 +1610,7 @@
         knowledgeTextStatus.textContent = detail.status || "unknown";
         knowledgeText.textContent = detail.text || "(empty)";
         renderKnowledgeMeta(detail);
+        renderCandidateReview(detail);
         renderKnowledgeSources(detail);
         renderKnowledgeRelations(relations || {});
       }
@@ -1603,6 +2002,32 @@
         lastRefresh.textContent = `Refreshed ${new Date().toLocaleTimeString()}`;
       });
 
+      wikiPrefillSelectedButton.addEventListener("click", () => {
+        syncWikiAuthoringFromSelection();
+      });
+
+      wikiAuthoringForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const command = wikiAuthoringPayload();
+        try {
+          setWikiAuthoringStatus(`${command.label}...`);
+          const payload = await postJson(command.path, command.body);
+          const data = commandData(payload);
+          if (data.job) {
+            recordWikiJob(data.job);
+            await pollWikiJobs();
+            setWikiAuthoringStatus(`${command.label} queued: ${data.job.job_id}`);
+          } else if (data.refresh) {
+            setWikiAuthoringStatus(`Evidence refreshed: ${data.refresh.target_object_id}`);
+            await refreshKnowledge();
+          } else {
+            setWikiAuthoringStatus(`${command.label} ok`);
+          }
+        } catch (error) {
+          setWikiAuthoringStatus(`${command.label} failed: ${error.message}`);
+        }
+      });
+
       syncKnowledgeStatusOptions();
       renderSurface();
 
@@ -1668,6 +2093,50 @@
         ));
       });
 
+      knowledgeDetailPromoteButton.addEventListener("click", async () => {
+        const candidateId = knowledgeReviewCandidateId.value;
+        if (!candidateId) {
+          setWikiAuthoringStatus("Select a pending staged candidate first.");
+          return;
+        }
+        try {
+          setWikiAuthoringStatus(`Promote ${candidateId}...`);
+          await postJson(
+            `/api/knowledge/staged/${encodeURIComponent(candidateId)}/promote`,
+            stageReviewPayload()
+          );
+          setWikiAuthoringStatus(`Promoted ${candidateId}.`);
+          await refreshKnowledge();
+        } catch (error) {
+          const notices = error.payload && error.payload.detail ? error.payload.detail.notices : [];
+          if (error.status === 409 && notices) {
+            renderPromotePreflight(notices);
+            setWikiAuthoringStatus(`Promotion needs explicit confirmation for ${candidateId}.`);
+            return;
+          }
+          setWikiAuthoringStatus(`Promote failed: ${error.message}`);
+        }
+      });
+
+      knowledgeDetailRejectButton.addEventListener("click", async () => {
+        const candidateId = knowledgeReviewCandidateId.value;
+        if (!candidateId) {
+          setWikiAuthoringStatus("Select a pending staged candidate first.");
+          return;
+        }
+        try {
+          setWikiAuthoringStatus(`Reject ${candidateId}...`);
+          await postJson(
+            `/api/knowledge/staged/${encodeURIComponent(candidateId)}/reject`,
+            { note: knowledgeReviewNote.value }
+          );
+          setWikiAuthoringStatus(`Rejected ${candidateId}.`);
+          await refreshKnowledge();
+        } catch (error) {
+          setWikiAuthoringStatus(`Reject failed: ${error.message}`);
+        }
+      });
+
       document.getElementById("proposal-review-button").addEventListener("click", async () => {
         const payload = await runCommand("Review proposal", async () => postJson("/api/proposals/review", {
           bundle_path: proposalBundlePath.value,
@@ -1689,6 +2158,15 @@
       refresh().catch((error) => {
         detailSummary.textContent = `Failed to load dashboard: ${error.message}`;
       });
+
+      setInterval(() => {
+        if (state.surface !== "knowledge") {
+          return;
+        }
+        pollWikiJobs().catch((error) => {
+          setWikiAuthoringStatus(`Wiki job poll failed: ${error.message}`);
+        });
+      }, 2500);
     </script>
   </body>
 </html>

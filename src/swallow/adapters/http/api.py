@@ -419,6 +419,9 @@ def create_fastapi_app(base_dir: Path):
             note=stage_request.note,
             refined_text=stage_request.refined_text,
             force=False,
+            confirmed_notice_types=stage_request.confirmed_notice_types,
+            confirmed_supersede_target_ids=stage_request.confirmed_supersede_target_ids,
+            confirmed_conflict_flags=stage_request.confirmed_conflict_flags,
         )
         return StagePromoteEnvelope.from_result(result)
 

@@ -187,6 +187,7 @@ def build_stage_promote_preflight_notices(
             {
                 "notice_type": "conflict",
                 "canonical_id": candidate.target_object_id or candidate.source_object_id or candidate.candidate_id,
+                "conflict_flag": candidate.conflict_flag,
                 "text_preview": summarize_text_preview(candidate.conflict_flag or candidate.text, 60),
             }
         )
@@ -200,15 +201,25 @@ def promote_stage_candidate_command(
     note: str,
     refined_text: str = "",
     force: bool = False,
+    confirmed_notice_types: list[str] | None = None,
+    confirmed_supersede_target_ids: list[str] | None = None,
+    confirmed_conflict_flags: list[str] | None = None,
 ) -> StagePromoteCommandResult:
     candidate = resolve_stage_candidate(base_dir, candidate_id)
     if candidate.status != "pending":
         raise ValueError(f"Staged candidate is already decided: {candidate.candidate_id} ({candidate.status})")
     canonical_records = read_json_lines_or_empty(canonical_registry_path(base_dir))
     notices = build_stage_promote_preflight_notices(canonical_records, candidate)
-    if any(notice.get("notice_type") == "supersede" for notice in notices) and not force:
+    missing_confirmations = _missing_stage_promote_confirmations(
+        notices,
+        candidate,
+        confirmed_notice_types=confirmed_notice_types or [],
+        confirmed_supersede_target_ids=confirmed_supersede_target_ids or [],
+        confirmed_conflict_flags=confirmed_conflict_flags or [],
+    )
+    if any(notice.get("notice_type") == "supersede" for notice in missing_confirmations) and not force:
         raise StagePromotePreflightError("Supersede notice detected; rerun with --force to confirm promotion.", notices)
-    if any(notice.get("notice_type") == "conflict" for notice in notices) and not force:
+    if any(notice.get("notice_type") == "conflict" for notice in missing_confirmations) and not force:
         raise StagePromotePreflightError("Conflict notice detected; rerun with --force to confirm promotion.", notices)
     decision_note = note.strip()
     if refined_text.strip():
@@ -344,6 +355,32 @@ def _find_canonical_supersede_target(
         ):
             return record
     return None
+
+
+def _missing_stage_promote_confirmations(
+    notices: list[dict[str, str]],
+    candidate: StagedCandidate,
+    *,
+    confirmed_notice_types: list[str],
+    confirmed_supersede_target_ids: list[str],
+    confirmed_conflict_flags: list[str],
+) -> list[dict[str, str]]:
+    confirmed_types = {str(item).strip() for item in confirmed_notice_types if str(item).strip()}
+    confirmed_targets = {str(item).strip() for item in confirmed_supersede_target_ids if str(item).strip()}
+    confirmed_conflicts = {str(item).strip() for item in confirmed_conflict_flags if str(item).strip()}
+    missing: list[dict[str, str]] = []
+
+    for notice in notices:
+        notice_type = str(notice.get("notice_type", "")).strip()
+        if notice_type == "supersede":
+            required_target = str(notice.get("target_object_id", "") or notice.get("canonical_id", "")).strip()
+            if notice_type not in confirmed_types or (required_target and required_target not in confirmed_targets):
+                missing.append(notice)
+        elif notice_type == "conflict":
+            required_flag = str(notice.get("conflict_flag", "") or candidate.conflict_flag).strip()
+            if notice_type not in confirmed_types or (required_flag and required_flag not in confirmed_conflicts):
+                missing.append(notice)
+    return missing
 
 
 def _has_stage_promote_notice(notices: list[dict[str, str]], notice: dict[str, str]) -> bool:
