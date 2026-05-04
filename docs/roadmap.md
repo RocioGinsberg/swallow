@@ -25,8 +25,8 @@ status: living-document
 | **知识捕获** | `swl note` / clipboard / `generic_chat_json` / local file ingestion 已可进入 staged review 管线 |
 | **检索基础设施** | Retrieval U-T-Y 已落地:dedicated rerank boundary、retrieval trace、source policy warnings、EvidencePack compatibility view、RawMaterialStore-backed source pointer resolution、summary route boundary |
 | **治理边界** | `apply_proposal`、SQLite-primary truth、Path A/B/C、§9 guard suite 均已实现到稳定基线 |
-| **Agent 体系** | 4 Specialist + 1 Authoring Specialist(Wiki Compiler first stage 已落地)+ 2 Validator 独立生命周期已落地;具体品牌绑定见 `docs/design/EXECUTOR_REGISTRY.md` |
-| **当前重构状态** | **簇 C 已归档 + LTO-13 / LTO-6 / LTO-1 三个 v1.x 节点全部落地 + Hygiene Bundle 已完成**:LTO-7/8/9/10 全部完成(详情见 git log + closeouts);LTO-13 已 merge(`4ea7a9d`)tag `v1.7.0` at `2156d4a`;LTO-6 已 merge(`883e2a9`)`knowledge_plane.py` 升级为 functional facade,24 处绕过全部清零;**LTO-1 已 merge(`349efa9`)tag `v1.8.0` at `d6f2442`** 首次 LLM-内知识编译能力进入本地 operator workflow;**Hygiene Bundle 已 merge(`e656bd3 refactor(hygiene): close service boundaries and router follow-ups`)**,`surface_tools/` 包整体删除,application service / infrastructure 进 `application/{services,infrastructure}/`,LTO-6 facade alias + LTO-7 router 私名耦合 + `_BUILTIN_ROUTE_FALLBACKS` ownership 全部清零,不 cut tag。当前**近期队列无主动实现 ticket**,后续方向由真实使用反馈与下一 Direction Gate 决定。 |
+| **Agent 体系** | 4 Specialist + 1 Authoring Specialist(Wiki Compiler 第一 + 第二阶段已落地)+ 2 Validator 独立生命周期已落地;具体品牌绑定见 `docs/design/EXECUTOR_REGISTRY.md` |
+| **当前重构状态** | **簇 C 已归档 + LTO-13 / LTO-6 / LTO-1(stage 1 + stage 2)三个 v1.x 节点全部落地 + Hygiene Bundle 已完成**:LTO-7/8/9/10 全部完成(详情见 git log + closeouts);LTO-13 已 merge(`4ea7a9d`)tag `v1.7.0` at `2156d4a`;LTO-6 已 merge(`883e2a9`)`knowledge_plane.py` 升级为 functional facade;LTO-1 第一阶段已 merge(`349efa9`)tag `v1.8.0` at `d6f2442` 首次 LLM-内编译能力进入本地 operator workflow;**LTO-1 第二阶段已 merge(`21f8dc8`)** governed supersede apply + derived_from evidence objectization + Web fire-and-poll authoring + 结构化 confirmation UX,**不单独 cut tag**(stage 2 是 stage 1 能力的质量提升与 Web 可观察面拓宽,非新能力跃迁;后续累积可 cut v1.9.0 标记"知识 authoring 闭环成熟")。Hygiene Bundle 已收口 D4 Phase B/C + LTO-6 C1 alias + LTO-7 follow-up 私名耦合。当前**近期队列无主动实现 ticket**,后续方向由真实使用反馈与下一 Direction Gate 决定。 |
 | **架构身份** | 项目事实上的架构 = **Hexagonal (Ports & Adapters)**;driving adapters = `adapters/{cli,http}/`;application layer = `application/{commands,queries,services,infrastructure}/`(D4 Phase A/B/C 全部已落地);domain / control plane = `orchestration/` + `knowledge_retrieval/`(D1/LTO-6 已收口为 functional facade)+ `truth_governance/` + `provider_router/`(LTO-7 follow-up 已收口);driven adapters / infrastructure = `truth_governance/sqlite_store.py` + `provider_router/completion_gateway.py` + `_io_helpers.py` 等。**`surface_tools/` 包已整体删除**(原 application service 类文件搬到 `application/services/`,原路径/工作区类搬到 `application/infrastructure/`)。已识别 6 项偏离 D1-D6,**D1 / D4(全部 Phase A+B+C)/ D5 已落地**;D2 / D3 / D6 deferred;修复路径见 §五。 |
 | **工程纪律** | 长期编码 / 重构遵循 `docs/engineering/CODE_ORGANIZATION.md`(分层 / facade-first / migration discipline)+ `docs/engineering/GOF_PATTERN_ALIGNMENT.md`(facade / strategy / repository / adapter / value object / state / pipeline 等 pattern 仅作为 responsibility language)+ `docs/engineering/TEST_ARCHITECTURE.md`(分层测试 / TDD harness)+ `docs/engineering/ARCHITECTURE_DECISIONS.md`(已 merge:架构身份 = Hexagonal、当前已用模式清单 + 已识别 6 项偏离 D1-D6 的修复路径)+ `docs/engineering/ADAPTER_DISCIPLINE.md`(已 merge:LTO-13 audit 教训编纂的 adapter 实施纪律,6 条规则 + 强制模块布局 + 16 项 worked examples)。LTO-13 R3 audit 暴露的 framework-rejection 系统性问题已由 D5 Adapter Discipline Codification 编纂,后续每个 adapter / specialist phase 起草前必读。 |
 
@@ -49,8 +49,8 @@ status: living-document
 
 | ID | 长期目标 | 当前状态 | 下一类增量 | 工程锚点 |
 |----|----------|----------|------------|----------------|
-| **LTO-1** | Knowledge Authoring / LLM Wiki Compiler(authoring specialist) | **第一阶段已完成,merge `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`**(2026-05-04)。交付:`swl wiki draft` / `swl wiki refine --mode supersede\|refines` / `swl wiki refresh-evidence`;Wiki Compiler specialist 直接注册为 `WikiCompilerAgent`;LLM Path C 经 Provider Router;只写 task artifacts + staged knowledge;staged candidate 保留 source pack / rationale / relation metadata / conflict_flag;Knowledge Browse read routes + Web Knowledge panel 落地;M5 guard/eval 保护 propose-only 与 parser-versioned evidence anchor 边界。 | `v1.8.0` release tag 后进入后续触发模式。下一类增量:Web 侧 Wiki Compiler trigger、fire-and-poll runner、`supersedes` 状态翻转、`derived_from` evidence/object-id 设计、retrieval quality / bounded excerpt / conflict UX,均需真实需求或下一 phase plan 明确触发。 | `KNOWLEDGE.md`, `SELF_EVOLUTION.md`, `EXECUTOR_REGISTRY.md`, `ADAPTER_DISCIPLINE.md` |
-| **LTO-2** | Retrieval Quality / Evidence Serving | Retrieval U-T-Y 第一阶段完成:trace、dedicated rerank、source policy、EvidencePack view、source pointers、summary boundary | bounded excerpt、conflict flags、eval hardening、wiki compiler integration、report UX polish | `KNOWLEDGE.md`, `HARNESS.md` |
+| **LTO-1** | Knowledge Authoring / LLM Wiki Compiler(authoring specialist) | **第一阶段已完成,merge `349efa9`**(2026-05-04;v1.8.0 tagged at `d6f2442`):`swl wiki draft` / `swl wiki refine --mode supersede\|refines` / `swl wiki refresh-evidence` 三命令;Wiki Compiler specialist 注册为 `WikiCompilerAgent`;LLM Path C 经 Provider Router;只写 task artifacts + staged knowledge;staged candidate 保留 source pack / rationale / relation metadata / conflict_flag;Knowledge Browse read routes + Web Knowledge panel(read-only);M5 guard/eval。**第二阶段已完成,merge `21f8dc8`**(2026-05-04,不 cut tag):`_CanonicalProposal.supersede_target_ids` + `_promote_canonical` target-id flip(governed supersede 走 `apply_proposal`);`materialize_source_evidence_from_canonical_record` 把 source_pack 锚点物化为 evidence object 并通过 `derived_from` relation 持久(类型守卫 source=wiki / target=evidence);Web fire-and-poll API(FastAPI `BackgroundTasks` 原语);静态 Web authoring 面板 + 结构化 `confirmed_notice_types` 替代 raw `force`;5 个 M5 guard 强制 propose-only / adapter boundary / supersede apply ownership / derived_from target / evidence anchor versioning。`KNOWLEDGE_RELATION_TYPES` 加入 `derived_from`(双枚举分层延续:metadata 5 类型 vs persisted 6 类型,`supersedes` 仍只翻 status field 不持 row)。 | 后续触发模式。下一类增量(stage 3 候选,真实需求触发):cross-candidate evidence dedup(已在 backlog Roadmap-Bound 由 LTO-2 消化)、`know_evidence` schema migration(已在 backlog Active Open)、Wiki Compiler 视图 3 全图谱可视化(deferred to Graph RAG)、relation creation site decision matrix(LTO-1 stage 2 review C1 已 fold 进 closeout,但未来若引入新 relation 类型需要重新审视) | `KNOWLEDGE.md`, `SELF_EVOLUTION.md`, `EXECUTOR_REGISTRY.md`, `ADAPTER_DISCIPLINE.md` |
+| **LTO-2** | Retrieval Quality / Evidence Serving | Retrieval U-T-Y 第一阶段完成:trace、dedicated rerank、source policy、EvidencePack view、source pointers、summary boundary。**LTO-1 stage 2 留下的 cross-candidate evidence dedup 已 backlog Roadmap-Bound 至 LTO-2** | bounded excerpt、conflict flags、eval hardening、wiki compiler integration、report UX polish、**source-anchor dedup / global evidence identity / relation expansion 去重**(由 LTO-1 stage 2 触发) | `KNOWLEDGE.md`, `HARNESS.md` |
 
 ### 簇 B:架构重构 + 接口边界 + 工程纪律(活跃推进)
 
@@ -80,18 +80,20 @@ LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成,v1.6.0 t
 
 近期队列只放下一两个可执行 ticket。Ticket 完成后移出本节,它的后续增量回到上面的长期目标(已完成 ticket 不在此重复留底,见 git log)。
 
-D5 Adapter Discipline + D4 Phase A + LTO-6 Knowledge Plane Facade Solidification + LTO-1 Wiki Compiler 第一阶段 + Hygiene Bundle 全部已落地(2026-05-03 → 2026-05-04;commits `d67c2ad` `7450953` `883e2a9` `349efa9` `e656bd3`,tag `v1.8.0` at `d6f2442`;Hygiene Bundle 不 cut tag)。
+D5 Adapter Discipline + D4 Phase A + LTO-6 Knowledge Plane Facade Solidification + LTO-1 Wiki Compiler 第一阶段 + Hygiene Bundle + LTO-1 Wiki Compiler 第二阶段全部已落地(2026-05-03 → 2026-05-04;commits `d67c2ad` `7450953` `883e2a9` `349efa9` `e656bd3` `21f8dc8`,tag `v1.8.0` at `d6f2442`;Hygiene Bundle 与 LTO-1 stage 2 不 cut tag)。
 
-**当前近期队列:空。** Hygiene Bundle 已按压缩流程完成:D4 Phase B/C(`surface_tools` residual services/infrastructure → `application/services` / `application/infrastructure`)、LTO-6 review C1 alias cleanup、LTO-7 follow-up (2)/(3)(`router.py` 私名引用拆出 + `_BUILTIN_ROUTE_FALLBACKS` 搬到 `route_registry.py`)。该 bundle 无新功能 / 无新 LLM 调用 / 无新 invariant / 无 schema 改动,不 cut tag。下一步从下方 Direction Gate 候选清单中选下一个 phase。
+**当前近期队列:空。** LTO-1 第二阶段已把 stage 1 deferred 项(supersedes flip / derived_from evidence id / Web LLM trigger / fire-and-poll runner / 结构化 confirmation UX)全部消化。Web Wiki Compiler 现在是闭环的 authoring → review → promote → canonical workflow。从 backlog 已知 active concerns 看,**真实使用反馈尚未触发任何新 phase**。下一启动方向需 Direction Gate 选定。
 
-**Direction Gate 候选(Hygiene Bundle 完成后由 Human 选定)**:
+**Direction Gate 候选(LTO-1 第二阶段完成后由 Human 选定)**:
 
-| 候选方向 | 触发条件 / 信号 | 性质 |
-|---|---|---|
-| **Wiki Compiler 第二阶段** | 第一阶段 deferred 项的真实摩擦:`supersedes` 状态翻转 / `derived_from` evidence-id 设计 / Web 侧 LLM trigger / fire-and-poll runner 等 | 产品向 / LTO-1 增量 |
-| **LTO-2 retrieval quality 增量** | 实际 retrieval 痛点:bounded excerpt / eval hardening / wiki compiler integration / report UX polish | 产品向 / LTO-2 增量 |
-| **LTO-4 Test Architecture / TDD Harness** | 测试隔离 / builders / `test_cli.py` 聚合度过高的痛点 | 工程纪律 |
-| **D2 LTO-5 Driven Ports Rollout 第一个 port** | 测试需要 mock application boundary / 引入 second adapter / 注入复杂度提升 | 架构重构 |
+| 候选方向 | 触发条件 / 信号 | 性质 | 优先级提示 |
+|---|---|---|---|
+| **LTO-2 retrieval quality 增量** | LTO-1 stage 2 已留下 cross-candidate evidence dedup(backlog Roadmap-Bound)+ bounded excerpt / eval hardening / wiki compiler integration / report UX polish。**已有硬触发条件**(LTO-1 stage 2 evidence 重复风险 + 真实使用质量痛点) | 产品向 / LTO-2 增量 | **当前最高**(LTO-1 stage 2 留下的真痛点) |
+| **Wiki Compiler 第三阶段** | LTO-1 stage 2 close-loop 后真实使用反馈:cross-task evidence lookup / global evidence-id schema migration / 视图 3 全图谱 / 多 worker durable job runner / 文件上传 source ingestion 等 | 产品向 / LTO-1 增量 | 中(等真实 Operator 使用反馈) |
+| **LTO-4 Test Architecture / TDD Harness** | 测试隔离 / builders / `test_cli.py` 聚合度过高的痛点 | 工程纪律 | 中(测试痛点累积速度未达 LTO-2 水平) |
+| **D2 LTO-5 Driven Ports Rollout 第一个 port** | 测试需要 mock application boundary / 引入 second adapter / 注入复杂度提升 | 架构重构 | 中(注入复杂度尚未碰到边界) |
+
+**Recommendation 提示**:从 backlog Active Open + Roadmap-Bound 现状看,**LTO-2 retrieval quality 增量**有最强的真实触发(LTO-1 stage 2 evidence dedup 已绑定到此候选);Wiki Compiler 第三阶段 / LTO-4 / D2 都属于"等使用产生痛点再做"。最终 Human Direction Gate 决定。
 
 **未列入近期队列(deferred)**:
 
@@ -99,6 +101,7 @@ D5 Adapter Discipline + D4 Phase A + LTO-6 Knowledge Plane Facade Solidification
 - **D3 Orchestrator God Object 拆分** —— 等 D2 部分落定后做,巨大 phase。
 - **LTO-8 follow-up:`debate_loop_core` 9 callable 注入** —— `execution_attempts.py:254` 持有 loop termination 控制,与 helper 不持 state-touching 控制权的纪律边缘相似;callables 是 telemetry-only(技术上守住 INVARIANTS)。**Revisit at LTO-11**(Planner / DAG / Strategy Router)首次设计 loop control pattern 时一并处理。
 - **Wiki Compiler 视图 3(项目级全图谱可视化)**—— 当前 wiki 节点量在全图谱不友好区间;违反 LTO-13 §M3 "no new frontend package, build step, or asset pipeline";视真实需求或 Graph RAG 远期方向(`KNOWLEDGE.md §9`)再评估。
+- **`know_evidence` schema migration** —— LTO-1 stage 2 backlog Active Open 项(DATA_MODEL §3.3 设计草案 vs `knowledge_evidence` 实际 schema 长期不一致);跨任务 evidence lookup / 全局 evidence id 唯一性需求触发时开独立 schema migration phase。
 - LTO-13 deferred 项(fire-and-poll background runner、staged-knowledge force Web UX、文件上传、route policy admin write controls)—— 真实需求触发再开 phase。
 
 ---
@@ -127,23 +130,23 @@ D5 Adapter Discipline + D4 Phase A + LTO-6 Knowledge Plane Facade Solidification
 
 ## 五、推荐顺序
 
-**Retrieval 第一阶段(done) → Architecture first branch(done) → 簇 C 四金刚(done;v1.6.0) → LTO-13 FastAPI Local Web UI(done;v1.7.0) → D5 Adapter Discipline + D4 Phase A(done) → LTO-6 Knowledge Plane Facade Solidification(done) → LTO-1 Wiki Compiler 第一阶段(done;v1.8.0) → Hygiene Bundle(done;D4 Phase B/C + LTO-6 C1 alias + LTO-7 follow-up;不 cut tag) → 等待真实需求触发下一方向(Wiki Compiler 第二阶段 / LTO-2 retrieval quality / LTO-4 / D2 LTO-5 driven ports 等)**
+**Retrieval 第一阶段(done) → Architecture first branch(done) → 簇 C 四金刚(done;v1.6.0) → LTO-13 FastAPI Local Web UI(done;v1.7.0) → D5 Adapter Discipline + D4 Phase A(done) → LTO-6 Knowledge Plane Facade Solidification(done) → LTO-1 Wiki Compiler 第一阶段(done;v1.8.0) → Hygiene Bundle(done;不 cut tag) → LTO-1 Wiki Compiler 第二阶段(done;不 cut tag) → 等待 Direction Gate(LTO-2 retrieval quality 优先 / Wiki Compiler 第三阶段 / LTO-4 / D2 LTO-5 driven ports)**
 
 簇 C 四金刚的内部排序与每条 LTO 的逐步骤理由已归档,详情见 git log 与 `docs/plans/<phase>/closeout.md`。
 
 ### 近期 phase 顺序
 
-Hygiene Bundle 已完成。Roadmap 当前进入"等待 Direction Gate"状态,由 Human 从 §三 候选清单选下一启动方向。
+LTO-1 第二阶段已完成。Roadmap 进入"等待 Direction Gate"状态。**与 Hygiene Bundle 后等待 Direction Gate 不同**,本轮 backlog Roadmap-Bound 已硬绑定 cross-candidate evidence dedup 到 LTO-2,因此 LTO-2 retrieval quality 增量是当前最强候选;其他三个候选仍属"等真实需求"。最终方向由 Human 从 §三 候选清单选定。
 
 ### 跨阶段排序依据
 
-1. **D5 / D4 Phase A / LTO-6 / LTO-1 / Hygiene Bundle 顺序完成**(2026-05-03 → 2026-05-04;commits `d67c2ad` `7450953` `883e2a9` `349efa9` `e656bd3`,tags `v1.7.0` / `v1.8.0`):五个 phase 形成"adapter 工程纪律编纂 → adapter 命名标准化 → Knowledge Plane facade 收口 → 首次 LLM-内编译能力 → 工程纪律 hygiene 收口"的连续闭环;LTO-13 audit Round 1-3 暴露的 14 项 concerns 全部归档为 `ADAPTER_DISCIPLINE.md` worked examples;`surface_tools/` 包整体消失,Hexagonal 三层 driving adapter / application / domain+driven 边界稳定。
-2. **Hygiene Bundle 压缩流程的判据**:风险极低 + 无新功能 / LLM / invariant + 每项 backlog 已有 file:line 锚点 → 不走完整 plan / plan_audit / review / closeout 流程,直接 multi-commit + git log 即文档,不 cut tag。后续若再出现同类 hygiene-only bundle,可沿用此判据。
-3. **D2 / LTO-5 driven ports + D6 HTTP client port + D3 orchestrator decomposition**:都属于"等真实需求触发"区。D2 触发条件 = 测试隔离 / 第二个 adapter 实现 / 注入复杂度提升;D6 必须在 D2 第一个 port 落定后做;D3 必须在 D2 部分落定后做。三者均为大 phase,不预先排日程。
-4. **LTO-2 retrieval quality 增量由 LTO-1 打开触发面**:`wiki compiler integration` 增量本身归 LTO-2,LTO-1 第一阶段已提供 source pack / relation metadata / Knowledge Browse 可观察面;relation expansion、bounded excerpt、eval hardening、report UX polish 仍 deferred,等真实使用产生质量痛点再触发。
-5. **Wiki Compiler 第二阶段候选**:第一阶段 deferred 项(`supersedes` 状态翻转 / `derived_from` evidence-id / Web LLM trigger / fire-and-poll runner)是天然的下一阶段候选,但具体取舍取决于 Operator 实际使用时哪个摩擦先暴露。
+1. **D5 / D4 Phase A / LTO-6 / LTO-1 stage 1 / Hygiene Bundle / LTO-1 stage 2 顺序完成**(2026-05-03 → 2026-05-04;commits `d67c2ad` `7450953` `883e2a9` `349efa9` `e656bd3` `21f8dc8`,tags `v1.7.0` / `v1.8.0`):六个 phase 形成"adapter 工程纪律编纂 → adapter 命名标准化 → Knowledge Plane facade 收口 → 首次 LLM-内编译能力 → 工程纪律 hygiene 收口 → Wiki Compiler 闭环到 Web governed authoring"的连续闭环;LTO-13 audit Round 1-3 暴露的 14 项 concerns 全部归档为 `ADAPTER_DISCIPLINE.md` worked examples;`surface_tools/` 包整体消失,Hexagonal 三层 driving adapter / application / domain+driven 边界稳定。
+2. **Hygiene Bundle 与 LTO-1 stage 2 都不 cut tag**:Hygiene Bundle 是工程纪律收口,无外可观察;LTO-1 stage 2 是 v1.8.0 能力的质量提升与 Web 可观察面拓宽,非新能力跃迁。两者不单独 release,留给后续累积(Wiki Compiler 闭环成熟 / LTO-2 retrieval quality 增量等)后 cut **v1.9.0** 标记"知识 authoring 闭环 + retrieval quality 第二阶段"。
+3. **LTO-2 是当前最强 Direction Gate 候选**:LTO-1 stage 2 留下 cross-candidate evidence dedup 已 backlog Roadmap-Bound 至 LTO-2;`(candidate_id, source_pack_index)` 局部 idempotency 在多 Operator 起草引用同一 source 时会产生 duplicate evidence support objects。这是真实使用必然遭遇的痛点,且 LTO-2 增量本身已有 bounded excerpt / eval hardening / wiki compiler integration / report UX polish 等。Direction Gate 选 LTO-2 时 plan 应同时覆盖 dedup + retrieval quality。
+4. **Wiki Compiler 第三阶段是产品向延续候选**:cross-task evidence lookup / `know_evidence` schema migration / 视图 3 全图谱 / 多 worker durable job runner / 文件上传 source ingestion 等;但每一项都需要真实 Operator 使用反馈作为锚点 — 第二阶段刚 merge 不到一天,反馈样本量为零。
+5. **D2 / LTO-5 driven ports + D6 HTTP client port + D3 orchestrator decomposition**:都属于"等真实需求触发"区。D2 触发条件 = 测试隔离 / 第二个 adapter 实现 / 注入复杂度提升;D6 必须在 D2 第一个 port 落定后做;D3 必须在 D2 部分落定后做。三者均为大 phase,不预先排日程。
 6. **LTO-8 `debate_loop_core` deferred 到 LTO-11**:9 callable 注入纪律边缘问题,callables 是 telemetry-only,技术上守住 INVARIANTS;待 LTO-11 Planner / DAG / Strategy Router 首次设计 loop control pattern 时一并处理。
-7. **后续视真实需求**:LTO-4 由测试隔离痛点触发;Wiki Compiler 视图 3(全图谱)与 Graph RAG 远期方向同步,真实需求触发再做。
+7. **后续视真实需求**:LTO-4 由测试隔离痛点触发;Wiki Compiler 视图 3(全图谱)与 Graph RAG 远期方向同步,真实需求触发再做;`know_evidence` schema migration 等跨任务 evidence lookup / 全局 evidence id 唯一性需求触发。
 
 ---
 
