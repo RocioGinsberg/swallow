@@ -19,6 +19,8 @@ from swallow.knowledge_retrieval.knowledge_plane import (
 from swallow.orchestration.orchestrator import create_task
 from swallow.provider_router.agent_llm import AgentLLMResponse
 from swallow.application.infrastructure.paths import artifacts_dir
+from tests.helpers.assertions import assert_artifact_exists, assert_cli_success
+from tests.helpers.builders import TaskBuilder, WorkspaceBuilder
 from tests.helpers.cli_runner import run_cli
 
 
@@ -31,14 +33,14 @@ def _expected_derived_from_relation_id(source_object_id: str, evidence_id: str) 
 
 
 def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(tmp_path: Path) -> None:
-    state = create_task(
-        base_dir=tmp_path,
+    state = TaskBuilder(tmp_path).create(
         title="Compile wiki note",
         goal="Draft a wiki entry from raw notes.",
-        workspace_root=tmp_path,
     )
-    source = tmp_path / "compiler-source.md"
-    source.write_text("# Compiler\n\nUse staged review before canonical promotion.\n", encoding="utf-8")
+    WorkspaceBuilder(tmp_path).write_text(
+        "compiler-source.md",
+        "# Compiler\n\nUse staged review before canonical promotion.\n",
+    )
     source_ref = "file://workspace/compiler-source.md"
 
     with patch(
@@ -70,9 +72,8 @@ def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(tmp_path
             source_ref,
         )
 
-    result.assert_success()
+    assert_cli_success(result)
     llm_mock.assert_called_once()
-    assert result.stderr == ""
     assert "wiki_draft_staged" in result.stdout
 
     candidates = list_staged_knowledge(tmp_path)
@@ -88,20 +89,19 @@ def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(tmp_path
     assert candidate.source_pack[0]["parser_version"] == "wiki-compiler-v1"
     assert candidate.source_pack[0]["span"] == "L1-L3"
 
-    artifact_root = artifacts_dir(tmp_path, state.task_id)
-    assert (artifact_root / "wiki_compiler_prompt_pack.json").exists()
-    assert (artifact_root / "wiki_compiler_result.json").exists()
+    assert_artifact_exists(tmp_path, state.task_id, "wiki_compiler_prompt_pack.json")
+    assert_artifact_exists(tmp_path, state.task_id, "wiki_compiler_result.json")
 
 
 def test_wiki_refine_cli_records_requested_relation_metadata(tmp_path: Path) -> None:
-    state = create_task(
-        base_dir=tmp_path,
+    state = TaskBuilder(tmp_path).create(
         title="Refine wiki note",
         goal="Draft a wiki refinement.",
-        workspace_root=tmp_path,
     )
-    source = tmp_path / "refine-source.md"
-    source.write_text("The existing wiki entry needs a narrower follow-up.\n", encoding="utf-8")
+    WorkspaceBuilder(tmp_path).write_text(
+        "refine-source.md",
+        "The existing wiki entry needs a narrower follow-up.\n",
+    )
 
     with patch(
         "swallow.application.services.wiki_compiler.call_agent_llm",
@@ -134,7 +134,7 @@ def test_wiki_refine_cli_records_requested_relation_metadata(tmp_path: Path) -> 
             "file://workspace/refine-source.md",
         )
 
-    result.assert_success()
+    assert_cli_success(result)
     candidate = list_staged_knowledge(tmp_path)[0]
     assert candidate.wiki_mode == "refines"
     assert candidate.target_object_id == "wiki-target"
@@ -142,14 +142,11 @@ def test_wiki_refine_cli_records_requested_relation_metadata(tmp_path: Path) -> 
 
 
 def test_wiki_refresh_evidence_updates_anchor_without_llm(tmp_path: Path) -> None:
-    state = create_task(
-        base_dir=tmp_path,
+    state = TaskBuilder(tmp_path).create(
         title="Refresh evidence",
         goal="Refresh one evidence source anchor.",
-        workspace_root=tmp_path,
     )
-    source = tmp_path / "evidence.md"
-    source.write_text("# Evidence\n\nFresh source anchor.\n", encoding="utf-8")
+    WorkspaceBuilder(tmp_path).write_text("evidence.md", "# Evidence\n\nFresh source anchor.\n")
     persist_task_knowledge_view(
         tmp_path,
         state.task_id,
@@ -182,7 +179,7 @@ def test_wiki_refresh_evidence_updates_anchor_without_llm(tmp_path: Path) -> Non
             "L1-L3",
         )
 
-    result.assert_success()
+    assert_cli_success(result)
     assert "evidence-1 evidence_refreshed" in result.stdout
     view = [
         item

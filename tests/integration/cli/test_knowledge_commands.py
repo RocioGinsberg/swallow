@@ -16,21 +16,18 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     submit_staged_knowledge as submit_staged_candidate,
 )
 from swallow.application.infrastructure.paths import canonical_registry_path
+from tests.helpers.assertions import assert_cli_success
+from tests.helpers.builders import KnowledgeBuilder
 from tests.helpers.cli_runner import run_cli
 
 
 def test_knowledge_stage_promote_characterization_stdout_stderr_exit_code(tmp_path: Path) -> None:
-    candidate = submit_staged_candidate(
-        tmp_path,
-        StagedCandidate(
-            candidate_id="",
-            text="Promote this focused integration note.",
-            source_task_id="task-stage-promote",
-            source_object_id="knowledge-0001",
-            submitted_by="integration-test",
-            taxonomy_role="specialist",
-            taxonomy_memory_authority="staged-knowledge",
-        ),
+    candidate = KnowledgeBuilder(tmp_path).staged_candidate(
+        text="Promote this focused integration note.",
+        source_task_id="task-stage-promote",
+        source_object_id="knowledge-0001",
+        taxonomy_role="specialist",
+        taxonomy_memory_authority="staged-knowledge",
     )
 
     result = run_cli(
@@ -42,8 +39,7 @@ def test_knowledge_stage_promote_characterization_stdout_stderr_exit_code(tmp_pa
         "Approved by focused CLI test.",
     )
 
-    result.assert_success()
-    assert result.stderr == ""
+    assert_cli_success(result)
     assert f"{candidate.candidate_id} staged_promoted canonical_id=canonical-{candidate.candidate_id}" in result.stdout
     staged = load_staged_candidates(tmp_path)
     assert staged[0].status == "promoted"
@@ -57,15 +53,11 @@ def test_knowledge_stage_promote_characterization_stdout_stderr_exit_code(tmp_pa
 
 
 def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_old_record(tmp_path: Path) -> None:
-    old = submit_staged_candidate(
-        tmp_path,
-        StagedCandidate(
-            candidate_id="",
-            text="Old wiki entry that should be superseded by explicit target id.",
-            source_task_id="task-stage-target-old",
-            source_object_id="knowledge-old",
-            submitted_by="integration-test",
-        ),
+    knowledge = KnowledgeBuilder(tmp_path)
+    old = knowledge.staged_candidate(
+        text="Old wiki entry that should be superseded by explicit target id.",
+        source_task_id="task-stage-target-old",
+        source_object_id="knowledge-old",
     )
     old_result = run_cli(
         tmp_path,
@@ -75,23 +67,18 @@ def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_ol
         "--note",
         "Approve old target.",
     )
-    old_result.assert_success()
+    assert_cli_success(old_result)
 
-    replacement = submit_staged_candidate(
-        tmp_path,
-        StagedCandidate(
-            candidate_id="",
-            text="Replacement wiki entry with a different canonical key.",
-            source_task_id="task-stage-target-new",
-            source_object_id="knowledge-new",
-            submitted_by="integration-test",
-            relation_metadata=[
-                {
-                    "relation_type": "supersedes",
-                    "target_object_id": f"canonical-{old.candidate_id}",
-                }
-            ],
-        ),
+    replacement = knowledge.staged_candidate(
+        text="Replacement wiki entry with a different canonical key.",
+        source_task_id="task-stage-target-new",
+        source_object_id="knowledge-new",
+        relation_metadata=[
+            {
+                "relation_type": "supersedes",
+                "target_object_id": f"canonical-{old.candidate_id}",
+            }
+        ],
     )
 
     with pytest.raises(StagePromotePreflightError) as raised:
@@ -120,8 +107,7 @@ def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_ol
         "Approve replacement.",
         "--force",
     )
-    force_result.assert_success()
-    assert force_result.stderr == ""
+    assert_cli_success(force_result)
     assert f"[SUPERSEDE] canonical_id=canonical-{old.candidate_id}" in force_result.stdout
 
     canonical_records = [
@@ -136,14 +122,9 @@ def test_knowledge_stage_promote_target_id_supersede_requires_force_and_marks_ol
 
 
 def test_knowledge_stage_reject_characterization_stdout_stderr_exit_code(tmp_path: Path) -> None:
-    candidate = submit_staged_candidate(
-        tmp_path,
-        StagedCandidate(
-            candidate_id="",
-            text="Reject this focused integration note.",
-            source_task_id="task-stage-reject",
-            submitted_by="integration-test",
-        ),
+    candidate = KnowledgeBuilder(tmp_path).staged_candidate(
+        text="Reject this focused integration note.",
+        source_task_id="task-stage-reject",
     )
 
     result = run_cli(
@@ -155,8 +136,7 @@ def test_knowledge_stage_reject_characterization_stdout_stderr_exit_code(tmp_pat
         "Needs better evidence.",
     )
 
-    result.assert_success()
-    assert result.stderr == ""
+    assert_cli_success(result)
     assert f"{candidate.candidate_id} staged_rejected status=rejected" in result.stdout
     staged = load_staged_candidates(tmp_path)
     assert staged[0].status == "rejected"
@@ -169,8 +149,7 @@ def test_knowledge_ingest_file_characterization_stdout_stderr_exit_code(tmp_path
 
     result = run_cli(tmp_path, "knowledge", "ingest-file", str(source), "--summary")
 
-    result.assert_success()
-    assert result.stderr == ""
+    assert_cli_success(result)
     assert "# Ingestion Report" in result.stdout
     assert "staged_candidates:" in result.stdout
 
