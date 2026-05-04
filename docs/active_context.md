@@ -13,9 +13,9 @@
 - latest_completed_slice: `merged to main at e656bd3; roadmap synced at 449653a`
 - active_track: `Knowledge Authoring`
 - active_phase: `lto-1-wiki-compiler-second-stage`
-- active_slice: `M1 - Governed supersede apply`
+- active_slice: `M2 - Derived-from evidence objectization`
 - active_branch: `feat/lto-1-wiki-compiler-second-stage`
-- status: `m1_implementation_complete_pending_human_commit`
+- status: `m2_validation_passed_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -37,7 +37,7 @@
 
 `v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。`v1.8.0` annotated tag 已 cut(标记 LTO-1 Wiki Compiler 第一阶段;tag target `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`)。
 
-**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。Human 已提交 plan/audit absorption 并要求开始实现;Codex 已完成 M1 - Governed supersede apply implementation + focused validation。当前等待 Human review / commit M1 milestone,提交后再进入 M2。
+**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。Human 已提交 M1 milestone `99833b6 feat(wiki): apply target-id supersede promotions`;Codex 已完成 M2 - Derived-from evidence objectization implementation + validation,等待 Human 审阅并提交 M2 milestone。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -252,7 +252,7 @@ LTO-7 long-running follow-ups:
 
 进行中:
 
-- 无。M1 implementation 已完成,当前等待 Human review / commit。
+- **[Human]** M2 milestone review / commit pending.
 
 已完成(当前轮):
 
@@ -271,14 +271,28 @@ LTO-7 long-running follow-ups:
   - `promote_stage_candidate_command` preflight 同时扫描 same-key collision 与 `relation_metadata` 中的 `supersedes(<target_object_id>)`;CLI `--force` 仍作为本地 Operator 显式确认。
   - `ApplyResult.detail/payload` 报告 `superseded_canonical_ids`;guard 将 target-id supersede helper 纳入 canonical write boundary。
   - 验证通过:knowledge CLI focused `4 passed`;governance full `11 passed`;CLI stage-promote/canonical subset `13 passed`;invariant guards `35 passed`;governance boundary `5 passed`;application command boundary `11 passed`;`compileall -q src/swallow`;`git diff --check`。
+- **[Human]** 已提交 M1 milestone:`99833b6 feat(wiki): apply target-id supersede promotions`。
+- **[Codex]** 完成 **M2 - Derived-from evidence objectization**:
+  - `KnowledgeRepo._promote_canonical(...)` 在 canonical `apply_proposal` 路径内把 promoted `source_pack` anchors 物化为 task-scoped evidence objects,并把 deterministic `source_evidence_ids` 写入 canonical registry + promoted wiki entry。
+  - `knowledge_relations` persisted enum 增加 `derived_from`;relation helper 使用 deterministic upsert relation id,保证 per-candidate/source-pack-index idempotency。
+  - persisted `derived_from` relation 只允许 wiki -> evidence object;raw `target_ref` 继续保留在 `relation_metadata` 中作为 display metadata,不写入 relation row。
+  - 验证通过:M2 CLI/app/query/HTTP/guard/store focused gates `9 + 18 + 47 + 25 passed`;`compileall -q src/swallow`;`git diff --check`;full pytest `781 passed, 12 deselected`。
 
 待执行:
 
-- **[Human]** 审阅并提交 M1 milestone。
-- **[Codex]** Human 提交 M1 后,进入 M2 - Derived-from evidence objectization。
+- **[Human]** 审阅并提交 M2 milestone。
+- **[Codex]** Human 提交 M2 后进入 M3 - Web Wiki Compiler fire-and-poll API。
 
 当前验证:
 
+- M2 focused/full validation:
+  - `.venv/bin/python -m pytest tests/integration/cli/test_wiki_commands.py tests/integration/cli/test_knowledge_commands.py -q` → `9 passed`
+  - `.venv/bin/python -m pytest tests/test_knowledge_relations.py tests/unit/application/test_knowledge_queries.py tests/integration/http/test_knowledge_browse_routes.py -q` → `18 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py tests/test_governance.py -q` → `47 passed`
+  - `.venv/bin/python -m pytest tests/test_sqlite_store.py tests/test_knowledge_store.py tests/test_knowledge_plane_facade.py tests/unit/knowledge/test_knowledge_plane.py -q` → `25 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` passed
+  - `git diff --check` passed
+  - `.venv/bin/python -m pytest -q` → `781 passed, 12 deselected`
 - M1 focused validation:
   - `.venv/bin/python -m pytest tests/integration/cli/test_knowledge_commands.py -q` → `4 passed`
   - `.venv/bin/python -m pytest tests/test_governance.py -q` → `11 passed`
@@ -298,7 +312,7 @@ LTO-7 long-running follow-ups:
 
 当前阻塞项:
 
-- 等待人工审批/提交:M1 milestone code + tests 已完成;Human review / commit 后再进入 M2。
+- 无。M2 已完成并通过验证;等待 Human milestone commit。
 
 ## Tag 状态
 
@@ -310,8 +324,8 @@ LTO-7 long-running follow-ups:
 
 ## 当前下一步
 
-1. **[Human]** Review 并提交 M1 milestone。
-2. **[Codex]** Human 提交后开始 M2 - Derived-from evidence objectization。
+1. **[Human]** 审阅并提交 M2 milestone。
+2. **[Codex]** Human 提交 M2 后同步状态并进入 M3。
 
 ```markdown
 plan_gate:
@@ -319,8 +333,8 @@ plan_gate:
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
 - active_branch: feat/lto-1-wiki-compiler-second-stage
 - active_phase: lto-1-wiki-compiler-second-stage
-- active_slice: M1 - Governed supersede apply
-- status: m1_implementation_complete_pending_human_commit
+- active_slice: M2 - Derived-from evidence objectization
+- status: m2_validation_passed_waiting_human_commit
 - roadmap: docs/roadmap.md §三 Direction Gate candidate selected by Human: Wiki Compiler 第二阶段
 - plan: docs/plans/lto-1-wiki-compiler-second-stage/plan.md (review; Codex; plan_audit blockers/concerns absorbed)
 - plan_audit: docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md (Claude/design-auditor; has-blockers; 3 blockers / 5 concerns / 2 nits)
@@ -329,7 +343,8 @@ plan_gate:
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
-- next_gate: Human M1 milestone review/commit -> M2 implementation
+- last_commit: 99833b6 feat(wiki): apply target-id supersede promotions
+- next_gate: Human M2 milestone review/commit -> M3 fire-and-poll API
 ```
 
 ## 当前产出物
@@ -337,6 +352,8 @@ plan_gate:
 - `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`(claude/design-auditor, 2026-05-04, has-blockers;3 blockers / 5 concerns / 2 nits;M1 blocker:_CanonicalProposal 无 supersede_target_ids 字段 + _promote_canonical 无 target-id flip 路径;M2 blocker:know_evidence 表未在 sqlite_store 创建;M2 blocker:evidence write boundary 相对 INVARIANTS §0 rule 4 未显式声明;M2 concern:KNOWLEDGE_RELATION_TYPES 不含 "derived_from";M3 concern:job storage path 未指定;M4 confirmed ready)
 - `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(codex, 2026-05-04, review;plan_audit absorbed;M1 `_CanonicalProposal.supersede_target_ids` + `_promote_canonical` target flip;M2 task-scoped `knowledge_evidence` reuse + per-candidate idempotency deferred;M3 artifact-backed fire-and-poll jobs;M5 guards/eval updated)
 - `docs/concerns_backlog.md`(codex, 2026-05-04, LTO-1 Stage2 deferred risks logged:Active Open for evidence schema reuse, Roadmap-Bound LTO-2 for cross-candidate source-anchor dedup)
+- `src/swallow/knowledge_retrieval/{_internal_knowledge_store.py,_internal_knowledge_relations.py,knowledge_plane.py}` + `src/swallow/truth_governance/{truth/knowledge.py,apply_canonical.py,sqlite_store.py}`(codex, 2026-05-04, M2 source_pack evidence materialization inside canonical apply path + deterministic `derived_from` relation upsert)
+- `tests/integration/cli/test_wiki_commands.py` + `tests/integration/http/test_knowledge_browse_routes.py` + `tests/test_governance.py` + `tests/test_knowledge_relations.py` + `tests/unit/application/test_knowledge_queries.py` + `tests/test_invariant_guards.py`(codex, 2026-05-04, M2 evidence objectization, wiki-to-evidence-only `derived_from`, query/HTTP relation grouping, and guard coverage)
 - `src/swallow/truth_governance/{proposal_registry.py,apply_canonical.py,truth/knowledge.py,store.py}`(codex, 2026-05-04, M1 governed target-id supersede apply path;proposal payload + apply result + store helper)
 - `src/swallow/application/commands/knowledge.py` + `src/swallow/adapters/cli.py`(codex, 2026-05-04, M1 target-id supersede preflight + CLI force confirmation wording)
 - `tests/integration/cli/test_knowledge_commands.py` + `tests/test_governance.py` + `tests/test_invariant_guards.py`(codex, 2026-05-04, M1 target-id supersede behavior and boundary coverage)

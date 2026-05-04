@@ -7,6 +7,7 @@ from unittest.mock import patch
 from swallow.knowledge_retrieval.knowledge_plane import (
     StagedCandidate,
     TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
+    load_canonical_registry_records,
     load_task_knowledge_view,
     list_knowledge_relations,
     list_staged_knowledge,
@@ -234,3 +235,78 @@ def test_stage_promote_creates_refines_relation_from_operator_approved_metadata(
     assert len(relations) == 1
     assert relations[0]["relation_type"] == "refines"
     assert relations[0]["counterparty_object_id"] == "wiki-target"
+
+
+def test_stage_promote_materializes_source_pack_evidence_and_derived_relation(tmp_path: Path) -> None:
+    state = create_task(
+        base_dir=tmp_path,
+        title="Promote source-backed draft",
+        goal="Approve a staged wiki draft with source evidence.",
+        workspace_root=tmp_path,
+    )
+    source_ref = "file://workspace/source-evidence.md"
+    candidate = submit_staged_knowledge(
+        tmp_path,
+        StagedCandidate(
+            candidate_id="staged-evidence",
+            text="Approved source-backed wiki draft.",
+            source_task_id=state.task_id,
+            submitted_by="wiki-compiler",
+            wiki_mode="draft",
+            source_ref=source_ref,
+            source_pack=[
+                {
+                    "reference": "source-1",
+                    "path": "source-evidence.md",
+                    "source_type": "raw_material",
+                    "source_ref": source_ref,
+                    "resolved_ref": source_ref,
+                    "resolved_path": "source-evidence.md",
+                    "resolution_status": "resolved",
+                    "line_start": 1,
+                    "line_end": 2,
+                    "content_hash": "sha256:source-evidence",
+                    "parser_version": "wiki-compiler-v1",
+                    "span": "L1-L2",
+                    "preview": "Source preview for evidence materialization.",
+                }
+            ],
+            relation_metadata=[{"relation_type": "derived_from", "target_ref": source_ref}],
+        ),
+    )
+
+    result = run_cli(
+        tmp_path,
+        "knowledge",
+        "stage-promote",
+        candidate.candidate_id,
+        "--note",
+        "Approved evidence relation.",
+    )
+
+    result.assert_success()
+    view = load_task_knowledge_view(tmp_path, state.task_id)
+    evidence = next(item for item in view if item["object_id"] == "evidence-staged-evidence-1")
+    wiki = next(item for item in view if item["object_id"] == "canonical-staged-evidence")
+    registry_record = next(
+        item
+        for item in load_canonical_registry_records(tmp_path)
+        if item["canonical_id"] == "canonical-staged-evidence"
+    )
+    relations = list_knowledge_relations(tmp_path, "canonical-staged-evidence")
+
+    assert evidence["store_type"] == "evidence"
+    assert evidence["source_ref"] == source_ref
+    assert evidence["content_hash"] == "sha256:source-evidence"
+    assert evidence["parser_version"] == "wiki-compiler-v1"
+    assert evidence["span"] == "L1-L2"
+    assert evidence["text"] == "Source preview for evidence materialization."
+    assert evidence["source_type"] == "raw_material"
+    assert evidence["display_path"] == "source-evidence.md"
+    assert wiki["source_evidence_ids"] == ["evidence-staged-evidence-1"]
+    assert registry_record["source_evidence_ids"] == ["evidence-staged-evidence-1"]
+    assert registry_record["relation_metadata"] == [{"relation_type": "derived_from", "target_ref": source_ref}]
+    assert len(relations) == 1
+    assert relations[0]["relation_id"] == "relation-derived-from-staged-evidence-1"
+    assert relations[0]["relation_type"] == "derived_from"
+    assert relations[0]["target_object_id"] == "evidence-staged-evidence-1"

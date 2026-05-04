@@ -16,6 +16,7 @@ from swallow.application.infrastructure.paths import (
 
 
 WIKI_ONLY_FIELDS = ("promoted_by", "promoted_at", "change_log_ref", "source_evidence_ids")
+SOURCE_EVIDENCE_PREVIEW_LIMIT = 1000
 LIBRARIAN_AGENT_WRITE_AUTHORITY = "librarian-agent"
 KNOWLEDGE_MIGRATION_WRITE_AUTHORITY = "knowledge-migration"
 OPERATOR_CANONICAL_WRITE_AUTHORITY = "operator-gated"
@@ -276,6 +277,10 @@ def build_wiki_entry_from_canonical_record(record: dict[str, object]) -> dict[st
     promoted_at = str(record.get("promoted_at", "")).strip() or utc_now()
     canonical_id = str(record.get("canonical_id", "")).strip()
     decision_ref = str(record.get("decision_ref", "")).strip()
+    source_evidence_ids = _source_evidence_ids_from_record(
+        record,
+        fallback_source_object_id=source_object_id,
+    )
     return normalize_wiki_entry(
         {
             "object_id": source_object_id or canonical_id or "canonical-entry",
@@ -293,7 +298,7 @@ def build_wiki_entry_from_canonical_record(record: dict[str, object]) -> dict[st
             "promoted_by": str(record.get("promoted_by", "")).strip(),
             "promoted_at": promoted_at,
             "change_log_ref": decision_ref,
-            "source_evidence_ids": [source_object_id] if source_object_id else [],
+            "source_evidence_ids": source_evidence_ids,
         }
     )
 
@@ -319,6 +324,186 @@ def persist_wiki_entry_from_record(
         write_authority=write_authority,
     )
     return wiki_entry
+
+
+def materialize_source_evidence_from_canonical_record(
+    base_dir: Path,
+    record: dict[str, object],
+    *,
+    mirror_files: bool = True,
+    write_authority: str = LIBRARIAN_AGENT_WRITE_AUTHORITY,
+) -> list[str]:
+    source_task_id = str(record.get("source_task_id", "")).strip()
+    if not source_task_id:
+        return []
+
+    source_pack = _resolved_source_pack_entries(record.get("source_pack", []))
+    if not source_pack:
+        return []
+
+    candidate_id = _candidate_id_from_canonical_record(record)
+    evidence_entries = [
+        _source_pack_evidence_entry(record, anchor, candidate_id=candidate_id, index=index)
+        for index, anchor in enumerate(source_pack, start=1)
+    ]
+    merged_view = _merge_task_knowledge_views(
+        load_task_knowledge_view(base_dir, source_task_id),
+        evidence_entries,
+    )
+    persist_task_knowledge_view(
+        base_dir,
+        source_task_id,
+        merged_view,
+        mirror_files=mirror_files,
+        write_authority=write_authority,
+    )
+    return [
+        str(entry.get("object_id", "")).strip()
+        for entry in evidence_entries
+        if str(entry.get("object_id", "")).strip()
+    ]
+
+
+def _source_evidence_ids_from_record(
+    record: dict[str, object],
+    *,
+    fallback_source_object_id: str,
+) -> list[str]:
+    raw_source_ids = record.get("source_evidence_ids", [])
+    source_ids: list[str] = []
+    if isinstance(raw_source_ids, list):
+        source_ids = [str(item).strip() for item in raw_source_ids if str(item).strip()]
+    elif str(raw_source_ids).strip():
+        source_ids = [str(raw_source_ids).strip()]
+    if not source_ids and fallback_source_object_id:
+        source_ids = [fallback_source_object_id]
+    return source_ids
+
+
+def _resolved_source_pack_entries(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+
+    entries: list[dict[str, object]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        payload = dict(item)
+        resolution_status = str(payload.get("resolution_status", "resolved")).strip() or "resolved"
+        if resolution_status != "resolved":
+            continue
+        source_ref = _source_ref_from_anchor(payload)
+        if not source_ref:
+            continue
+        entries.append(payload)
+    return entries
+
+
+def _source_pack_evidence_entry(
+    record: dict[str, object],
+    anchor: dict[str, object],
+    *,
+    candidate_id: str,
+    index: int,
+) -> dict[str, object]:
+    canonical_id = str(record.get("canonical_id", "")).strip()
+    promoted_at = str(record.get("promoted_at", "")).strip() or utc_now()
+    source_ref = _source_ref_from_anchor(anchor)
+    preview = _bounded_source_preview(anchor.get("preview", "") or source_ref)
+    display_path = _display_path_from_anchor(anchor)
+    return normalize_evidence_entry(
+        {
+            "object_id": f"evidence-{_safe_id_token(candidate_id)}-{index}",
+            "text": preview,
+            "stage": "raw",
+            "source_kind": "wiki_compiler_source_pack",
+            "source_ref": source_ref,
+            "task_linked": True,
+            "captured_at": promoted_at,
+            "evidence_status": "source_only",
+            "artifact_ref": str(anchor.get("artifact_ref", "")).strip(),
+            "retrieval_eligible": False,
+            "knowledge_reuse_scope": "task_only",
+            "canonicalization_intent": "support",
+            "content_hash": str(anchor.get("content_hash", "")).strip(),
+            "parser_version": str(anchor.get("parser_version", "")).strip(),
+            "span": str(anchor.get("span", "")).strip(),
+            "heading_path": str(anchor.get("heading_path", "")).strip(),
+            "line_start": _int_value(anchor.get("line_start", 0)),
+            "line_end": _int_value(anchor.get("line_end", 0)),
+            "source_type": str(anchor.get("source_type", "")).strip(),
+            "display_path": display_path,
+            "path": str(anchor.get("path", "")).strip(),
+            "resolved_ref": str(anchor.get("resolved_ref", "")).strip(),
+            "resolved_path": str(anchor.get("resolved_path", "")).strip(),
+            "source_pack_reference": str(anchor.get("reference", "")).strip(),
+            "source_pack_index": index,
+            "candidate_id": candidate_id,
+            "canonical_id": canonical_id,
+            "preview": preview,
+        }
+    )
+
+
+def _candidate_id_from_canonical_record(record: dict[str, object]) -> str:
+    decision_ref = str(record.get("decision_ref", "")).strip()
+    if "#" in decision_ref:
+        fragment = decision_ref.rsplit("#", 1)[1].strip()
+        if fragment:
+            return fragment
+
+    canonical_id = str(record.get("canonical_id", "")).strip()
+    if canonical_id.startswith("canonical-"):
+        return canonical_id.removeprefix("canonical-")
+    return canonical_id or "canonical-entry"
+
+
+def _source_ref_from_anchor(anchor: dict[str, object]) -> str:
+    for key in ("source_ref", "resolved_ref", "target_ref", "artifact_ref"):
+        value = str(anchor.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def _display_path_from_anchor(anchor: dict[str, object]) -> str:
+    for key in (
+        "path",
+        "resolved_path",
+        "display_path",
+        "artifact_ref",
+        "source_ref",
+        "resolved_ref",
+    ):
+        value = str(anchor.get(key, "")).strip()
+        if value:
+            return value
+    return ""
+
+
+def _bounded_source_preview(value: object) -> str:
+    normalized = " ".join(str(value or "").split())
+    if len(normalized) <= SOURCE_EVIDENCE_PREVIEW_LIMIT:
+        return normalized
+    return normalized[: SOURCE_EVIDENCE_PREVIEW_LIMIT - 3].rstrip() + "..."
+
+
+def _safe_id_token(value: str) -> str:
+    chars: list[str] = []
+    for char in str(value).strip():
+        lower = char.lower()
+        if ("a" <= lower <= "z") or char.isdigit() or char in "._-":
+            chars.append(char)
+        else:
+            chars.append("-")
+    return "".join(chars).strip("-") or "canonical-entry"
+
+
+def _int_value(value: object) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def migrate_file_knowledge_to_sqlite(

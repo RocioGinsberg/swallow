@@ -11,10 +11,12 @@ from swallow.truth_governance.sqlite_store import SqliteTaskStore
 KNOWLEDGE_RELATION_TYPES: tuple[str, ...] = (
     "refines",
     "contradicts",
+    "derived_from",
     "cites",
     "extends",
     "related_to",
 )
+
 
 def create_knowledge_relation(
     base_dir: Path,
@@ -26,12 +28,63 @@ def create_knowledge_relation(
     context: str = "",
     created_by: str = "operator",
 ) -> dict[str, object]:
+    payload = _validated_relation_payload(
+        base_dir,
+        relation_id=f"relation-{uuid4().hex[:10]}",
+        source_object_id=source_object_id,
+        target_object_id=target_object_id,
+        relation_type=relation_type,
+        confidence=confidence,
+        context=context,
+        created_by=created_by,
+    )
+    return SqliteTaskStore().create_knowledge_relation(base_dir, payload)
+
+
+def upsert_knowledge_relation(
+    base_dir: Path,
+    *,
+    relation_id: str,
+    source_object_id: str,
+    target_object_id: str,
+    relation_type: str,
+    confidence: float = 1.0,
+    context: str = "",
+    created_by: str = "operator",
+) -> dict[str, object]:
+    payload = _validated_relation_payload(
+        base_dir,
+        relation_id=relation_id,
+        source_object_id=source_object_id,
+        target_object_id=target_object_id,
+        relation_type=relation_type,
+        confidence=confidence,
+        context=context,
+        created_by=created_by,
+    )
+    return SqliteTaskStore().upsert_knowledge_relation(base_dir, payload)
+
+
+def _validated_relation_payload(
+    base_dir: Path,
+    *,
+    relation_id: str,
+    source_object_id: str,
+    target_object_id: str,
+    relation_type: str,
+    confidence: float = 1.0,
+    context: str = "",
+    created_by: str = "operator",
+) -> dict[str, object]:
+    normalized_relation_id = str(relation_id).strip()
     normalized_source = str(source_object_id).strip()
     normalized_target = str(target_object_id).strip()
     normalized_type = str(relation_type).strip()
     normalized_context = str(context).strip()
     normalized_created_by = str(created_by).strip() or "operator"
 
+    if not normalized_relation_id:
+        raise ValueError("relation_id must be a non-empty string.")
     if not normalized_source or not normalized_target:
         raise ValueError("source_object_id and target_object_id must be non-empty strings.")
     if normalized_source == normalized_target:
@@ -49,9 +102,19 @@ def create_knowledge_relation(
     resolved_target = resolve_knowledge_object_id(base_dir, normalized_target, store=store)
     if resolved_source == resolved_target:
         raise ValueError("source_object_id and target_object_id must resolve to different knowledge objects.")
+    if (
+        normalized_type == "derived_from"
+        and store.knowledge_object_store_type(base_dir, resolved_target) != "evidence"
+    ):
+        raise ValueError("derived_from relation target must be an evidence object.")
+    if (
+        normalized_type == "derived_from"
+        and store.knowledge_object_store_type(base_dir, resolved_source) != "wiki"
+    ):
+        raise ValueError("derived_from relation source must be a wiki object.")
 
-    payload = {
-        "relation_id": f"relation-{uuid4().hex[:10]}",
+    return {
+        "relation_id": normalized_relation_id,
         "source_object_id": resolved_source,
         "target_object_id": resolved_target,
         "relation_type": normalized_type,
@@ -60,7 +123,6 @@ def create_knowledge_relation(
         "created_at": utc_now(),
         "created_by": normalized_created_by,
     }
-    return store.create_knowledge_relation(base_dir, payload)
 
 
 def list_knowledge_relations(base_dir: Path, object_id: str) -> list[dict[str, object]]:

@@ -27,6 +27,10 @@ from swallow.application.infrastructure.paths import (
     route_registry_path,
     route_weights_path,
 )
+from swallow.knowledge_retrieval.knowledge_plane import (
+    list_knowledge_relations,
+    load_task_knowledge_view,
+)
 from swallow.provider_router.router import apply_route_policy, apply_route_registry, current_route_policy, route_by_name
 from swallow.provider_router.router import (
     load_route_capability_profiles,
@@ -92,6 +96,76 @@ def test_apply_canonical_proposal_writes_registry_wiki_and_derivatives(tmp_path)
     assert wiki_entry["stage"] == "canonical"
     assert registry_index["count"] == 1
     assert reuse_policy["reuse_visible_count"] == 1
+
+
+def test_apply_canonical_proposal_materializes_source_evidence_inside_apply_path(tmp_path) -> None:
+    canonical_record = {
+        "canonical_id": "canonical-staged-source",
+        "canonical_key": "staged-candidate:staged-source",
+        "source_task_id": "task-governance",
+        "source_object_id": "",
+        "promoted_at": "2026-04-28T00:00:00+00:00",
+        "promoted_by": "swl_cli",
+        "decision_note": "approved",
+        "decision_ref": ".swl/staged_knowledge/registry.jsonl#staged-source",
+        "artifact_ref": "",
+        "source_ref": "file://workspace/source.md",
+        "text": "Governance promotion carries source evidence.",
+        "evidence_status": "source_only",
+        "canonical_stage": "canonical",
+        "canonical_status": "active",
+        "superseded_by": "",
+        "superseded_at": "",
+        "source_pack": [
+            {
+                "reference": "source-1",
+                "path": "source.md",
+                "source_type": "raw_material",
+                "source_ref": "file://workspace/source.md",
+                "resolved_ref": "file://workspace/source.md",
+                "resolved_path": "source.md",
+                "resolution_status": "resolved",
+                "line_start": 1,
+                "line_end": 3,
+                "content_hash": "sha256:source",
+                "parser_version": "wiki-compiler-v1",
+                "span": "L1-L3",
+                "preview": "Source evidence preview.",
+            }
+        ],
+        "relation_metadata": [{"relation_type": "derived_from", "target_ref": "file://workspace/source.md"}],
+    }
+    register_canonical_proposal(
+        base_dir=tmp_path,
+        proposal_id="staged-source",
+        canonical_record=canonical_record,
+        write_authority="operator-gated",
+    )
+
+    result = apply_proposal("staged-source", OperatorToken(source="cli"), ProposalTarget.CANONICAL_KNOWLEDGE)
+
+    assert result.applied_writes == (
+        "source_evidence_objects",
+        "wiki_entry",
+        "canonical_registry",
+        "derived_from_relations",
+    )
+    assert result.payload == {
+        "source_evidence_ids": ["evidence-staged-source-1"],
+        "derived_relation_ids": ["relation-derived-from-staged-source-1"],
+    }
+    registry_records = [
+        json.loads(line)
+        for line in canonical_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    view = load_task_knowledge_view(tmp_path, "task-governance")
+    relations = list_knowledge_relations(tmp_path, "canonical-staged-source")
+
+    assert registry_records[0]["source_evidence_ids"] == ["evidence-staged-source-1"]
+    assert {item["object_id"] for item in view} == {"evidence-staged-source-1", "canonical-staged-source"}
+    assert relations[0]["relation_type"] == "derived_from"
+    assert relations[0]["target_object_id"] == "evidence-staged-source-1"
 
 
 def test_apply_canonical_proposal_supersedes_explicit_target_inside_apply_path(tmp_path) -> None:

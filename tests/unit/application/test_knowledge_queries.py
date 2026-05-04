@@ -117,6 +117,13 @@ def _seed_knowledge(base_dir: Path) -> None:
         relation_type="refines",
         context="new wiki refines old wiki",
     )
+    create_knowledge_relation(
+        base_dir,
+        source_object_id="wiki-new",
+        target_object_id="evidence-source",
+        relation_type="derived_from",
+        context="new wiki derives from evidence",
+    )
     submit_staged_knowledge(
         base_dir,
         StagedCandidate(
@@ -187,8 +194,10 @@ def test_knowledge_relations_groups_persisted_and_metadata_edges(tmp_path: Path)
     assert groups["refines"][0]["counterparty_object_id"] == "wiki-old"
     assert groups["supersedes"][0]["edge_source"] == "metadata"
     assert groups["supersedes"][0]["target_object_id"] == "wiki-old"
-    assert groups["derived_from"][0]["edge_source"] == "metadata"
-    assert groups["derived_from"][0]["target_ref"] == "file://workspace/wiki-new.md"
+    assert groups["derived_from"][0]["edge_source"] == "persisted"
+    assert groups["derived_from"][0]["target_object_id"] == "evidence-source"
+    assert groups["derived_from"][1]["edge_source"] == "metadata"
+    assert groups["derived_from"][1]["target_ref"] == "file://workspace/wiki-new.md"
 
 
 def test_knowledge_query_validation_and_missing_detail(tmp_path: Path) -> None:

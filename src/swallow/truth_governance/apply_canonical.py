@@ -20,12 +20,14 @@ def _apply_canonical(proposal: object, _operator_token: OperatorToken, *, propos
     )
     canonical_id = str(proposal.canonical_record.get("canonical_id", "")).strip()
     detail = f"canonical_applied canonical_id={canonical_id or '-'}"
-    payload: dict[str, object] | None = None
+    payload: dict[str, object] = {}
     if proposal.supersede_target_ids:
-        payload = {
-            "supersede_target_ids": list(proposal.supersede_target_ids),
-            "superseded_canonical_ids": list(applied_writes.superseded_canonical_ids),
-        }
+        payload["supersede_target_ids"] = list(proposal.supersede_target_ids)
+        payload["superseded_canonical_ids"] = list(applied_writes.superseded_canonical_ids)
+    if applied_writes.source_evidence_ids:
+        payload["source_evidence_ids"] = list(applied_writes.source_evidence_ids)
+    if applied_writes.derived_relation_ids:
+        payload["derived_relation_ids"] = list(applied_writes.derived_relation_ids)
     if applied_writes.superseded_canonical_ids:
         detail = (
             f"{detail} superseded_canonical_ids="
@@ -37,5 +39,5 @@ def _apply_canonical(proposal: object, _operator_token: OperatorToken, *, propos
         success=True,
         detail=detail,
         applied_writes=applied_writes.applied_writes,
-        payload=payload,
+        payload=payload or None,
     )

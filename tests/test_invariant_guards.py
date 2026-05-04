@@ -482,9 +482,8 @@ def test_knowledge_relation_metadata_types_cover_design_modes() -> None:
     legacy_relation_types = {"cites", "extends", "related_to"}
 
     assert set(WIKI_COMPILER_METADATA_RELATION_TYPES) == design_metadata_types
-    assert {"refines", "contradicts"} <= set(KNOWLEDGE_RELATION_TYPES)
+    assert {"refines", "contradicts", "derived_from"} <= set(KNOWLEDGE_RELATION_TYPES)
     assert legacy_relation_types <= set(KNOWLEDGE_RELATION_TYPES)
-    assert "derived_from" not in KNOWLEDGE_RELATION_TYPES
     assert "supersedes" not in KNOWLEDGE_RELATION_TYPES
     assert "refers_to" not in KNOWLEDGE_RELATION_TYPES
 
