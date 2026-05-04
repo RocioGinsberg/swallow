@@ -8,18 +8,20 @@
 
 ## 当前轮次
 
-- latest_completed_track: `Retrieval Quality`
-- latest_completed_phase: `lto-2-retrieval-quality-evidence-serving`
-- latest_completed_slice: `post-merge state sync committed at a3c1844`
+- latest_completed_track: `Test Architecture`
+- latest_completed_phase: `lto-4-test-architecture`
+- latest_completed_slice: `M4 fixture consolidation complete;final full suite passed;R-entry ready`
 - active_track: `Test Architecture`
 - active_phase: `lto-4-test-architecture`
-- active_slice: `M3 invariant AST guard helper extraction complete; waiting Human commit`
+- active_slice: `LTO-4 complete;R-entry ready after Human final commit`
 - active_branch: `feat/lto-4-test-architecture`
-- status: `lto4_m3_complete_waiting_human_commit`
+- status: `lto4_complete_r_entry_ready`
 
 ## 当前状态说明
 
 当前 git 分支为 `feat/lto-4-test-architecture`。LTO-4 Test Architecture 按压缩流程推进:不走完整 plan / plan_audit / review / closeout,以 multi-commit + git log + `docs/active_context.md` 记录为准,不 cut tag。authoritative boundary 为本文 "待执行" 中的 LTO-4 条目;若实现中出现该条目未覆盖的问题,先停下请 Human / Claude 决策。
+
+LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AST guard helper extraction、global builder fixture entry。最终 `collect-only` 为 `806/825 tests collected (19 deselected)`,比 LTO-4 起始 baseline `802/821` 增加 4 个 helper self-tests,没有测试数量减少。最终全量 pytest `806 passed, 19 deselected in 131.76s`,real `2m12.909s`,处于 LTO-4 允许耗时区间内。完成后不触发后续 phase,不 cut tag;下一步只进入真实使用 R-entry。
 
 LTO-2 Retrieval Quality / Evidence Serving 已 merge 到 `main` at `03744f0 Retrieval Quality / Evidence Serving`;post-merge state sync 已提交为 `a3c1844 docs(state): sync lto2 post-merge state`。
 
@@ -222,15 +224,23 @@ LTO-4 compressed-flow validation:
   - `git diff --check` passed
   - test count change: `+4` (new helper self-tests only; no test deletion)
 - M3 invariant AST guard helper extraction:
+  - commits: `ba5d3b1 refactor(tests): consolidate invariant guard helpers`;`97e3073 docs(state): record lto4 m3 guard helpers`
   - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `41 passed in 6.49s`
   - `.venv/bin/python -m compileall -q tests/helpers/ast_guards.py tests/test_invariant_guards.py` passed
   - `.venv/bin/python -m pytest -q --co 2>&1 | tail -1` -> `806/825 tests collected (19 deselected) in 0.71s`
   - `git diff --check` passed
   - test count change: `0` (baseline after M2 `806`, current `806`)
+- M4 conftest fixture entry consolidation + final gate:
+  - `.venv/bin/python -m pytest tests/unit/test_helpers_builders.py tests/integration/cli/test_task_commands.py tests/integration/cli/test_knowledge_commands.py tests/integration/cli/test_wiki_commands.py -q` -> `121 passed in 33.93s`
+  - `.venv/bin/python -m pytest -q --co 2>&1 | tail -1` -> `806/825 tests collected (19 deselected) in 0.66s`
+  - `.venv/bin/python -m compileall -q src/swallow tests/helpers tests/conftest.py` passed
+  - `time .venv/bin/python -m pytest -q 2>&1 | tail -1` -> `806 passed, 19 deselected in 131.76s`; real `2m12.909s`
+  - `git diff --check` passed
+  - test count change: `0` after M3;`+4` vs LTO-4 starting baseline from helper self-tests only
 
 ## 当前阻塞项
 
-- 等待 Human 审阅并提交 LTO-4 M3 invariant AST guard helper extraction。
+- 无 blocker。LTO-4 complete;R-entry ready after Human final commit.
 
 ## Tag 状态
 
@@ -243,16 +253,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 LTO-4 M3 invariant AST guard helper extraction。
-2. **[Codex]** Human 提交 M3 后继续 M4 fixture/conftest consolidation。
-3. **[Codex]** M4 后执行 final full pytest + compileall + diff/count check,再切到 `lto4_complete_r_entry_ready`。
+1. **[Human]** 审阅并提交 LTO-4 M4 conftest fixture entry consolidation。
+2. **[Human]** 审阅并提交 final active_context state sync。
+3. **[Human]** 后续直接进入真实使用 R-entry;不触发下一 phase,不 cut tag。
 
 ```markdown
 compressed_gate:
 - active_phase: lto-4-test-architecture
-- active_slice: M3 invariant AST guard helper extraction complete;waiting Human commit
+- active_slice: LTO-4 complete;R-entry ready after Human final commit
 - active_branch: feat/lto-4-test-architecture
-- status: lto4_m3_complete_waiting_human_commit
+- status: lto4_complete_r_entry_ready
 - latest_completed_phase: lto-2-retrieval-quality-evidence-serving
 - latest_completed_merge: 03744f0 Retrieval Quality / Evidence Serving
 - latest_roadmap_sync: a3c1844 docs(state): sync lto2 post-merge state
@@ -261,8 +271,9 @@ compressed_gate:
 - boundary: docs/active_context.md "待执行" LTO-4 block is authoritative
 - baseline_count: 802/821 collected;19 deselected
 - current_count: 806/825 collected;19 deselected
-- latest_lto4_commit: 28f0e8f docs(state): record lto4 m2 helpers
-- next_gate: Human M3 commit
+- latest_lto4_commit: 97e3073 docs(state): record lto4 m3 guard helpers
+- final_full_pytest: 806 passed, 19 deselected in 131.76s; real 2m12.909s
+- next_gate: Human M4/final state commit;then R-entry
 ```
 
 ## 当前产出物
@@ -299,3 +310,4 @@ compressed_gate:
 - `tests/unit/test_helpers_builders.py`(codex, 2026-05-04, LTO-4 M2 helper self-tests;accounts for +4 collected tests)
 - `tests/integration/cli/test_task_commands.py` + `tests/integration/cli/test_knowledge_commands.py` + `tests/integration/cli/test_wiki_commands.py`(codex, 2026-05-04, LTO-4 M2 sample helper adoption in high-duplication setup/assertion paths)
 - `tests/helpers/ast_guards.py` + `tests/test_invariant_guards.py`(codex, 2026-05-04, LTO-4 M3 AST/import-walking helper extraction;guard test count unchanged)
+- `tests/conftest.py` + `tests/unit/test_helpers_builders.py` + `tests/integration/cli/test_task_commands.py` + `tests/integration/cli/test_knowledge_commands.py` + `tests/integration/cli/test_wiki_commands.py`(codex, 2026-05-04, LTO-4 M4 global builder fixture entry consolidation;no integration-only conftest needed)
