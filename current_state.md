@@ -19,20 +19,20 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `post-LTO-1 Wiki Compiler second-stage roadmap sync`
-- latest_main_checkpoint: `25f7848 docs(state): update roadmap`
+- latest_main_checkpoint_phase: `post-LTO-2 Retrieval Quality / Evidence Serving merge`
+- latest_main_checkpoint: `03744f0 Retrieval Quality / Evidence Serving`
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
-- current_working_phase: `lto-2-retrieval-quality-evidence-serving`
-- checkpoint_type: `feature_branch_closeout_complete_waiting_merge`
-- active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
+- current_working_phase: `post-lto-2-direction-gate`
+- checkpoint_type: `main_post_lto2_merge_state_sync`
+- active_branch: `main`
 - last_checked: `2026-05-04`
 
 说明:
 
 - LTO-1 Wiki Compiler 第二阶段已 merge 到 `main` at `21f8dc8 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`。
-- post-merge roadmap 已同步 at `25f7848 docs(state): update roadmap`。
-- roadmap 当前近期队列为空,Direction Gate 候选中 **LTO-2 retrieval quality 增量**优先级最高,原因是 LTO-1 stage 2 已把 cross-candidate evidence dedup 风险 Roadmap-Bound 到 LTO-2。
+- LTO-1 stage 2 post-merge roadmap 曾同步 at `25f7848 docs(state): update roadmap`,并把 **LTO-2 retrieval quality 增量**标为当时最高 Direction Gate 候选。
+- LTO-2 已在 `03744f0 Retrieval Quality / Evidence Serving` merge 后消化该硬触发;roadmap 当前近期队列为空,等待下一轮 Direction Gate。
 - Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`;Claude / design-auditor 已产出 `plan_audit.md`(has-concerns;0 blockers / 5 concerns / 2 nits);Codex 已吸收 C1-C5 / N1-N2 到 plan。
 - Human 已提交 plan/audit absorption commit `8878fd7 docs(plan): absorb lto-2 retrieval audit`,并切至 `feat/lto-2-retrieval-quality-evidence-serving`。
 - M1 Source-anchor identity contract 已提交为 `f9b683a feat(wiki): add source anchor evidence identity`。
@@ -40,7 +40,9 @@
 - M3 Retrieval / EvidencePack dedup 已提交为 `1590e62 feat(retrieval): dedupe evidence serving by source anchor`。
 - M4 Operator report quality 已提交为 `62a2a7d feat(retrieval): surface source-anchor evidence quality`。
 - M5 Eval, guards, closeout prep 已提交为 `d6967f3 test(retrieval): add lto2 evidence quality eval`。
-- LTO-2 M1-M5 实现已完成并通过验证;Claude review 已通过(`recommend-merge`;0 blockers / 1 concern / 1 nit);Codex closeout 已完成,等待 Human 提交并 merge。
+- LTO-2 M1-M5 实现已完成并通过验证;Claude review 已通过(`recommend-merge`;0 blockers / 1 concern / 1 nit);Codex closeout 已完成。
+- Human 已完成 closeout commit `e8059d6 docs(closeout): finalize lto2 retrieval quality review`,并 merge 到 `main` at `03744f0 Retrieval Quality / Evidence Serving`。
+- 本次 post-merge sync 已将 roadmap 标记到 LTO-2 complete,并把 LTO-2 cross-candidate source-anchor dedup concern 从 Roadmap-Bound 移到 Resolved。
 
 ---
 
@@ -48,18 +50,18 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
-- active_track: `Retrieval Quality`
-- active_phase: `lto-2-retrieval-quality-evidence-serving`
-- active_slice: `phase closeout complete; waiting human commit and merge`
-- workflow_status: `closeout_complete_waiting_human_merge`
-- recommended_implementation_branch: `feat/lto-2-retrieval-quality-evidence-serving`
+- active_branch: `main`
+- active_track: `Direction Gate`
+- active_phase: `post-lto-2-direction-gate`
+- active_slice: `post-merge state sync`
+- workflow_status: `post_lto2_merge_state_synced_waiting_human_commit`
+- recommended_implementation_branch: `none`
 
 下一步:
 
-1. Human 审阅 `review_comments.md` / `closeout.md` / `pr.md`。
-2. Human 提交收口材料并 merge LTO-2 milestone。
-3. Codex merge 后同步 `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`,并更新 concerns backlog resolved 状态。
+1. Human 审阅并提交 post-merge state sync。
+2. Human 决定是否按 review 建议暂不 cut tag。
+3. 下一轮 Direction Gate 时从 roadmap 候选中选择新 phase。
 
 ---
 
@@ -88,7 +90,7 @@
 
 ## 最小验证命令
 
-恢复当前 closeout-complete 状态时,建议至少执行以下检查:
+恢复当前 post-LTO-2 merge 状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -97,11 +99,11 @@ git show --no-patch --decorate --oneline HEAD
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
 sed -n '1,260p' docs/roadmap.md
-sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md
-sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
+sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/closeout.md
+sed -n '1,180p' docs/concerns_backlog.md
 ```
 
-当前 closeout-complete 状态已记录在 `docs/active_context.md`;最低状态检查:
+当前 post-merge 状态已记录在 `docs/active_context.md`;最低状态检查:
 
 ```bash
 git diff --check
@@ -111,8 +113,7 @@ git diff --check
 
 ## 当前已知边界
 
-- 当前已完成并提交 LTO-2 M1-M5;Claude review 通过;closeout 已完成;等待 Human 提交并 merge。
-- Human Plan Gate 已通过;实现分支为 `feat/lto-2-retrieval-quality-evidence-serving`。
+- 当前已完成并 merge LTO-2 M1-M5;Claude review 通过;closeout 已完成。
 - 不新增 `know_evidence` 物理表或 DATA_MODEL schema migration,除非 audit / Human 明确升级为本 phase blocker。
 - 不 backfill / rewrite 既有 `evidence-<candidate>-<index>` legacy rows。
 - Evidence 仍是 supporting material,不是 primary Knowledge Truth。
@@ -124,19 +125,18 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前无实现 milestone 建议提交。Codex 已完成 review / closeout 收口,建议提交:
+当前无实现 milestone 建议提交。Codex 已完成 post-merge state sync,建议提交:
 
 - `docs/active_context.md`
 - `current_state.md`
-- `docs/plans/lto-2-retrieval-quality-evidence-serving/review_comments.md`
-- `docs/plans/lto-2-retrieval-quality-evidence-serving/closeout.md`
-- `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`
+- `docs/roadmap.md`
+- `docs/concerns_backlog.md`
 
-建议提交信息: `docs(closeout): finalize lto2 retrieval quality review`
+建议提交信息: `docs(state): sync lto2 post-merge state`
 
 本地 PR 草稿 `pr.md` 已同步到 LTO-2 review-passed / merge-ready 状态;该文件被 `.gitignore` 忽略,默认不纳入提交。
 
-上一提交:`d6967f3 test(retrieval): add lto2 evidence quality eval`。
+上一提交:`03744f0 Retrieval Quality / Evidence Serving`。
 
 ---
 
