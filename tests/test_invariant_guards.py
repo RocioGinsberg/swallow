@@ -14,10 +14,22 @@ from swallow.provider_router.router import route_by_name
 from swallow.truth_governance.sqlite_store import APPEND_ONLY_TABLES, SqliteTaskStore
 from swallow.truth_governance.store import write_artifact
 from swallow.orchestration.synthesis import _MPS_DEFAULT_HTTP_ROUTE, _route_is_path_a
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-SRC_ROOT = REPO_ROOT / "src" / "swallow"
+from tests.helpers.ast_guards import (
+    REPO_ROOT,
+    SRC_ROOT,
+    call_name as _call_name,
+    chat_completion_url_expression as _chat_completion_url_expression,
+    collect_httpx_client_names as _collect_httpx_client_names,
+    constant_strings as _constant_strings,
+    event_type_refs as _event_type_refs,
+    fastapi_route_path as _fastapi_route_path,
+    function_named as _function_named,
+    is_httpx_post_call as _is_httpx_post_call,
+    post_call_url_arg as _post_call_url_arg,
+    relative_path as _relative,
+    src_py_files as _src_py_files,
+    target_names as _target_names,
+)
 ACTOR_SEMANTIC_KWARGS = frozenset(
     {
         "actor",
@@ -198,56 +210,6 @@ HTTP_WIKI_FORBIDDEN_CALLS = {
 }
 
 
-def _src_py_files() -> list[Path]:
-    return sorted(path for path in SRC_ROOT.rglob("*.py") if path.is_file())
-
-
-def _relative(path: Path) -> str:
-    return path.relative_to(REPO_ROOT).as_posix()
-
-
-def _call_name(call: ast.Call) -> str:
-    func = call.func
-    if isinstance(func, ast.Name):
-        return func.id
-    if isinstance(func, ast.Attribute):
-        return func.attr
-    return ""
-
-
-def _target_names(target: ast.AST) -> list[str]:
-    if isinstance(target, ast.Name):
-        return [target.id]
-    if isinstance(target, ast.Attribute):
-        return [target.attr]
-    if isinstance(target, ast.Subscript):
-        names = _target_names(target.value)
-        key = target.slice
-        if isinstance(key, ast.Constant) and isinstance(key.value, str):
-            names.append(key.value)
-        return names
-    if isinstance(target, ast.Tuple | ast.List):
-        names: list[str] = []
-        for item in target.elts:
-            names.extend(_target_names(item))
-        return names
-    return []
-
-
-def _constant_strings(node: ast.AST) -> list[str]:
-    return [item.value for item in ast.walk(node) if isinstance(item, ast.Constant) and isinstance(item.value, str)]
-
-
-def _event_type_refs(node: ast.AST) -> set[str]:
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return {node.value}
-    if isinstance(node, ast.Name):
-        return {node.id}
-    if isinstance(node, ast.IfExp):
-        return _event_type_refs(node.body) | _event_type_refs(node.orelse)
-    return set()
-
-
 def _is_id_target(name: str) -> bool:
     lowered = name.lower()
     return lowered in ID_TARGET_TOKENS or lowered.endswith("_id") or lowered.endswith("id")
@@ -329,26 +291,6 @@ def _knowledge_plane_import_boundary_violations_for_tree(tree: ast.AST, rel_path
 
 def _knowledge_plane_import_boundary_violations_for_source(source: str, rel_path: str) -> list[str]:
     return _knowledge_plane_import_boundary_violations_for_tree(ast.parse(source), rel_path)
-
-
-def _function_named(tree: ast.AST, name: str) -> ast.FunctionDef:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == name:
-            return node
-    raise AssertionError(f"Function not found: {name}")
-
-
-def _fastapi_route_path(decorator: ast.AST, method: str) -> str:
-    if not isinstance(decorator, ast.Call):
-        return ""
-    if not isinstance(decorator.func, ast.Attribute) or decorator.func.attr != method:
-        return ""
-    if not decorator.args:
-        return ""
-    path_arg = decorator.args[0]
-    if isinstance(path_arg, ast.Constant) and isinstance(path_arg.value, str):
-        return path_arg.value
-    return ""
 
 
 def test_knowledge_plane_import_boundary_guard_rejects_internal_import_fixture() -> None:
@@ -1120,57 +1062,6 @@ def test_path_b_does_not_call_provider_router() -> None:
             )
 
     assert violations == []
-
-
-def _is_httpx_client_constructor(node: ast.AST) -> bool:
-    return (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr in {"Client", "AsyncClient"}
-        and isinstance(node.func.value, ast.Name)
-        and node.func.value.id == "httpx"
-    )
-
-
-def _collect_httpx_client_names(tree: ast.AST) -> set[str]:
-    names: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign) and _is_httpx_client_constructor(node.value):
-            for target in node.targets:
-                if isinstance(target, ast.Name):
-                    names.add(target.id)
-        elif isinstance(node, ast.AnnAssign) and _is_httpx_client_constructor(node.value):
-            if isinstance(node.target, ast.Name):
-                names.add(node.target.id)
-        elif isinstance(node, ast.With | ast.AsyncWith):
-            for item in node.items:
-                if _is_httpx_client_constructor(item.context_expr) and isinstance(item.optional_vars, ast.Name):
-                    names.add(item.optional_vars.id)
-    return names
-
-
-def _chat_completion_url_expression(node: ast.AST) -> bool:
-    if isinstance(node, ast.Constant) and isinstance(node.value, str):
-        return "/chat/completions" in node.value
-    return isinstance(node, ast.Call) and _call_name(node) == "resolve_new_api_chat_completions_url"
-
-
-def _post_call_url_arg(call: ast.Call) -> ast.AST | None:
-    if call.args:
-        return call.args[0]
-    for keyword in call.keywords:
-        if keyword.arg == "url":
-            return keyword.value
-    return None
-
-
-def _is_httpx_post_call(call: ast.Call, httpx_client_names: set[str]) -> bool:
-    if not isinstance(call.func, ast.Attribute) or call.func.attr != "post":
-        return False
-    receiver = call.func.value
-    if isinstance(receiver, ast.Name):
-        return receiver.id == "httpx" or receiver.id in httpx_client_names
-    return False
 
 
 def test_specialist_internal_llm_calls_go_through_router() -> None:
