@@ -19,27 +19,23 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `post-Hygiene Bundle roadmap sync`
-- latest_main_checkpoint: `449653a docs(state): update roadmap`
+- latest_main_checkpoint_phase: `post-LTO-1 Wiki Compiler second-stage roadmap sync`
+- latest_main_checkpoint: `25f7848 docs(state): update roadmap`
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
-- current_working_phase: `lto-1-wiki-compiler-second-stage`
-- checkpoint_type: `feature_branch_review_absorbed_ready_for_merge`
-- active_branch: `feat/lto-1-wiki-compiler-second-stage`
+- current_working_phase: `lto-2-retrieval-quality-evidence-serving`
+- checkpoint_type: `plan_audit_absorbed_ready_for_gate`
+- active_branch: `main`
 - last_checked: `2026-05-04`
 
 说明:
 
-- 当前工作分支为 `feat/lto-1-wiki-compiler-second-stage`;branch HEAD 为 `42c6b3d test(wiki): lock compiler second stage guards`。Claude review 已产出 recommend-merge,且 C1 已通过 closeout decision matrix 吸收。
-- Human 已选择下一启动方向为 **Wiki Compiler 第二阶段**。Codex 已完成 M1-M5 与 review absorption,当前等待 Human final closeout sync commit / merge gate。
-- LTO-13 已合并并完成 `v1.7.0` annotated tag;tag target 为 `2156d4a docs(release): sync v1.7.0 release docs`。
-- LTO-1 已合并并完成 `v1.8.0` annotated tag;tag target 为 `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit 为 `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`。
-- LTO-6 已合并到 `main` at `883e2a9 Knowledge Plane Facade Solidification`;Knowledge Plane facade 已从 barrel file 收口为 functional facade,旧 direct reach imports 已由 guard 保护。
-- Hygiene Bundle 已 merge to `main` at `e656bd3 refactor(hygiene): close service boundaries and router follow-ups`:
-  - D4 Phase B/C:`surface_tools` 残余 service-like modules 移至 `application/services/`;`paths.py` / `workspace.py` / `identity.py` 移至 `application/infrastructure/`;repo 内 production/test imports 已无 `swallow.surface_tools`。
-  - LTO-6 C1:`knowledge_plane.py` 删除冗余 report `build_*` aliases,报告渲染统一保留 `render_*`。
-  - LTO-7 follow-up:`router.py` 不再调用 provider-router 子模块私有名;默认 fallback baseline 由 `route_registry.py` 持有。
-  - 最新验证:`compileall -q src/swallow`;focused gates;full pytest `773 passed, 12 deselected`;`git diff --check`。
+- LTO-1 Wiki Compiler 第二阶段已 merge 到 `main` at `21f8dc8 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`。
+- post-merge roadmap 已同步 at `25f7848 docs(state): update roadmap`。
+- roadmap 当前近期队列为空,Direction Gate 候选中 **LTO-2 retrieval quality 增量**优先级最高,原因是 LTO-1 stage 2 已把 cross-candidate evidence dedup 风险 Roadmap-Bound 到 LTO-2。
+- Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`;Claude / design-auditor 已产出 `plan_audit.md`(has-concerns;0 blockers / 5 concerns / 2 nits);Codex 已吸收 C1-C5 / N1-N2 到 plan。
+- 当前等待 Human Plan Gate。
+- 尚未切实现分支,尚未开始代码实现。
 
 ---
 
@@ -47,17 +43,18 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `feat/lto-1-wiki-compiler-second-stage`
-- active_track: `Knowledge Authoring`
-- active_phase: `lto-1-wiki-compiler-second-stage`
-- active_slice: `PR review absorbed; final closeout ready for merge gate`
-- workflow_status: `review_absorbed_waiting_human_final_docs_commit`
+- active_branch: `main`
+- active_track: `Retrieval Quality`
+- active_phase: `lto-2-retrieval-quality-evidence-serving`
+- active_slice: `plan-definition`
+- workflow_status: `plan_audit_absorbed_ready_for_gate`
+- recommended_implementation_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 
 下一步:
 
-1. Human 审阅并提交 final review absorption / closeout sync。
-2. Human 检查 `./pr.md` 并决定是否合并 feature branch。
-3. Codex 在 Human merge 后继续同步 `docs/active_context.md`、`current_state.md` 和 `docs/roadmap.md`。
+1. Human 审阅 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md` 与 `plan_audit.md`,执行 Plan Gate。
+2. Gate 通过后 Human 从 `main` 切出 `feat/lto-2-retrieval-quality-evidence-serving`。
+3. Codex 再开始 M1 Source-anchor identity contract 实现。
 
 ---
 
@@ -70,23 +67,23 @@
 3. `.agents/shared/state_sync_rules.md`
 4. `docs/active_context.md`
 5. `current_state.md`
-6. `README.md`
-7. `docs/roadmap.md`
-8. `docs/design/EXECUTOR_REGISTRY.md`
-9. `docs/design/SELF_EVOLUTION.md`
+6. `docs/roadmap.md`
+7. `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`
+8. `docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md`
+9. `docs/concerns_backlog.md`
 10. `docs/design/INVARIANTS.md`
-11. `docs/design/INTERACTION.md`
-12. `docs/engineering/CODE_ORGANIZATION.md`
-13. `docs/engineering/TEST_ARCHITECTURE.md`
-14. `docs/engineering/ARCHITECTURE_DECISIONS.md`
-15. `docs/engineering/ADAPTER_DISCIPLINE.md`
-16. `docs/design/KNOWLEDGE.md`
+11. `docs/design/KNOWLEDGE.md`
+12. `docs/design/DATA_MODEL.md`
+13. `docs/design/HARNESS.md`
+14. `docs/engineering/CODE_ORGANIZATION.md`
+15. `docs/engineering/TEST_ARCHITECTURE.md`
+16. `docs/engineering/ADAPTER_DISCIPLINE.md`
 
 ---
 
 ## 最小验证命令
 
-恢复当前 review-absorbed 收口状态时,建议至少执行以下检查:
+恢复当前 plan-gate 状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -94,55 +91,48 @@ git branch --show-current
 git show --no-patch --decorate --oneline HEAD
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
-sed -n '1,220p' docs/roadmap.md
+sed -n '1,260p' docs/roadmap.md
+sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md
+sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
 ```
 
-最新 full-suite validation 记录:
+当前 docs-only validation:
 
 ```bash
-.venv/bin/python -m pytest -q
-# Wiki Compiler second-stage final rerun: 793 passed, 16 deselected
-
-.venv/bin/python -m compileall -q src/swallow
-# passed
-
 git diff --check
-# passed
 ```
 
 ---
 
 ## 当前已知边界
 
-- 当前不再做 LTO-13 / LTO-6 / LTO-1 第一阶段功能实现;三者均已合并到 `main`,且 `v1.8.0` tag 已执行。
-- Hygiene Bundle 已完成;当前不继续扩张该 bundle。
-- Wiki Compiler 第二阶段已完成实现、验证和 review absorption,当前只等待 Human final docs commit / merge gate。
-- 不改变 Orchestrator / Operator 的 task-state control authority。
+- 当前只做 LTO-2 retrieval quality / evidence serving plan gate,不开始实现。
+- 实现必须等待 Human Plan Gate。
+- 不新增 `know_evidence` 物理表或 DATA_MODEL schema migration,除非 audit / Human 明确升级为本 phase blocker。
+- 不 backfill / rewrite 既有 `evidence-<candidate>-<index>` legacy rows。
+- Evidence 仍是 supporting material,不是 primary Knowledge Truth。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
-- 不新增 auth/multi-user、remote worker、Planner/DAG 或项目级全图谱可视化。
-- `surface_tools` 不保留兼容 shim;仓库内调用点已经全部迁移到 `application/services` / `application/infrastructure` / `adapters`。
+- 不绕过 Knowledge Plane facade。
+- 不新增 object storage、durable background worker、Graph RAG、项目级全图谱可视化、auth/multi-user、remote worker 或 Planner/DAG。
 
 ---
 
 ## 当前建议提交范围
 
-当前建议提交 final review absorption / closeout sync:
+当前建议提交 LTO-2 plan-definition docs:
 
 ```bash
-git add docs/active_context.md current_state.md \
-  docs/plans/lto-1-wiki-compiler-second-stage/closeout.md \
-  docs/plans/lto-1-wiki-compiler-second-stage/review_comments.md
-git commit -m "docs(closeout): finalize wiki compiler second stage review"
+git add docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md \
+  docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md \
+  docs/active_context.md current_state.md
+git commit -m "docs(plan): add lto-2 retrieval quality plan"
 ```
-
-`./pr.md` is ignored by default. If Human wants the PR draft committed, add it explicitly with `git add -f pr.md`.
-
 
 ---
 
 ## 本地基础设施
 
-Phase 46 依赖的 Docker 栈位于 `~/ai-stack/`，与仓库分离。
+可选本地 Docker 栈位于 `~/ai-stack/`，与仓库分离。
 
 ```bash
 cd ~/ai-stack
@@ -151,7 +141,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 Hygiene Bundle 不要求 live HTTP / API-key dependent test。
+当前 LTO-2 plan gate 不要求 live HTTP / API-key dependent test。
 
 ---
 
@@ -164,7 +154,9 @@ cd /home/rocio/projects/swallow
 git status --short --branch
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
-sed -n '1,120p' README.md
+sed -n '1,260p' docs/roadmap.md
+sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md
+sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
