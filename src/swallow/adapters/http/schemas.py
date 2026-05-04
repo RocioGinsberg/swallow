@@ -10,6 +10,8 @@ from swallow.application.commands.tasks import (
     TaskRecoveryCommandResult,
     TaskRunCommandResult,
 )
+from swallow.application.commands.wiki import EvidenceRefreshCommandResult
+from swallow.application.services.wiki_jobs import WikiJobRecord
 from swallow.orchestration.models import TaskState
 
 
@@ -61,6 +63,30 @@ class ProposalReviewRequest(WebRequestModel):
 class ProposalApplyRequest(WebRequestModel):
     review_path: str = Field(min_length=1)
     proposal_id: str | None = None
+
+
+class WikiDraftRequest(WebRequestModel):
+    task_id: str = Field(min_length=1)
+    topic: str = Field(min_length=1)
+    source_refs: list[str] = Field(min_length=1)
+    model: str = ""
+
+
+class WikiRefineRequest(WebRequestModel):
+    task_id: str = Field(min_length=1)
+    mode: Literal["supersede", "refines"]
+    target_object_id: str = Field(min_length=1)
+    source_refs: list[str] = Field(min_length=1)
+    model: str = ""
+
+
+class WikiRefreshEvidenceRequest(WebRequestModel):
+    task_id: str = Field(min_length=1)
+    target_object_id: str = Field(min_length=1)
+    source_ref: str = Field(min_length=1)
+    parser_version: str = ""
+    span: str = ""
+    heading_path: str = ""
 
 
 class WebResponseModel(BaseModel):
@@ -294,6 +320,126 @@ class ProposalApplyEnvelope(WebResponseModel):
                 proposal_id=result.proposal_id,
             )
         )
+
+
+class WikiJob(WebResponseModel):
+    job_id: str
+    task_id: str
+    action: str
+    status: str
+    candidate_id: str = ""
+    prompt_artifact: str = ""
+    result_artifact: str = ""
+    error: str = ""
+    created_at: str = ""
+    updated_at: str = ""
+    topic: str = ""
+    mode: str = ""
+    target_object_id: str = ""
+    source_refs: list[str] = Field(default_factory=list)
+    model: str = ""
+
+    @classmethod
+    def from_record(cls, record: WikiJobRecord) -> "WikiJob":
+        return cls(**_wiki_job_payload(record))
+
+
+class WikiJobEnvelopeData(WebResponseModel):
+    job: WikiJob
+
+
+class WikiJobEnvelope(WebResponseModel):
+    ok: Literal[True] = True
+    data: WikiJobEnvelopeData
+
+    @classmethod
+    def from_record(cls, record: WikiJobRecord) -> "WikiJobEnvelope":
+        return cls(data=WikiJobEnvelopeData(job=WikiJob.from_record(record)))
+
+
+class WikiJobResultEnvelopeData(WebResponseModel):
+    job: WikiJob
+    result_ready: StrictBool
+    candidate: dict[str, Any] = Field(default_factory=dict)
+    prompt_pack: dict[str, Any] = Field(default_factory=dict)
+    compiler_result: dict[str, Any] = Field(default_factory=dict)
+    source_pack: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class WikiJobResultEnvelope(WebResponseModel):
+    ok: Literal[True] = True
+    data: WikiJobResultEnvelopeData
+
+    @classmethod
+    def from_payload(cls, payload: dict[str, Any]) -> "WikiJobResultEnvelope":
+        record = WikiJobRecord.from_dict(dict(payload.get("job", {})))
+        return cls(
+            data=WikiJobResultEnvelopeData(
+                job=WikiJob.from_record(record),
+                result_ready=bool(payload.get("result_ready", False)),
+                candidate=dict(payload.get("candidate", {})),
+                prompt_pack=dict(payload.get("prompt_pack", {})),
+                compiler_result=dict(payload.get("compiler_result", {})),
+                source_pack=[dict(item) for item in payload.get("source_pack", []) if isinstance(item, dict)],
+            )
+        )
+
+
+class WikiEvidenceRefresh(WebResponseModel):
+    task_id: str
+    target_object_id: str
+    source_ref: str
+    parser_version: str
+    content_hash: str
+    span: str
+    heading_path: str
+    evidence_entry: dict[str, Any]
+
+    @classmethod
+    def from_result(cls, result: EvidenceRefreshCommandResult) -> "WikiEvidenceRefresh":
+        return cls(
+            task_id=result.task_id,
+            target_object_id=result.target_object_id,
+            source_ref=result.source_ref,
+            parser_version=result.parser_version,
+            content_hash=result.content_hash,
+            span=result.span,
+            heading_path=result.heading_path,
+            evidence_entry=dict(result.evidence_entry),
+        )
+
+
+class WikiEvidenceRefreshEnvelopeData(WebResponseModel):
+    refresh: WikiEvidenceRefresh
+
+
+class WikiEvidenceRefreshEnvelope(WebResponseModel):
+    ok: Literal[True] = True
+    data: WikiEvidenceRefreshEnvelopeData
+
+    @classmethod
+    def from_result(cls, result: EvidenceRefreshCommandResult) -> "WikiEvidenceRefreshEnvelope":
+        return cls(data=WikiEvidenceRefreshEnvelopeData(refresh=WikiEvidenceRefresh.from_result(result)))
+
+
+def _wiki_job_payload(record: WikiJobRecord) -> dict[str, Any]:
+    return {
+        "job_id": record.job_id,
+        "task_id": record.task_id,
+        "action": record.action,
+        "status": record.status,
+        "candidate_id": record.candidate_id,
+        "prompt_artifact": record.prompt_artifact,
+        "result_artifact": record.result_artifact,
+        "error": record.error,
+        "created_at": record.created_at,
+        "updated_at": record.updated_at,
+        "topic": record.topic,
+        "mode": record.mode,
+        "target_object_id": record.target_object_id,
+        "source_refs": list(record.source_refs),
+        "model": record.model,
+    }
 
 
 def _relative_or_absolute(base_dir: Path, path: Path) -> str:

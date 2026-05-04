@@ -171,6 +171,31 @@ HTTP_KNOWLEDGE_QUERY_CALLS = {
     "build_staged_knowledge_payload",
     "build_wiki_knowledge_payload",
 }
+HTTP_WIKI_ROUTE_CALLS = {
+    "create_wiki_draft_job",
+    "create_wiki_refine_job",
+    "load_wiki_job_record",
+    "load_wiki_job_result",
+    "refresh_wiki_evidence_command",
+}
+HTTP_WIKI_FORBIDDEN_IMPORTS = {
+    "swallow.application.services.wiki_compiler",
+    "swallow.provider_router.agent_llm",
+    "swallow.truth_governance.governance",
+    "swallow.truth_governance.store",
+}
+HTTP_WIKI_FORBIDDEN_CALLS = {
+    "WikiCompilerAgent",
+    "append_canonical_record",
+    "append_event",
+    "apply_proposal",
+    "call_agent_llm",
+    "compile",
+    "draft_wiki_command",
+    "refine_wiki_command",
+    "submit_staged_candidate",
+    "write_artifact",
+}
 
 
 def _src_py_files() -> list[Path]:
@@ -465,6 +490,82 @@ def test_http_knowledge_routes_only_call_application_queries() -> None:
         "/api/knowledge/{object_id}",
         "/api/knowledge/{object_id}/relations",
     }
+    assert violations == []
+
+
+def test_wiki_compiler_web_routes_only_call_application_boundary() -> None:
+    rel_path = "src/swallow/adapters/http/api.py"
+    tree = ast.parse((REPO_ROOT / rel_path).read_text(encoding="utf-8"), filename=rel_path)
+    violations: list[str] = []
+    wiki_routes: list[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module in HTTP_WIKI_FORBIDDEN_IMPORTS:
+                violations.append(f"{rel_path}:{node.lineno} imports forbidden wiki module {module}")
+            if module.startswith("swallow.knowledge_retrieval"):
+                violations.append(f"{rel_path}:{node.lineno} imports knowledge internals {module}")
+            if module.startswith("swallow.provider_router"):
+                violations.append(f"{rel_path}:{node.lineno} imports provider router module {module}")
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        route_paths = [
+            _fastapi_route_path(decorator, method)
+            for decorator in node.decorator_list
+            for method in ("get", "post")
+        ]
+        route_paths = [path for path in route_paths if path.startswith("/api/wiki")]
+        if not route_paths:
+            continue
+        wiki_routes.extend(route_paths)
+        calls = {_call_name(call) for call in ast.walk(node) if isinstance(call, ast.Call)}
+        if not calls & HTTP_WIKI_ROUTE_CALLS:
+            violations.append(f"{rel_path}:{node.lineno} route {route_paths[0]} does not call application boundary")
+        for call_name in sorted(calls & HTTP_WIKI_FORBIDDEN_CALLS):
+            violations.append(f"{rel_path}:{node.lineno} route {route_paths[0]} calls forbidden {call_name}")
+
+    assert set(wiki_routes) == {
+        "/api/wiki/draft",
+        "/api/wiki/refine",
+        "/api/wiki/refresh-evidence",
+        "/api/wiki/jobs/{job_id}",
+        "/api/wiki/jobs/{job_id}/result",
+    }
+    assert violations == []
+
+
+def test_wiki_compiler_web_llm_actions_are_fire_and_poll() -> None:
+    rel_path = "src/swallow/adapters/http/api.py"
+    tree = ast.parse((REPO_ROOT / rel_path).read_text(encoding="utf-8"), filename=rel_path)
+    expected_job_creators = {
+        "/api/wiki/draft": "create_wiki_draft_job",
+        "/api/wiki/refine": "create_wiki_refine_job",
+    }
+    violations: list[str] = []
+    seen_routes: set[str] = set()
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        route_paths = [
+            _fastapi_route_path(decorator, "post")
+            for decorator in node.decorator_list
+        ]
+        route_paths = [path for path in route_paths if path in expected_job_creators]
+        if not route_paths:
+            continue
+        route_path = route_paths[0]
+        seen_routes.add(route_path)
+        calls = {_call_name(call) for call in ast.walk(node) if isinstance(call, ast.Call)}
+        if expected_job_creators[route_path] not in calls:
+            violations.append(f"{rel_path}:{node.lineno} route {route_path} does not create queued job")
+        if "add_task" not in calls:
+            violations.append(f"{rel_path}:{node.lineno} route {route_path} does not schedule background task")
+        for call_name in sorted(calls & {"WikiCompilerAgent", "compile", "draft_wiki_command", "refine_wiki_command"}):
+            violations.append(f"{rel_path}:{node.lineno} route {route_path} calls inline compiler path {call_name}")
+
+    assert seen_routes == set(expected_job_creators)
     assert violations == []
 
 

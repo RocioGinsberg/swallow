@@ -119,6 +119,11 @@ class WebApiPayloadsTest(unittest.TestCase):
         self.assertIn("/api/knowledge/staged", route_paths)
         self.assertIn("/api/knowledge/{object_id}", route_paths)
         self.assertIn("/api/knowledge/{object_id}/relations", route_paths)
+        self.assertIn("/api/wiki/draft", route_paths)
+        self.assertIn("/api/wiki/refine", route_paths)
+        self.assertIn("/api/wiki/refresh-evidence", route_paths)
+        self.assertIn("/api/wiki/jobs/{job_id}", route_paths)
+        self.assertIn("/api/wiki/jobs/{job_id}/result", route_paths)
         self.assertIn("/api/knowledge/staged/{candidate_id}/promote", route_paths)
         self.assertIn("/api/knowledge/staged/{candidate_id}/reject", route_paths)
         self.assertIn("/api/proposals/review", route_paths)
@@ -140,7 +145,17 @@ class WebApiPayloadsTest(unittest.TestCase):
         }
         self.assertIsNotNone(write_routes["/api/tasks"])
         self.assertIsNotNone(write_routes["/api/tasks/{task_id}/run"])
+        self.assertIsNotNone(write_routes["/api/wiki/draft"])
+        self.assertIsNotNone(write_routes["/api/wiki/refine"])
+        self.assertIsNotNone(write_routes["/api/wiki/refresh-evidence"])
         self.assertIsNotNone(write_routes["/api/knowledge/staged/{candidate_id}/promote"])
+        wiki_read_routes = {
+            getattr(route, "path", ""): getattr(route, "response_model", None)
+            for route in app.routes
+            if "GET" in getattr(route, "methods", set()) and getattr(route, "path", "").startswith("/api/wiki")
+        }
+        self.assertIsNotNone(wiki_read_routes["/api/wiki/jobs/{job_id}"])
+        self.assertIsNotNone(wiki_read_routes["/api/wiki/jobs/{job_id}/result"])
 
     def test_web_api_payloads_are_read_only_and_return_expected_task_data(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

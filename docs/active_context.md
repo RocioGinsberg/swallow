@@ -13,9 +13,9 @@
 - latest_completed_slice: `merged to main at e656bd3; roadmap synced at 449653a`
 - active_track: `Knowledge Authoring`
 - active_phase: `lto-1-wiki-compiler-second-stage`
-- active_slice: `M2 - Derived-from evidence objectization`
+- active_slice: `M3 - Web Wiki Compiler fire-and-poll API`
 - active_branch: `feat/lto-1-wiki-compiler-second-stage`
-- status: `m2_validation_passed_waiting_human_commit`
+- status: `m3_validation_passed_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -37,7 +37,7 @@
 
 `v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。`v1.8.0` annotated tag 已 cut(标记 LTO-1 Wiki Compiler 第一阶段;tag target `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`)。
 
-**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。Human 已提交 M1 milestone `99833b6 feat(wiki): apply target-id supersede promotions`;Codex 已完成 M2 - Derived-from evidence objectization implementation + validation,等待 Human 审阅并提交 M2 milestone。
+**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。Human 已提交 M2 milestone `b7e1074 feat(wiki): materialize source evidence on promotion`;Codex 已完成 M3 - Web Wiki Compiler fire-and-poll API implementation + validation,等待 Human 审阅并提交 M3 milestone。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -252,7 +252,7 @@ LTO-7 long-running follow-ups:
 
 进行中:
 
-- **[Human]** M2 milestone review / commit pending.
+- **[Human]** M3 milestone review / commit pending.
 
 已完成(当前轮):
 
@@ -277,14 +277,31 @@ LTO-7 long-running follow-ups:
   - `knowledge_relations` persisted enum 增加 `derived_from`;relation helper 使用 deterministic upsert relation id,保证 per-candidate/source-pack-index idempotency。
   - persisted `derived_from` relation 只允许 wiki -> evidence object;raw `target_ref` 继续保留在 `relation_metadata` 中作为 display metadata,不写入 relation row。
   - 验证通过:M2 CLI/app/query/HTTP/guard/store focused gates `9 + 18 + 47 + 25 passed`;`compileall -q src/swallow`;`git diff --check`;full pytest `781 passed, 12 deselected`。
+- **[Human]** 已提交 M2 milestone:`b7e1074 feat(wiki): materialize source evidence on promotion`。
+- **[Codex]** 完成 **M3 - Web Wiki Compiler fire-and-poll API**:
+  - 新增 `application/services/wiki_jobs.py`,以 `.swl/tasks/<task_id>/artifacts/wiki_jobs/<job_id>.json` 持久化 queued/running/completed/failed job record;runner 只调用 `application.commands.wiki` draft/refine command,不直接碰 compiler internals。
+  - HTTP 新增 `POST /api/wiki/draft`、`POST /api/wiki/refine`、`POST /api/wiki/refresh-evidence`、`GET /api/wiki/jobs/{job_id}`、`GET /api/wiki/jobs/{job_id}/result`,全部使用 Pydantic success envelope + `Depends(get_base_dir)` + FastAPI `BackgroundTasks`。
+  - `draft/refine` 路由先写 queued job artifact,再 schedule background task;`refresh-evidence` 保持同步 no-LLM command。
+  - 新增 HTTP integration tests 与 guards,证明 Web wiki routes 停在 application boundary 且 draft/refine 不 inline compile。
+  - 验证通过:M3 focused/full gates `5 + 10 + 37 + 17 + 9 + 11 passed`;`compileall`;`git diff --check`;full pytest `788 passed, 12 deselected`。
 
 待执行:
 
-- **[Human]** 审阅并提交 M2 milestone。
-- **[Codex]** Human 提交 M2 后进入 M3 - Web Wiki Compiler fire-and-poll API。
+- **[Human]** 审阅并提交 M3 milestone。
+- **[Codex]** Human 提交 M3 后同步状态并进入 M4 - Web authoring and review UX。
 
 当前验证:
 
+- M3 focused/full validation:
+  - `.venv/bin/python -m compileall -q src/swallow` passed
+  - `.venv/bin/python -m pytest tests/integration/http/test_wiki_fire_poll_routes.py -q` → `5 passed`
+  - `.venv/bin/python -m pytest tests/test_web_api.py -q` → `10 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` → `37 passed`
+  - `.venv/bin/python -m pytest tests/integration/http/test_wiki_fire_poll_routes.py tests/integration/http/test_web_write_routes.py tests/integration/http/test_knowledge_browse_routes.py -q` → `17 passed`
+  - `.venv/bin/python -m pytest tests/integration/cli/test_wiki_commands.py tests/integration/cli/test_knowledge_commands.py -q` → `9 passed`
+  - `.venv/bin/python -m pytest tests/unit/application/test_command_boundaries.py -q` → `11 passed`
+  - `git diff --check` passed
+  - `.venv/bin/python -m pytest -q` → `788 passed, 12 deselected`
 - M2 focused/full validation:
   - `.venv/bin/python -m pytest tests/integration/cli/test_wiki_commands.py tests/integration/cli/test_knowledge_commands.py -q` → `9 passed`
   - `.venv/bin/python -m pytest tests/test_knowledge_relations.py tests/unit/application/test_knowledge_queries.py tests/integration/http/test_knowledge_browse_routes.py -q` → `18 passed`
@@ -312,7 +329,7 @@ LTO-7 long-running follow-ups:
 
 当前阻塞项:
 
-- 无。M2 已完成并通过验证;等待 Human milestone commit。
+- 无。M3 已完成并通过验证;等待 Human milestone commit。
 
 ## Tag 状态
 
@@ -324,8 +341,8 @@ LTO-7 long-running follow-ups:
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 M2 milestone。
-2. **[Codex]** Human 提交 M2 后同步状态并进入 M3。
+1. **[Human]** 审阅并提交 M3 milestone。
+2. **[Codex]** Human 提交 M3 后同步状态并进入 M4。
 
 ```markdown
 plan_gate:
@@ -333,8 +350,8 @@ plan_gate:
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
 - active_branch: feat/lto-1-wiki-compiler-second-stage
 - active_phase: lto-1-wiki-compiler-second-stage
-- active_slice: M2 - Derived-from evidence objectization
-- status: m2_validation_passed_waiting_human_commit
+- active_slice: M3 - Web Wiki Compiler fire-and-poll API
+- status: m3_validation_passed_waiting_human_commit
 - roadmap: docs/roadmap.md §三 Direction Gate candidate selected by Human: Wiki Compiler 第二阶段
 - plan: docs/plans/lto-1-wiki-compiler-second-stage/plan.md (review; Codex; plan_audit blockers/concerns absorbed)
 - plan_audit: docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md (Claude/design-auditor; has-blockers; 3 blockers / 5 concerns / 2 nits)
@@ -343,8 +360,8 @@ plan_gate:
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
-- last_commit: 99833b6 feat(wiki): apply target-id supersede promotions
-- next_gate: Human M2 milestone review/commit -> M3 fire-and-poll API
+- last_commit: b7e1074 feat(wiki): materialize source evidence on promotion
+- next_gate: Human M3 milestone review/commit -> M4 Web authoring and review UX
 ```
 
 ## 当前产出物
@@ -352,6 +369,9 @@ plan_gate:
 - `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`(claude/design-auditor, 2026-05-04, has-blockers;3 blockers / 5 concerns / 2 nits;M1 blocker:_CanonicalProposal 无 supersede_target_ids 字段 + _promote_canonical 无 target-id flip 路径;M2 blocker:know_evidence 表未在 sqlite_store 创建;M2 blocker:evidence write boundary 相对 INVARIANTS §0 rule 4 未显式声明;M2 concern:KNOWLEDGE_RELATION_TYPES 不含 "derived_from";M3 concern:job storage path 未指定;M4 confirmed ready)
 - `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(codex, 2026-05-04, review;plan_audit absorbed;M1 `_CanonicalProposal.supersede_target_ids` + `_promote_canonical` target flip;M2 task-scoped `knowledge_evidence` reuse + per-candidate idempotency deferred;M3 artifact-backed fire-and-poll jobs;M5 guards/eval updated)
 - `docs/concerns_backlog.md`(codex, 2026-05-04, LTO-1 Stage2 deferred risks logged:Active Open for evidence schema reuse, Roadmap-Bound LTO-2 for cross-candidate source-anchor dedup)
+- `src/swallow/application/services/wiki_jobs.py`(codex, 2026-05-04, M3 artifact-backed Wiki Compiler job create/load/run service;best-effort in-process fire-and-poll)
+- `src/swallow/adapters/http/api.py` + `src/swallow/adapters/http/schemas.py`(codex, 2026-05-04, M3 Wiki Compiler draft/refine/refresh-evidence/job status/result HTTP routes + typed Pydantic envelopes)
+- `tests/integration/http/test_wiki_fire_poll_routes.py` + `tests/test_web_api.py` + `tests/test_invariant_guards.py`(codex, 2026-05-04, M3 HTTP route coverage, OpenAPI route exposure, adapter-boundary and fire-and-poll guards)
 - `src/swallow/knowledge_retrieval/{_internal_knowledge_store.py,_internal_knowledge_relations.py,knowledge_plane.py}` + `src/swallow/truth_governance/{truth/knowledge.py,apply_canonical.py,sqlite_store.py}`(codex, 2026-05-04, M2 source_pack evidence materialization inside canonical apply path + deterministic `derived_from` relation upsert)
 - `tests/integration/cli/test_wiki_commands.py` + `tests/integration/http/test_knowledge_browse_routes.py` + `tests/test_governance.py` + `tests/test_knowledge_relations.py` + `tests/unit/application/test_knowledge_queries.py` + `tests/test_invariant_guards.py`(codex, 2026-05-04, M2 evidence objectization, wiki-to-evidence-only `derived_from`, query/HTTP relation grouping, and guard coverage)
 - `src/swallow/truth_governance/{proposal_registry.py,apply_canonical.py,truth/knowledge.py,store.py}`(codex, 2026-05-04, M1 governed target-id supersede apply path;proposal payload + apply result + store helper)
