@@ -11,17 +11,19 @@
 - latest_completed_track: `Test Architecture`
 - latest_completed_phase: `lto-4-test-architecture`
 - latest_completed_slice: `M4 fixture consolidation complete;final full suite passed;R-entry ready`
-- active_track: `R-entry Real Usage`
-- active_phase: `r-entry-real-usage`
-- active_slice: `r-entry ux fixes complete;lto2 source scoping gate proposed`
+- active_track: `LTO-2 Retrieval Quality / Evidence Serving`
+- active_phase: `lto-2-retrieval-source-scoping`
+- active_slice: `plan audit absorbed;awaiting human gate`
 - active_branch: `main`
-- status: `r_entry_direction_gate_proposed`
+- status: `plan_revised_after_audit_waiting_human_gate`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-4 Test Architecture 已 merge 到 `main`;本轮进入 R-entry 真实使用验证,不触发新开发 phase,不走 plan audit / review / closeout,不 cut tag。
+当前 git 分支为 `main`。LTO-4 Test Architecture 已 merge 到 `main`;R-entry 真实使用验证已完成本机可验证部分,并触发下一轮正式 phase:`lto-2-retrieval-source-scoping`。Plan drafting 已完成;plan audit 已由 Claude design-auditor 产出(0 blockers, 5 concerns, 2 nits);Codex 已吸收 concerns 并修订 plan。实现前必须 Human 审批 plan gate 并切换到 feature branch。
 
-Codex 已产出 `docs/plans/r-entry-real-usage/plan.md`,作为本轮真实使用 runbook。R-entry 本机可执行部分已完成并整理到 `docs/plans/r-entry-real-usage/findings.md`:CLI task / knowledge / Wiki Compiler / promotion / retrieval 链路已跑通到真实问题定位;本机 Web UI smoke 通过;Wiki LLM 与 OpenRouter rerank 已验证可用;nginx/Tailscale 仍需 Human 在 host nginx 与第二台 tailnet 设备上执行。R-entry 小修已完成并由 Human 提交为 `449ccda fix(cli): polish r-entry operator guidance`:Wiki LLM unavailable 不再 traceback,`task staged --task` 会提示 task-scoped knowledge 的正确 surface,runbook 补充 `.env` 与 OpenRouter rerank 配置。`docs/roadmap.md` 已把下一 Direction Gate 候选收敛为 `LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`。
+Codex 已产出并根据 `plan_audit.md` 修订 `docs/plans/lto-2-retrieval-source-scoping/plan.md`,作为 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility phase 的唯一计划入口。计划边界:让 task-declared `document_paths` 影响 retrieval candidate scope/priority,默认降权或排除 generated/archive 噪声路径,并让 retrieval report 显示 declared source docs 与 canonical/task knowledge 的 considered/matched/skipped/absent 原因。非目标:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。Audit concerns 已吸收为明确实现约束:M1 唯一注入点、M2 source policy touch point 与 `score_breakdown` 验收、M4 eval marker/gate、去除过早 closeout 与不必要主触点。
+
+本轮另外按 Human direction 取消 model_review gate 层:删除 `.agents/workflows/model_review.md`,并从 `claude/rules` `claude/role` `codex/rules` `codex/role` `shared/rules` `feature.md` `AGENTS.md` `.codex/session_bootstrap.md` 中移除所有 model_review 引用;plan gate 前不再要求第二模型审查,plan_audit 直接进入 Human Plan Gate。
 
 LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AST guard helper extraction、global builder fixture entry。最终 `collect-only` 为 `806/825 tests collected (19 deselected)`,比 LTO-4 起始 baseline `802/821` 增加 4 个 helper self-tests,没有测试数量减少。最终全量 pytest `806 passed, 19 deselected in 131.76s`,real `2m12.909s`,处于 LTO-4 允许耗时区间内。完成后不触发后续 phase,不 cut tag;下一步只进入真实使用 R-entry。
 
@@ -29,7 +31,7 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 
 - LTO-2 Retrieval Quality / Evidence Serving 已 merge 到 `main` at `03744f0`;post-merge state sync 已提交为 `a3c1844`。
 - LTO-4 Test Architecture 已 merge / synced 到 `main` at `ac2d3ff`;历史 phase 文档已归档到 `docs/archive_phases/`。
-- R-entry Real Usage 不是开发 phase;本轮唯一计划入口为 `docs/plans/r-entry-real-usage/plan.md`。
+- R-entry Real Usage 不是开发 phase;R-entry runbook 与 findings 保留为本 phase 的 evidence input。当前正式 phase 计划入口为 `docs/plans/lto-2-retrieval-source-scoping/plan.md`。
 
 ## 当前关键文档
 
@@ -57,10 +59,14 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 - **[Codex]** 已完成 R-entry UX 小修:Wiki CLI 捕获 `AgentLLMUnavailable` 并给出 `source .env` / `--dry-run` 提示;`task staged --task` 空 global staged 结果会提示 task-scoped knowledge surface;`plan.md` 补充 `.env` 与 OpenRouter rerank 配置示例。
 - **[Human]** 已提交 R-entry UX 小修:`449ccda fix(cli): polish r-entry operator guidance`。
 - **[Codex]** 已更新 `docs/roadmap.md`,将泛化的 `LTO-2 retrieval quality 后续增量` 收敛为 `LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`,并明确 chunk 调整 / schema migration / Graph RAG 均不进入首个 slice。
+- **[Codex]** 已产出 `docs/plans/lto-2-retrieval-source-scoping/plan.md`,拆分 M1 request context plumbing、M2 candidate source scoping、M3 truth reuse visibility、M4 R-entry regression smoke。
+- **[Claude/design-auditor]** 已产出 `docs/plans/lto-2-retrieval-source-scoping/plan_audit.md`:0 blockers,5 concerns,2 nits。
+- **[Codex]** 已吸收 plan audit:明确 `build_task_retrieval_request` 为 M1 唯一注入点;M2 指名 `source_policy_label_for` / `SOURCE_POLICY_NOISE_LABELS` 与 `score_breakdown` 验收;M4 使用 `pytest.mark.eval` 与显式 eval gate;移除 premature closeout 与 `harness.py` 主触点。
 
 待执行:
 
-- **[Human]** 审批是否按 roadmap 建议开启 `lto-2-retrieval-source-scoping` phase plan。
+- **[Human]** 审批修订后的 `docs/plans/lto-2-retrieval-source-scoping/plan.md` 与 plan audit 吸收结果。
+- **[Human]** plan gate 通过后从 `main` 切换到 `feat/lto-2-retrieval-source-scoping`;Codex 再开始实现。
 - **[Human]** 如需完成 R9,在 host nginx + 第二台 Tailscale 设备执行反代 smoke,再把结果补入 findings 或后续部署 runbook。
 
 ## 当前验证
@@ -82,6 +88,17 @@ Roadmap Direction Gate 同步验证:
 - `git diff --check` -> passed
 - `git status --short --branch` -> `## main...origin/main [ahead 2]`;modified `docs/active_context.md`, `docs/roadmap.md`
 - `wc -l docs/roadmap.md` -> `184 docs/roadmap.md`(低于 300 行上限)
+
+LTO-2 source scoping plan drafting validation:
+
+- `git diff --check` -> passed
+- `git status --short --branch` -> `## main...origin/main [ahead 3]`;modified `docs/active_context.md`;untracked `docs/plans/lto-2-retrieval-source-scoping/`;also present unrelated agent/workflow files outside this plan absorption scope
+- `wc -l docs/plans/lto-2-retrieval-source-scoping/plan.md docs/active_context.md` -> `232` / `191`
+
+Plan audit absorption validation:
+
+- `git diff --check` -> passed
+- `rg` confirmed plan now names `build_task_retrieval_request`, `SOURCE_POLICY_NOISE_LABELS`, `score_breakdown`, and `pytest.mark.eval`
 
 R-entry UX fixes validation:
 
@@ -124,7 +141,7 @@ LTO-4 compressed-flow validation:
 
 ## 当前阻塞项
 
-- 无 blocker。等待 Human 审批是否开启 `lto-2-retrieval-source-scoping` phase plan。
+- 无 code blocker。等待 Human Plan Gate;实现不得在 `main` 开始。
 
 ## Tag 状态
 
@@ -138,29 +155,31 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审批是否按 roadmap 建议开启 `lto-2-retrieval-source-scoping` phase plan。
-2. **[Codex]** 如获批准,创建 `docs/plans/lto-2-retrieval-source-scoping/plan.md`,以 retrieval source scoping / truth reuse visibility 为边界。
-3. **[Human]** 可选执行 R9 host nginx/Tailscale smoke,补齐个人 tailnet UI 展示验证。
+1. **[Human]** 审批修订后的 plan gate。
+2. **[Human]** gate 通过后切换到 `feat/lto-2-retrieval-source-scoping`。
+3. **[Codex]** 在 feature branch 上按 plan M1-M4 实现。
 
 ```markdown
 compressed_gate:
-- active_phase: r-entry-real-usage
-- active_slice: r-entry ux fixes complete;lto2 source scoping gate proposed
+- active_phase: lto-2-retrieval-source-scoping
+- active_slice: plan audit absorbed;awaiting human gate
 - active_branch: main
-- status: r_entry_direction_gate_proposed
+- status: plan_revised_after_audit_waiting_human_gate
 - latest_completed_phase: lto-4-test-architecture
 - latest_completed_commit: ac2d3ff docs(state): mark lto4 r-entry ready
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
-- workflow: R-entry runbook;no plan_audit.md / review_comments.md / closeout.md;issue log drives next Direction Gate
-- boundary: docs/plans/r-entry-real-usage/plan.md is current runbook
+- workflow: formal phase plan;plan_audit.md produced and absorbed;implementation waits for Human Plan Gate and feature branch
+- boundary: docs/plans/lto-2-retrieval-source-scoping/plan.md is current plan
 - baseline_count: 802/821 collected;19 deselected
 - current_count: 806/825 collected;19 deselected
 - final_full_pytest: 806 passed, 19 deselected in 131.76s; real 2m12.909s
 - r_entry_plan: docs/plans/r-entry-real-usage/plan.md
 - findings: docs/plans/r-entry-real-usage/findings.md
+- phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
+- plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human approves whether to open lto-2-retrieval-source-scoping plan
+- next_gate: Human Plan Gate and feature branch switch
 ```
 
 ## 当前产出物
@@ -173,3 +192,6 @@ compressed_gate:
 - `docs/active_context.md`(codex, 2026-05-04, current R-entry state and checkpoint cleanup)
 - `docs/roadmap.md`(codex, 2026-05-04, LTO-4 complete / R-entry active roadmap sync;LTO-2 Retrieval Source Scoping And Truth Reuse Visibility Direction Gate proposal)
 - `current_state.md`(codex, 2026-05-04, recovery checkpoint sync to post-LTO-4 / R-entry-ready main state)
+- `docs/plans/lto-2-retrieval-source-scoping/plan.md`(codex, 2026-05-04, LTO-2 source scoping / truth reuse visibility phase plan;revised after plan_audit)
+- `docs/plans/lto-2-retrieval-source-scoping/plan_audit.md`(claude:design-auditor, 2026-05-04, plan gate audit — has-concerns;0 blockers, 5 concerns, 2 nits)
+- `.agents/workflows/feature.md` / `.agents/workflows/model_review.md`(deleted) / `.agents/claude/rules.md` / `.agents/claude/role.md` / `.agents/codex/rules.md` / `.agents/codex/role.md` / `.agents/shared/rules.md` / `AGENTS.md` / `.codex/session_bootstrap.md`(claude, 2026-05-04, remove model_review gate layer per Human direction)
