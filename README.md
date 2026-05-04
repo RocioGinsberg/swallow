@@ -10,17 +10,16 @@ swallow sustains multi-step, multi-session tasks by combining task orchestration
 
 ## Release Snapshot
 
-Current release: **v1.8.0**.
+Current release: **v1.9.0**.
 
-This snapshot adds the first Wiki Compiler stage on top of the `v1.7.0` local Web Control Center write surface:
+This snapshot closes the first real-usage loop after `v1.8.0`: Wiki Compiler authoring now has governed supersede/evidence follow-through, retrieval has source-anchored evidence identity and task-declared source scoping, and the test harness has been split enough to support further product slices safely.
 
-- Wiki Compiler specialist: `swl wiki draft`, `swl wiki refine --mode supersede|refines`, and `swl wiki refresh-evidence` provide a local knowledge-authoring loop from raw material / artifacts into staged wiki drafts.
-- Propose-only authoring boundary: the Wiki Compiler is registered as a Specialist Internal executor, routes LLM calls through Provider Router, writes task artifacts and staged knowledge only, and never writes canonical truth directly.
-- Reviewable compiler metadata: staged candidates preserve `wiki_mode`, `target_object_id`, source pack anchors, rationale, relation metadata, and conflict flags for Librarian / Operator review.
-- Conservative relation semantics: approved `refines` metadata can create a persisted relation row through the application command layer; `supersedes`, `derived_from`, `refers_to`, and `contradicts` remain staged review metadata in this first stage.
-- Knowledge Browse surface: local HTTP `GET` routes and the Web Control Center Knowledge panel expose wiki / canonical / staged lists, object detail, source pack, and adjacent relation views without adding Web-side LLM trigger buttons.
-- Evidence safety guard: `refresh-evidence` is a no-LLM path that requires parser-versioned evidence anchors, preventing content-hash-only evidence rebuilds.
-- Governance baseline preserved: task state control remains with Orchestrator / Operator, automatic promotion / supersede / conflict resolution are not introduced, and `apply_proposal()` remains the only canonical / route / policy mutation entry.
+- Wiki Compiler stage 2: governed supersede apply now routes through `apply_proposal()`, source-pack anchors can materialize derived evidence objects, and the Web authoring flow uses fire-and-poll plus structured confirmation notices instead of raw force flags.
+- Retrieval evidence quality: source anchors now have deterministic identity, cross-candidate evidence reuse avoids duplicate support objects, EvidencePack/source-pointer reports deduplicate support material, and operator reports expose source-anchor keys, dedup counts, pointer status, and stored preview excerpts.
+- R-entry-driven source scoping: task-declared `document_paths` enter `RetrievalRequest.declared_document_paths`; declared documents receive retrieval priority, generated/archive/build-cache noise is downgraded, and `score_breakdown` exposes the applied source policy signals.
+- Truth reuse visibility: `retrieval_report.md`, task memory, and task summaries now show whether task knowledge / canonical knowledge were considered, matched, skipped, or absent, making "why did retrieval not reuse existing truth?" visible to the operator.
+- Test architecture closeout: the historical CLI test aggregate was split into command-family modules, shared builders/assertions/AST guard helpers were extracted, and the final full suite passed with `806 passed, 19 deselected`.
+- Governance baseline preserved: task state control remains with Orchestrator / Operator, execution still cannot directly write Truth, LLM calls still use Path A/B/C, and `apply_proposal()` remains the only canonical / route / policy mutation entry.
 
 ---
 
@@ -192,17 +191,16 @@ swallow 把任务编排、上下文检索、执行器接入、状态持久化、
 
 ## Release Snapshot
 
-当前 release:**v1.8.0**。
+当前 release:**v1.9.0**。
 
-这个快照在 `v1.7.0` 本地 Web Control Center 写表面之上,新增 Wiki Compiler 第一阶段:
+这个快照收口 `v1.8.0` 之后的第一轮真实使用反馈:Wiki Compiler authoring 具备 governed supersede / evidence 后续链路,retrieval 具备 source-anchored evidence identity 与 task-declared source scoping,测试 harness 也完成了支撑后续产品切片的拆分。
 
-- Wiki Compiler specialist:`swl wiki draft`、`swl wiki refine --mode supersede|refines`、`swl wiki refresh-evidence` 提供从 raw material / artifacts 到 staged wiki 草稿的本地知识起草闭环。
-- propose-only 起草边界:Wiki Compiler 注册为 Specialist Internal executor,LLM 调用经 Provider Router,只写 task artifacts 与 staged knowledge,永不直接写 canonical truth。
-- 可审查 compiler metadata:staged candidate 保留 `wiki_mode`、`target_object_id`、source pack anchors、rationale、relation metadata 与 conflict flags,供 Librarian / Operator review。
-- 保守 relation 语义:通过 Operator promote 后,`refines` metadata 可由 application command 层创建 persisted relation row;`supersedes`、`derived_from`、`refers_to`、`contradicts` 在第一阶段仍是 staged review metadata。
-- Knowledge Browse 表面:本地 HTTP `GET` 路由与 Web Control Center Knowledge panel 展示 wiki / canonical / staged 列表、对象详情、source pack 与邻接 relations,不新增 Web 侧 LLM trigger 按钮。
-- Evidence 安全守卫:`refresh-evidence` 是 no-LLM 路径,强制 parser-versioned evidence anchors,避免只刷 content hash 的 evidence rebuild。
-- 治理基线保持不变:task state control 仍只属于 Orchestrator / Operator,不引入 automatic promotion / supersede / conflict resolution,`apply_proposal()` 仍是 canonical / route / policy mutation 的唯一入口。
+- Wiki Compiler 第二阶段:governed supersede apply 走 `apply_proposal()`,source-pack anchors 可物化 derived evidence objects,Web authoring 使用 fire-and-poll 与结构化 confirmation notices,不再依赖 raw force flags。
+- Retrieval evidence quality:source anchors 具备确定性 identity,cross-candidate evidence reuse 避免重复 support objects,EvidencePack/source-pointer report 对 support material 去重,operator report 展示 source-anchor key、dedup counts、pointer status 与 stored preview excerpt。
+- R-entry 触发的 source scoping:task-declared `document_paths` 进入 `RetrievalRequest.declared_document_paths`;declared docs 获得 retrieval priority,generated/archive/build-cache 噪声被降权,`score_breakdown` 暴露 source policy 信号。
+- Truth reuse visibility:`retrieval_report.md`、task memory 与 task summary 现在展示 task knowledge / canonical knowledge 是否 considered、matched、skipped 或 absent,让 operator 能看到"为什么 retrieval 没有复用已有 truth"。
+- Test architecture 收口:历史 CLI test 聚合拆为 command-family modules,shared builders / assertions / AST guard helpers 已抽取,最终全量测试通过 `806 passed, 19 deselected`。
+- 治理基线保持不变:task state control 仍只属于 Orchestrator / Operator,execution 仍不能直接写 Truth,LLM 调用仍只有 Path A/B/C,`apply_proposal()` 仍是 canonical / route / policy mutation 的唯一入口。
 
 ---
 

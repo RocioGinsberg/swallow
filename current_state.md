@@ -20,11 +20,11 @@
 
 - repository_state: `runnable`
 - latest_main_checkpoint_phase: `post-LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
-- latest_main_checkpoint: `d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
+- latest_main_checkpoint: `7fa5019 docs(state): sync lto2 source scoping merge`
 - latest_executed_public_tag: `v1.8.0`
-- pending_release_tag: `none`
+- pending_release_tag: `v1.9.0`
 - current_working_phase: `none;post-merge checkpoint`
-- checkpoint_type: `main_post_lto2_source_scoping`
+- checkpoint_type: `pre_v1.9.0_release_docs`
 - active_branch: `main`
 - last_checked: `2026-05-04`
 
@@ -47,15 +47,15 @@
 - active_branch: `main`
 - active_track: `LTO-2 Retrieval Quality / Evidence Serving`
 - active_phase: `none;post-merge checkpoint`
-- active_slice: `post-merge state sync`
-- workflow_status: `main_checkpoint_synced`
+- active_slice: `pre-v1.9.0 release docs`
+- workflow_status: `release_docs_ready_for_review`
 - recommended_implementation_branch: `none`
 
 下一步:
 
-1. Claude 评估 `main@d4288a1` 是否需要 cut tag。
-2. Human 决定是否进入 tag 流程或选择下一轮 phase。
-3. Codex 根据 Human 决策同步 release docs 或输出下一轮 plan。
+1. Human 审阅 `README.md` / `current_state.md` / `docs/active_context.md` / `docs/roadmap.md` 的 `v1.9.0` release-docs diff。
+2. Human 提交 release docs 后执行 `git tag -a v1.9.0 -m "v1.9.0"`。
+3. tag 完成后 Codex 同步 `latest_executed_public_tag` 与 active context tag 状态。
 
 ---
 
@@ -118,22 +118,28 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前 phase 已 merge:
+当前 phase 已 merge,release docs 正在准备:
 
 - `d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
+- pending tag: `v1.9.0`
 
-当前建议提交 post-merge state sync:
+当前建议提交 release docs:
 
 ```bash
 git add \
+  README.md \
   docs/active_context.md \
   current_state.md \
   docs/roadmap.md
 
-git commit -m "docs(state): sync lto2 source scoping merge"
+git commit -m "docs(release): sync v1.9.0 release docs"
 ```
 
-`pr.md` 是本地 PR body 草稿且被 `.gitignore` 忽略;merge 后默认不纳入 state sync 提交。
+提交后由 Human 执行 tag:
+
+```bash
+git tag -a v1.9.0 -m "v1.9.0"
+```
 
 ---
 

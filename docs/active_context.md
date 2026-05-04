@@ -13,13 +13,13 @@
 - latest_completed_slice: `merged to main at d4288a1`
 - active_track: `LTO-2 Retrieval Quality / Evidence Serving`
 - active_phase: `none;post-merge checkpoint`
-- active_slice: `post-merge state sync`
+- active_slice: `pre-v1.9.0 release docs`
 - active_branch: `main`
-- status: `main_checkpoint_synced`
+- status: `release_docs_ready_for_review`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已由 Human merge 到 `main` at `d4288a1`。该 phase 完成了 plan drafting、plan audit absorption、M1-M4 实现、Claude review、concerns backlog 登记、closeout 和 PR 文案同步;review verdict 为 acceptable to merge with 3 tracked concerns。
+当前 git 分支为 `main`。LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已由 Human merge 到 `main` at `d4288a1`,post-merge state sync 已提交为 `7fa5019 docs(state): sync lto2 source scoping merge`。Claude 已评估建议 cut `v1.9.0`,Human 已决定打新 tag;Codex 正在同步 `v1.9.0` release docs。该 tag 候选覆盖 `v1.8.0` 之后的 Wiki Compiler stage 2、retrieval quality / evidence serving、LTO-4 test architecture、R-entry-driven retrieval source scoping 与 truth reuse visibility。
 
 LTO-2 source scoping 实现内容:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
 
@@ -71,12 +71,14 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 - **[Codex]** 已更新 `pr.md` Review 段,记录 Claude review verdict、独立验证和 3 个 tracked concerns。
 - **[Human]** 已 merge LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 到 `main` at `d4288a1`。
 - **[Codex]** 已同步 post-merge `docs/active_context.md` / `current_state.md` / `docs/roadmap.md`。
+- **[Claude]** 已对 `main@d4288a1` 完成 tag 评估:推荐 cut **v1.9.0**(主题 Retrieval Quality 累积闭环 + R-entry-driven source scoping;v1.8.0 以来 5 个 phase / 3 个 operator-visible 增量;main 稳定;无 API drift 风险)。
+- **[Claude]** 已按 Human 要求重写 `docs/roadmap.md`:压缩已完成内容(180→151 行),将 Direction Gate 候选与触发条件提到 §三,LTO 表按"仍在推进 vs 已闭合"分类,完成 phase 细节移交 git log + closeout。
 
 待执行:
 
-- **[Claude]** 评估 `main@d4288a1` 是否需要 cut tag。
-- **[Human]** 决定是否进入 tag 流程或选择下一轮 phase。
-- **[Human]** 如需完成 R9,在 host nginx + 第二台 Tailscale 设备执行反代 smoke,再把结果补入 findings 或后续部署 runbook。
+- **[Human]** 审阅并提交 `v1.9.0` release docs。
+- **[Human]** 执行 `git tag -a v1.9.0 -m "v1.9.0"`。
+- **[Codex]** tag 完成后同步 `latest_executed_public_tag` 与 active context tag 状态。
 
 ## 当前验证
 
@@ -85,6 +87,12 @@ Post-merge state sync validation:
 - `git diff --check` -> passed
 - `git status --short --branch` -> `## main...origin/main`;modified `current_state.md`, `docs/active_context.md`, `docs/roadmap.md`
 - `wc -l docs/roadmap.md` -> `180 docs/roadmap.md`(低于 300 行上限)
+
+Pre-`v1.9.0` release docs validation:
+
+- `git diff --check` -> passed
+- `git status --short --branch` -> `## main...origin/main [ahead 1]`;modified `README.md`, `current_state.md`, `docs/active_context.md`, `docs/roadmap.md`
+- `wc -l docs/roadmap.md README.md docs/active_context.md current_state.md` -> `151` / `359` / `246` / `174`
 
 本轮文档同步验证:
 
@@ -178,25 +186,28 @@ LTO-4 compressed-flow validation:
 - LTO-1 第二阶段已 merge,但 roadmap / review 建议不单独 cut tag。
 - LTO-2 已 merge,Claude review 建议不单独 cut tag。
 - LTO-4 已完成,压缩流程不 cut tag。
-- 下一 tag: 等待 Claude 对 `main@d4288a1` 做 tag evaluation;Human 决定是否进入 release docs / tag 流程。
+- pending release tag: **`v1.9.0`**
+- tag target: release docs commit(待 Human 提交),能力基线包括 `main@d4288a1` + release docs。
+- 标记意义: **Wiki Compiler 第二阶段 + Retrieval Quality / Evidence Serving + R-entry-driven Source Scoping / Truth Reuse Visibility 的稳定 checkpoint**。
 
 ## 当前下一步
 
-1. **[Claude]** 评估 `main@d4288a1` 是否构成 tag-worthy checkpoint。
-2. **[Human]** 决定是否 cut tag,或选择下一轮 phase。
-3. **[Codex]** 根据 Human 决策同步 release docs 或输出下一轮 plan。
+1. **[Human]** 审阅并提交 `v1.9.0` release docs。
+2. **[Human]** 执行 `git tag -a v1.9.0 -m "v1.9.0"`。
+3. **[Codex]** tag 完成后同步状态到 `latest_executed_public_tag: v1.9.0`。
 
 ```markdown
 compressed_gate:
 - active_phase: none;post-merge checkpoint
-- active_slice: post-merge state sync
+- active_slice: pre-v1.9.0 release docs
 - active_branch: main
-- status: main_checkpoint_synced
+- status: release_docs_ready_for_review
 - latest_completed_phase: lto-2-retrieval-source-scoping
 - latest_completed_commit: d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
-- workflow: formal phase plan;plan_audit.md produced and absorbed;implementation complete;Claude review acceptable to merge;merged to main;post-merge state synced
+- pending_release_tag: v1.9.0
+- workflow: formal phase plan;plan_audit.md produced and absorbed;implementation complete;Claude review acceptable to merge;merged to main;post-merge state synced;release docs ready
 - boundary: docs/plans/lto-2-retrieval-source-scoping/plan.md is current plan
 - baseline_count: 802/821 collected;19 deselected
 - current_count: 806/825 collected;19 deselected
@@ -206,7 +217,7 @@ compressed_gate:
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Claude tag evaluation and Human next-direction decision
+- next_gate: Human release-docs commit and tag execution
 ```
 
 ## 当前产出物
@@ -228,6 +239,8 @@ compressed_gate:
 - `.agents/workflows/feature.md` / `.agents/workflows/model_review.md`(deleted) / `.agents/claude/rules.md` / `.agents/claude/role.md` / `.agents/codex/rules.md` / `.agents/codex/role.md` / `.agents/shared/rules.md` / `AGENTS.md` / `.codex/session_bootstrap.md`(claude, 2026-05-04, remove model_review gate layer per Human direction)
 - `docs/plans/lto-2-retrieval-source-scoping/review_comments.md`(claude, 2026-05-04, PR review — acceptable to merge with 3 concerns;0 blocks)
 - `docs/concerns_backlog.md`(claude, 2026-05-04, append LTO-2 Source Scoping review follow-ups Active Open row)
+- `docs/roadmap.md`(claude, 2026-05-04, 全面重写 —— 压缩已完成 phase 叙事,Direction Gate 候选与触发条件提到 §三,LTO 表按状态分类;180→151 行)
 - `docs/plans/lto-2-retrieval-source-scoping/closeout.md`(codex, 2026-05-04, phase closeout — acceptable to merge with tracked concerns)
 - `pr.md`(codex, 2026-05-04, PR body updated with Claude review disposition)
 - `docs/active_context.md` / `current_state.md` / `docs/roadmap.md`(codex, 2026-05-04, post-merge state sync for `main@d4288a1`)
+- `README.md` / `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`(codex, 2026-05-04, pre-`v1.9.0` release docs sync)
