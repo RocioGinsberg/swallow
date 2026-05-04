@@ -364,10 +364,25 @@ def materialize_source_evidence_from_canonical_record(
         return []
 
     candidate_id = _candidate_id_from_canonical_record(record)
-    evidence_entries = [
-        _source_pack_evidence_entry(record, anchor, candidate_id=candidate_id, index=index)
-        for index, anchor in enumerate(source_pack, start=1)
-    ]
+    evidence_entries: list[dict[str, object]] = []
+    source_evidence_ids: list[str] = []
+    seen_evidence_ids: set[str] = set()
+    for index, anchor in enumerate(source_pack, start=1):
+        entry = _source_pack_evidence_entry(record, anchor, candidate_id=candidate_id, index=index)
+        evidence_id = str(entry.get("object_id", "")).strip()
+        if not evidence_id or evidence_id in seen_evidence_ids:
+            continue
+        seen_evidence_ids.add(evidence_id)
+        source_evidence_ids.append(evidence_id)
+        if _knowledge_object_exists(base_dir, evidence_id):
+            continue
+        evidence_entries.append(entry)
+
+    if not source_evidence_ids:
+        return []
+    if not evidence_entries:
+        return source_evidence_ids
+
     merged_view = _merge_task_knowledge_views(
         load_task_knowledge_view(base_dir, source_task_id),
         evidence_entries,
@@ -379,11 +394,7 @@ def materialize_source_evidence_from_canonical_record(
         mirror_files=mirror_files,
         write_authority=write_authority,
     )
-    return [
-        str(entry.get("object_id", "")).strip()
-        for entry in evidence_entries
-        if str(entry.get("object_id", "")).strip()
-    ]
+    return source_evidence_ids
 
 
 def _source_evidence_ids_from_record(
@@ -514,6 +525,21 @@ def _normalize_heading_path(value: object) -> str:
 
 def _canonical_json(value: object) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, default=str)
+
+
+def _knowledge_object_exists(base_dir: Path, object_id: str) -> bool:
+    normalized_id = str(object_id).strip()
+    if not normalized_id:
+        return False
+
+    if _sqlite_knowledge_enabled():
+        return _sqlite_store().knowledge_object_exists(base_dir, normalized_id)
+
+    for task_id in iter_file_knowledge_task_ids(base_dir):
+        file_view = load_task_knowledge_view_from_files(base_dir, task_id)
+        if any(str(item.get("object_id", "")).strip() == normalized_id for item in file_view):
+            return True
+    return False
 
 
 def _candidate_id_from_canonical_record(record: dict[str, object]) -> str:

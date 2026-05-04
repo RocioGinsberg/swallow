@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +20,14 @@ from swallow.orchestration.orchestrator import create_task
 from swallow.provider_router.agent_llm import AgentLLMResponse
 from swallow.application.infrastructure.paths import artifacts_dir
 from tests.helpers.cli_runner import run_cli
+
+
+def _expected_derived_from_relation_id(source_object_id: str, evidence_id: str) -> str:
+    payload = ["derived-from-v1", source_object_id, evidence_id]
+    token = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"relation-derived-from-{token}"
 
 
 def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(tmp_path: Path) -> None:
@@ -312,6 +321,9 @@ def test_stage_promote_materializes_source_pack_evidence_and_derived_relation(tm
     assert registry_record["source_evidence_ids"] == [expected_evidence_id]
     assert registry_record["relation_metadata"] == [{"relation_type": "derived_from", "target_ref": source_ref}]
     assert len(relations) == 1
-    assert relations[0]["relation_id"] == "relation-derived-from-staged-evidence-1"
+    assert relations[0]["relation_id"] == _expected_derived_from_relation_id(
+        "canonical-staged-evidence",
+        expected_evidence_id,
+    )
     assert relations[0]["relation_type"] == "derived_from"
     assert relations[0]["target_object_id"] == expected_evidence_id

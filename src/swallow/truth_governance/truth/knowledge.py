@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
+import json
 from pathlib import Path
 
 from swallow._io_helpers import read_json_lines_strict_or_empty
@@ -136,7 +138,7 @@ class KnowledgeRepo:
     ) -> list[str]:
         canonical_id = str(canonical_record.get("canonical_id", "")).strip()
         source_object_id = str(canonical_record.get("source_object_id", "")).strip()
-        source_id = canonical_id or source_object_id
+        source_id = source_object_id or canonical_id
         if not source_id:
             return []
 
@@ -144,7 +146,7 @@ class KnowledgeRepo:
         created_by = str(canonical_record.get("promoted_by", "")).strip() or "operator"
         relation_ids: list[str] = []
         for index, evidence_id in enumerate(source_evidence_ids, start=1):
-            relation_id = f"relation-derived-from-{_safe_id_token(candidate_id)}-{index}"
+            relation_id = _derived_from_relation_id(source_id, evidence_id)
             upsert_knowledge_relation(
                 base_dir,
                 relation_id=relation_id,
@@ -159,6 +161,18 @@ class KnowledgeRepo:
         return relation_ids
 
 
+def _derived_from_relation_id(source_object_id: str, evidence_id: str) -> str:
+    payload = [
+        "derived-from-v1",
+        str(source_object_id).strip(),
+        str(evidence_id).strip(),
+    ]
+    token = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    ).hexdigest()[:16]
+    return f"relation-derived-from-{token}"
+
+
 def _candidate_id_from_canonical_record(record: dict[str, object]) -> str:
     decision_ref = str(record.get("decision_ref", "")).strip()
     if "#" in decision_ref:
@@ -169,14 +183,3 @@ def _candidate_id_from_canonical_record(record: dict[str, object]) -> str:
     if canonical_id.startswith("canonical-"):
         return canonical_id.removeprefix("canonical-")
     return canonical_id or "canonical-entry"
-
-
-def _safe_id_token(value: str) -> str:
-    chars: list[str] = []
-    for char in str(value).strip():
-        lower = char.lower()
-        if ("a" <= lower <= "z") or char.isdigit() or char in "._-":
-            chars.append(char)
-        else:
-            chars.append("-")
-    return "".join(chars).strip("-") or "canonical-entry"

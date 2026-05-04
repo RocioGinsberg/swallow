@@ -13,9 +13,9 @@
 - latest_completed_slice: `merged to main at 21f8dc8; roadmap synced at 25f7848`
 - active_track: `Retrieval Quality`
 - active_phase: `lto-2-retrieval-quality-evidence-serving`
-- active_slice: `M1 source-anchor identity contract`
+- active_slice: `M2 governed evidence dedup on promotion`
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
-- status: `lto2_m1_complete_waiting_human_commit`
+- status: `lto2_m2_complete_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -23,13 +23,14 @@
 
 本轮计划按 roadmap §三 / §五 的最高优先级信号起草:消化 LTO-1 stage 2 留下的 cross-candidate evidence dedup 风险,并把它扩展为 bounded retrieval / EvidencePack / source grounding quality increment。
 
-Human Plan Gate 已通过,实现分支已创建。当前进入 M1:
+Human Plan Gate 已通过,实现分支已创建。当前进入 M2:
 
 - Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`。
 - Claude / design-auditor 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md`(has-concerns;0 blockers / 5 concerns / 2 nits)。
 - Codex 已吸收 C1-C5 / N1-N2 到 `plan.md`。
 - Human 已提交 plan/audit absorption commit `8878fd7 docs(plan): absorb lto-2 retrieval audit`。
-- M1 Source-anchor identity contract 已完成实现与 focused validation,当前等待 Human 审阅并提交 milestone。
+- M1 Source-anchor identity contract 已提交为 `f9b683a feat(wiki): add source anchor evidence identity`。
+- M2 Governed evidence dedup on promotion 已完成实现与 focused validation,当前等待 Human 审阅并提交 milestone。
 
 ## 当前关键文档
 
@@ -71,15 +72,21 @@ Human Plan Gate 已通过,实现分支已创建。当前进入 M1:
   - `heading_path` list/string 统一归一化为 ` > ` join;空 `span` 可由 `line_start/line_end` fallback 为 `line:<start>-<end>`。
   - source-pack evidence entry 改为 stable `evidence-src-<source_anchor_key>` id,并写入 `source_anchor_key/source_anchor_version` metadata。
   - Knowledge Plane facade 新增 `build_source_anchor_identity()` wrapper。
+- **[Human]** M1 milestone 已提交:`f9b683a feat(wiki): add source anchor evidence identity`。
+- **[Codex]** 完成 M2 Governed evidence dedup on promotion:
+  - `materialize_source_evidence_from_canonical_record()` 先用 `knowledge_object_exists(base_dir, evidence-src-<key>)` 做跨 task lookup。
+  - 已存在的 evidence object 不再在当前 task 重写;仍返回同一个 `source_evidence_ids`。
+  - 同一 source_pack 内重复 evidence id 会去重。
+  - `derived_from` relation id 改为 `derived-from-v1` source/evidence pair hash;同一 source/evidence pair upsert 到同一 relation row,不同 wiki 指向同一 evidence 产生不同 relation row。
 
 进行中:
 
-- 无。当前等待 Human M1 milestone commit。
+- 无。当前等待 Human M2 milestone commit。
 
 待执行:
 
-- **[Human]** 审阅 M1 diff 并提交 milestone。
-- **[Codex]** Human 提交 M1 后继续 M2 Governed evidence dedup on promotion。
+- **[Human]** 审阅 M2 diff 并提交 milestone。
+- **[Codex]** Human 提交 M2 后继续 M3 Retrieval / EvidencePack dedup。
 
 ## 当前验证
 
@@ -103,6 +110,19 @@ git status --short --branch
   - `.venv/bin/python -m pytest tests/integration/cli/test_wiki_commands.py tests/eval/test_wiki_compiler_second_stage_quality.py -m "not eval" -q` -> `5 passed, 4 deselected`
   - `.venv/bin/python -m compileall -q src/swallow` passed
   - `git diff --check` passed
+- M1 milestone commit:`f9b683a feat(wiki): add source anchor evidence identity`
+- M2 focused validation:
+  - `.venv/bin/python -m pytest tests/test_knowledge_store.py -q` -> `5 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py -q -k "source_evidence or reuses_source_evidence"` -> `2 passed, 11 deselected`
+  - `.venv/bin/python -m pytest tests/integration/cli/test_wiki_commands.py -q -k materializes_source_pack` -> `1 passed, 4 deselected`
+  - `.venv/bin/python -m pytest tests/test_knowledge_relations.py -q` -> `11 passed`
+  - `.venv/bin/python -m pytest tests/test_governance.py tests/test_knowledge_relations.py tests/test_sqlite_store.py -q` -> `39 passed`
+  - `.venv/bin/python -m pytest tests/integration/cli/test_wiki_commands.py tests/eval/test_wiki_compiler_second_stage_quality.py -m "not eval" -q` -> `5 passed, 4 deselected`
+  - `.venv/bin/python -m pytest tests/eval/test_wiki_compiler_second_stage_quality.py::test_second_stage_eval_source_pack_materializes_matching_evidence_objects -m eval -q` -> `1 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `40 passed`
+  - `.venv/bin/python -m pytest tests/integration/http/test_knowledge_browse_routes.py tests/unit/application/test_knowledge_queries.py -q` -> `7 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` passed
+  - `git diff --check` passed
 
 本 phase 默认实现期验证计划已写入 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md` §Validation Plan。
 
@@ -120,8 +140,8 @@ git status --short --branch
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 M1 milestone。
-2. **[Codex]** Human 提交 M1 后继续 M2 Governed evidence dedup on promotion。
+1. **[Human]** 审阅并提交 M2 milestone。
+2. **[Codex]** Human 提交 M2 后继续 M3 Retrieval / EvidencePack dedup。
 
 ```markdown
 plan_gate:
@@ -132,14 +152,14 @@ plan_gate:
 - active_branch: feat/lto-2-retrieval-quality-evidence-serving
 - active_track: Retrieval Quality
 - active_phase: lto-2-retrieval-quality-evidence-serving
-- active_slice: M1 source-anchor identity contract
-- status: lto2_m1_complete_waiting_human_commit
+- active_slice: M2 governed evidence dedup on promotion
+- status: lto2_m2_complete_waiting_human_commit
 - roadmap: docs/roadmap.md §三 Direction Gate candidate + §五 recommendation;LTO-2 retrieval quality has strongest current trigger
 - plan: docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md (Codex; status: review; audit absorbed)
 - plan_audit: docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - concerns_backlog: docs/concerns_backlog.md (LTO-1 stage 2 source-anchor dedup risk is Roadmap-Bound to LTO-2; task-scoped knowledge_evidence schema mismatch remains Active Open/deferred)
 - recommended_implementation_branch: feat/lto-2-retrieval-quality-evidence-serving
-- next_gate: Human M1 milestone commit -> M2 implementation
+- next_gate: Human M2 milestone commit -> M3 implementation
 ```
 
 ## 当前产出物
@@ -150,5 +170,8 @@ plan_gate:
 - `src/swallow/knowledge_retrieval/knowledge_plane.py`(codex, 2026-05-04, M1 `build_source_anchor_identity` facade wrapper)
 - `tests/test_knowledge_store.py`(codex, 2026-05-04, M1 source-anchor normalization/key and materialization metadata coverage)
 - `tests/test_governance.py` + `tests/integration/cli/test_wiki_commands.py` + `tests/eval/test_wiki_compiler_second_stage_quality.py`(codex, 2026-05-04, M1 expected stable evidence id sync)
-- `docs/active_context.md`(codex, 2026-05-04, M1 completion state + validation + next gate)
-- `current_state.md`(codex, 2026-05-04, recovery checkpoint sync to M1 completion state)
+- `src/swallow/knowledge_retrieval/_internal_knowledge_store.py`(codex, 2026-05-04, M2 cross-task evidence id lookup/reuse)
+- `src/swallow/truth_governance/truth/knowledge.py`(codex, 2026-05-04, M2 source/evidence pair-based `derived_from` relation id)
+- `tests/test_knowledge_store.py` + `tests/test_governance.py` + `tests/integration/cli/test_wiki_commands.py`(codex, 2026-05-04, M2 cross-candidate evidence reuse and relation id coverage)
+- `docs/active_context.md`(codex, 2026-05-04, M2 completion state + validation + next gate)
+- `current_state.md`(codex, 2026-05-04, recovery checkpoint sync to M2 completion state)

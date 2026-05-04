@@ -99,6 +99,49 @@ class KnowledgeStoreTest(unittest.TestCase):
         self.assertEqual(entry["heading_path"], "Design > Evidence")
         self.assertEqual(entry["text"], "Source preview for stable identity.")
 
+    def test_materialize_source_pack_evidence_reuses_existing_anchor_across_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            anchor = {
+                "reference": "source-1",
+                "source_ref": "file://workspace/shared.md",
+                "resolved_ref": "file://workspace/shared.md",
+                "resolution_status": "resolved",
+                "content_hash": "sha256:shared",
+                "parser_version": "wiki-compiler-v1",
+                "span": "L1-L3",
+                "preview": "Shared source preview.",
+            }
+            expected_identity = build_source_anchor_identity(anchor)
+
+            first_ids = materialize_source_evidence_from_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": "canonical-a",
+                    "source_task_id": "task-a",
+                    "promoted_at": "2026-05-04T00:00:00+00:00",
+                    "decision_ref": ".swl/staged_knowledge/registry.jsonl#staged-a",
+                    "source_pack": [anchor],
+                },
+            )
+            second_ids = materialize_source_evidence_from_canonical_record(
+                tmp_path,
+                {
+                    "canonical_id": "canonical-b",
+                    "source_task_id": "task-b",
+                    "promoted_at": "2026-05-04T00:00:00+00:00",
+                    "decision_ref": ".swl/staged_knowledge/registry.jsonl#staged-b",
+                    "source_pack": [anchor],
+                },
+            )
+            first_view = load_task_knowledge_view(tmp_path, "task-a")
+            second_view = load_task_knowledge_view(tmp_path, "task-b")
+
+        self.assertEqual(first_ids, [expected_identity["evidence_id"]])
+        self.assertEqual(second_ids, [expected_identity["evidence_id"]])
+        self.assertEqual([item["object_id"] for item in first_view], [expected_identity["evidence_id"]])
+        self.assertEqual(second_view, [])
+
     def test_persist_wiki_entry_from_record_overlays_legacy_view(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
