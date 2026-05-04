@@ -5,9 +5,9 @@ import sqlite3
 from pathlib import Path
 
 from swallow.truth_governance import sqlite_store
-from swallow.surface_tools.identity import local_actor
+from swallow.application.infrastructure.identity import local_actor
 from swallow.orchestration.models import utc_now
-from swallow.surface_tools.paths import mps_policy_path
+from swallow.application.infrastructure.paths import mps_policy_path
 
 
 MPS_ROUND_LIMIT_KIND = "mps_round_limit"

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from swallow.surface_tools.meta_optimizer_agent import MetaOptimizerAgent, MetaOptimizerExecutor, run_meta_optimizer
-from swallow.surface_tools.meta_optimizer_lifecycle import (
+from swallow.application.services.meta_optimizer_agent import MetaOptimizerAgent, MetaOptimizerExecutor, run_meta_optimizer
+from swallow.application.services.meta_optimizer_lifecycle import (
     _load_json,
     _write_json,
     apply_reviewed_optimization_proposals,
@@ -10,7 +10,7 @@ from swallow.surface_tools.meta_optimizer_lifecycle import (
     review_optimization_proposals,
     save_optimization_proposal_bundle,
 )
-from swallow.surface_tools.meta_optimizer_models import (
+from swallow.application.services.meta_optimizer_models import (
     META_OPTIMIZER_AGENT_NAME,
     META_OPTIMIZER_EXECUTOR_NAME,
     META_OPTIMIZER_SNAPSHOT_KIND,
@@ -34,7 +34,7 @@ from swallow.surface_tools.meta_optimizer_models import (
     _slugify,
     _timestamp_token,
 )
-from swallow.surface_tools.meta_optimizer_proposals import (
+from swallow.application.services.meta_optimizer_proposals import (
     ROUTE_WEIGHT_PROPOSAL_PATTERN,
     _build_route_capability_proposals,
     _normalize_task_family_name,
@@ -42,9 +42,9 @@ from swallow.surface_tools.meta_optimizer_proposals import (
     build_optimization_proposals,
     extract_route_weight_proposals_from_report,
 )
-from swallow.surface_tools.meta_optimizer_reports import (
+from swallow.application.services.meta_optimizer_reports import (
     build_meta_optimizer_report,
     build_optimization_proposal_application_report,
     build_optimization_proposal_review_report,
 )
-from swallow.surface_tools.meta_optimizer_snapshot import build_meta_optimizer_snapshot
+from swallow.application.services.meta_optimizer_snapshot import build_meta_optimizer_snapshot

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from swallow.knowledge_retrieval import knowledge_plane
-from swallow.surface_tools.paths import knowledge_evidence_entry_path, knowledge_objects_path, knowledge_wiki_entry_path
+from swallow.application.infrastructure.paths import knowledge_evidence_entry_path, knowledge_objects_path, knowledge_wiki_entry_path
 from swallow.truth_governance.store import save_knowledge_objects
 from tests.helpers.workspace import read_json
 

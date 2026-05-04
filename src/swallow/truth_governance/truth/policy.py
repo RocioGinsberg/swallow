@@ -5,11 +5,11 @@ from pathlib import Path
 from uuid import uuid4
 
 from .. import sqlite_store
-from swallow.surface_tools.consistency_audit import AUDIT_TRIGGER_POLICY_ID, load_audit_trigger_policy, save_audit_trigger_policy
-from swallow.surface_tools.identity import local_actor
+from swallow.application.services.consistency_audit import AUDIT_TRIGGER_POLICY_ID, load_audit_trigger_policy, save_audit_trigger_policy
+from swallow.application.infrastructure.identity import local_actor
 from swallow.orchestration.models import AuditTriggerPolicy
 from swallow.orchestration.models import utc_now
-from swallow.surface_tools.mps_policy_store import read_mps_policy, save_mps_policy
+from swallow.application.services.mps_policy_store import read_mps_policy, save_mps_policy
 
 
 class PolicyRepo:

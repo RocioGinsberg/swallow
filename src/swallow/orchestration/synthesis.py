@@ -9,7 +9,7 @@ from uuid import uuid4
 from swallow.orchestration.executor import resolve_dialect_name, run_http_executor
 from swallow.truth_governance.governance import load_mps_policy
 from swallow.orchestration.models import ExecutorResult, Event, RouteSpec, SynthesisConfig, SynthesisParticipant, TaskState, utc_now
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 from swallow.provider_router.router import resolve_fallback_chain, route_by_name, select_route
 from swallow.truth_governance.store import append_event, write_artifact
 

@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.knowledge_retrieval.evidence_pack import build_evidence_pack
 from swallow.orchestration.models import RetrievalItem
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 
 
 class EvidencePackTest(unittest.TestCase):

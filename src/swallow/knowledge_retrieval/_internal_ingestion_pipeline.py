@@ -19,7 +19,7 @@ from swallow.knowledge_retrieval._internal_staged_knowledge import (
     load_staged_candidates,
     submit_staged_candidate,
 )
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 from .ingestion.filters import ExtractedFragment, filter_conversation_turns
 from .ingestion.parsers import (
     ConversationTurn,

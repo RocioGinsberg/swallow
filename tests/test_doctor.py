@@ -11,7 +11,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.surface_tools.doctor import (
+from swallow.application.services.doctor import (
     diagnose_cli_agents,
     diagnose_local_stack,
     diagnose_sqlite_store,
@@ -45,8 +45,8 @@ class LocalStackDoctorTest(unittest.TestCase):
         ]
 
         with patch.dict("os.environ", {"SWL_API_KEY": "doctor-test-key"}, clear=False):
-            with patch("swallow.surface_tools.doctor.subprocess.run", side_effect=runs):
-                with patch("swallow.surface_tools.doctor.request.urlopen", return_value=response):
+            with patch("swallow.application.services.doctor.subprocess.run", side_effect=runs):
+                with patch("swallow.application.services.doctor.request.urlopen", return_value=response):
                     exit_code, result = diagnose_local_stack()
 
         statuses = {check.name: check.status for check in result.checks}
@@ -77,8 +77,8 @@ class LocalStackDoctorTest(unittest.TestCase):
                 return _completed(args, stdout="codex-cli 0.125.0")
             raise AssertionError(f"unexpected command: {args}")
 
-        with patch("swallow.surface_tools.doctor.shutil.which", side_effect=fake_which):
-            with patch("swallow.surface_tools.doctor.subprocess.run", side_effect=fake_run):
+        with patch("swallow.application.services.doctor.shutil.which", side_effect=fake_which):
+            with patch("swallow.application.services.doctor.subprocess.run", side_effect=fake_run):
                 exit_code, results = diagnose_cli_agents()
 
         self.assertEqual(exit_code, 1)
@@ -269,8 +269,8 @@ class SqliteDoctorTest(unittest.TestCase):
         ]
 
         with patch.dict("os.environ", {"SWL_API_KEY": "doctor-test-key"}, clear=False):
-            with patch("swallow.surface_tools.doctor.subprocess.run", side_effect=runs):
-                with patch("swallow.surface_tools.doctor.request.urlopen", return_value=response):
+            with patch("swallow.application.services.doctor.subprocess.run", side_effect=runs):
+                with patch("swallow.application.services.doctor.request.urlopen", return_value=response):
                     exit_code, result = diagnose_local_stack()
 
         statuses = {check.name: check.status for check in result.checks}
@@ -305,8 +305,8 @@ class SqliteDoctorTest(unittest.TestCase):
         ]
 
         with patch.dict("os.environ", {"SWL_API_KEY": "doctor-test-key"}, clear=False):
-            with patch("swallow.surface_tools.doctor.subprocess.run", side_effect=runs):
-                with patch("swallow.surface_tools.doctor.request.urlopen", side_effect=[response, auth_required, response]):
+            with patch("swallow.application.services.doctor.subprocess.run", side_effect=runs):
+                with patch("swallow.application.services.doctor.request.urlopen", side_effect=[response, auth_required, response]):
                     exit_code, result = diagnose_local_stack()
 
         statuses = {check.name: check.status for check in result.checks}
@@ -340,8 +340,8 @@ class SqliteDoctorTest(unittest.TestCase):
         ]
 
         with patch.dict("os.environ", {"SWL_API_KEY": "doctor-test-key"}, clear=False):
-            with patch("swallow.surface_tools.doctor.subprocess.run", side_effect=runs):
-                with patch("swallow.surface_tools.doctor.request.urlopen", side_effect=[response, response, embedding_failure]):
+            with patch("swallow.application.services.doctor.subprocess.run", side_effect=runs):
+                with patch("swallow.application.services.doctor.request.urlopen", side_effect=[response, response, embedding_failure]):
                     exit_code, result = diagnose_local_stack()
 
         statuses = {check.name: check.status for check in result.checks}

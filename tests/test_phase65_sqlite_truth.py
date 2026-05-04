@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from swallow.adapters.cli import main
-from swallow.surface_tools.consistency_audit import load_audit_trigger_policy
+from swallow.application.services.consistency_audit import load_audit_trigger_policy
 from swallow.truth_governance.governance import (
     OperatorToken,
     ProposalTarget,
@@ -18,7 +18,7 @@ from swallow.truth_governance.governance import (
     register_route_metadata_proposal,
 )
 from swallow.orchestration.models import AuditTriggerPolicy, RouteCapabilities, RouteSpec, TaxonomyProfile
-from swallow.surface_tools.paths import route_registry_path, swallow_db_path
+from swallow.application.infrastructure.paths import route_registry_path, swallow_db_path
 from swallow.provider_router.router import (
     apply_route_registry,
     load_default_route_policy,
@@ -31,7 +31,7 @@ from swallow.provider_router.router import (
     save_route_registry,
 )
 from swallow.truth_governance.sqlite_store import get_connection
-from swallow.surface_tools.mps_policy_store import MPS_ROUND_LIMIT_KIND
+from swallow.application.services.mps_policy_store import MPS_ROUND_LIMIT_KIND
 
 
 def _custom_route(
@@ -446,7 +446,7 @@ def test_route_review_artifact_write_failure_logs_warning_after_sqlite_commit(
         review_path=review_path,
     )
 
-    with patch("swallow.surface_tools.meta_optimizer_lifecycle._write_json", side_effect=OSError("disk full")):
+    with patch("swallow.application.services.meta_optimizer_lifecycle._write_json", side_effect=OSError("disk full")):
         with caplog.at_level("WARNING", logger="swallow.truth_governance.apply_route_metadata"):
             result = apply_proposal(
                 "route-review-artifact-failure",

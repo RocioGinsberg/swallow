@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from swallow._io_helpers import read_json_lines_strict_or_empty
 from swallow.orchestration.models import utc_now
-from swallow.surface_tools.paths import staged_knowledge_registry_path, staged_knowledge_root
+from swallow.application.infrastructure.paths import staged_knowledge_registry_path, staged_knowledge_root
 
 
 STAGED_CANDIDATE_STATUSES: tuple[str, ...] = ("pending", "promoted", "rejected")

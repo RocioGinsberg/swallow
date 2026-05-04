@@ -9,24 +9,24 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.surface_tools.consistency_audit import ConsistencyAuditResult
+from swallow.application.services.consistency_audit import ConsistencyAuditResult
 from swallow.provider_router.agent_llm import AgentLLMResponse, AgentLLMUnavailable, resolve_agent_llm_model
-from swallow.surface_tools.consistency_reviewer import (
+from swallow.application.services.consistency_reviewer import (
     CONSISTENCY_REVIEWER_MEMORY_AUTHORITY,
     CONSISTENCY_REVIEWER_SYSTEM_ROLE,
     ConsistencyReviewerAgent,
 )
-from swallow.surface_tools.ingestion_specialist import (
+from swallow.application.services.ingestion_specialist import (
     INGESTION_SPECIALIST_MEMORY_AUTHORITY,
     INGESTION_SPECIALIST_SYSTEM_ROLE,
     IngestionSpecialistAgent,
 )
-from swallow.surface_tools.literature_specialist import (
+from swallow.application.services.literature_specialist import (
     LITERATURE_SPECIALIST_MEMORY_AUTHORITY,
     LITERATURE_SPECIALIST_SYSTEM_ROLE,
     LiteratureSpecialistAgent,
 )
-from swallow.surface_tools.wiki_compiler import (
+from swallow.application.services.wiki_compiler import (
     WIKI_COMPILER_MEMORY_AUTHORITY,
     WIKI_COMPILER_SYSTEM_ROLE,
     WikiCompilerAgent,
@@ -43,7 +43,7 @@ from swallow.orchestration.models import (
     ValidationResult,
 )
 from swallow.orchestration.orchestrator import create_task, run_task
-from swallow.surface_tools.quality_reviewer import (
+from swallow.application.services.quality_reviewer import (
     QUALITY_REVIEWER_MEMORY_AUTHORITY,
     QUALITY_REVIEWER_SYSTEM_ROLE,
     QualityReviewerAgent,
@@ -134,7 +134,7 @@ class SpecialistAgentTest(unittest.TestCase):
                 audit_artifact=".swl/tasks/review-task/artifacts/consistency_audit_test.md",
                 raw_output="# Consistency Audit\n- verdict: pass\n",
             )
-            with patch("swallow.surface_tools.consistency_reviewer.run_consistency_audit", return_value=expected) as audit_mock:
+            with patch("swallow.application.services.consistency_reviewer.run_consistency_audit", return_value=expected) as audit_mock:
                 result = ConsistencyReviewerAgent().execute(tmp_path, state, card, [])
 
         self.assertEqual(ConsistencyReviewerAgent.system_role, CONSISTENCY_REVIEWER_SYSTEM_ROLE)
@@ -276,7 +276,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.surface_tools.wiki_compiler.call_agent_llm",
+                "swallow.application.services.wiki_compiler.call_agent_llm",
                 return_value=AgentLLMResponse(
                     content=json.dumps(
                         {
@@ -322,7 +322,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.surface_tools.literature_specialist.call_agent_llm",
+                "swallow.application.services.literature_specialist.call_agent_llm",
                 return_value=AgentLLMResponse(
                     content=json.dumps(
                         {
@@ -405,7 +405,7 @@ class SpecialistAgentTest(unittest.TestCase):
             ]
 
             with patch(
-                "swallow.surface_tools.literature_specialist.call_agent_llm",
+                "swallow.application.services.literature_specialist.call_agent_llm",
                 return_value=AgentLLMResponse(
                     content=json.dumps(
                         {
@@ -454,7 +454,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.surface_tools.literature_specialist.call_agent_llm",
+                "swallow.application.services.literature_specialist.call_agent_llm",
                 side_effect=AgentLLMUnavailable("timeout"),
             ):
                 result = LiteratureSpecialistAgent().execute(tmp_path, state, card, [])
@@ -524,7 +524,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.surface_tools.quality_reviewer.call_agent_llm",
+                "swallow.application.services.quality_reviewer.call_agent_llm",
                 return_value=AgentLLMResponse(
                     content=json.dumps(
                         {
@@ -576,7 +576,7 @@ class SpecialistAgentTest(unittest.TestCase):
             )
 
             with patch(
-                "swallow.surface_tools.quality_reviewer.call_agent_llm",
+                "swallow.application.services.quality_reviewer.call_agent_llm",
                 side_effect=AgentLLMUnavailable("timeout"),
             ):
                 result = QualityReviewerAgent().execute(tmp_path, state, card, [])

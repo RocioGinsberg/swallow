@@ -31,11 +31,11 @@ def build_detached_route(route: RouteSpec) -> RouteSpec:
 
 
 def normalize_route_mode(raw_mode: str | None) -> str:
-    return route_policy_module._normalize_route_mode_value(raw_mode)
+    return route_policy_module.normalize_route_mode_value(raw_mode)
 
 
 def normalize_route_name(raw_name: str | None) -> str:
-    return route_policy_module._normalize_route_name_value(raw_name)
+    return route_policy_module.normalize_route_name_value(raw_name)
 
 
 def route_for_executor(

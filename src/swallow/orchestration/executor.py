@@ -34,7 +34,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
 )
 from swallow.orchestration.models import DialectSpec, ExecutorResult, RetrievalItem, RouteSpec, TaskCard, TaskState
 from swallow.orchestration.runtime_config import resolve_swl_chat_model
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 
 DETACHED_CHILD_ENV = "AIWF_EXECUTOR_DETACHED_CHILD"
 DEFAULT_EXECUTOR_TIMEOUT_SECONDS = 20
@@ -229,25 +229,25 @@ class AsyncCLIAgentExecutor:
 
 
 def _lazy_librarian() -> ExecutorProtocol:
-    from swallow.surface_tools.librarian_executor import LibrarianExecutor
+    from swallow.application.services.librarian_executor import LibrarianExecutor
 
     return LibrarianExecutor()
 
 
 def _lazy_meta_optimizer() -> ExecutorProtocol:
-    from swallow.surface_tools.meta_optimizer import MetaOptimizerExecutor
+    from swallow.application.services.meta_optimizer import MetaOptimizerExecutor
 
     return MetaOptimizerExecutor()
 
 
 def _lazy_ingestion_specialist() -> ExecutorProtocol:
-    from swallow.surface_tools.ingestion_specialist import IngestionSpecialistExecutor
+    from swallow.application.services.ingestion_specialist import IngestionSpecialistExecutor
 
     return IngestionSpecialistExecutor()
 
 
 def _lazy_consistency_reviewer() -> ExecutorProtocol:
-    from swallow.surface_tools.consistency_reviewer import ConsistencyReviewerExecutor
+    from swallow.application.services.consistency_reviewer import ConsistencyReviewerExecutor
 
     return ConsistencyReviewerExecutor()
 
@@ -259,19 +259,19 @@ def _lazy_validator() -> ExecutorProtocol:
 
 
 def _lazy_literature_specialist() -> ExecutorProtocol:
-    from swallow.surface_tools.literature_specialist import LiteratureSpecialistExecutor
+    from swallow.application.services.literature_specialist import LiteratureSpecialistExecutor
 
     return LiteratureSpecialistExecutor()
 
 
 def _lazy_quality_reviewer() -> ExecutorProtocol:
-    from swallow.surface_tools.quality_reviewer import QualityReviewerExecutor
+    from swallow.application.services.quality_reviewer import QualityReviewerExecutor
 
     return QualityReviewerExecutor()
 
 
 def _lazy_wiki_compiler() -> ExecutorProtocol:
-    from swallow.surface_tools.wiki_compiler import WikiCompilerAgent
+    from swallow.application.services.wiki_compiler import WikiCompilerAgent
 
     return WikiCompilerAgent()
 

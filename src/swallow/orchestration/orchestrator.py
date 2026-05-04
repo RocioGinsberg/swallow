@@ -12,35 +12,35 @@ from typing import Awaitable
 from uuid import uuid4
 
 from swallow._io_helpers import read_json_lines_strict_or_empty, read_json_or_empty, read_json_strict
-from swallow.surface_tools.capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
+from swallow.application.services.capabilities import build_capability_assembly, parse_capability_refs, validate_capability_manifest
 from swallow.knowledge_retrieval.knowledge_plane import (
     LIBRARIAN_AGENT_WRITE_AUTHORITY,
     OPERATOR_CANONICAL_WRITE_AUTHORITY,
     apply_knowledge_decision,
     build_canonical_record,
     build_canonical_registry_index,
-    build_canonical_registry_index_report,
-    build_canonical_registry_report,
+    render_canonical_registry_index_report,
+    render_canonical_registry_report,
     build_canonical_reuse_evaluation_record,
     build_canonical_reuse_evaluation_report,
     build_canonical_reuse_regression_baseline,
     build_canonical_reuse_evaluation_summary,
-    build_canonical_reuse_report,
+    render_canonical_reuse_report,
     build_canonical_reuse_summary,
     build_grounding_evidence,
-    build_knowledge_decisions_report,
+    render_knowledge_decisions_report,
     build_knowledge_index,
-    build_knowledge_index_report,
+    render_knowledge_index_report,
     build_knowledge_objects,
     build_knowledge_partition,
-    build_knowledge_partition_report,
+    render_knowledge_partition_report,
     extract_grounding_entries,
     match_retrieval_items_for_citations,
     persist_task_knowledge_view,
     resolve_canonical_reuse_citations,
 )
 from swallow.provider_router.capability_enforcement import CapabilityConstraint, enforce_capability_constraints
-from swallow.surface_tools.consistency_audit import (
+from swallow.application.services.consistency_audit import (
     evaluate_audit_trigger,
     load_audit_trigger_policy,
     load_latest_executor_event_payload,
@@ -57,7 +57,7 @@ from swallow.orchestration.harness import (
     write_task_artifacts,
 )
 from swallow.truth_governance.governance import OperatorToken, ProposalTarget, apply_proposal, register_canonical_proposal
-from swallow.surface_tools.librarian_executor import (
+from swallow.application.services.librarian_executor import (
     LIBRARIAN_CHANGE_LOG_KIND,
     build_knowledge_objects_report as build_librarian_knowledge_objects_report,
     build_librarian_change_log_report,
@@ -75,7 +75,7 @@ from swallow.orchestration.models import (
     build_telemetry_fields,
     evaluate_dispatch_verdict,
 )
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     artifacts_dir,
     canonical_registry_index_path,
     canonical_registry_path,
@@ -176,7 +176,7 @@ from swallow.orchestration.knowledge_flow import (
     build_knowledge_summary_payload,
 )
 from swallow.orchestration.models import utc_now
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 
 
 _BACKGROUND_CONSISTENCY_AUDIT_TASKS: set[asyncio.Task[str]] = set()
@@ -467,12 +467,12 @@ def _apply_librarian_side_effects(
         "knowledge_objects_report.md",
         build_librarian_knowledge_objects_report(state.knowledge_objects),
     )
-    write_artifact(base_dir, state.task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
-    write_artifact(base_dir, state.task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
-    write_artifact(base_dir, state.task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report(all_decisions))
-    write_artifact(base_dir, state.task_id, "canonical_registry_report.md", build_canonical_registry_report(all_canonical_records))
-    write_artifact(base_dir, state.task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(canonical_index))
-    write_artifact(base_dir, state.task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(canonical_reuse_summary))
+    write_artifact(base_dir, state.task_id, "knowledge_partition_report.md", render_knowledge_partition_report(knowledge_partition))
+    write_artifact(base_dir, state.task_id, "knowledge_index_report.md", render_knowledge_index_report(knowledge_index))
+    write_artifact(base_dir, state.task_id, "knowledge_decisions_report.md", render_knowledge_decisions_report(all_decisions))
+    write_artifact(base_dir, state.task_id, "canonical_registry_report.md", render_canonical_registry_report(all_canonical_records))
+    write_artifact(base_dir, state.task_id, "canonical_registry_index_report.md", render_canonical_registry_index_report(canonical_index))
+    write_artifact(base_dir, state.task_id, "canonical_reuse_policy_report.md", render_canonical_reuse_report(canonical_reuse_summary))
     return state
 
 
@@ -2349,17 +2349,17 @@ def create_task(
     save_capability_assembly(base_dir, task_id, state.capability_assembly)
     write_artifact(base_dir, task_id, "task_semantics_report.md", build_task_semantics_report(state))
     write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
-    write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
-    write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
-    write_artifact(base_dir, task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report([]))
+    write_artifact(base_dir, task_id, "knowledge_partition_report.md", render_knowledge_partition_report(knowledge_partition))
+    write_artifact(base_dir, task_id, "knowledge_index_report.md", render_knowledge_index_report(knowledge_index))
+    write_artifact(base_dir, task_id, "knowledge_decisions_report.md", render_knowledge_decisions_report([]))
     canonical_records = read_json_lines_strict_or_empty(canonical_registry_path(base_dir))
-    write_artifact(base_dir, task_id, "canonical_registry_report.md", build_canonical_registry_report(canonical_records))
+    write_artifact(base_dir, task_id, "canonical_registry_report.md", render_canonical_registry_report(canonical_records))
     canonical_index = build_canonical_registry_index(canonical_records)
     save_canonical_registry_index(base_dir, canonical_index)
-    write_artifact(base_dir, task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(canonical_index))
+    write_artifact(base_dir, task_id, "canonical_registry_index_report.md", render_canonical_registry_index_report(canonical_index))
     canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
     save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
-    write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(canonical_reuse_summary))
+    write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", render_canonical_reuse_report(canonical_reuse_summary))
     write_artifact(
         base_dir,
         task_id,
@@ -2538,8 +2538,8 @@ def append_task_knowledge_capture(
     save_knowledge_partition(base_dir, task_id, knowledge_partition)
     save_knowledge_index(base_dir, task_id, knowledge_index)
     write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
-    write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
-    write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
+    write_artifact(base_dir, task_id, "knowledge_partition_report.md", render_knowledge_partition_report(knowledge_partition))
+    write_artifact(base_dir, task_id, "knowledge_index_report.md", render_knowledge_index_report(knowledge_index))
     append_event(
         base_dir,
         Event(
@@ -2615,9 +2615,9 @@ def decide_task_knowledge(
     if knowledge_decisions_path(base_dir, task_id).exists():
         decision_records = read_json_lines_strict_or_empty(knowledge_decisions_path(base_dir, task_id))
     write_artifact(base_dir, task_id, "knowledge_objects_report.md", build_knowledge_objects_report(state))
-    write_artifact(base_dir, task_id, "knowledge_partition_report.md", build_knowledge_partition_report(knowledge_partition))
-    write_artifact(base_dir, task_id, "knowledge_index_report.md", build_knowledge_index_report(knowledge_index))
-    write_artifact(base_dir, task_id, "knowledge_decisions_report.md", build_knowledge_decisions_report(decision_records))
+    write_artifact(base_dir, task_id, "knowledge_partition_report.md", render_knowledge_partition_report(knowledge_partition))
+    write_artifact(base_dir, task_id, "knowledge_index_report.md", render_knowledge_index_report(knowledge_index))
+    write_artifact(base_dir, task_id, "knowledge_decisions_report.md", render_knowledge_decisions_report(decision_records))
     canonical_records: list[dict[str, object]] = []
     if decision_type == "promote" and decision_target == "canonical":
         canonical_record = build_canonical_record(
@@ -2641,9 +2641,9 @@ def decide_task_knowledge(
     save_canonical_registry_index(base_dir, canonical_index)
     canonical_reuse_summary = build_canonical_reuse_summary(canonical_records)
     save_canonical_reuse_policy(base_dir, canonical_reuse_summary)
-    write_artifact(base_dir, task_id, "canonical_registry_report.md", build_canonical_registry_report(canonical_records))
-    write_artifact(base_dir, task_id, "canonical_registry_index_report.md", build_canonical_registry_index_report(canonical_index))
-    write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", build_canonical_reuse_report(canonical_reuse_summary))
+    write_artifact(base_dir, task_id, "canonical_registry_report.md", render_canonical_registry_report(canonical_records))
+    write_artifact(base_dir, task_id, "canonical_registry_index_report.md", render_canonical_registry_index_report(canonical_index))
+    write_artifact(base_dir, task_id, "canonical_reuse_policy_report.md", render_canonical_reuse_report(canonical_reuse_summary))
     append_event(
         base_dir,
         Event(

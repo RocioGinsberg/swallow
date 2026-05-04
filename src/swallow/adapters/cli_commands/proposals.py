@@ -3,11 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from swallow.application.commands.proposals import apply_reviewed_proposals_command, review_proposals_command
-from swallow.surface_tools.meta_optimizer import (
+from swallow.application.services.meta_optimizer import (
     build_optimization_proposal_application_report,
     build_optimization_proposal_review_report,
 )
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 
 
 def handle_proposal_command(base_dir: Path, args: object) -> int | None:

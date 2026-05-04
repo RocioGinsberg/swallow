@@ -4,7 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from swallow.surface_tools.consistency_audit import run_consistency_audit
+from swallow.application.services.consistency_audit import run_consistency_audit
 from swallow.orchestration.models import ExecutorResult, TaskCard, TaskState
 
 

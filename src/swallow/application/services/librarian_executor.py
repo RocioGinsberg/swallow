@@ -10,16 +10,16 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     apply_knowledge_decision,
     build_canonical_record,
     build_canonical_registry_index,
-    build_canonical_registry_index_report,
-    build_canonical_registry_report,
-    build_canonical_reuse_report,
+    render_canonical_registry_index_report,
+    render_canonical_registry_report,
+    render_canonical_reuse_report,
     build_canonical_reuse_summary,
-    build_knowledge_decisions_report,
+    render_knowledge_decisions_report,
     build_knowledge_index,
-    build_knowledge_index_report,
+    render_knowledge_index_report,
     build_knowledge_objects,
     build_knowledge_partition,
-    build_knowledge_partition_report,
+    render_knowledge_partition_report,
     canonicalization_status_for,
     summarize_canonicalization,
     summarize_knowledge_evidence,
@@ -41,7 +41,7 @@ from swallow.orchestration.models import (
     TaskState,
     utc_now,
 )
-from swallow.surface_tools.paths import canonical_registry_path
+from swallow.application.infrastructure.paths import canonical_registry_path
 from swallow.truth_governance.store import load_knowledge_objects
 
 

@@ -3,16 +3,16 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from swallow.surface_tools import meta_optimizer
+from swallow.application.services import meta_optimizer
 
 
-SRC_ROOT = Path(__file__).resolve().parents[3] / "src" / "swallow"
+SRC_ROOT = Path(__file__).resolve().parents[4] / "src" / "swallow"
 READ_ONLY_META_OPTIMIZER_MODULES = (
-    "surface_tools/meta_optimizer_snapshot.py",
-    "surface_tools/meta_optimizer_proposals.py",
-    "surface_tools/meta_optimizer_reports.py",
-    "surface_tools/meta_optimizer_agent.py",
-    "surface_tools/meta_optimizer_lifecycle.py",
+    "application/services/meta_optimizer_snapshot.py",
+    "application/services/meta_optimizer_proposals.py",
+    "application/services/meta_optimizer_reports.py",
+    "application/services/meta_optimizer_agent.py",
+    "application/services/meta_optimizer_lifecycle.py",
 )
 PROHIBITED_TRUTH_MUTATION_TOKENS = (
     "apply_proposal",
@@ -45,7 +45,7 @@ def test_meta_optimizer_read_only_modules_do_not_embed_direct_sql_mutations() ->
 
 
 def test_meta_optimizer_agent_module_has_no_apply_proposal_reference() -> None:
-    assert "apply_proposal" not in _source("surface_tools/meta_optimizer_agent.py")
+    assert "apply_proposal" not in _source("application/services/meta_optimizer_agent.py")
 
 
 def test_meta_optimizer_facade_preserves_public_imports() -> None:

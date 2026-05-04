@@ -30,15 +30,15 @@ from swallow.orchestration.executor import (
     run_executor_inline,
     run_http_executor,
 )
-from swallow.surface_tools.consistency_reviewer import ConsistencyReviewerAgent, ConsistencyReviewerExecutor
-from swallow.surface_tools.ingestion_specialist import IngestionSpecialistAgent, IngestionSpecialistExecutor
-from swallow.surface_tools.librarian_executor import LibrarianAgent, LibrarianExecutor
-from swallow.surface_tools.literature_specialist import LiteratureSpecialistAgent, LiteratureSpecialistExecutor
-from swallow.surface_tools.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
-from swallow.surface_tools.wiki_compiler import WikiCompilerAgent
+from swallow.application.services.consistency_reviewer import ConsistencyReviewerAgent, ConsistencyReviewerExecutor
+from swallow.application.services.ingestion_specialist import IngestionSpecialistAgent, IngestionSpecialistExecutor
+from swallow.application.services.librarian_executor import LibrarianAgent, LibrarianExecutor
+from swallow.application.services.literature_specialist import LiteratureSpecialistAgent, LiteratureSpecialistExecutor
+from swallow.application.services.meta_optimizer import MetaOptimizerAgent, MetaOptimizerExecutor
+from swallow.application.services.wiki_compiler import WikiCompilerAgent
 from swallow.orchestration.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
 from swallow.provider_router.router import resolve_fallback_chain
-from swallow.surface_tools.quality_reviewer import QualityReviewerAgent, QualityReviewerExecutor
+from swallow.application.services.quality_reviewer import QualityReviewerAgent, QualityReviewerExecutor
 from swallow.orchestration.validator_agent import ValidatorAgent, ValidatorExecutor
 
 

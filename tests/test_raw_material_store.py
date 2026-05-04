@@ -17,7 +17,7 @@ from swallow.knowledge_retrieval.raw_material import (
     source_ref_for_artifact,
     source_ref_for_file,
 )
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 
 
 class RawMaterialStoreTest(unittest.TestCase):

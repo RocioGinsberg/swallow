@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from swallow.orchestration.models import utc_now
-from swallow.surface_tools.meta_optimizer_models import (
+from swallow.application.services.meta_optimizer_models import (
     OptimizationProposalApplicationRecord,
     OptimizationProposalBundle,
     OptimizationProposalReviewRecord,
@@ -14,7 +14,7 @@ from swallow.surface_tools.meta_optimizer_models import (
     _ensure_proposal_metadata,
     _timestamp_token,
 )
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     latest_optimization_proposal_bundle_path,
     optimization_proposal_bundle_path,
     optimization_proposal_review_path,

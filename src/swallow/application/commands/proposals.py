@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from swallow.surface_tools.meta_optimizer import (
+from swallow.application.services.meta_optimizer import (
     OptimizationProposalApplicationRecord,
     OptimizationProposalReviewRecord,
     load_optimization_proposal_review,

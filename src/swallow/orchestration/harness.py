@@ -9,9 +9,9 @@ from swallow.provider_router.cost_estimation import DEFAULT_COST_ESTIMATOR, Cost
 from swallow.orchestration.executor import build_failure_recommendations, run_executor
 from swallow.knowledge_retrieval.knowledge_plane import (
     build_grounding_evidence,
-    build_grounding_evidence_report,
+    render_grounding_evidence_report,
     build_knowledge_index,
-    build_knowledge_index_report,
+    render_knowledge_index_report,
     extract_grounding_entries,
     persist_executor_side_effects,
     retrieve_knowledge_context as retrieve_context,
@@ -187,7 +187,7 @@ def write_task_artifacts(
         base_dir,
         state.task_id,
         "knowledge_index_report.md",
-        build_knowledge_index_report(knowledge_index),
+        render_knowledge_index_report(knowledge_index),
     )
     save_knowledge_index(base_dir, state.task_id, knowledge_index)
     write_artifact(
@@ -210,7 +210,7 @@ def write_task_artifacts(
         base_dir,
         state.task_id,
         "grounding_evidence_report.md",
-        build_grounding_evidence_report(grounding_evidence),
+        render_grounding_evidence_report(grounding_evidence),
     )
     write_artifact(
         base_dir,

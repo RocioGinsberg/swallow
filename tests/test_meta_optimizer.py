@@ -13,7 +13,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.adapters.cli import main
-from swallow.surface_tools.meta_optimizer import (
+from swallow.application.services.meta_optimizer import (
     MetaOptimizerAgent,
     MetaOptimizerExecutor,
     apply_reviewed_optimization_proposals,
@@ -34,7 +34,7 @@ from swallow.orchestration.models import (
     ValidationResult,
 )
 from swallow.orchestration.orchestrator import create_task, run_task
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     latest_optimization_proposal_bundle_path,
     optimization_proposals_path,
     route_capabilities_path,

@@ -68,7 +68,7 @@ Layout, in Hexagonal vocabulary:
             │    truth_governance/repositories/file_store.py  │
             │    provider_router/ HTTP completion gateway     │
             │    knowledge_retrieval/ raw_material storage    │
-            │    _io_helpers.py, surface_tools/paths.py       │
+            │    _io_helpers.py, application/infrastructure/  │
             └─────────────────────────────────────────────────┘
 ```
 
@@ -77,7 +77,7 @@ Hexagonal vocabulary used in this repo:
 | Term | Meaning here |
 |---|---|
 | **Driving port** | A function in `application/commands/*` or `application/queries/*` that an adapter invokes |
-| **Driving adapter** | A package in `surface_tools/{cli,web}/` that translates an external request (argv, HTTP) into a driving-port call |
+| **Driving adapter** | A package in `adapters/{cli,http}/` that translates an external request (argv, HTTP) into a driving-port call |
 | **Driven port** | A `Protocol` (or facade contract) the application layer depends on, e.g. `TaskStoreProtocol` in `truth_governance/store.py:151` |
 | **Driven adapter** | A concrete implementation that fulfils a driven port, e.g. `DefaultTaskStore` (SQLite) and `FileTaskStore` (filesystem) |
 | **Domain / control plane** | Layers between application and driven adapters that own task state, knowledge state, route state, and governance |
@@ -211,35 +211,33 @@ Each deviation lists: **what is wrong**, **why it persists**, **what the repair 
 
 **Roadmap home**: Successor to LTO-8 cluster. Defer until D1 + D2 first phase land.
 
-### 3.4 D4 — `surface_tools/` mixes three layer-distinct kinds of code
+### 3.4 D4 — `surface_tools/` transitional package (closed)
 
-**What's wrong**: `surface_tools/` currently houses three different things at once:
+**Original deviation**: `surface_tools/` grouped three layer-distinct kinds of code under one "user surface" name:
 
 | File / package | Hexagonal classification |
 |---|---|
 | `adapters/cli.py` + `adapters/cli_commands/` | Driving adapter |
 | `adapters/http/` | Driving adapter |
-| `surface_tools/consistency_audit.py` | Application service (a use case) |
-| `surface_tools/meta_optimizer.py` | Application service (a use case) |
-| `surface_tools/paths.py`, `surface_tools/workspace.py` | Application infrastructure (workspace conventions) |
+| `application/services/{consistency_audit,meta_optimizer,...}.py` | Application service / specialist-facing use case |
+| `application/infrastructure/{paths,workspace,identity}.py` | Application infrastructure (workspace conventions and local actor identity) |
 
-The name "surface_tools" predates the Hexagonal vocabulary and groups by "things that touch the user surface" — but driving adapters, application services, and application infrastructure are three different layers with three different rules. Mixing them invites the kind of boundary drift LTO-13 audit Round 3 surfaced (`globals().update`, web schema defaults encoding `planning_source="web"`).
+The old `surface_tools` name predated the Hexagonal vocabulary and grouped by "things that touch the user surface". Driving adapters, application services, and application infrastructure are separate layers with separate rules; keeping them together invited the kind of boundary drift LTO-13 audit Round 3 surfaced (`globals().update`, web schema defaults encoding `planning_source="web"`).
 
-**Why it persists**: `CODE_ORGANIZATION.md §2` already calls `surface_tools` a *transitional home* but provides no owner, no trigger, and no schedule for the shrink. Each phase adds new files to it because that is the shortest path.
+**Resolution**: D4 Phase A moved CLI/HTTP driving adapters to `adapters/{cli,http}/`. The Hygiene Bundle completed Phase B/C by moving service-like modules to `application/services/` and workspace/identity helpers to `application/infrastructure/`. No production/test imports of `swallow.surface_tools` remain.
 
-**Repair direction**: Three independent renames, each a small pure-structural phase:
+Current package ownership:
 
-1. **Phase A (easy)**: `surface_tools/cli.py` + `surface_tools/cli_commands/` → `adapters/cli.py` + `adapters/cli_commands/`; `surface_tools/web/` → `adapters/http/`. Pure import-path update.
-2. **Phase B (medium)**: `surface_tools/{consistency_audit,meta_optimizer}.py` → `application/services/` (or absorb into existing `application/commands/` if they have a single entry point each).
-3. **Phase C (medium)**: `surface_tools/{paths,workspace}.py` → `application/infrastructure/` (or top-level `infrastructure/` if more driven adapters move there in D2 / D3).
+| Package | Owner |
+|---|---|
+| `adapters/cli.py`, `adapters/cli_commands/` | CLI driving adapter |
+| `adapters/http/` | FastAPI / static UI driving adapter |
+| `application/services/` | Application services and specialist implementations |
+| `application/infrastructure/` | Workspace-local application infrastructure helpers |
 
-After all three, `surface_tools/` package can be deleted entirely.
+**Residual risk**: hidden external imports of `swallow.surface_tools.*` will break. Inside the repository this is intentional: D4 closed the compatibility window rather than preserving shims for an internal transitional package.
 
-**Trigger to start**: After LTO-13 closeout; Phase A first, since LTO-13 just finished settling the web adapter shape and a fresh rename now is cheap.
-
-**Rough size**: Three small phases of ~50–150 line diffs each, all pure structural moves.
-
-**Roadmap home**: New cluster (post-LTO-13). Suggest naming **"Adapter / Service Boundary Cleanup"** with three sequenced sub-phases.
+**Roadmap home**: Closed by D4 Phase A + Hygiene Bundle. Future boundary work should use `application/services/`, `application/infrastructure/`, or `adapters/` directly rather than reintroducing a transitional package.
 
 ### 3.5 D5 — Adapter discipline is not codified
 
@@ -306,7 +304,7 @@ Every LLM call pays a fresh TCP + TLS handshake. There is no place to attach uni
 These are items the document explicitly does not yet answer. Recording them prevents silent drift.
 
 - **Q1**: When `application/commands/*` is migrated to driven ports (D2), do commands stay as functions or upgrade to objects? Object form would enable LTO-13 R2-1 fire-and-poll for long-running tasks (a `Command.execute_in_background()` pattern). Function form keeps the layer simpler. Defer until D2 first phase has data on call-site complexity.
-- **Q2**: Where does `_io_helpers.py` belong in the Hexagonal layout? It currently sits at `src/swallow/_io_helpers.py` — neither application nor infrastructure. Likely target: `infrastructure/io.py` or absorbed into per-adapter helpers. Defer until D4 Phase C.
+- **Q2**: Where does `_io_helpers.py` belong in the Hexagonal layout? It currently sits at `src/swallow/_io_helpers.py` — neither application nor infrastructure. Likely target: `application/infrastructure/io.py` or absorbed into per-adapter helpers. Defer until a future IO-boundary cleanup phase.
 - **Q3**: Does `orchestration/harness.py` (the LLM execution harness) belong in `orchestration/` (control plane) or in a separate `harness/` peer package? It is large (1000+ lines after LTO-8) and has a different concept of state from task lifecycle. Defer until D3.
 - **Q4**: The `provider_router/` package is well-encapsulated as a facade today (§2.1) but its public surface mixes "select a route" and "perform a completion call". Do these belong in one package or two? Defer pending real coupling pain.
 - **Q5**: Cost / budget tracking lives in two places today — `orchestration/execution_budget_policy.py` (per-call token-cost evaluation) and `provider_router/route_policy.py` (per-route limits). When D6 lands and call-site cost data becomes uniform, should these merge into one "cost & budget policy" module, or stay separated by concern (per-call cost vs lifetime budget)? Defer until D6's `HttpClientPort` adapter exposes a uniform cost-attribution hook.

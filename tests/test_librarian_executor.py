@@ -16,10 +16,10 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     build_knowledge_index,
     build_knowledge_partition,
 )
-from swallow.surface_tools.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianAgent, LibrarianExecutor
+from swallow.application.services.librarian_executor import LIBRARIAN_CHANGE_LOG_KIND, LibrarianAgent, LibrarianExecutor
 from swallow.orchestration.models import TaskCard, TaskState, ValidationResult
 from swallow.orchestration.orchestrator import _apply_librarian_side_effects, create_task, run_task
-from swallow.surface_tools.paths import canonical_registry_index_path, canonical_reuse_policy_path, knowledge_index_path, knowledge_partition_path
+from swallow.application.infrastructure.paths import canonical_registry_index_path, canonical_reuse_policy_path, knowledge_index_path, knowledge_partition_path
 from swallow.truth_governance.store import (
     append_canonical_record,
     load_state,

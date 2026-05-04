@@ -8,7 +8,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     build_canonical_reuse_summary,
     persist_wiki_entry_from_canonical_record,
 )
-from swallow.surface_tools.paths import canonical_registry_path
+from swallow.application.infrastructure.paths import canonical_registry_path
 from swallow.truth_governance.store import append_canonical_record, save_canonical_registry_index, save_canonical_reuse_policy
 
 

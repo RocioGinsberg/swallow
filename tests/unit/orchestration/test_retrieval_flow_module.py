@@ -17,7 +17,7 @@ from swallow.orchestration.models import (
     ValidationResult,
 )
 from swallow.orchestration.orchestrator import run_task
-from swallow.surface_tools.paths import retrieval_path
+from swallow.application.infrastructure.paths import retrieval_path
 
 
 def _task_state(**overrides: object) -> TaskState:

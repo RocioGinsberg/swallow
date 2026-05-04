@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from swallow.surface_tools.paths import latest_optimization_proposal_bundle_path, optimization_proposals_path
+from swallow.application.infrastructure.paths import latest_optimization_proposal_bundle_path, optimization_proposals_path
 from tests.helpers.cli_runner import run_cli
 
 

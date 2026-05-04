@@ -15,7 +15,7 @@ from swallow.orchestration.models import (
     utc_now,
     validate_remote_handoff_contract_payload,
 )
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     canonical_reuse_policy_path,
     canonical_reuse_eval_path,
     canonical_reuse_regression_path,

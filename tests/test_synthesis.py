@@ -7,7 +7,7 @@ import pytest
 from swallow.truth_governance.governance import OperatorToken, ProposalTarget, apply_proposal, register_mps_policy_proposal
 from swallow.orchestration.models import ExecutorResult, SynthesisConfig, SynthesisParticipant, TaskState
 from swallow.provider_router.router import resolve_fallback_chain
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 from swallow.truth_governance.store import load_events, load_state, save_state
 from swallow.orchestration.synthesis import (
     _participant_state_for_call,

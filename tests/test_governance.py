@@ -15,7 +15,7 @@ from swallow.truth_governance.governance import (
     load_mps_policy,
 )
 from swallow.orchestration.models import AuditTriggerPolicy
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     audit_policy_path,
     canonical_registry_index_path,
     canonical_registry_path,
@@ -34,7 +34,7 @@ from swallow.provider_router.router import (
     load_route_registry,
     load_route_weights,
 )
-from swallow.surface_tools.consistency_audit import load_audit_trigger_policy
+from swallow.application.services.consistency_audit import load_audit_trigger_policy
 
 
 def test_operator_token_rejects_invalid_source() -> None:

@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.orchestration.orchestrator import create_task, run_task
 from swallow.orchestration.models import Event
-from swallow.surface_tools.paths import task_root
+from swallow.application.infrastructure.paths import task_root
 from swallow.truth_governance.store import append_event, load_state, save_state
 from swallow.adapters.http.api import (
     build_task_artifact_diff_payload,

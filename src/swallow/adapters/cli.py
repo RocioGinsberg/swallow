@@ -16,14 +16,14 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     build_canonical_reuse_evaluation_summary,
     build_canonical_reuse_regression_current,
     build_canonical_reuse_regression_report,
-    build_canonical_reuse_report,
-    build_canonical_registry_index_report,
-    build_canonical_registry_report,
-    build_ingestion_report,
-    build_ingestion_summary,
-    build_knowledge_decisions_report,
+    render_canonical_reuse_report,
+    render_canonical_registry_index_report,
+    render_canonical_registry_report,
+    render_ingestion_report,
+    render_ingestion_summary,
+    render_knowledge_decisions_report,
     build_review_queue,
-    build_review_queue_report,
+    render_review_queue_report,
     compare_canonical_reuse_regression,
     ingest_operator_note,
     list_staged_knowledge as load_staged_candidates,
@@ -32,7 +32,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     summarize_canonicalization,
 )
 from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
-from swallow.surface_tools.doctor import (
+from swallow.application.services.doctor import (
     diagnose_cli_agents,
     diagnose_executor,
     diagnose_local_stack,
@@ -51,9 +51,9 @@ from swallow.adapters.cli_commands.route_metadata import handle_route_metadata_c
 from swallow.adapters.cli_commands.synthesis import handle_synthesis_command
 from swallow.adapters.cli_commands.tasks import handle_task_read_command, handle_task_write_command
 from swallow.adapters.cli_commands.wiki import handle_wiki_command
-from swallow.surface_tools.mps_policy_store import MPS_POLICY_KINDS
+from swallow.application.services.mps_policy_store import MPS_POLICY_KINDS
 from swallow.orchestration.orchestrator import run_task
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     artifacts_dir,
     canonical_registry_index_path,
     canonical_registry_path,
@@ -83,7 +83,7 @@ from swallow.surface_tools.paths import (
     topology_path,
 )
 from swallow.truth_governance.sqlite_store import get_schema_status
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 from swallow.provider_router.router import (
     apply_route_capability_profiles,
     apply_route_fallbacks,
@@ -2281,9 +2281,9 @@ def main(argv: list[str] | None = None) -> int:
                 format_hint=args.format,
                 dry_run=bool(args.dry_run),
             )
-        output = build_ingestion_report(result)
+        output = render_ingestion_report(result)
         if bool(args.summary):
-            output = f"{output}\n\n{build_ingestion_summary(result)}"
+            output = f"{output}\n\n{render_ingestion_summary(result)}"
         print(output)
         return 0
 
@@ -2351,7 +2351,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "task" and args.task_command == "knowledge-review-queue":
         knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
         decisions = read_json_lines_or_empty(knowledge_decisions_path(base_dir, args.task_id))
-        print(build_review_queue_report(build_review_queue(knowledge_objects, decisions)))
+        print(render_review_queue_report(build_review_queue(knowledge_objects, decisions)))
         return 0
 
     if args.command == "task" and args.task_command == "inspect":

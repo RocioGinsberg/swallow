@@ -160,7 +160,7 @@ def register_mps_policy_proposal(
     kind: str,
     value: int,
 ) -> str:
-    from swallow.surface_tools.mps_policy_store import normalize_mps_policy_kind, validate_mps_policy_value
+    from swallow.application.services.mps_policy_store import normalize_mps_policy_kind, validate_mps_policy_value
 
     normalized_id = _normalize_proposal_id(proposal_id)
     normalized_kind = normalize_mps_policy_kind(kind)
@@ -177,7 +177,7 @@ def register_mps_policy_proposal(
 
 
 def load_mps_policy(base_dir: Path, kind: str) -> int | None:
-    from swallow.surface_tools.mps_policy_store import read_mps_policy
+    from swallow.application.services.mps_policy_store import read_mps_policy
 
     return read_mps_policy(base_dir, kind)
 

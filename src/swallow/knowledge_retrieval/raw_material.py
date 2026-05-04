@@ -6,8 +6,8 @@ from pathlib import Path, PurePosixPath
 from typing import Protocol
 from urllib.parse import quote, unquote, urlparse
 
-from swallow.surface_tools.paths import artifacts_dir
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.paths import artifacts_dir
+from swallow.application.infrastructure.workspace import resolve_path
 
 
 SUPPORTED_RAW_MATERIAL_SCHEMES: tuple[str, ...] = ("file", "artifact")

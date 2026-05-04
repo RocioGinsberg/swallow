@@ -16,10 +16,10 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     TEST_FIXTURE_CANONICAL_WRITE_AUTHORITY,
     migrate_file_knowledge_to_sqlite,
 )
-from swallow.surface_tools.meta_optimizer import build_meta_optimizer_snapshot
+from swallow.application.services.meta_optimizer import build_meta_optimizer_snapshot
 from swallow.orchestration.models import Event, TaskState
 from swallow.orchestration.orchestrator import create_task, run_task
-from swallow.surface_tools.paths import swallow_db_path
+from swallow.application.infrastructure.paths import swallow_db_path
 from swallow.truth_governance.sqlite_store import SqliteTaskStore
 import swallow.truth_governance.store as store_module
 from swallow.truth_governance.store import (

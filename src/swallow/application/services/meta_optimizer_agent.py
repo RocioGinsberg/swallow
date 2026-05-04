@@ -12,16 +12,16 @@ from swallow.orchestration.models import (
     TaskCard,
     TaskState,
 )
-from swallow.surface_tools.meta_optimizer_lifecycle import load_optimization_proposal_bundle, save_optimization_proposal_bundle
-from swallow.surface_tools.meta_optimizer_models import (
+from swallow.application.services.meta_optimizer_lifecycle import load_optimization_proposal_bundle, save_optimization_proposal_bundle
+from swallow.application.services.meta_optimizer_models import (
     META_OPTIMIZER_AGENT_NAME,
     META_OPTIMIZER_EXECUTOR_NAME,
     META_OPTIMIZER_SNAPSHOT_KIND,
     MetaOptimizerSnapshot,
 )
-from swallow.surface_tools.meta_optimizer_reports import build_meta_optimizer_report
-from swallow.surface_tools.meta_optimizer_snapshot import build_meta_optimizer_snapshot
-from swallow.surface_tools.paths import latest_optimization_proposal_bundle_path, optimization_proposals_path
+from swallow.application.services.meta_optimizer_reports import build_meta_optimizer_report
+from swallow.application.services.meta_optimizer_snapshot import build_meta_optimizer_snapshot
+from swallow.application.infrastructure.paths import latest_optimization_proposal_bundle_path, optimization_proposals_path
 
 class MetaOptimizerAgent:
     """Stateful specialist entity for read-only optimization telemetry analysis."""

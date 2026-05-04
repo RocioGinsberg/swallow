@@ -15,7 +15,7 @@ from swallow.provider_router.route_reports import (
     build_route_registry_report,
     build_route_weights_report,
 )
-from swallow.surface_tools.paths import route_fallbacks_path
+from swallow.application.infrastructure.paths import route_fallbacks_path
 
 
 CAPABILITY_MATCH_FIELDS = route_registry_module.CAPABILITY_MATCH_FIELDS
@@ -49,13 +49,8 @@ def _sync_route_policy_exports() -> None:
     SUMMARY_FALLBACK_ROUTE_NAME = route_policy_module.SUMMARY_FALLBACK_ROUTE_NAME
 
 
-def _apply_route_policy_payload(route_policy: dict[str, object]) -> None:
-    route_policy_module._apply_route_policy_payload(route_policy)
-    _sync_route_policy_exports()
-
-
-_apply_route_policy_payload(load_default_route_policy())
-_BUILTIN_ROUTE_FALLBACKS = {route.name: route.fallback_route_name for route in ROUTE_REGISTRY.values()}
+route_policy_module.apply_route_policy_payload(load_default_route_policy())
+_sync_route_policy_exports()
 
 
 def build_detached_route(route: RouteSpec) -> RouteSpec:
@@ -96,14 +91,9 @@ def current_route_registry(registry: RouteRegistry | None = None) -> dict[str, d
 
 
 def apply_route_registry(base_dir: Path, registry: RouteRegistry | None = None) -> dict[str, dict[str, object]]:
-    global _BUILTIN_ROUTE_FALLBACKS
-
     active_registry = registry or ROUTE_REGISTRY
     route_registry = load_route_registry(base_dir)
-    active_registry.replace(route_registry_module._routes_from_registry_payload(route_registry))
-    if active_registry is ROUTE_REGISTRY:
-        _BUILTIN_ROUTE_FALLBACKS = {route.name: route.fallback_route_name for route in active_registry.values()}
-    return current_route_registry(active_registry)
+    return route_registry_module.replace_route_registry_from_payload(active_registry, route_registry)
 
 
 def apply_route_policy(base_dir: Path) -> dict[str, object]:
@@ -150,10 +140,10 @@ def apply_route_capability_profiles(base_dir: Path, registry: RouteRegistry | No
     persisted_profiles = load_route_capability_profiles(base_dir)
     for route in active_registry.values():
         profile = persisted_profiles.get(route.name, {})
-        route.task_family_scores = route_registry_module._normalize_task_family_scores(
+        route.task_family_scores = route_registry_module.normalize_task_family_scores(
             profile.get("task_family_scores", {})
         )
-        route.unsupported_task_types = route_registry_module._normalize_unsupported_task_types(
+        route.unsupported_task_types = route_registry_module.normalize_unsupported_task_types(
             profile.get("unsupported_task_types", [])
         )
     return current_route_capability_profiles(active_registry)
@@ -163,8 +153,8 @@ def current_route_capability_profiles(registry: RouteRegistry | None = None) -> 
     active_registry = registry or ROUTE_REGISTRY
     return {
         route.name: {
-            "task_family_scores": route_registry_module._normalize_task_family_scores(route.task_family_scores),
-            "unsupported_task_types": route_registry_module._normalize_unsupported_task_types(
+            "task_family_scores": route_registry_module.normalize_task_family_scores(route.task_family_scores),
+            "unsupported_task_types": route_registry_module.normalize_unsupported_task_types(
                 route.unsupported_task_types
             ),
         }
@@ -197,11 +187,7 @@ def apply_route_fallbacks(base_dir: Path, registry: RouteRegistry | None = None)
     active_registry = registry or ROUTE_REGISTRY
     persisted_fallbacks = load_route_fallbacks(base_dir)
     known_routes = {route.name for route in active_registry.values()}
-    baseline = (
-        _BUILTIN_ROUTE_FALLBACKS
-        if active_registry is ROUTE_REGISTRY
-        else {route.name: route.fallback_route_name for route in active_registry.values()}
-    )
+    baseline = route_registry_module.builtin_route_fallbacks(active_registry)
 
     for route in active_registry.values():
         fallback_name = baseline.get(route.name, "")
@@ -239,18 +225,6 @@ def resolve_fallback_chain(primary_route_name: str) -> tuple[str, ...]:
     """Return the static fallback route-name chain for a primary route."""
 
     return route_selection_module.resolve_fallback_chain(primary_route_name, registry=ROUTE_REGISTRY)
-
-
-def _reason_with_strategy_match(base_reason: str, match_kind: str) -> str:
-    return route_selection_module._reason_with_strategy_match(base_reason, match_kind)
-
-
-def _resolve_complexity_hint(state: TaskState) -> str:
-    return route_selection_module._resolve_complexity_hint(state)
-
-
-def _apply_complexity_bias(candidates: list[RouteSpec], complexity_hint: str) -> list[RouteSpec]:
-    return route_selection_module._apply_complexity_bias(candidates, complexity_hint)
 
 
 def select_route(

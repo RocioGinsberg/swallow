@@ -12,7 +12,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     submit_staged_knowledge as submit_staged_candidate,
 )
 from swallow.provider_router.router import load_route_weights, route_by_name
-from swallow.surface_tools.paths import canonical_registry_path, latest_optimization_proposal_bundle_path, route_weights_path
+from swallow.application.infrastructure.paths import canonical_registry_path, latest_optimization_proposal_bundle_path, route_weights_path
 from swallow.adapters.http.api import create_fastapi_app
 from swallow.truth_governance.store import load_state
 

@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 import swallow.provider_router.router as router
-from swallow.surface_tools.identity import local_actor
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.identity import local_actor
+from swallow.application.infrastructure.paths import artifacts_dir
 from swallow.provider_router.router import route_by_name
 from swallow.truth_governance.sqlite_store import APPEND_ONLY_TABLES, SqliteTaskStore
 from swallow.truth_governance.store import write_artifact
@@ -58,12 +58,12 @@ EXECUTION_PLANE_FILES = {
     "src/swallow/orchestration/executor.py",
     "src/swallow/orchestration/validator.py",
     "src/swallow/orchestration/validator_agent.py",
-    "src/swallow/surface_tools/librarian_executor.py",
-    "src/swallow/surface_tools/literature_specialist.py",
-    "src/swallow/surface_tools/quality_reviewer.py",
-    "src/swallow/surface_tools/consistency_reviewer.py",
-    "src/swallow/surface_tools/meta_optimizer.py",
-    "src/swallow/surface_tools/meta_optimizer_agent.py",
+    "src/swallow/application/services/librarian_executor.py",
+    "src/swallow/application/services/literature_specialist.py",
+    "src/swallow/application/services/quality_reviewer.py",
+    "src/swallow/application/services/consistency_reviewer.py",
+    "src/swallow/application/services/meta_optimizer.py",
+    "src/swallow/application/services/meta_optimizer_agent.py",
     "src/swallow/knowledge_retrieval/_internal_ingestion_pipeline.py",
 }
 TASK_STATE_WRITE_CALLS = {"save_state"}
@@ -146,9 +146,9 @@ KNOWLEDGE_RETRIEVAL_PACKAGE = "swallow.knowledge_retrieval"
 KNOWLEDGE_PLANE_MODULE = "swallow.knowledge_retrieval.knowledge_plane"
 KNOWLEDGE_RAW_MATERIAL_MODULE = "swallow.knowledge_retrieval.raw_material"
 KNOWLEDGE_RAW_MATERIAL_ALLOWED_FILES = {
-    "src/swallow/surface_tools/librarian_executor.py",
+    "src/swallow/application/services/librarian_executor.py",
 }
-WIKI_COMPILER_MODULE = "src/swallow/surface_tools/wiki_compiler.py"
+WIKI_COMPILER_MODULE = "src/swallow/application/services/wiki_compiler.py"
 WIKI_COMMAND_MODULE = "src/swallow/application/commands/wiki.py"
 WIKI_COMPILER_FORBIDDEN_CALLS = {
     "append_canonical_record",
@@ -358,7 +358,7 @@ def test_knowledge_plane_import_boundary_guard_allows_facade_and_raw_material_ex
     )
     raw_material_violations = _knowledge_plane_import_boundary_violations_for_source(
         "from swallow.knowledge_retrieval.raw_material import FilesystemRawMaterialStore\n",
-        "src/swallow/surface_tools/librarian_executor.py",
+        "src/swallow/application/services/librarian_executor.py",
     )
 
     assert facade_violations == []
@@ -439,7 +439,7 @@ def test_http_knowledge_routes_only_call_application_queries() -> None:
             module = node.module or ""
             if module.startswith("swallow.knowledge_retrieval"):
                 violations.append(f"{rel_path}:{node.lineno} imports {module}; use application.queries.knowledge")
-            if module in {"swallow.truth_governance.sqlite_store", "swallow.surface_tools.paths"}:
+            if module in {"swallow.truth_governance.sqlite_store", "swallow.application.infrastructure.paths"}:
                 violations.append(f"{rel_path}:{node.lineno} imports lower-layer path/store module {module}")
         if not isinstance(node, ast.FunctionDef):
             continue
@@ -470,7 +470,7 @@ def test_http_knowledge_routes_only_call_application_queries() -> None:
 
 def test_knowledge_relation_metadata_types_cover_design_modes() -> None:
     from swallow.knowledge_retrieval.knowledge_plane import KNOWLEDGE_RELATION_TYPES
-    from swallow.surface_tools.wiki_compiler import WIKI_COMPILER_METADATA_RELATION_TYPES
+    from swallow.application.services.wiki_compiler import WIKI_COMPILER_METADATA_RELATION_TYPES
 
     design_metadata_types = {
         "supersedes",
@@ -545,7 +545,7 @@ def test_no_hardcoded_local_actor_outside_identity_module() -> None:
     violations: list[str] = []
     for path in _src_py_files():
         rel_path = _relative(path)
-        if rel_path == "src/swallow/surface_tools/identity.py":
+        if rel_path == "src/swallow/application/infrastructure/identity.py":
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
         for node in ast.walk(tree):
@@ -567,7 +567,7 @@ def test_no_absolute_path_in_truth_writes() -> None:
     violations: list[str] = []
     for path in _src_py_files():
         rel_path = _relative(path)
-        if rel_path == "src/swallow/surface_tools/workspace.py":
+        if rel_path == "src/swallow/application/infrastructure/workspace.py":
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel_path)
         for node in ast.walk(tree):
@@ -604,8 +604,8 @@ def test_only_apply_proposal_calls_private_writers() -> None:
             "src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
             "src/swallow/provider_router/route_metadata_store.py",  # physical route metadata writer owner
             "src/swallow/provider_router/router.py",  # legacy compatibility facade wrappers
-            "src/swallow/surface_tools/consistency_audit.py",
-            "src/swallow/surface_tools/mps_policy_store.py",
+            "src/swallow/application/services/consistency_audit.py",
+            "src/swallow/application/services/mps_policy_store.py",
             "src/swallow/truth_governance/truth/knowledge.py",
             "src/swallow/truth_governance/truth/route.py",
             "src/swallow/truth_governance/truth/policy.py",
@@ -619,13 +619,13 @@ def test_mps_policy_writes_via_apply_proposal() -> None:
     violations = _find_protected_writer_uses(
         protected_names={"save_mps_policy"},
         allowed_files={
-            "src/swallow/surface_tools/mps_policy_store.py",
+            "src/swallow/application/services/mps_policy_store.py",
             "src/swallow/truth_governance/truth/policy.py",
         },
     )
 
     assert violations == []
-    source = (SRC_ROOT / "surface_tools" / "mps_policy_store.py").read_text(encoding="utf-8")
+    source = (SRC_ROOT / "application" / "services" / "mps_policy_store.py").read_text(encoding="utf-8")
     assert "mps_policy_path" in source
     assert '".swl"' not in source
 
@@ -663,9 +663,9 @@ def test_no_module_outside_governance_imports_store_writes() -> None:
         "save_mps_policy",
     }
     allowed_files = {
-        "src/swallow/surface_tools/consistency_audit.py",
+        "src/swallow/application/services/consistency_audit.py",
         "src/swallow/knowledge_retrieval/_internal_knowledge_store.py",
-        "src/swallow/surface_tools/mps_policy_store.py",
+        "src/swallow/application/services/mps_policy_store.py",
         "src/swallow/provider_router/route_metadata_store.py",
         "src/swallow/provider_router/router.py",
         "src/swallow/truth_governance/store.py",
@@ -769,7 +769,7 @@ def test_validator_returns_verdict_only() -> None:
     validator_files = {
         "src/swallow/orchestration/validator.py",
         "src/swallow/orchestration/validator_agent.py",
-        "src/swallow/surface_tools/consistency_reviewer.py",
+        "src/swallow/application/services/consistency_reviewer.py",
     }
     violations: list[str] = []
     verdict_returns: list[str] = []

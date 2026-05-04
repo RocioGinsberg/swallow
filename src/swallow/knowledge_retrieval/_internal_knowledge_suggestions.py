@@ -6,7 +6,7 @@ from pathlib import Path
 from swallow._io_helpers import read_json_or_empty
 from swallow.knowledge_retrieval._internal_canonical_registry import resolve_knowledge_object_id
 from swallow.knowledge_retrieval._internal_knowledge_relations import create_knowledge_relation, list_knowledge_relations
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 
 
 EXECUTOR_SIDE_EFFECTS_ARTIFACT = "executor_side_effects.json"

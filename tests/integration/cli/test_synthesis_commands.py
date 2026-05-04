@@ -6,8 +6,8 @@ from pathlib import Path
 from swallow.knowledge_retrieval.knowledge_plane import list_staged_knowledge as load_staged_candidates
 from swallow.orchestration.orchestrator import create_task
 from swallow.orchestration.models import ExecutorResult
-from swallow.surface_tools.mps_policy_store import read_mps_policy
-from swallow.surface_tools.paths import artifacts_dir, mps_policy_path
+from swallow.application.services.mps_policy_store import read_mps_policy
+from swallow.application.infrastructure.paths import artifacts_dir, mps_policy_path
 from tests.helpers.cli_runner import run_cli
 
 

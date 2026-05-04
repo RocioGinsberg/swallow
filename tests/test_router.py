@@ -10,7 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.provider_router.agent_llm import call_agent_llm
 from swallow.orchestration.models import RouteCapabilities, RouteSpec, TaskState, TaxonomyProfile
-from swallow.surface_tools.paths import route_capabilities_path, route_fallbacks_path, route_policy_path, route_registry_path
+from swallow.application.infrastructure.paths import route_capabilities_path, route_fallbacks_path, route_policy_path, route_registry_path
 from swallow.provider_router.router import (
     RouteRegistry,
     apply_route_policy,

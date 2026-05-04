@@ -17,7 +17,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     list_staged_knowledge,
     migrate_file_knowledge_to_sqlite,
 )
-from swallow.surface_tools.paths import canonical_registry_path
+from swallow.application.infrastructure.paths import canonical_registry_path
 from swallow.truth_governance.governance import (
     OperatorToken,
     ProposalTarget,

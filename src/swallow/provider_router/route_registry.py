@@ -41,6 +41,10 @@ def _normalize_quality_weight(value: object) -> float:
     return 1.0
 
 
+def normalize_quality_weight(value: object) -> float:
+    return _normalize_quality_weight(value)
+
+
 def _normalize_task_type(value: object) -> str:
     return str(value or "").strip().lower()
 
@@ -65,6 +69,14 @@ def _normalize_unsupported_task_types(task_types: object) -> list[str]:
     return sorted(normalized)
 
 
+def normalize_task_family_scores(scores: object) -> dict[str, float]:
+    return _normalize_task_family_scores(scores)
+
+
+def normalize_unsupported_task_types(task_types: object) -> list[str]:
+    return _normalize_unsupported_task_types(task_types)
+
+
 def _normalize_route_capability_profile(profile: object) -> dict[str, object]:
     if not isinstance(profile, dict):
         return {"task_family_scores": {}, "unsupported_task_types": []}
@@ -72,6 +84,10 @@ def _normalize_route_capability_profile(profile: object) -> dict[str, object]:
         "task_family_scores": _normalize_task_family_scores(profile.get("task_family_scores", {})),
         "unsupported_task_types": _normalize_unsupported_task_types(profile.get("unsupported_task_types", [])),
     }
+
+
+def normalize_route_capability_profile(profile: object) -> dict[str, object]:
+    return _normalize_route_capability_profile(profile)
 
 
 def _task_family_score(route: RouteSpec, task_family: str) -> float:
@@ -258,7 +274,7 @@ def load_default_route_registry() -> dict[str, dict[str, object]]:
     return load_route_registry_from_path(DEFAULT_ROUTE_REGISTRY_PATH)
 
 
-def _routes_from_registry_payload(payload: dict[str, dict[str, object]]) -> tuple[RouteSpec, ...]:
+def routes_from_registry_payload(payload: dict[str, dict[str, object]]) -> tuple[RouteSpec, ...]:
     return tuple(route_spec_from_dict(route_payload) for route_payload in payload.values())
 
 
@@ -367,11 +383,46 @@ class RouteRegistry:
         return list(self.values()), "no_match"
 
 
+def _registry_fallbacks(registry: RouteRegistry) -> dict[str, str]:
+    return {route.name: route.fallback_route_name for route in registry.values()}
+
+
+_BUILTIN_ROUTE_FALLBACKS: dict[str, str] = {}
+
+
+def builtin_route_fallbacks(registry: RouteRegistry | None = None) -> dict[str, str]:
+    active_registry = registry or ROUTE_REGISTRY
+    if active_registry is ROUTE_REGISTRY:
+        return dict(_BUILTIN_ROUTE_FALLBACKS)
+    return _registry_fallbacks(active_registry)
+
+
+def refresh_builtin_route_fallbacks(registry: RouteRegistry | None = None) -> dict[str, str]:
+    global _BUILTIN_ROUTE_FALLBACKS
+
+    active_registry = registry or ROUTE_REGISTRY
+    if active_registry is ROUTE_REGISTRY:
+        _BUILTIN_ROUTE_FALLBACKS = _registry_fallbacks(active_registry)
+        return dict(_BUILTIN_ROUTE_FALLBACKS)
+    return _registry_fallbacks(active_registry)
+
+
+def replace_route_registry_from_payload(
+    registry: RouteRegistry,
+    payload: dict[str, dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    registry.replace(routes_from_registry_payload(payload))
+    if registry is ROUTE_REGISTRY:
+        refresh_builtin_route_fallbacks(registry)
+    return current_route_registry(registry)
+
+
 def _build_default_route_registry() -> RouteRegistry:
-    return RouteRegistry(_routes_from_registry_payload(load_default_route_registry()))
+    return RouteRegistry(routes_from_registry_payload(load_default_route_registry()))
 
 
 ROUTE_REGISTRY = _build_default_route_registry()
+refresh_builtin_route_fallbacks(ROUTE_REGISTRY)
 
 
 def current_route_registry(registry: RouteRegistry | None = None) -> dict[str, dict[str, object]]:

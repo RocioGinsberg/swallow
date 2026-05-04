@@ -6,7 +6,7 @@ from pathlib import Path
 
 from swallow._io_helpers import read_json_strict
 from swallow.orchestration.models import utc_now
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     knowledge_objects_path,
     swallow_db_path,
     task_knowledge_evidence_root,

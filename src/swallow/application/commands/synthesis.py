@@ -7,7 +7,7 @@ from pathlib import Path
 from swallow.knowledge_retrieval.knowledge_plane import StagedCandidate, list_staged_knowledge, submit_staged_knowledge
 from swallow.orchestration.models import Event
 from swallow.orchestration.synthesis import load_synthesis_config, run_synthesis
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 from swallow.truth_governance.store import append_event, load_state
 
 

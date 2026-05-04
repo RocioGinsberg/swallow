@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.adapters.cli import build_stage_promote_preflight_notices, main
 from swallow.orchestration.compatibility import build_compatibility_report, evaluate_route_compatibility
-from swallow.surface_tools.capabilities import (
+from swallow.application.services.capabilities import (
     DEFAULT_CAPABILITY_MANIFEST,
     build_capability_assembly,
     parse_capability_refs,
@@ -48,7 +48,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     retrieve_knowledge_context as retrieve_context,
     submit_staged_knowledge as submit_staged_candidate,
 )
-from swallow.surface_tools.meta_optimizer import load_optimization_proposal_bundle
+from swallow.application.services.meta_optimizer import load_optimization_proposal_bundle
 from swallow.orchestration.models import (
     DispatchVerdict,
     Event,
@@ -75,7 +75,7 @@ from swallow.orchestration.orchestrator import (
     run_task,
     update_task_planning_handoff,
 )
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     artifacts_dir,
     canonical_registry_path,
     canonical_reuse_policy_path,
@@ -7444,7 +7444,7 @@ class CliLifecycleTest(unittest.TestCase):
 
     def test_doctor_executor_missing_binary_returns_nonzero(self) -> None:
         stdout = StringIO()
-        with patch("swallow.surface_tools.doctor.shutil.which", return_value=None):
+        with patch("swallow.application.services.doctor.shutil.which", return_value=None):
             with patch("swallow.adapters.cli.diagnose_cli_agents", return_value=(1, [])):
                 with redirect_stdout(stdout):
                     exit_code = main(["doctor", "executor"])
@@ -7462,8 +7462,8 @@ class CliLifecycleTest(unittest.TestCase):
             stdout="aider 1.2.3",
             stderr="",
         )
-        with patch("swallow.surface_tools.doctor.shutil.which", return_value="/usr/bin/aider"):
-            with patch("swallow.surface_tools.doctor.subprocess.run", return_value=completed):
+        with patch("swallow.application.services.doctor.shutil.which", return_value="/usr/bin/aider"):
+            with patch("swallow.application.services.doctor.subprocess.run", return_value=completed):
                 with patch("swallow.adapters.cli.diagnose_cli_agents", return_value=(0, [])):
                     with redirect_stdout(stdout):
                         exit_code = main(["doctor", "executor"])

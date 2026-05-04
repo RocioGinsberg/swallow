@@ -15,7 +15,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
 )
 from swallow.orchestration.orchestrator import create_task
 from swallow.provider_router.agent_llm import AgentLLMResponse
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 from tests.helpers.cli_runner import run_cli
 
 
@@ -31,7 +31,7 @@ def test_wiki_draft_cli_stages_candidate_with_source_pack_and_artifacts(tmp_path
     source_ref = "file://workspace/compiler-source.md"
 
     with patch(
-        "swallow.surface_tools.wiki_compiler.call_agent_llm",
+        "swallow.application.services.wiki_compiler.call_agent_llm",
         return_value=AgentLLMResponse(
             content=json.dumps(
                 {
@@ -93,7 +93,7 @@ def test_wiki_refine_cli_records_requested_relation_metadata(tmp_path: Path) -> 
     source.write_text("The existing wiki entry needs a narrower follow-up.\n", encoding="utf-8")
 
     with patch(
-        "swallow.surface_tools.wiki_compiler.call_agent_llm",
+        "swallow.application.services.wiki_compiler.call_agent_llm",
         return_value=AgentLLMResponse(
             content=json.dumps(
                 {
@@ -154,7 +154,7 @@ def test_wiki_refresh_evidence_updates_anchor_without_llm(tmp_path: Path) -> Non
         ],
     )
 
-    with patch("swallow.surface_tools.wiki_compiler.call_agent_llm", side_effect=AssertionError("LLM must not run")):
+    with patch("swallow.application.services.wiki_compiler.call_agent_llm", side_effect=AssertionError("LLM must not run")):
         result = run_cli(
             tmp_path,
             "wiki",

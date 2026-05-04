@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from swallow.surface_tools.paths import staged_knowledge_registry_path
+from swallow.application.infrastructure.paths import staged_knowledge_registry_path
 from swallow.knowledge_retrieval.knowledge_plane import (
     StagedCandidate,
     decide_staged_knowledge as update_staged_candidate,

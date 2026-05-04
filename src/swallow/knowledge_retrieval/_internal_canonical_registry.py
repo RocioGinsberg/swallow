@@ -5,7 +5,7 @@ from urllib.parse import urlparse
 
 from swallow._io_helpers import read_json_lines_or_empty
 from swallow.orchestration.models import utc_now
-from swallow.surface_tools.paths import canonical_registry_path
+from swallow.application.infrastructure.paths import canonical_registry_path
 from swallow.truth_governance.sqlite_store import SqliteTaskStore
 
 CANONICAL_REGISTRY_DEDUPE_KEY = "canonical_id"

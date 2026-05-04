@@ -13,7 +13,7 @@ from swallow.knowledge_retrieval.canonical_reuse import is_canonical_reuse_visib
 from swallow.knowledge_retrieval._internal_knowledge_store import iter_file_knowledge_task_ids, load_task_knowledge_view
 from swallow.knowledge_retrieval.knowledge_objects import is_retrieval_reuse_ready
 from swallow.orchestration.models import RetrievalItem, RetrievalRequest
-from swallow.surface_tools.paths import canonical_reuse_policy_path
+from swallow.application.infrastructure.paths import canonical_reuse_policy_path
 from swallow.knowledge_retrieval.retrieval_adapters import (
     DedicatedRerankAdapter,
     DedicatedRerankUnavailable,

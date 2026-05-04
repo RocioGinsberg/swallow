@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from swallow.surface_tools.meta_optimizer_models import (
+from swallow.application.services.meta_optimizer_models import (
     MetaOptimizerSnapshot,
     OptimizationProposalApplicationRecord,
     OptimizationProposalReviewRecord,

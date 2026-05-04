@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from swallow.orchestration import knowledge_flow
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     knowledge_evidence_entry_path,
     knowledge_objects_path,
     knowledge_wiki_entry_path,

@@ -16,8 +16,8 @@ from swallow.orchestration.orchestrator import (
     run_task,
     update_task_planning_handoff,
 )
-from swallow.surface_tools.consistency_audit import ConsistencyAuditResult, run_consistency_audit
-from swallow.surface_tools.paths import (
+from swallow.application.services.consistency_audit import ConsistencyAuditResult, run_consistency_audit
+from swallow.application.infrastructure.paths import (
     checkpoint_snapshot_path,
     execution_budget_policy_path,
     handoff_path,

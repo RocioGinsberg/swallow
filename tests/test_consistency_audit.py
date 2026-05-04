@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.adapters.cli import main
-from swallow.surface_tools.consistency_audit import (
+from swallow.application.services.consistency_audit import (
     evaluate_audit_trigger,
     load_audit_trigger_policy,
     run_consistency_audit,
@@ -68,7 +68,7 @@ class ConsistencyAuditTest(unittest.TestCase):
             write_artifact(tmp_path, created.task_id, "executor_output.md", "candidate output for audit")
 
             with patch(
-                "swallow.surface_tools.consistency_audit.run_prompt_executor",
+                "swallow.application.services.consistency_audit.run_prompt_executor",
                 return_value=ExecutorResult(
                     executor_name="http",
                     status="completed",
@@ -137,7 +137,7 @@ class ConsistencyAuditTest(unittest.TestCase):
             stdout = io.StringIO()
 
             with patch(
-                "swallow.surface_tools.consistency_audit.run_prompt_executor",
+                "swallow.application.services.consistency_audit.run_prompt_executor",
                 return_value=ExecutorResult(
                     executor_name="http",
                     status="completed",

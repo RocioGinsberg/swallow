@@ -9,14 +9,14 @@ from swallow.provider_router.router import (
     normalize_route_name,
     route_by_name,
 )
-from swallow.surface_tools import meta_optimizer_lifecycle
-from swallow.surface_tools.meta_optimizer_models import (
+from swallow.application.services import meta_optimizer_lifecycle
+from swallow.application.services.meta_optimizer_models import (
     OptimizationProposalApplicationRecord,
     ProposalApplicationEntry,
     _timestamp_token,
 )
-from swallow.surface_tools.meta_optimizer_proposals import _normalize_task_family_name
-from swallow.surface_tools.paths import (
+from swallow.application.services.meta_optimizer_proposals import _normalize_task_family_name
+from swallow.application.infrastructure.paths import (
     optimization_proposal_application_path,
     route_capabilities_path,
     route_weights_path,

@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from swallow.surface_tools.paths import task_root
+from swallow.application.infrastructure.paths import task_root
 from swallow.truth_governance.store import load_knowledge_objects
 
 

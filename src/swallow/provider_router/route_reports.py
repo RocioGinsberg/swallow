@@ -4,7 +4,7 @@ from pathlib import Path
 
 from swallow.provider_router import route_policy as route_policy_module
 from swallow.provider_router import route_registry as route_registry_module
-from swallow.surface_tools.paths import route_capabilities_path, route_policy_path, route_registry_path, route_weights_path
+from swallow.application.infrastructure.paths import route_capabilities_path, route_policy_path, route_registry_path, route_weights_path
 
 
 def _active_registry(registry: route_registry_module.RouteRegistry | None = None) -> route_registry_module.RouteRegistry:
@@ -18,8 +18,8 @@ def _current_route_weights(registry: route_registry_module.RouteRegistry) -> dic
 def _current_route_capability_profiles(registry: route_registry_module.RouteRegistry) -> dict[str, dict[str, object]]:
     return {
         route.name: {
-            "task_family_scores": route_registry_module._normalize_task_family_scores(route.task_family_scores),
-            "unsupported_task_types": route_registry_module._normalize_unsupported_task_types(route.unsupported_task_types),
+            "task_family_scores": route_registry_module.normalize_task_family_scores(route.task_family_scores),
+            "unsupported_task_types": route_registry_module.normalize_unsupported_task_types(route.unsupported_task_types),
         }
         for route in registry.values()
     }

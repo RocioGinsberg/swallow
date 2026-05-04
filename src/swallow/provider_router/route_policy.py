@@ -39,6 +39,14 @@ def _normalize_route_mode_value(raw_mode: object) -> str:
     return ROUTE_MODE_ALIASES.get(normalized, "auto")
 
 
+def normalize_route_name_value(raw_name: object) -> str:
+    return _normalize_route_name_value(raw_name)
+
+
+def normalize_route_mode_value(raw_mode: object) -> str:
+    return _normalize_route_mode_value(raw_mode)
+
+
 def _normalize_hint_set(value: object) -> set[str]:
     if not isinstance(value, list):
         return set()
@@ -115,6 +123,10 @@ def _apply_route_policy_payload(route_policy: dict[str, object]) -> None:
     SUMMARY_FALLBACK_ROUTE_NAME = str(normalized.get("summary_fallback_route_name", "") or "")
 
 
+def apply_route_policy_payload(route_policy: dict[str, object]) -> None:
+    _apply_route_policy_payload(route_policy)
+
+
 def load_route_policy(base_dir: Path) -> dict[str, object]:
     from swallow.provider_router import route_metadata_store as route_metadata_store_module
 
@@ -129,7 +141,7 @@ def save_route_policy(base_dir: Path, route_policy: object) -> Path:
 
 def apply_route_policy(base_dir: Path) -> dict[str, object]:
     route_policy = load_route_policy(base_dir)
-    _apply_route_policy_payload(route_policy)
+    apply_route_policy_payload(route_policy)
     return current_route_policy()
 
 

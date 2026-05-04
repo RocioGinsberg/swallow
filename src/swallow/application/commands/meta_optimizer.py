@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from swallow.surface_tools.meta_optimizer import MetaOptimizerSnapshot, run_meta_optimizer
-from swallow.surface_tools.paths import latest_optimization_proposal_bundle_path
+from swallow.application.services.meta_optimizer import MetaOptimizerSnapshot, run_meta_optimizer
+from swallow.application.infrastructure.paths import latest_optimization_proposal_bundle_path
 
 
 @dataclass(frozen=True)

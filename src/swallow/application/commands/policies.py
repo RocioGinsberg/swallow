@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from swallow.provider_router.router import route_by_name
-from swallow.surface_tools.consistency_audit import AuditTriggerPolicy, load_audit_trigger_policy
+from swallow.application.services.consistency_audit import AuditTriggerPolicy, load_audit_trigger_policy
 from swallow.truth_governance.governance import (
     OperatorToken,
     ProposalTarget,

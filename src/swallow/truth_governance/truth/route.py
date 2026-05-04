@@ -5,7 +5,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .. import sqlite_store
-from swallow.surface_tools.identity import local_actor
+from swallow.application.infrastructure.identity import local_actor
 from swallow.orchestration.models import utc_now
 from swallow.provider_router.router import (
     apply_route_capability_profiles,

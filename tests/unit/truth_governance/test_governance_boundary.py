@@ -79,9 +79,9 @@ def test_apply_handlers_own_repository_write_logic() -> None:
 def test_route_metadata_handler_imports_meta_optimizer_owning_submodules() -> None:
     route_source = _source("truth_governance/apply_route_metadata.py")
 
-    assert "swallow.surface_tools.meta_optimizer import" not in route_source
-    assert "swallow.surface_tools.meta_optimizer_models" in route_source
-    assert "swallow.surface_tools.meta_optimizer_proposals" in route_source
+    assert "swallow.application.services.meta_optimizer import" not in route_source
+    assert "swallow.application.services.meta_optimizer_models" in route_source
+    assert "swallow.application.services.meta_optimizer_proposals" in route_source
     assert "meta_optimizer_lifecycle" in route_source
 
 

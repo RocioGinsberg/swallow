@@ -7,7 +7,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from swallow.surface_tools.wiki_compiler import (
+from swallow.application.services.wiki_compiler import (
     WIKI_COMPILER_PARSER_VERSION,
     WikiCompilerAgent,
     build_wiki_compiler_source_pack,

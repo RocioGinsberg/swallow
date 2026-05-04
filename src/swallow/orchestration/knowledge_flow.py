@@ -13,7 +13,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     summarize_knowledge_reuse,
     summarize_knowledge_stages,
 )
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     knowledge_evidence_entry_path,
     knowledge_objects_path,
     knowledge_wiki_entry_path,

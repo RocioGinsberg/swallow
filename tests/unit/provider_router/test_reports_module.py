@@ -11,7 +11,7 @@ from swallow.provider_router.router import (
     build_route_registry_report,
     build_route_weights_report,
 )
-from swallow.surface_tools.paths import route_capabilities_path, route_policy_path, route_registry_path, route_weights_path
+from swallow.application.infrastructure.paths import route_capabilities_path, route_policy_path, route_registry_path, route_weights_path
 
 
 def _route(

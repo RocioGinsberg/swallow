@@ -25,11 +25,13 @@ Swallow is a **local-first clean monolith**:
 The target dependency direction is:
 
 ```text
-interfaces/cli
-interfaces/http
+adapters/cli
+adapters/http
         ↓
 application/commands
 application/queries
+application/services
+application/infrastructure
         ↓
 orchestration / knowledge / provider_router / truth_governance
         ↓
@@ -46,15 +48,16 @@ No phase should introduce a second control plane or a second business implementa
 
 | Layer | Duty |
 |---|---|
-| `interfaces/cli` | Parse CLI arguments, format terminal output, call application commands / queries. |
-| `interfaces/http` | FastAPI routes, request / response schema, HTTP error mapping, static UI serving. |
+| `adapters/cli` | Parse CLI arguments, format terminal output, call application commands / queries. |
+| `adapters/http` | FastAPI routes, request / response schema, HTTP error mapping, static UI serving. |
 | `application/commands` | Shared user actions that may mutate task / knowledge / route / policy via Orchestrator or governance. |
 | `application/queries` | Shared read models for CLI, FastAPI, Control Center, and future desktop UI. |
+| `application/services` | Application services and specialist-facing use cases that are not driving adapters. |
+| `application/infrastructure` | Workspace-local application infrastructure helpers such as path conventions and local actor identity. |
 | `orchestration` | Control Plane workflow, task lifecycle, execution attempts, subtask flow, review / retry / recovery. |
 | `knowledge` / `knowledge_retrieval` | Knowledge Truth lifecycle, raw material references, retrieval and serving projections. |
 | `provider_router` | Route registry, route policy, controlled HTTP completion gateway, route selection. |
 | `truth_governance` | Proposal-to-mutation boundary, repository facades, persistence ports, SQLite implementation. |
-| `surface_tools` | Transitional home for current surface modules; should shrink as interfaces/application layers become explicit. |
 
 The exact package names may evolve during implementation, but the dependency direction above should not reverse.
 

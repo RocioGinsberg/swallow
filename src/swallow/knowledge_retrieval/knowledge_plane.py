@@ -179,16 +179,8 @@ def render_canonical_registry_index_report(index_record: dict[str, object]) -> s
     return _canonical_registry.build_canonical_registry_index_report(index_record)
 
 
-def build_canonical_registry_index_report(index_record: dict[str, object]) -> str:
-    return render_canonical_registry_index_report(index_record)
-
-
 def render_canonical_registry_report(records: list[dict[str, object]]) -> str:
     return _canonical_registry.build_canonical_registry_report(records)
-
-
-def build_canonical_registry_report(records: list[dict[str, object]]) -> str:
-    return render_canonical_registry_report(records)
 
 
 def normalize_task_knowledge_view(knowledge_objects: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -378,16 +370,8 @@ def render_ingestion_report(result: IngestionPipelineResult) -> str:
     return _ingestion_pipeline.build_ingestion_report(result)
 
 
-def build_ingestion_report(result: IngestionPipelineResult) -> str:
-    return render_ingestion_report(result)
-
-
 def render_ingestion_summary(result: IngestionPipelineResult) -> str:
     return _ingestion_pipeline.build_ingestion_summary(result)
-
-
-def build_ingestion_summary(result: IngestionPipelineResult) -> str:
-    return render_ingestion_summary(result)
 
 
 def create_knowledge_relation(
@@ -423,16 +407,8 @@ def render_knowledge_relation_report(relation: dict[str, object]) -> str:
     return _knowledge_relations.build_knowledge_relation_report(relation)
 
 
-def build_knowledge_relation_report(relation: dict[str, object]) -> str:
-    return render_knowledge_relation_report(relation)
-
-
 def render_knowledge_relations_report(object_id: str, relations: list[dict[str, object]]) -> str:
     return _knowledge_relations.build_knowledge_relations_report(object_id, relations)
-
-
-def build_knowledge_relations_report(object_id: str, relations: list[dict[str, object]]) -> str:
-    return render_knowledge_relations_report(object_id, relations)
 
 
 def persist_executor_side_effects(base_dir: Path, task_id: str, side_effects: dict[str, object]) -> Path:
@@ -447,10 +423,6 @@ def render_relation_suggestion_application_report(report: dict[str, object]) -> 
     return _knowledge_suggestions.build_relation_suggestion_application_report(report)
 
 
-def build_relation_suggestion_application_report(report: dict[str, object]) -> str:
-    return render_relation_suggestion_application_report(report)
-
-
 def build_knowledge_objects(**kwargs: Any) -> list[Any]:
     return _knowledge_objects.build_knowledge_objects(**kwargs)
 
@@ -463,20 +435,12 @@ def render_knowledge_index_report(index_record: dict[str, object]) -> str:
     return _knowledge_index.build_knowledge_index_report(index_record)
 
 
-def build_knowledge_index_report(index_record: dict[str, object]) -> str:
-    return render_knowledge_index_report(index_record)
-
-
 def build_knowledge_partition(knowledge_objects: list[dict[str, object]]) -> dict[str, object]:
     return _knowledge_partition.build_knowledge_partition(knowledge_objects)
 
 
 def render_knowledge_partition_report(partition: dict[str, object]) -> str:
     return _knowledge_partition.build_knowledge_partition_report(partition)
-
-
-def build_knowledge_partition_report(partition: dict[str, object]) -> str:
-    return render_knowledge_partition_report(partition)
 
 
 def apply_knowledge_review_decision(
@@ -525,10 +489,6 @@ def render_knowledge_decisions_report(decisions: list[dict[str, object]]) -> str
     return _knowledge_review.build_knowledge_decisions_report(decisions)
 
 
-def build_knowledge_decisions_report(decisions: list[dict[str, object]]) -> str:
-    return render_knowledge_decisions_report(decisions)
-
-
 def build_review_queue(
     knowledge_objects: list[dict[str, object]],
     decisions: list[dict[str, object]],
@@ -538,10 +498,6 @@ def build_review_queue(
 
 def render_review_queue_report(queue: dict[str, object]) -> str:
     return _knowledge_review.build_review_queue_report(queue)
-
-
-def build_review_queue_report(queue: dict[str, object]) -> str:
-    return render_review_queue_report(queue)
 
 
 def audit_canonical_registry(base_dir: Path, records: list[dict[str, object]]) -> Any:
@@ -556,20 +512,12 @@ def render_canonical_audit_report(result: Any) -> str:
     return canonical_audit.build_canonical_audit_report(result)
 
 
-def build_canonical_audit_report(result: Any) -> str:
-    return render_canonical_audit_report(result)
-
-
 def build_canonical_reuse_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
     return _canonical_reuse.build_canonical_reuse_summary(records)
 
 
 def render_canonical_reuse_report(summary: dict[str, Any]) -> str:
     return _canonical_reuse.build_canonical_reuse_report(summary)
-
-
-def build_canonical_reuse_report(summary: dict[str, Any]) -> str:
-    return render_canonical_reuse_report(summary)
 
 
 def is_canonical_reuse_visible(record: dict[str, Any]) -> bool:
@@ -618,10 +566,6 @@ def evaluate_knowledge_policy(state: TaskState) -> Any:
 
 def render_knowledge_policy_report(result: Any) -> str:
     return _knowledge_policy.build_knowledge_policy_report(result)
-
-
-def build_knowledge_policy_report(result: Any) -> str:
-    return render_knowledge_policy_report(result)
 
 
 def summarize_canonicalization(objects: list[dict[str, object]] | list[Any]) -> dict[str, int]:
@@ -729,10 +673,6 @@ def build_grounding_evidence(entries: list[GroundingEntry]) -> dict[str, object]
 
 def render_grounding_evidence_report(evidence: dict[str, object]) -> str:
     return _grounding.build_grounding_evidence_report(evidence)
-
-
-def build_grounding_evidence_report(evidence: dict[str, object]) -> str:
-    return render_grounding_evidence_report(evidence)
 
 
 def collect_executor_prompt_data(state: TaskState, retrieval_items: list[RetrievalItem]) -> Any:

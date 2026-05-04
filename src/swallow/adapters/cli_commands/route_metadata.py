@@ -10,8 +10,8 @@ from swallow.provider_router.router import (
     load_route_capability_profiles,
     route_by_name,
 )
-from swallow.surface_tools.meta_optimizer import extract_route_weight_proposals_from_report
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.services.meta_optimizer import extract_route_weight_proposals_from_report
+from swallow.application.infrastructure.workspace import resolve_path
 from swallow.truth_governance.governance import (
     OperatorToken,
     ProposalTarget,

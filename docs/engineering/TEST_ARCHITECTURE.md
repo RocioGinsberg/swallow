@@ -25,12 +25,13 @@ tests/
     ast_guards.py
 
   unit/
+    application/
+    adapters/
     knowledge/
     retrieval/
     provider_router/
     truth_governance/
     orchestration/
-    surface_tools/
 
   integration/
     cli/

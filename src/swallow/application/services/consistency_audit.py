@@ -10,10 +10,10 @@ from pathlib import Path
 
 from swallow.orchestration.executor import run_prompt_executor
 from swallow.truth_governance import sqlite_store
-from swallow.surface_tools.identity import local_actor
+from swallow.application.infrastructure.identity import local_actor
 from swallow.orchestration.models import AuditTriggerPolicy, EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED, TaskState
 from swallow.orchestration.models import utc_now
-from swallow.surface_tools.paths import artifacts_dir, audit_policy_path
+from swallow.application.infrastructure.paths import artifacts_dir, audit_policy_path
 from swallow.provider_router.router import route_by_name
 from swallow.truth_governance.store import load_events, load_state, write_artifact
 

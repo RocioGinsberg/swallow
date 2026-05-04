@@ -8,7 +8,7 @@ from swallow.knowledge_retrieval.knowledge_plane import (
     list_staged_knowledge as load_staged_candidates,
     submit_staged_knowledge as submit_staged_candidate,
 )
-from swallow.surface_tools.paths import canonical_registry_path
+from swallow.application.infrastructure.paths import canonical_registry_path
 from tests.helpers.cli_runner import run_cli
 
 

@@ -20,7 +20,7 @@ from swallow.orchestration.models import (
     infer_task_family,
 )
 from swallow.orchestration.task_semantics import normalize_retrieval_source_types
-from swallow.surface_tools.paths import retrieval_path
+from swallow.application.infrastructure.paths import retrieval_path
 from swallow.truth_governance.store import append_event, save_retrieval
 
 

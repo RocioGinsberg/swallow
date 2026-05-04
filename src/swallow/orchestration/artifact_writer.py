@@ -14,7 +14,7 @@ from swallow.orchestration.execution_fit import build_execution_fit_report, eval
 from swallow.knowledge_retrieval.knowledge_plane import (
     evaluate_knowledge_policy,
     persist_executor_side_effects,
-    render_knowledge_policy_report as build_knowledge_policy_report,
+    render_knowledge_policy_report as render_knowledge_policy_report,
 )
 from swallow.orchestration.models import (
     CheckpointSnapshotResult,
@@ -32,7 +32,7 @@ from swallow.orchestration.models import (
 )
 from swallow.orchestration.retry_policy import build_retry_policy_report, evaluate_retry_policy
 from swallow.orchestration.stop_policy import build_stop_policy_report, evaluate_stop_policy
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     artifacts_dir,
     capability_assembly_path,
     capability_manifest_path,
@@ -63,7 +63,7 @@ from swallow.surface_tools.paths import (
     topology_path,
     validation_path,
 )
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 from swallow.truth_governance.store import (
     append_event,
     save_checkpoint_snapshot,
@@ -896,7 +896,7 @@ def write_execution_fit_policy_artifacts(
 def write_knowledge_policy_artifacts(base_dir: Path, state: TaskState) -> KnowledgePolicyResult:
     result = evaluate_knowledge_policy(state)
     save_knowledge_policy(base_dir, state.task_id, result.to_dict())
-    write_artifact(base_dir, state.task_id, "knowledge_policy_report.md", build_knowledge_policy_report(result))
+    write_artifact(base_dir, state.task_id, "knowledge_policy_report.md", render_knowledge_policy_report(result))
     append_event(
         base_dir,
         Event(

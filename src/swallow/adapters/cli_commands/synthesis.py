@@ -5,7 +5,7 @@ from pathlib import Path
 
 from swallow.application.commands.policies import set_mps_policy_command
 from swallow.application.commands.synthesis import run_synthesis_command, stage_synthesis_command
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 
 
 def handle_synthesis_command(base_dir: Path, args: object) -> int | None:

@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
-from swallow.surface_tools.meta_optimizer import build_meta_optimizer_snapshot
+from swallow.application.services.meta_optimizer import build_meta_optimizer_snapshot
 
 
 pytestmark = pytest.mark.eval

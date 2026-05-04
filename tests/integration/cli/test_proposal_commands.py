@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from swallow.provider_router.router import load_route_weights, route_by_name
-from swallow.surface_tools.meta_optimizer import load_optimization_proposal_bundle
-from swallow.surface_tools.paths import latest_optimization_proposal_bundle_path, route_weights_path
+from swallow.application.services.meta_optimizer import load_optimization_proposal_bundle
+from swallow.application.infrastructure.paths import latest_optimization_proposal_bundle_path, route_weights_path
 from tests.helpers.cli_runner import run_cli
 
 

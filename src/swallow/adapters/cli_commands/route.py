@@ -17,7 +17,7 @@ from swallow.provider_router.router import (
     build_route_policy_report,
     build_route_registry_report,
 )
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 
 
 def handle_route_command(base_dir: Path, args: object) -> int | None:

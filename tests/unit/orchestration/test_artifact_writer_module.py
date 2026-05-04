@@ -14,7 +14,7 @@ from swallow.orchestration.models import (
     TaskState,
     ValidationResult,
 )
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 
 
 def test_create_task_artifact_paths_preserve_initial_path_keys(tmp_path: Path) -> None:

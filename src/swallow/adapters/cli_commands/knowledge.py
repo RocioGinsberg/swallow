@@ -17,17 +17,17 @@ from swallow.application.commands.knowledge import (
 from swallow.knowledge_retrieval.knowledge_plane import (
     StagedCandidate,
     audit_canonical_registry,
-    build_canonical_audit_report,
-    build_ingestion_report,
-    build_ingestion_summary,
-    build_knowledge_relation_report,
-    build_knowledge_relations_report,
-    build_relation_suggestion_application_report,
+    render_canonical_audit_report,
+    render_ingestion_report,
+    render_ingestion_summary,
+    render_knowledge_relation_report,
+    render_knowledge_relations_report,
+    render_relation_suggestion_application_report,
     list_knowledge_relations,
     list_staged_knowledge as load_staged_candidates,
 )
-from swallow.surface_tools.paths import canonical_registry_path
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.paths import canonical_registry_path
+from swallow.application.infrastructure.workspace import resolve_path
 
 
 def handle_knowledge_command(base_dir: Path, args: object) -> int | None:
@@ -61,7 +61,7 @@ def handle_knowledge_command(base_dir: Path, args: object) -> int | None:
         return 0
     if knowledge_command == "canonical-audit":
         canonical_records = read_json_lines_or_empty(canonical_registry_path(base_dir))
-        print(build_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
+        print(render_canonical_audit_report(audit_canonical_registry(base_dir, canonical_records)))
         return 0
     if knowledge_command == "ingest-file":
         result = ingest_knowledge_file_command(
@@ -69,9 +69,9 @@ def handle_knowledge_command(base_dir: Path, args: object) -> int | None:
             resolve_path(getattr(args, "source_path")),
             dry_run=bool(getattr(args, "dry_run")),
         )
-        output = build_ingestion_report(result)
+        output = render_ingestion_report(result)
         if bool(getattr(args, "summary")):
-            output = f"{output}\n\n{build_ingestion_summary(result)}"
+            output = f"{output}\n\n{render_ingestion_summary(result)}"
         print(output)
         return 0
     if knowledge_command == "link":
@@ -83,7 +83,7 @@ def handle_knowledge_command(base_dir: Path, args: object) -> int | None:
             confidence=float(getattr(args, "confidence")),
             context=getattr(args, "context"),
         )
-        print(build_knowledge_relation_report(relation))
+        print(render_knowledge_relation_report(relation))
         return 0
     if knowledge_command == "unlink":
         relation_id = getattr(args, "relation_id")
@@ -93,7 +93,7 @@ def handle_knowledge_command(base_dir: Path, args: object) -> int | None:
     if knowledge_command == "links":
         object_id = getattr(args, "object_id")
         relations = list_knowledge_relations(base_dir, object_id)
-        print(build_knowledge_relations_report(object_id, relations))
+        print(render_knowledge_relations_report(object_id, relations))
         return 0
     if knowledge_command == "apply-suggestions":
         report = apply_relation_suggestions_command(
@@ -101,7 +101,7 @@ def handle_knowledge_command(base_dir: Path, args: object) -> int | None:
             getattr(args, "task_id"),
             dry_run=bool(getattr(args, "dry_run")),
         )
-        print(build_relation_suggestion_application_report(report), end="")
+        print(render_relation_suggestion_application_report(report), end="")
         return 0
     if knowledge_command == "migrate":
         print(format_knowledge_migration_summary(migrate_knowledge_command(base_dir, dry_run=bool(getattr(args, "dry_run")))))

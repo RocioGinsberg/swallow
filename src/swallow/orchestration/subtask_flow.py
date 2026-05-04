@@ -5,7 +5,7 @@ from pathlib import Path
 
 from swallow.orchestration.models import ExecutorResult
 from swallow.orchestration.subtask_orchestrator import SubtaskRunRecord
-from swallow.surface_tools.paths import artifacts_dir
+from swallow.application.infrastructure.paths import artifacts_dir
 from swallow.truth_governance.store import write_artifact
 
 

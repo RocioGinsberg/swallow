@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from swallow.application.commands.policies import set_audit_trigger_policy_command
-from swallow.surface_tools.consistency_audit import build_audit_trigger_policy_report, load_audit_trigger_policy
+from swallow.application.services.consistency_audit import build_audit_trigger_policy_report, load_audit_trigger_policy
 
 
 def handle_audit_command(base_dir: Path, args: object) -> int | None:

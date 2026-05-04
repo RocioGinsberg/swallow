@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 from swallow.knowledge_retrieval.knowledge_plane import KNOWLEDGE_RELATION_TYPES
 from swallow.provider_router.agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
 from swallow.orchestration.models import ExecutorResult, RetrievalItem, TaskCard, TaskState
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 
 
 LITERATURE_SPECIALIST_EXECUTOR_NAME = "literature-specialist"

@@ -19,7 +19,7 @@ from swallow.application.commands.tasks import (
     run_task_consistency_audit_command,
     update_planning_handoff_command,
 )
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import (
     artifacts_dir,
     canonical_registry_index_path,
     canonical_registry_path,
@@ -48,7 +48,7 @@ from swallow.surface_tools.paths import (
     retrieval_path,
     topology_path,
 )
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 from swallow.truth_governance.store import iter_task_states, load_knowledge_objects, load_state
 
 
@@ -380,7 +380,7 @@ def _handle_knowledge_review_queue(base_dir: Path, args: object) -> int:
     c = _cli()
     knowledge_objects = load_knowledge_objects(base_dir, getattr(args, "task_id"))
     decisions = read_json_lines_or_empty(knowledge_decisions_path(base_dir, getattr(args, "task_id")))
-    print(c.build_review_queue_report(c.build_review_queue(knowledge_objects, decisions)))
+    print(c.render_review_queue_report(c.build_review_queue(knowledge_objects, decisions)))
     return 0
 
 
@@ -499,18 +499,18 @@ ARTIFACT_PRINTER_DISPATCH: dict[str, ArtifactPrinter] = {
         load_knowledge_objects(base_dir, _require_artifact_task_id(task_id))
     ),
     "knowledge-decisions": lambda base_dir, task_id: _print_report(
-        _cli().build_knowledge_decisions_report(
+        _cli().render_knowledge_decisions_report(
             read_json_lines_or_empty(knowledge_decisions_path(base_dir, _require_artifact_task_id(task_id)))
         )
     ),
     "canonical-registry": lambda base_dir, _task_id: _print_report(
-        _cli().build_canonical_registry_report(read_json_lines_or_empty(canonical_registry_path(base_dir)))
+        _cli().render_canonical_registry_report(read_json_lines_or_empty(canonical_registry_path(base_dir)))
     ),
     "canonical-registry-index": lambda base_dir, _task_id: _print_report(
-        _cli().build_canonical_registry_index_report(read_json_or_empty(canonical_registry_index_path(base_dir)))
+        _cli().render_canonical_registry_index_report(read_json_or_empty(canonical_registry_index_path(base_dir)))
     ),
     "canonical-reuse": lambda base_dir, _task_id: _print_report(
-        _cli().build_canonical_reuse_report(read_json_or_empty(canonical_reuse_policy_path(base_dir)))
+        _cli().render_canonical_reuse_report(read_json_or_empty(canonical_reuse_policy_path(base_dir)))
     ),
     "canonical-reuse-regression": _print_canonical_reuse_regression,
     "canonical-reuse-eval": _print_canonical_reuse_eval,

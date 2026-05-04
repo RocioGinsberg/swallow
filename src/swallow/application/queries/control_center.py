@@ -6,15 +6,15 @@ from pathlib import Path
 from swallow.orchestration.models import EVENT_EXECUTOR_COMPLETED, EVENT_EXECUTOR_FAILED
 from swallow.orchestration.checkpoint_snapshot import evaluate_checkpoint_snapshot
 from swallow._io_helpers import read_json_or_empty
-from swallow.surface_tools.paths import artifacts_dir
-from swallow.surface_tools.paths import (
+from swallow.application.infrastructure.paths import artifacts_dir
+from swallow.application.infrastructure.paths import (
     checkpoint_snapshot_path,
     execution_budget_policy_path,
     handoff_path,
     retry_policy_path,
     stop_policy_path,
 )
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 from swallow.truth_governance.store import iter_task_states, load_events, load_knowledge_objects, load_state
 
 

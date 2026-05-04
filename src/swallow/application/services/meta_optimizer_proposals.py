@@ -6,7 +6,7 @@ from statistics import median_low
 
 from swallow.orchestration.models import OptimizationProposal
 from swallow.provider_router.router import load_route_capability_profiles, route_by_name
-from swallow.surface_tools.meta_optimizer_models import (
+from swallow.application.services.meta_optimizer_models import (
     FailureFingerprint,
     RouteTaskFamilyTelemetryStats,
     RouteTelemetryStats,

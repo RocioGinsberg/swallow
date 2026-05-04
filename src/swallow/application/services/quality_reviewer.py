@@ -7,7 +7,7 @@ from pathlib import Path
 
 from swallow.provider_router.agent_llm import AgentLLMUnavailable, call_agent_llm, extract_json_object
 from swallow.orchestration.models import ExecutorResult, TaskCard, TaskState
-from swallow.surface_tools.workspace import resolve_path
+from swallow.application.infrastructure.workspace import resolve_path
 
 
 QUALITY_REVIEWER_EXECUTOR_NAME = "quality-reviewer"

@@ -9,8 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from swallow.knowledge_retrieval.knowledge_plane import (
     EXTERNAL_SESSION_SOURCE_KIND,
-    build_ingestion_report,
-    build_ingestion_summary,
+    render_ingestion_report,
+    render_ingestion_summary,
     ingest_operator_note,
     ingest_local_file,
     list_staged_knowledge as load_staged_candidates,
@@ -132,7 +132,7 @@ class IngestionPipelineTest(unittest.TestCase):
 
             result = run_ingestion_pipeline(tmp_path, source, dry_run=True)
 
-        report = build_ingestion_report(result)
+        report = render_ingestion_report(result)
         self.assertIn("# Ingestion Report", report)
         self.assertIn("source_kind: external_session_ingestion", report)
         self.assertIn("dry_run: yes", report)
@@ -149,7 +149,7 @@ class IngestionPipelineTest(unittest.TestCase):
             ingest_local_file(tmp_path, source)
             second_result = ingest_local_file(tmp_path, source, dry_run=True)
 
-        report = build_ingestion_report(second_result)
+        report = render_ingestion_report(second_result)
         self.assertIn("hygiene_warning_count: 2", report)
         self.assertIn("repeated_source_object_id_in_registry: ingest-notes-fragment-0001", report)
         self.assertIn("repeated_source_ref_in_registry: file://workspace/notes.md", report)
@@ -186,7 +186,7 @@ class IngestionPipelineTest(unittest.TestCase):
 
             result = run_ingestion_pipeline(tmp_path, source, dry_run=True)
 
-        summary = build_ingestion_summary(result)
+        summary = render_ingestion_summary(result)
         self.assertIn("# Ingestion Summary", summary)
         self.assertIn("## Decisions (1)", summary)
         self.assertIn("Decision: keep staged review manual.", summary)

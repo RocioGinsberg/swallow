@@ -5,7 +5,7 @@ from pathlib import Path
 
 from swallow.knowledge_retrieval.knowledge_plane import load_task_knowledge_view, persist_task_knowledge_view
 from swallow.orchestration.models import TaskCard
-from swallow.surface_tools.wiki_compiler import (
+from swallow.application.services.wiki_compiler import (
     WIKI_COMPILER_PARSER_VERSION,
     WikiCompilerAgent,
     WikiCompilerRunResult,

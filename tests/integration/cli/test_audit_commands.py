@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from swallow.surface_tools.consistency_audit import load_audit_trigger_policy
+from swallow.application.services.consistency_audit import load_audit_trigger_policy
 from tests.helpers.cli_runner import run_cli
 
 

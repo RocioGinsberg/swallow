@@ -7,8 +7,8 @@ from pathlib import Path
 from swallow.orchestration.models import utc_now
 from swallow.provider_router import route_policy as route_policy_module
 from swallow.provider_router import route_registry as route_registry_module
-from swallow.surface_tools.identity import local_actor
-from swallow.surface_tools.paths import route_capabilities_path, route_policy_path, route_registry_path, route_weights_path
+from swallow.application.infrastructure.identity import local_actor
+from swallow.application.infrastructure.paths import route_capabilities_path, route_policy_path, route_registry_path, route_weights_path
 from swallow.truth_governance import sqlite_store
 
 
@@ -60,7 +60,7 @@ def _route_row_values(route_name: str, route_payload: dict[str, object]) -> tupl
     route = route_registry_module.route_spec_from_dict({**route_payload, "name": route_name})
     normalized = route.to_dict()
     capabilities = dict(normalized.get("capabilities", {}))
-    capabilities[_ROUTE_CAPABILITY_SCORES_KEY] = route_registry_module._normalize_task_family_scores(
+    capabilities[_ROUTE_CAPABILITY_SCORES_KEY] = route_registry_module.normalize_task_family_scores(
         normalized.get("task_family_scores", {})
     )
     timestamp = utc_now()
@@ -74,7 +74,7 @@ def _route_row_values(route_name: str, route_payload: dict[str, object]) -> tupl
         route.transport_kind or None,
         route.fallback_route_name or None,
         route.quality_weight,
-        _json_dumps(route_registry_module._normalize_unsupported_task_types(normalized.get("unsupported_task_types", []))),
+        _json_dumps(route_registry_module.normalize_unsupported_task_types(normalized.get("unsupported_task_types", []))),
         _json_dumps(normalized.get("cost_profile", None)),
         timestamp,
         actor,
@@ -152,7 +152,7 @@ def _load_route_registry_from_sqlite(connection: sqlite3.Connection) -> dict[str
     payload: dict[str, dict[str, object]] = {}
     for row in rows:
         capabilities = _json_object(str(row["capabilities_json"] or "{}"))
-        task_family_scores = route_registry_module._normalize_task_family_scores(capabilities.pop(_ROUTE_CAPABILITY_SCORES_KEY, {}))
+        task_family_scores = route_registry_module.normalize_task_family_scores(capabilities.pop(_ROUTE_CAPABILITY_SCORES_KEY, {}))
         route_payload = {
             "name": str(row["route_id"]),
             "executor_name": str(row["executor_name"]),
@@ -160,9 +160,9 @@ def _load_route_registry_from_sqlite(connection: sqlite3.Connection) -> dict[str
             "model_hint": str(row["model_hint"]),
             "dialect_hint": str(row["dialect_hint"] or ""),
             "fallback_route_name": str(row["fallback_route_id"] or ""),
-            "quality_weight": route_registry_module._normalize_quality_weight(row["quality_weight"]),
+            "quality_weight": route_registry_module.normalize_quality_weight(row["quality_weight"]),
             "task_family_scores": task_family_scores,
-            "unsupported_task_types": route_registry_module._normalize_unsupported_task_types(_json_list(row["unsupported_task_types"])),
+            "unsupported_task_types": route_registry_module.normalize_unsupported_task_types(_json_list(row["unsupported_task_types"])),
             "executor_family": str(row["executor_family"]),
             "execution_site": str(row["execution_site"]),
             "remote_capable": bool(int(row["remote_capable"] or 0)),
@@ -176,9 +176,9 @@ def _load_route_registry_from_sqlite(connection: sqlite3.Connection) -> dict[str
 
 def _save_route_weights_to_sqlite(connection: sqlite3.Connection, weights: dict[str, float]) -> dict[str, float]:
     normalized_weights = {
-        route_policy_module._normalize_route_name_value(route_name): round(route_registry_module._normalize_quality_weight(weight), 6)
+        route_policy_module.normalize_route_name_value(route_name): round(route_registry_module.normalize_quality_weight(weight), 6)
         for route_name, weight in sorted(weights.items())
-        if route_policy_module._normalize_route_name_value(route_name)
+        if route_policy_module.normalize_route_name_value(route_name)
     }
     connection.execute(
         "UPDATE route_registry SET quality_weight = 1.0, updated_at = ?, updated_by = ?",
@@ -199,14 +199,14 @@ def _save_route_weights_to_sqlite(connection: sqlite3.Connection, weights: dict[
 def _load_route_weights_from_sqlite(connection: sqlite3.Connection) -> dict[str, float]:
     rows = connection.execute("SELECT route_id, quality_weight FROM route_registry ORDER BY route_id").fetchall()
     return {
-        str(row["route_id"]): route_registry_module._normalize_quality_weight(row["quality_weight"])
+        str(row["route_id"]): route_registry_module.normalize_quality_weight(row["quality_weight"])
         for row in rows
     }
 
 
 def _capabilities_json_with_scores(raw_capabilities: str | None, scores: dict[str, float]) -> str:
     capabilities = _json_object(raw_capabilities)
-    capabilities[_ROUTE_CAPABILITY_SCORES_KEY] = route_registry_module._normalize_task_family_scores(scores)
+    capabilities[_ROUTE_CAPABILITY_SCORES_KEY] = route_registry_module.normalize_task_family_scores(scores)
     return _json_dumps(capabilities)
 
 
@@ -215,9 +215,9 @@ def _save_route_capability_profiles_to_sqlite(
     profiles: dict[str, dict[str, object]],
 ) -> dict[str, dict[str, object]]:
     normalized_profiles = {
-        route_policy_module._normalize_route_name_value(route_name): route_registry_module._normalize_route_capability_profile(profile)
+        route_policy_module.normalize_route_name_value(route_name): route_registry_module.normalize_route_capability_profile(profile)
         for route_name, profile in sorted(profiles.items())
-        if route_policy_module._normalize_route_name_value(route_name)
+        if route_policy_module.normalize_route_name_value(route_name)
     }
     rows = connection.execute("SELECT route_id, capabilities_json FROM route_registry").fetchall()
     timestamp = utc_now()
@@ -253,9 +253,9 @@ def _save_route_capability_profiles_to_sqlite(
             (
                 _capabilities_json_with_scores(
                     str(row["capabilities_json"] or "{}"),
-                    route_registry_module._normalize_task_family_scores(profile.get("task_family_scores", {})),
+                    route_registry_module.normalize_task_family_scores(profile.get("task_family_scores", {})),
                 ),
-                _json_dumps(route_registry_module._normalize_unsupported_task_types(profile.get("unsupported_task_types", []))),
+                _json_dumps(route_registry_module.normalize_unsupported_task_types(profile.get("unsupported_task_types", []))),
                 utc_now(),
                 local_actor(),
                 route_name,
@@ -276,8 +276,8 @@ def _load_route_capability_profiles_from_sqlite(
     for row in rows:
         capabilities = _json_object(str(row["capabilities_json"] or "{}"))
         profile = {
-            "task_family_scores": route_registry_module._normalize_task_family_scores(capabilities.get(_ROUTE_CAPABILITY_SCORES_KEY, {})),
-            "unsupported_task_types": route_registry_module._normalize_unsupported_task_types(_json_list(row["unsupported_task_types"])),
+            "task_family_scores": route_registry_module.normalize_task_family_scores(capabilities.get(_ROUTE_CAPABILITY_SCORES_KEY, {})),
+            "unsupported_task_types": route_registry_module.normalize_unsupported_task_types(_json_list(row["unsupported_task_types"])),
         }
         if include_empty or profile["task_family_scores"] or profile["unsupported_task_types"]:
             profiles[str(row["route_id"])] = profile

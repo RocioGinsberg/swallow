@@ -8,7 +8,7 @@ from swallow.orchestration.models import (
     EVENT_TASK_EXECUTION_FALLBACK,
     utc_now,
 )
-from swallow.surface_tools.meta_optimizer_models import (
+from swallow.application.services.meta_optimizer_models import (
     FailureFingerprint,
     MetaOptimizerSnapshot,
     RouteTaskFamilyTelemetryStats,
@@ -17,7 +17,7 @@ from swallow.surface_tools.meta_optimizer_models import (
     _coerce_nonnegative_float,
     _coerce_nonnegative_int,
 )
-from swallow.surface_tools.meta_optimizer_proposals import _normalize_task_family_name, build_optimization_proposals
+from swallow.application.services.meta_optimizer_proposals import _normalize_task_family_name, build_optimization_proposals
 from swallow.truth_governance.store import iter_recent_task_events
 
 def build_meta_optimizer_snapshot(base_dir: Path, last_n: int = 100) -> MetaOptimizerSnapshot:

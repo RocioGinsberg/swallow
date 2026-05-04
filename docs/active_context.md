@@ -10,17 +10,19 @@
 
 - latest_completed_track: `Knowledge Authoring`
 - latest_completed_phase: `LTO-1 — Wiki Compiler 第一阶段`
-- latest_completed_slice: `merged to main at 349efa9; closeout/review committed`
-- active_track: `Release / Tag Preparation`
-- active_phase: `v1.8.0 release docs`
-- active_slice: `release docs synced; ready for tag commit`
+- latest_completed_slice: `merged to main at 349efa9; v1.8.0 tagged at d6f2442`
+- active_track: `Architecture / Hygiene`
+- active_phase: `Hygiene Bundle`
+- active_slice: `validated; pending human commit`
 - active_branch: `main`
-- status: `v1_8_0_release_docs_ready_for_tag_commit`
+- status: `hygiene_bundle_validation_passed_pending_commit`
 
 ## 当前状态说明
 
 当前 git 分支为 `main`。当前 HEAD 为:
 
+- `f81503b docs(state): update roadmap`
+- `d6f2442 docs(release): sync v1.8.0 release docs`
 - `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`
 - `9d9d7f2 docs(plan): finalize lto-1 wiki compiler closeout`
 - `32a5cbb refactor(wiki): remove executor compatibility wrapper`
@@ -31,9 +33,9 @@
 - `7eb2ef8 docs(plan): add lto-1 wiki compiler plan`
 - `883e2a9 Knowledge Plane Facade Solidification`
 
-`v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。Human 已决定基于 LTO-1 能力增量准备 `v1.8.0` release docs 与 annotated tag;tag 尚未执行。
+`v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。`v1.8.0` annotated tag 已 cut(标记 LTO-1 Wiki Compiler 第一阶段;tag target `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`)。
 
-**当前真实入口**:LTO-1 Wiki Compiler 第一阶段已 merge 到 `main` at `349efa9`。Post-merge state sync 与 `v1.8.0` tag-level release docs 已同步,等待人工提交 release docs 后执行 annotated tag。
+**当前真实入口**:按 Human 指令完成压缩流程 **Hygiene Bundle**。本轮不创建 `plan.md` / `plan_audit.md` / `review_comments.md` / `closeout.md`;范围以 `docs/roadmap.md` §三为准:D4 Phase B/C、LTO-6 review C1 alias cleanup、LTO-7 follow-up (2)/(3)。当前 working tree 已完成结构清理与验证,等待 Human 审阅并提交;不 cut 新 tag。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -46,9 +48,9 @@ LTO-10 deferred(仍开放):
 - Reviewed route metadata 内部拆分(若有可读性收益)。
 - Durable governance outbox persistence(待事件 schema 与消费者落地)。
 
-LTO-7 long-running follow-ups(仍开放):
+LTO-7 long-running follow-ups:
 
-- CONCERN-2 / CONCERN-3(`provider_router/router.py` 私有名字耦合、fallback 所有权)记录在 `docs/concerns_backlog.md`,触面 only。
+- CONCERN-2 / CONCERN-3(`provider_router/router.py` 私有名字耦合、fallback 所有权)已由 Hygiene Bundle 消化并移入 `docs/concerns_backlog.md` Resolved。
 
 ## 当前关键文档
 
@@ -170,7 +172,7 @@ LTO-7 long-running follow-ups(仍开放):
   - 拆掉 `build_knowledge_projection` / `serve_knowledge_context` / `load_task_knowledge` 类 omnibus 方案,改为显式领域函数;不再硬卡 raw export count,但禁止 selector/mode flag。
   - 将 M2 internal rename 与 M3 caller migration 明确为同一原子实现 gate,避免中间 commit/compileall 断裂。
   - 明确 `ingestion/__init__.py` 不再 re-export pipeline,`run_knowledge_ingestion_pipeline` 进入 facade。
-  - 补齐未分类 imports 的迁移矩阵,包括 `artifact_writer.py`、`harness.py`、`adapters/cli.py`、`truth_governance/sqlite_store.py`、`surface_tools/librarian_executor.py` 等。
+  - 补齐未分类 imports 的迁移矩阵,包括 `artifact_writer.py`、`harness.py`、`adapters/cli.py`、`truth_governance/sqlite_store.py`、`application/services/librarian_executor.py` 等。
   - M4 guard scope 扩为 production source 默认只能经 `knowledge_plane`,并要求同步 `_internal_knowledge_store.py` invariant allowlist。
 - **[Codex]** 完成 M1 facade contract and characterization:
   - `knowledge_plane.py` 从 import-only barrel 改为显式 functional facade wrapper,删除 broad legacy `__all__`。
@@ -179,13 +181,13 @@ LTO-7 long-running follow-ups(仍开放):
   - M1 验证通过:`tests/test_knowledge_plane_facade.py` 6 passed;M1 focused gate 31 passed;`compileall -q src/swallow`;`git diff --check`。
 - **[Codex]** 完成 M2+M3 atomic internalization and caller migration:
   - 六个 lifecycle modules 已 rename 为 `_internal_*`,旧 public module files 不保留 compatibility stubs。
-  - application / adapters / orchestration / provider_router / residual `surface_tools` / truth_governance runtime callers 已迁移到 `knowledge_plane` facade;`raw_material.py` 作为 explicit storage-boundary exception 保留。
+  - application / adapters / orchestration / provider_router / residual service / truth_governance runtime callers 已迁移到 `knowledge_plane` facade;`raw_material.py` 作为 explicit storage-boundary exception 保留。
   - `knowledge_retrieval/ingestion/__init__.py` 不再 re-export pipeline behavior,只保留 parser/filter public exports。
   - 行为测试改走 facade imports;`tests/test_invariant_guards.py` 同步 `_internal_knowledge_store.py` 与 `_internal_ingestion_pipeline.py` allowlist。
   - M2+M3 验证通过:`compileall -q src/swallow`;计划 focused gate `303 passed`;facade/knowledge/invariant gate `58 passed`;application boundary `11 passed`;provider_router focused gate `40 passed`;full pytest `751 passed, 8 deselected`;旧六模块 import scan clean;外层 `_internal_*` import scan clean;`git diff --check`。
 - **[Codex]** 完成 M4 guard and documentation sync:
   - `tests/test_invariant_guards.py` 新增 Knowledge Plane public-boundary import guard,扫描 production source 并阻止外层代码直接 import `_internal_*`、旧六 public module、facade-covered behavior modules 或任意非 `knowledge_plane` Knowledge Retrieval 子模块。
-  - 守卫保留唯一 production exception:`surface_tools/librarian_executor.py` 可直接 import `raw_material.py` 作为 storage-boundary dependency。
+  - 守卫保留唯一 production exception:`application/services/librarian_executor.py` 可直接 import `raw_material.py` 作为 storage-boundary dependency。
   - 新增 synthetic fixture tests,证明守卫会拒绝 `_internal_knowledge_store` 与 `retrieval` 直接 import,并允许 `knowledge_plane` 与 raw-material exception。
   - M4 验证通过:`tests/test_invariant_guards.py` 31 passed;`git diff --check`。
 - **[Codex]** 完成 M5 full validation and closeout prep:
@@ -247,57 +249,70 @@ LTO-7 long-running follow-ups(仍开放):
 
 进行中:
 
-- 无。`v1.8.0` release docs 已同步,等待 Human 审阅提交。
+- 无。Hygiene Bundle 已实现并通过验证,等待 Human 审阅提交。
 
 待执行:
 
-- **[Human]** 审阅并提交 release docs commit。
-- **[Human]** 执行 annotated tag `v1.8.0`(标记**首次 LLM-内编译能力增量落地** / Wiki Compiler first stage)。
-- **[Codex]** Human 确认 tag 完成后,同步 `docs/active_context.md` 的 tag 状态。
-- **[Optional]** LTO-6 review C1 follow-up:删除 `knowledge_plane.py` 中 ~14 处 `render_*` / `build_*` 配对别名;不阻塞 tag。
+- **[Human]** 审阅 diff 并执行提交;本 bundle 不 cut tag。
+- **[Human]** 从 `docs/roadmap.md` Direction Gate 候选中选择下一启动方向。
+
+当前验证:
+
+- `compileall -q src/swallow` passed.
+- focused gates passed: invariant guards `35 passed`; provider router `35 passed`; meta/executor/specialist `48 passed`; CLI/services `306 passed`; Web/API `22 passed`; knowledge/service `36 passed`.
+- full pytest passed: `773 passed, 12 deselected`.
+- `git diff --check` passed.
+- runtime scan clean:`src` / `tests` 无 `swallow.surface_tools` / `surface_tools` references;`router.py` 无 provider-router 私名 references.
 
 当前阻塞项:
 
-- 无 blocker。release docs 已同步,等待 Human 审阅后提交并执行 tag。
+- 无 blocker。Hygiene Bundle 属于 Human 明确批准的压缩流程,不等待 plan / audit / review gate。
+- 当前仅等待 Human commit 决策。
 
 ## Tag 状态
 
-- 最新已执行 tag: **`v1.7.0`**(2026-05-03 同期 cut)
-- tag target: `2156d4a docs(release): sync v1.7.0 release docs`
-- 标记意义:**LTO-13 FastAPI Local Web UI Write Surface 首次落地**(本地 Web Control Center write surface;LLM-外可观察能力增量)
-- 上一 tag: `v1.6.0` at `0e6215a`(标记 cluster C closure)
-- 下一 tag:Human 已决定准备 **`v1.8.0`**;release docs commit 后执行 annotated tag。
+- 最新已执行 tag: **`v1.8.0`**
+- tag target: `d6f2442 docs(release): sync v1.8.0 release docs`
+- 标记意义:**LTO-1 Wiki Compiler 第一阶段落地**(首次 LLM-内知识编译能力进入本地 operator workflow)
+- 上一 tag: `v1.7.0` at `2156d4a`(标记 LTO-13 FastAPI Local Web UI Write Surface)
+- 下一 tag:无;Hygiene Bundle 不 cut tag。
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 release docs commit。
-2. **[Human]** 执行 annotated tag `v1.8.0`。
-3. **[Codex]** Human 确认 tag 完成后,同步 tag 已执行状态。
+1. **[Human]** 审阅 diff,按 bundle 内语义选择一个或多个 commit。
+2. **[Human]** 从 roadmap Direction Gate 候选中选择下一启动方向。
 
 ```markdown
 direction_gate:
 - latest_completed_phase: LTO-1 — Wiki Compiler 第一阶段
-- latest_release_tag: v1.7.0 at 2156d4a docs(release): sync v1.7.0 release docs
+- latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
 - active_branch: main
-- active_phase: v1.8.0 release docs
-- active_slice: release docs synced; ready for tag commit
-- roadmap: docs/roadmap.md LTO-1 marked complete; no active implementation ticket selected
+- active_phase: Hygiene Bundle
+- active_slice: validated; pending human commit
+- roadmap: docs/roadmap.md §三 Hygiene Bundle complete; Direction Gate candidates listed
 - lto1_design_docs: docs/design/EXECUTOR_REGISTRY.md + docs/design/SELF_EVOLUTION.md updated with Wiki Compiler specialist + 4 modes
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
-- next_gate: Human release docs commit -> annotated tag v1.8.0
+- next_gate: Human commit decision -> Direction Gate
 ```
 
 ## 当前产出物
 
+- `src/swallow/application/services/`(codex, 2026-05-04, Hygiene Bundle D4 Phase B:service-like residual modules moved out of `surface_tools`)
+- `src/swallow/application/infrastructure/`(codex, 2026-05-04, Hygiene Bundle D4 Phase C:`paths` / `workspace` / `identity` moved out of `surface_tools`)
+- `src/swallow/knowledge_retrieval/knowledge_plane.py` + `src/swallow/adapters/cli_commands/tasks.py`(codex, 2026-05-04, Hygiene Bundle LTO-6 C1:remove paired report `build_*` aliases and use `render_*`)
+- `src/swallow/provider_router/{router.py,route_policy.py,route_registry.py,route_selection.py,route_metadata_store.py,route_reports.py}`(codex, 2026-05-04, Hygiene Bundle LTO-7 follow-up:router private-name coupling removed;fallback baseline owned by route registry)
+- `tests/test_invariant_guards.py` + `tests/unit/application/services/test_meta_optimizer_boundary.py`(codex, 2026-05-04, Hygiene Bundle guard/path sync)
+- `docs/engineering/ARCHITECTURE_DECISIONS.md` + `docs/engineering/CODE_ORGANIZATION.md` + `docs/engineering/TEST_ARCHITECTURE.md`(codex, 2026-05-04, D4 boundary docs synced)
+- `docs/concerns_backlog.md` + `docs/roadmap.md` + `current_state.md` + `docs/active_context.md`(codex, 2026-05-04, Hygiene Bundle completion state)
 - `src/swallow/adapters/http/static/index.html`(codex, 2026-05-04, M4 Knowledge surface;wiki/canonical/staged lists + detail + source pack + relations adjacency;read-only)
 - `tests/test_web_api.py`(codex, 2026-05-04, M4 static smoke for Knowledge panel IDs and GET route strings)
 - `src/swallow/application/queries/knowledge.py`(codex, 2026-05-04, M2/M3 read model;wiki/canonical/staged list + detail + persisted/metadata relations adjacency)
 - `src/swallow/adapters/http/api.py` + `src/swallow/adapters/http/schemas.py`(codex, 2026-05-04, M2/M3 read-only Knowledge Browse HTTP routes + Pydantic response envelopes)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py` + `_internal_canonical_registry.py` + `_internal_knowledge_store.py`(codex, 2026-05-04, M2/M3 read-only facade helpers for canonical registry records and knowledge task ids)
 - `tests/integration/http/test_knowledge_browse_routes.py` + `tests/unit/application/test_knowledge_queries.py` + `tests/test_web_api.py`(codex, 2026-05-04, M2/M3 HTTP/application coverage and route response_model exposure checks)
-- `src/swallow/surface_tools/wiki_compiler.py`(codex, 2026-05-04, M1 Wiki Compiler specialist;Path C via Provider Router;source pack anchors;staged candidate write)
+- `src/swallow/application/services/wiki_compiler.py`(codex, 2026-05-04, M1 Wiki Compiler specialist;Path C via Provider Router;source pack anchors;staged candidate write)
 - `src/swallow/application/commands/wiki.py`(codex, 2026-05-04, M1 adapter-facing wiki commands;draft/refine/refresh-evidence)
 - `src/swallow/adapters/cli_commands/wiki.py` + `src/swallow/adapters/cli.py`(codex, 2026-05-04, M1 `swl wiki draft/refine/refresh-evidence` CLI)
 - `src/swallow/knowledge_retrieval/_internal_staged_knowledge.py` + `knowledge_plane.py`(codex, 2026-05-04, M1 staged metadata extension + raw-material facade exports)
@@ -307,7 +322,7 @@ direction_gate:
 - `docs/plans/lto-1-wiki-compiler-first-stage/plan.md`(codex, 2026-05-04, review LTO-1 Wiki Compiler 第一阶段 plan;已吸收 plan_audit 5 concerns + 2 nits;M1-M5 覆盖 Wiki Compiler CLI/specialist、Knowledge Browse routes、detail+relations、Web panel、boundary/evidence guards)
 - `docs/plans/lto-1-wiki-compiler-first-stage/closeout.md`(codex, 2026-05-04, M5 closeout final;review recommend-merge, C1 absorbed, validation + deferred follow-ups)
 - `docs/plans/lto-1-wiki-compiler-first-stage/review_comments.md`(claude, 2026-05-04, **recommend-merge**;5/5 plan_audit concerns + 2/2 nits absorbed;0 blockers / 1 concern(C1 `WikiCompilerExecutor` empty subclass)/ 2 nits)
-- `src/swallow/orchestration/executor.py` + `src/swallow/surface_tools/wiki_compiler.py` + `tests/test_executor_protocol.py`(codex, 2026-05-04, post-review C1 cleanup:remove empty wrapper and register `WikiCompilerAgent` directly)
+- `src/swallow/orchestration/executor.py` + `src/swallow/application/services/wiki_compiler.py` + `tests/test_executor_protocol.py`(codex, 2026-05-04, post-review C1 cleanup:remove empty wrapper and register `WikiCompilerAgent` directly)
 - `README.md`(codex, 2026-05-04, `v1.8.0` release snapshot;Wiki Compiler first stage)
 - `current_state.md`(codex, 2026-05-04, merge checkpoint + `v1.8.0` release-docs-ready state)
 - `docs/roadmap.md`(codex, 2026-05-04, LTO-1 marked complete;current ticket moved to release/tag prep)
@@ -319,7 +334,7 @@ direction_gate:
 - `src/swallow/knowledge_retrieval/knowledge_plane.py`(codex, 2026-05-03, M1 functional facade wrapper implementation)
 - `tests/test_knowledge_plane_facade.py`(codex, 2026-05-03, M1 facade characterization coverage)
 - `src/swallow/knowledge_retrieval/_internal_canonical_registry.py` / `_internal_staged_knowledge.py` / `_internal_knowledge_store.py` / `_internal_knowledge_relations.py` / `_internal_knowledge_suggestions.py` / `_internal_ingestion_pipeline.py`(codex, 2026-05-03, M2 internal lifecycle modules)
-- `src/swallow/application/` / `adapters/` / `orchestration/` / `provider_router/` / `surface_tools/` / `truth_governance/` touched imports(codex, 2026-05-03, M3 caller migration to `knowledge_plane`)
+- `src/swallow/application/` / `adapters/` / `orchestration/` / `provider_router/` / `truth_governance/` touched imports(codex, 2026-05-03, M3 caller migration to `knowledge_plane`)
 - `tests/test_*` + `tests/integration/*` + `tests/unit/*` touched imports/guards(codex, 2026-05-03, M3 facade behavior tests and moved-module guard sync)
 - `tests/test_invariant_guards.py`(codex, 2026-05-03, M4 Knowledge Plane public-boundary import guard)
 - `docs/plans/lto-6-knowledge-plane-facade-solidification/closeout.md`(codex, 2026-05-04, final closeout;review recommend-merge, C1/N1/N2 dispositions recorded)

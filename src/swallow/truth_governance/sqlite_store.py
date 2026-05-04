@@ -6,9 +6,9 @@ from pathlib import Path
 from typing import Iterable
 from uuid import uuid4
 
-from swallow.surface_tools.identity import local_actor
+from swallow.application.infrastructure.identity import local_actor
 from swallow.orchestration.models import Event, TaskState, utc_now
-from swallow.surface_tools.paths import app_root, artifacts_dir, swallow_db_path, task_root, tasks_root
+from swallow.application.infrastructure.paths import app_root, artifacts_dir, swallow_db_path, task_root, tasks_root
 
 SQLITE_CONNECT_TIMEOUT_SECONDS = 5.0
 SQLITE_BUSY_TIMEOUT_MS = 5000

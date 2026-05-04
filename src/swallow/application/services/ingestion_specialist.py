@@ -4,8 +4,8 @@ import asyncio
 from pathlib import Path
 
 from swallow.knowledge_retrieval.knowledge_plane import (
-    build_ingestion_report,
-    build_ingestion_summary,
+    render_ingestion_report,
+    render_ingestion_summary,
     run_knowledge_ingestion_pipeline as run_ingestion_pipeline,
 )
 from swallow.orchestration.models import ExecutorResult, TaskCard, TaskState
@@ -60,7 +60,7 @@ class IngestionSpecialistAgent:
             source_path,
             format_hint=format_hint or None,
         )
-        output = f"{build_ingestion_report(result)}\n\n{build_ingestion_summary(result)}\n"
+        output = f"{render_ingestion_report(result)}\n\n{render_ingestion_summary(result)}\n"
         return ExecutorResult(
             executor_name=self.agent_name,
             status="completed",
