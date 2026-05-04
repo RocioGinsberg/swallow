@@ -24,14 +24,14 @@
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
 - current_working_phase: `lto-1-wiki-compiler-second-stage`
-- checkpoint_type: `plan_review_pending`
-- active_branch: `main`
+- checkpoint_type: `feature_branch_m5_validation_passed`
+- active_branch: `feat/lto-1-wiki-compiler-second-stage`
 - last_checked: `2026-05-04`
 
 说明:
 
-- 当前工作分支为 `main`;HEAD 为 `449653a docs(state): update roadmap`。Hygiene Bundle 已提交并完成 roadmap factual sync。
-- Human 已选择下一启动方向为 **Wiki Compiler 第二阶段**。Codex 已产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`;当前等待 plan audit / Human Plan Gate,尚未切 feature branch。
+- 当前工作分支为 `feat/lto-1-wiki-compiler-second-stage`;branch HEAD 为 `d578964 feat(web): add wiki compiler authoring UX`。M5 guards / eval / closeout prep 已完成并等待 Human closeout / commit。
+- Human 已选择下一启动方向为 **Wiki Compiler 第二阶段**。Codex 已完成 M1-M5,并准备 closeout / PR / 状态同步材料。
 - LTO-13 已合并并完成 `v1.7.0` annotated tag;tag target 为 `2156d4a docs(release): sync v1.7.0 release docs`。
 - LTO-1 已合并并完成 `v1.8.0` annotated tag;tag target 为 `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit 为 `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`。
 - LTO-6 已合并到 `main` at `883e2a9 Knowledge Plane Facade Solidification`;Knowledge Plane facade 已从 barrel file 收口为 functional facade,旧 direct reach imports 已由 guard 保护。
@@ -47,18 +47,17 @@
 
 当前推荐从以下状态继续:
 
-- active_branch: `main`
+- active_branch: `feat/lto-1-wiki-compiler-second-stage`
 - active_track: `Knowledge Authoring`
 - active_phase: `lto-1-wiki-compiler-second-stage`
-- active_slice: `phase-plan`
-- workflow_status: `plan_review_pending`
+- active_slice: `M5 - Guards, eval, closeout prep`
+- workflow_status: `m5_validation_passed_waiting_human_commit`
 
 下一步:
 
-1. Claude / design-auditor 产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`。
-2. Human 审阅 plan + audit,决定是否通过 Plan Gate。
-3. Plan audit / Human gate 通过后,Human 从 `main` 切到 `feat/lto-1-wiki-compiler-second-stage`。
-4. Codex 分支确认后再进入实现。
+1. Human 审阅并提交 M5 closeout / guard / eval / status sync。
+2. Human 决定是否合并 feature branch,以及是否进入 tag 决策。
+3. Codex 在 Human commit / merge 后继续同步 `docs/active_context.md`、`current_state.md` 和 `docs/roadmap.md`。
 
 ---
 
@@ -87,7 +86,7 @@
 
 ## 最小验证命令
 
-Direction Gate / plan 启动前建议至少执行以下检查:
+恢复当前 M5 收口状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -102,7 +101,7 @@ sed -n '1,220p' docs/roadmap.md
 
 ```bash
 .venv/bin/python -m pytest -q
-# Hygiene Bundle final rerun: 773 passed, 12 deselected
+# Wiki Compiler second-stage final rerun: 793 passed, 16 deselected
 
 .venv/bin/python -m compileall -q src/swallow
 # passed
@@ -117,7 +116,7 @@ git diff --check
 
 - 当前不再做 LTO-13 / LTO-6 / LTO-1 功能实现;三者均已合并到 `main`,且 `v1.8.0` tag 已执行。
 - Hygiene Bundle 已完成;当前不继续扩张该 bundle。
-- Wiki Compiler 第二阶段当前只处于 plan review gate;未完成 plan audit / Human gate 前不开始实现。
+- Wiki Compiler 第二阶段已完成实现和验证,当前只等待 Human closeout / commit。
 - 不改变 Orchestrator / Operator 的 task-state control authority。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
 - 不新增 auth/multi-user、remote worker、Planner/DAG 或项目级全图谱可视化。
@@ -127,11 +126,14 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前建议提交 plan / state 文档,不含实现代码:
+当前建议提交 M5 guard / eval / closeout 收口:
 
 ```bash
-git add docs/plans/lto-1-wiki-compiler-second-stage/plan.md docs/active_context.md current_state.md
-git commit -m "docs(plan): add wiki compiler second stage plan"
+git add docs/active_context.md current_state.md \
+  docs/plans/lto-1-wiki-compiler-second-stage/closeout.md \
+  tests/test_invariant_guards.py \
+  tests/eval/test_wiki_compiler_second_stage_quality.py
+git commit -m "test(wiki): lock compiler second stage guards"
 ```
 
 
