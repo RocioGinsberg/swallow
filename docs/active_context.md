@@ -13,15 +13,15 @@
 - latest_completed_slice: `M4 fixture consolidation complete;final full suite passed;R-entry ready`
 - active_track: `R-entry Real Usage`
 - active_phase: `r-entry-real-usage`
-- active_slice: `plan ready;design-doc knowledge chain + UI/nginx smoke`
+- active_slice: `real usage findings captured;direction gate candidates ready`
 - active_branch: `main`
-- status: `r_entry_plan_ready`
+- status: `r_entry_findings_ready`
 
 ## 当前状态说明
 
 当前 git 分支为 `main`。LTO-4 Test Architecture 已 merge 到 `main`;本轮进入 R-entry 真实使用验证,不触发新开发 phase,不走 plan audit / review / closeout,不 cut tag。
 
-Codex 已产出 `docs/plans/r-entry-real-usage/plan.md`,作为本轮真实使用 runbook。范围包括:用设计文档材料跑 CLI task / knowledge / Wiki Compiler / promotion / retrieval 链路,本机 Web UI smoke,以及 Tailscale + nginx 简单反代展示 smoke。目标是发现实际使用问题,并把问题作为下一轮 Direction Gate 输入。
+Codex 已产出 `docs/plans/r-entry-real-usage/plan.md`,作为本轮真实使用 runbook。R-entry 本机可执行部分已完成并整理到 `docs/plans/r-entry-real-usage/findings.md`:CLI task / knowledge / Wiki Compiler / promotion / retrieval 链路已跑通到真实问题定位;本机 Web UI smoke 通过;Wiki LLM 与 OpenRouter rerank 已验证可用;nginx/Tailscale 仍需 Human 在 host nginx 与第二台 tailnet 设备上执行。
 
 LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AST guard helper extraction、global builder fixture entry。最终 `collect-only` 为 `806/825 tests collected (19 deselected)`,比 LTO-4 起始 baseline `802/821` 增加 4 个 helper self-tests,没有测试数量减少。最终全量 pytest `806 passed, 19 deselected in 131.76s`,real `2m12.909s`,处于 LTO-4 允许耗时区间内。完成后不触发后续 phase,不 cut tag;下一步只进入真实使用 R-entry。
 
@@ -53,11 +53,12 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 - **[Human]** 历史 phase 文档已移动到 `docs/archive_phases/` at `795aa4d docs(store): move history plans to archive`;`docs/plans/` 只保留当前 R-entry 计划。
 - **[Codex]** 已产出 `docs/plans/r-entry-real-usage/plan.md`,覆盖 CLI + knowledge chain + Wiki Compiler + Web UI + Tailscale/nginx smoke。
 - **[Codex]** 已同步 `docs/roadmap.md` 到 LTO-4 complete / R-entry active 状态。
+- **[Codex]** 已执行 R-entry 本机可验证部分并整理 `docs/plans/r-entry-real-usage/findings.md`,记录 retrieval source scoping / truth reuse visibility / note-only offline semantics / wiki ergonomics / nginx host smoke 等 Direction Gate 候选。
 
 待执行:
 
-- **[Human]** 按 R-entry runbook 执行真实使用验证,记录 `$BASE/notes/r-entry-issues.md`。
-- **[Codex]** Human 完成实测后整理 issue log,辅助下一轮 Direction Gate。
+- **[Human]** 审阅 `docs/plans/r-entry-real-usage/findings.md`,决定下一轮 Direction Gate 是否优先进入 Retrieval Source Scoping And Truth Reuse Visibility。
+- **[Human]** 如需完成 R9,在 host nginx + 第二台 Tailscale 设备执行反代 smoke,再把结果补入 findings 或后续部署 runbook。
 
 ## 当前验证
 
@@ -121,16 +122,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 按 `docs/plans/r-entry-real-usage/plan.md` 执行 R-entry real usage runbook。
-2. **[Human]** 记录 `$BASE/notes/r-entry-issues.md` 中的 CLI / UI / nginx / knowledge / wiki / retrieval 问题。
-3. **[Codex]** Human 完成实测后整理 issue log,为下一轮 Direction Gate 提供候选输入。
+1. **[Human]** 审阅 `docs/plans/r-entry-real-usage/findings.md`。
+2. **[Human]** 决定下一轮 Direction Gate 的优先方向;当前 Codex 建议首选 `Retrieval Source Scoping And Truth Reuse Visibility`。
+3. **[Human]** 可选执行 R9 host nginx/Tailscale smoke,补齐个人 tailnet UI 展示验证。
 
 ```markdown
 compressed_gate:
 - active_phase: r-entry-real-usage
-- active_slice: plan ready;design-doc knowledge chain + UI/nginx smoke
+- active_slice: real usage findings captured;direction gate candidates ready
 - active_branch: main
-- status: r_entry_plan_ready
+- status: r_entry_findings_ready
 - latest_completed_phase: lto-4-test-architecture
 - latest_completed_commit: ac2d3ff docs(state): mark lto4 r-entry ready
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
@@ -141,12 +142,14 @@ compressed_gate:
 - current_count: 806/825 collected;19 deselected
 - final_full_pytest: 806 passed, 19 deselected in 131.76s; real 2m12.909s
 - r_entry_plan: docs/plans/r-entry-real-usage/plan.md
-- next_gate: Human executes R-entry runbook and records issue log
+- findings: docs/plans/r-entry-real-usage/findings.md
+- next_gate: Human reviews findings and selects next Direction Gate priority
 ```
 
 ## 当前产出物
 
 - `docs/plans/r-entry-real-usage/plan.md`(codex, 2026-05-04, R-entry real usage runbook for design-doc knowledge chain, CLI, UI, nginx/Tailscale smoke, and issue logging)
+- `docs/plans/r-entry-real-usage/findings.md`(codex, 2026-05-04, R-entry real usage findings and Direction Gate candidates)
 - `docs/active_context.md`(codex, 2026-05-04, current R-entry state and checkpoint cleanup)
 - `docs/roadmap.md`(codex, 2026-05-04, LTO-4 complete / R-entry active roadmap sync)
 - `current_state.md`(codex, 2026-05-04, recovery checkpoint sync to post-LTO-4 / R-entry-ready main state)
