@@ -10,16 +10,18 @@
 
 - latest_completed_track: `Retrieval Quality`
 - latest_completed_phase: `lto-2-retrieval-quality-evidence-serving`
-- latest_completed_slice: `merged to main at 03744f0; roadmap/backlog sync pending commit`
-- active_track: `Direction Gate`
-- active_phase: `post-lto-2-direction-gate`
-- active_slice: `post-merge state sync`
-- active_branch: `main`
-- status: `post_lto2_merge_state_synced_waiting_human_commit`
+- latest_completed_slice: `post-merge state sync committed at a3c1844`
+- active_track: `Test Architecture`
+- active_phase: `lto-4-test-architecture`
+- active_slice: `M1 CLI command-family split complete; waiting Human commit`
+- active_branch: `feat/lto-4-test-architecture`
+- status: `lto4_m1_complete_waiting_human_commit`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-2 Retrieval Quality / Evidence Serving 已 merge 到 `main` at `03744f0 Retrieval Quality / Evidence Serving`。本次 post-merge 同步将 `docs/roadmap.md` 标为 LTO-2 已完成,并把 `docs/concerns_backlog.md` 中 LTO-2 Roadmap-Bound 的 cross-candidate evidence dedup 项移到 Resolved。
+当前 git 分支为 `feat/lto-4-test-architecture`。LTO-4 Test Architecture 按压缩流程推进:不走完整 plan / plan_audit / review / closeout,以 multi-commit + git log + `docs/active_context.md` 记录为准,不 cut tag。authoritative boundary 为本文 "待执行" 中的 LTO-4 条目;若实现中出现该条目未覆盖的问题,先停下请 Human / Claude 决策。
+
+LTO-2 Retrieval Quality / Evidence Serving 已 merge 到 `main` at `03744f0 Retrieval Quality / Evidence Serving`;post-merge state sync 已提交为 `a3c1844 docs(state): sync lto2 post-merge state`。
 
 本轮计划按 roadmap §三 / §五 的最高优先级信号起草:消化 LTO-1 stage 2 留下的 cross-candidate evidence dedup 风险,并把它扩展为 bounded retrieval / EvidencePack / source grounding quality increment。
 
@@ -111,6 +113,22 @@ LTO-2 已完成并 merge:
 
 - **[Human]** 审阅并提交 post-merge state sync。
 - **[Human]** Tag 决策:Claude review 建议**不为本阶段单独 cut tag**(LTO-2 是 v1.8.0 能力的 retrieval quality 增量,非新能力跃迁)。可累积 Wiki Compiler 第三阶段 / LTO-4 / D2 driven ports 后续 phase 后 cut **v1.9.0**,语义 = "Knowledge Authoring 闭环 + Retrieval Quality 增量 + 工程纪律稳定"。最终 Human 决定。
+- **[Codex]** 启动 **LTO-4 Test Architecture(压缩流程,与 D5 / Hygiene Bundle 同型,不走完整 plan/audit/review/closeout)**。**Direction Gate 决议(2026-05-04 Claude+Human)**:LTO-4 真实价值是**结构 + helpers**,不是性能。
+  - **现状量化基线**(2026-05-04 measure):全量 802 tests / 19 deselected / **126 秒(2 分 6 秒)** / 平均 0.16 秒/test;最慢 20 个 test 占 27.45 秒(21.7%),全部是 `test_cli.py` 与 `test_retrieval_adapters.py` 中的真 integration test(跑完整 task lifecycle / retrieval pipeline);`test_cli.py` 单文件 11156 行 / 557 KB;`tests/helpers/` 现仅 2 个 helper(`cli_runner` + `workspace`)。
+  - **必做**(真有价值):
+    - **拆 `tests/test_cli.py` 11156 行 → `tests/integration/cli/test_<family>_commands.py` 多文件**(按 command family 拆:task / knowledge / wiki / proposal / route / system / etc)。**纯 mechanical move,不改测试逻辑,不删任何 test**。收益 = editor 友好 / grep 友好 / merge 冲突低 / `pytest -k` 只 import 相关文件。
+    - **`tests/helpers/` 加 `builders.py` + `assertions.py`**(当前 cli test 每个文件自己写 ~10 行 setup,抽出 `WorkspaceBuilder` / `TaskBuilder` / `KnowledgeBuilder` 等)。**新增不删除**,test 主体不动。收益 = fixture 重复减少 30-40%(注意:不是 test 数量减少)。
+    - **`tests/test_invariant_guards.py` 1435 行 guard helpers 提取到 `tests/helpers/ast_guards.py`**(当前 AST guard 测试套用同一 import-walking pattern,提出复用)。新增 invariant guard 时不再 copy-paste 30 行 boilerplate。
+    - **`tests/conftest.py` 与 `tests/helpers/` 统一 fixture 入口**;`collect-only + full pytest gate` 检查。
+  - **明确不做**(不要被诱惑):
+    - ❌ **不删测试**:每个慢 test 都是有价值的 invariant 守卫(`stage_promote_with_force` / `stage_promote_supersedes` / `retrieve_context_relation_expansion_*` 等);删一个就少一份保护。**当前 R-entry 前的最后阶段不应减弱守卫密度**。
+    - ❌ **不优化全量速度作为目标**:126 秒不是真痛点(每周累计 < 15 分钟);integration test 本质就需要真跑 lifecycle,不可压缩。
+    - ❌ **不引入 pytest-xdist 并行**:当前 SQLite 写入 + 文件 IO 测试会 race condition;并行需要 fixture isolation 设计,复杂度大于收益。
+    - ❌ **不 mock 掉 lifecycle**:integration test 的价值就是不 mock;一旦 mock 就退化成 unit test 重写。
+    - ❌ **不引入 pytest-cache + selective rerun**:项目还小,缓存策略复杂度大于收益。
+  - **流程**:类似 D5 Adapter Discipline / Hygiene Bundle —— 不走完整 plan / plan_audit / review / closeout 流程;multi-commit phase + git log + active_context 记录即文档;**不 cut tag**。
+  - **R-entry 衔接**:LTO-4 完成后 active_context 标"R-entry ready",直接进入真实使用阶段。
+  - **完成后**:近期队列清空,真实使用反馈作为下一 Direction Gate 选择的最强信号源。
 
 ## 当前验证
 
@@ -186,11 +204,19 @@ git status --short --branch
   - `.venv/bin/python -m pytest -q` -> `802 passed, 19 deselected in 131.59s`
   - `git diff --check` passed
 
-本 phase 默认实现期验证计划已写入 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md` §Validation Plan。
+LTO-4 compressed-flow validation:
+
+- Baseline before LTO-4 edits:
+  - `.venv/bin/python -m pytest -q --co 2>&1 | tail -1` -> `802/821 tests collected (19 deselected) in 0.67s`
+  - `time .venv/bin/python -m pytest -q 2>&1 | tail -1` -> `802 passed, 19 deselected in 116.89s`; real `1m57.852s`
+- M1 CLI command-family split:
+  - `.venv/bin/python -m pytest -q --co 2>&1 | tail -1` -> `802/821 tests collected (19 deselected) in 0.82s`
+  - `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py tests/integration/cli/test_knowledge_commands.py tests/integration/cli/test_route_commands.py tests/integration/cli/test_proposal_commands.py tests/integration/cli/test_synthesis_commands.py tests/integration/cli/test_retrieval_commands.py tests/integration/cli/test_system_commands.py -q` -> `253 passed in 78.09s`
+  - test count change: `0` (baseline `802`, current `802`)
 
 ## 当前阻塞项
 
-- 无 blocker。
+- 等待 Human 审阅并提交 LTO-4 M1 CLI command-family split。
 
 ## Tag 状态
 
@@ -203,27 +229,25 @@ git status --short --branch
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 post-merge state sync。
-2. **[Human]** 决定是否按 review 建议暂不 cut tag。
-3. **[Human]** 下一轮 Direction Gate 时从 roadmap 候选中选择新 phase。
+1. **[Human]** 审阅并提交 LTO-4 M1 CLI command-family split。
+2. **[Codex]** Human 提交 M1 后继续 M2:`tests/helpers/builders.py` + `tests/helpers/assertions.py`。
+3. **[Codex]** LTO-4 全部完成后把 status 改为 `lto4_complete_r_entry_ready`;不触发后续 phase,不 cut tag。
 
 ```markdown
-plan_gate:
+compressed_gate:
+- active_phase: lto-4-test-architecture
+- active_slice: M1 CLI command-family split complete;waiting Human commit
+- active_branch: feat/lto-4-test-architecture
+- status: lto4_m1_complete_waiting_human_commit
 - latest_completed_phase: lto-2-retrieval-quality-evidence-serving
 - latest_completed_merge: 03744f0 Retrieval Quality / Evidence Serving
-- latest_roadmap_sync: pending post-merge sync commit
+- latest_roadmap_sync: a3c1844 docs(state): sync lto2 post-merge state
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
-- active_branch: main
-- active_track: Direction Gate
-- active_phase: post-lto-2-direction-gate
-- active_slice: post-merge state sync
-- status: post_lto2_merge_state_synced_waiting_human_commit
-- roadmap: docs/roadmap.md updated to mark LTO-2 complete;next Direction Gate pending
-- plan: docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md (Codex; status: final; audit absorbed)
-- plan_audit: docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
-- concerns_backlog: docs/concerns_backlog.md updated to move LTO-2 cross-candidate source-anchor dedup risk to Resolved;task-scoped knowledge_evidence schema mismatch remains Active Open/deferred
-- recommended_implementation_branch: none
-- next_gate: Human post-merge state sync commit
+- workflow: compressed;no plan.md / plan_audit.md / review_comments.md / closeout.md;git log + active_context are documentation
+- boundary: docs/active_context.md "待执行" LTO-4 block is authoritative
+- baseline_count: 802/821 collected;19 deselected
+- current_count: 802/821 collected;19 deselected
+- next_gate: Human M1 commit
 ```
 
 ## 当前产出物
@@ -255,3 +279,4 @@ plan_gate:
 - `docs/plans/lto-2-retrieval-quality-evidence-serving/closeout.md`(codex, 2026-05-04, final closeout;review C1 absorbed;merge readiness recorded)
 - `docs/roadmap.md`(codex, 2026-05-04, post-LTO-2 merge roadmap sync;LTO-2 marked complete;Direction Gate reset)
 - `docs/concerns_backlog.md`(codex, 2026-05-04, LTO-2 cross-candidate evidence dedup concern moved from Roadmap-Bound to Resolved)
+- `tests/integration/cli/test_task_commands.py` + `tests/integration/cli/test_knowledge_commands.py` + `tests/integration/cli/test_route_commands.py` + `tests/integration/cli/test_proposal_commands.py` + `tests/integration/cli/test_synthesis_commands.py` + `tests/integration/cli/test_retrieval_commands.py` + `tests/integration/cli/test_system_commands.py` + `tests/test_cli.py`(codex, 2026-05-04, LTO-4 M1 mechanical CLI command-family split;test count unchanged)
