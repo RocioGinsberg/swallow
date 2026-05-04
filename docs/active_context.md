@@ -13,9 +13,9 @@
 - latest_completed_slice: `merged to main at 21f8dc8; roadmap synced at 25f7848`
 - active_track: `Retrieval Quality`
 - active_phase: `lto-2-retrieval-quality-evidence-serving`
-- active_slice: `M5 eval, guards, closeout prep`
+- active_slice: `phase closeout complete; waiting human commit and merge`
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
-- status: `lto2_m5_validation_passed_waiting_human_commit`
+- status: `lto2_closeout_complete_waiting_human_merge`
 
 ## 当前状态说明
 
@@ -23,7 +23,7 @@
 
 本轮计划按 roadmap §三 / §五 的最高优先级信号起草:消化 LTO-1 stage 2 留下的 cross-candidate evidence dedup 风险,并把它扩展为 bounded retrieval / EvidencePack / source grounding quality increment。
 
-Human Plan Gate 已通过,实现分支已创建。当前 M5 Eval, guards, closeout prep 已完成实现与 validation,等待 Human milestone commit:
+Human Plan Gate 已通过,实现分支已创建。当前 LTO-2 M1-M5 实现、review 与 closeout 已完成,等待 Human 提交收口材料并 merge:
 
 - Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`。
 - Claude / design-auditor 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md`(has-concerns;0 blockers / 5 concerns / 2 nits)。
@@ -33,7 +33,9 @@ Human Plan Gate 已通过,实现分支已创建。当前 M5 Eval, guards, closeo
 - M2 Governed evidence dedup on promotion 已提交为 `9b0a381 feat(wiki): dedupe source evidence on promotion`。
 - M3 Retrieval / EvidencePack dedup 已提交为 `1590e62 feat(retrieval): dedupe evidence serving by source anchor`。
 - M4 Operator report quality 已提交为 `62a2a7d feat(retrieval): surface source-anchor evidence quality`。
-- M5 Eval, guards, closeout prep 已完成实现与 validation,待 Human 审阅提交。
+- M5 Eval, guards, closeout prep 已提交为 `d6967f3 test(retrieval): add lto2 evidence quality eval`。
+- Claude review 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/review_comments.md`: `recommend-merge`;0 blockers / 1 concern(closeout missing,已由 closeout.md 吸收) / 1 nit(active_context cosmetic,后续大修处理)。
+- Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/closeout.md` 并同步 `pr.md` 到 review-passed 状态。
 
 ## 当前关键文档
 
@@ -83,7 +85,7 @@ Human Plan Gate 已通过,实现分支已创建。当前 M5 Eval, guards, closeo
   - `derived_from` relation id 改为 `derived-from-v1` source/evidence pair hash;同一 source/evidence pair upsert 到同一 relation row,不同 wiki 指向同一 evidence 产生不同 relation row。
 - **[Human]** M2 milestone 已提交:`9b0a381 feat(wiki): dedupe source evidence on promotion`。
 
-已验证待提交:
+已完成:
 
 - **[Codex]** M3 Retrieval / EvidencePack dedup:
   - retrieval item metadata 传播 `source_anchor_key/source_anchor_version/content_hash/parser_version/span/heading_path/source_pack_reference/source_pack_index`。
@@ -91,12 +93,12 @@ Human Plan Gate 已通过,实现分支已创建。当前 M5 Eval, guards, closeo
   - relation expansion 多路径命中同一对象时保留单条结果,并记录 `expansion_path_count` / `dedup_reason`。
 - **[Human]** M3 milestone 已提交:`1590e62 feat(retrieval): dedupe evidence serving by source anchor`。
 
-已验证待提交:
+已完成:
 
 - **[Codex]** M4 Operator report quality:在 retrieval/source grounding report 中展示 source anchor key、source pointer status、dedup counts、stored preview excerpt 与 unresolved/missing reason。
 - **[Human]** M4 milestone 已提交:`62a2a7d feat(retrieval): surface source-anchor evidence quality`。
 
-已验证待提交:
+已完成:
 
 - **[Codex]** M5 Eval, guards, closeout prep:
   - 新增 deterministic LTO-2 retrieval quality eval,覆盖 duplicate source anchors、hash input discrimination、relation expansion dedup、stored preview reporting。
@@ -105,7 +107,9 @@ Human Plan Gate 已通过,实现分支已创建。当前 M5 Eval, guards, closeo
 
 待执行:
 
-- **[Human]** 审阅 M5 diff 并提交 milestone。
+- **[Human]** Review final closeout + `pr.md`,提交收口材料并 merge LTO-2 milestone。
+- **[Codex]** Merge 后 post-merge state sync(`current_state.md` + `docs/active_context.md` + `docs/roadmap.md`,把 LTO-2 标 done;backlog 把 cross-candidate evidence dedup roadmap-bound 项移到 Resolved)。
+- **[Human]** Tag 决策:Claude review 建议**不为本阶段单独 cut tag**(LTO-2 是 v1.8.0 能力的 retrieval quality 增量,非新能力跃迁)。可累积 Wiki Compiler 第三阶段 / LTO-4 / D2 driven ports 后续 phase 后 cut **v1.9.0**,语义 = "Knowledge Authoring 闭环 + Retrieval Quality 增量 + 工程纪律稳定"。最终 Human 决定。
 
 ## 当前验证
 
@@ -164,6 +168,7 @@ git status --short --branch
   - `.venv/bin/python -m compileall -q src/swallow` passed
   - `git diff --check` passed
 - M4 milestone commit:`62a2a7d feat(retrieval): surface source-anchor evidence quality`
+- M5 milestone commit:`d6967f3 test(retrieval): add lto2 evidence quality eval`
 - M5 focused validation:
   - `.venv/bin/python -m pytest tests/eval/test_lto2_retrieval_quality.py -m eval -q` -> `3 passed`
   - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q -k "source_pack_evidence_id or evidence_objectization"` -> `2 passed, 39 deselected`
@@ -174,12 +179,17 @@ git status --short --branch
   - `.venv/bin/python -m compileall -q src/swallow` passed
   - `.venv/bin/python -m pytest -q` -> `802 passed, 19 deselected`
   - `git diff --check` passed
+- Closeout validation:
+  - `.venv/bin/python -m pytest tests/eval/test_lto2_retrieval_quality.py -m eval -q` -> `3 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` passed
+  - `.venv/bin/python -m pytest -q` -> `802 passed, 19 deselected in 131.59s`
+  - `git diff --check` passed
 
 本 phase 默认实现期验证计划已写入 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md` §Validation Plan。
 
 ## 当前阻塞项
 
-- 无。
+- 无 blocker。Review 已完成 = `recommend-merge`;1 concern(C1 closeout 缺失)已由 `closeout.md` 吸收;1 nit(active_context cosmetic)可后续大修时处理。
 
 ## Tag 状态
 
@@ -191,9 +201,9 @@ git status --short --branch
 
 ## 当前下一步
 
-1. **[Human]** 审阅 M5 diff 并提交 milestone。
-2. **[Claude]** 提交后进行 implementation review / consistency check。
-3. **[Codex]** review 后处理收口材料与 PR draft。
+1. **[Human]** 审阅 `review_comments.md` / `closeout.md` / `pr.md`,提交收口材料。
+2. **[Human]** merge `feat/lto-2-retrieval-quality-evidence-serving` 到 `main`。
+3. **[Codex]** merge 后同步 `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`,并处理 concerns backlog resolved 状态。
 
 ```markdown
 plan_gate:
@@ -204,20 +214,21 @@ plan_gate:
 - active_branch: feat/lto-2-retrieval-quality-evidence-serving
 - active_track: Retrieval Quality
 - active_phase: lto-2-retrieval-quality-evidence-serving
-- active_slice: M5 eval, guards, closeout prep
-- status: lto2_m5_validation_passed_waiting_human_commit
+- active_slice: phase closeout complete; waiting human commit and merge
+- status: lto2_closeout_complete_waiting_human_merge
 - roadmap: docs/roadmap.md §三 Direction Gate candidate + §五 recommendation;LTO-2 retrieval quality has strongest current trigger
 - plan: docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md (Codex; status: review; audit absorbed)
 - plan_audit: docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - concerns_backlog: docs/concerns_backlog.md (LTO-1 stage 2 source-anchor dedup risk is Roadmap-Bound to LTO-2; task-scoped knowledge_evidence schema mismatch remains Active Open/deferred)
 - recommended_implementation_branch: feat/lto-2-retrieval-quality-evidence-serving
-- next_gate: Human M5 milestone commit -> Claude implementation review
+- next_gate: Human closeout commit and merge
 ```
 
 ## 当前产出物
 
 - `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`(codex, 2026-05-04, LTO-2 retrieval quality / evidence serving phase plan;audit absorbed with explicit C1-C5/N1-N2 decisions)
 - `docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md`(claude, 2026-05-04, has-concerns — 0 blockers / 5 concerns / 2 nits; C1–C5 / N1-N2 absorbed into plan.md)
+- `docs/plans/lto-2-retrieval-quality-evidence-serving/review_comments.md`(claude, 2026-05-04, **recommend-merge**;5/5 plan_audit concerns + 2/2 nits absorbed with explicit Codex 决议;0 blockers / 1 concern(C1 closeout 缺失,Codex 必做)/ 1 nit;`source-anchor-v1` version-prefixed canonical JSON + evidence id 单点 helper 升级 + `derived-from-v1` deterministic relation id + retrieval pipeline path A enrichment 四处实现强于 plan;tag 建议 = 不为本阶段单独 cut,累积后续 phase 后 cut v1.9.0)
 - `src/swallow/knowledge_retrieval/_internal_knowledge_store.py`(codex, 2026-05-04, M1 source-anchor identity helper + stable source-pack evidence ids + metadata)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py`(codex, 2026-05-04, M1 `build_source_anchor_identity` facade wrapper)
 - `tests/test_knowledge_store.py`(codex, 2026-05-04, M1 source-anchor normalization/key and materialization metadata coverage)
@@ -238,3 +249,5 @@ plan_gate:
 - `tests/test_evidence_pack.py` + `tests/test_retrieval_adapters.py`(codex, 2026-05-04, M4 stored preview propagation coverage)
 - `tests/eval/test_lto2_retrieval_quality.py`(codex, 2026-05-04, M5 deterministic LTO-2 retrieval quality eval)
 - `tests/test_invariant_guards.py`(codex, 2026-05-04, M5 source-pack evidence id source-anchor-key guard)
+- `pr.md`(codex, 2026-05-04, LTO-2 PR draft synced to implementation-complete / review-pending state)
+- `docs/plans/lto-2-retrieval-quality-evidence-serving/closeout.md`(codex, 2026-05-04, final closeout;review C1 absorbed;merge readiness recorded)

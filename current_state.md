@@ -24,7 +24,7 @@
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
 - current_working_phase: `lto-2-retrieval-quality-evidence-serving`
-- checkpoint_type: `feature_branch_m5_validation_passed_waiting_human_commit`
+- checkpoint_type: `feature_branch_closeout_complete_waiting_merge`
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 - last_checked: `2026-05-04`
 
@@ -39,7 +39,8 @@
 - M2 Governed evidence dedup on promotion 已提交为 `9b0a381 feat(wiki): dedupe source evidence on promotion`。
 - M3 Retrieval / EvidencePack dedup 已提交为 `1590e62 feat(retrieval): dedupe evidence serving by source anchor`。
 - M4 Operator report quality 已提交为 `62a2a7d feat(retrieval): surface source-anchor evidence quality`。
-- M5 Eval, guards, closeout prep 已完成实现与 validation,等待 Human milestone commit。
+- M5 Eval, guards, closeout prep 已提交为 `d6967f3 test(retrieval): add lto2 evidence quality eval`。
+- LTO-2 M1-M5 实现已完成并通过验证;Claude review 已通过(`recommend-merge`;0 blockers / 1 concern / 1 nit);Codex closeout 已完成,等待 Human 提交并 merge。
 
 ---
 
@@ -50,15 +51,15 @@
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 - active_track: `Retrieval Quality`
 - active_phase: `lto-2-retrieval-quality-evidence-serving`
-- active_slice: `M5 eval, guards, closeout prep`
-- workflow_status: `m5_validation_passed_waiting_human_commit`
+- active_slice: `phase closeout complete; waiting human commit and merge`
+- workflow_status: `closeout_complete_waiting_human_merge`
 - recommended_implementation_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 
 下一步:
 
-1. Human 审阅并提交 M5 milestone。
-2. Claude 提交后进行 implementation review / consistency check。
-3. Codex review 后处理收口材料与 PR draft。
+1. Human 审阅 `review_comments.md` / `closeout.md` / `pr.md`。
+2. Human 提交收口材料并 merge LTO-2 milestone。
+3. Codex merge 后同步 `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`,并更新 concerns backlog resolved 状态。
 
 ---
 
@@ -87,7 +88,7 @@
 
 ## 最小验证命令
 
-恢复当前 M5 validation-passed 状态时,建议至少执行以下检查:
+恢复当前 closeout-complete 状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -100,7 +101,7 @@ sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md
 sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
 ```
 
-当前 M5 validation 已记录在 `docs/active_context.md`;最低状态检查:
+当前 closeout-complete 状态已记录在 `docs/active_context.md`;最低状态检查:
 
 ```bash
 git diff --check
@@ -110,7 +111,7 @@ git diff --check
 
 ## 当前已知边界
 
-- 当前已完成 LTO-2 M5 Eval, guards, closeout prep,等待 Human 提交后进入 implementation review / consistency check。
+- 当前已完成并提交 LTO-2 M1-M5;Claude review 通过;closeout 已完成;等待 Human 提交并 merge。
 - Human Plan Gate 已通过;实现分支为 `feat/lto-2-retrieval-quality-evidence-serving`。
 - 不新增 `know_evidence` 物理表或 DATA_MODEL schema migration,除非 audit / Human 明确升级为本 phase blocker。
 - 不 backfill / rewrite 既有 `evidence-<candidate>-<index>` legacy rows。
@@ -123,16 +124,19 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前建议提交范围:
+当前无实现 milestone 建议提交。Codex 已完成 review / closeout 收口,建议提交:
 
-- `tests/eval/test_lto2_retrieval_quality.py`
-- `tests/test_invariant_guards.py`
 - `docs/active_context.md`
 - `current_state.md`
+- `docs/plans/lto-2-retrieval-quality-evidence-serving/review_comments.md`
+- `docs/plans/lto-2-retrieval-quality-evidence-serving/closeout.md`
+- `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`
 
-建议提交信息: `test(retrieval): add lto2 evidence quality eval`
+建议提交信息: `docs(closeout): finalize lto2 retrieval quality review`
 
-上一提交:`62a2a7d feat(retrieval): surface source-anchor evidence quality`。
+本地 PR 草稿 `pr.md` 已同步到 LTO-2 review-passed / merge-ready 状态;该文件被 `.gitignore` 忽略,默认不纳入提交。
+
+上一提交:`d6967f3 test(retrieval): add lto2 evidence quality eval`。
 
 ---
 
