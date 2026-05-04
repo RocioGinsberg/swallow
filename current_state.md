@@ -24,7 +24,7 @@
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
 - current_working_phase: `lto-2-retrieval-quality-evidence-serving`
-- checkpoint_type: `feature_branch_m2_complete_waiting_human_commit`
+- checkpoint_type: `feature_branch_m3_validation_passed_waiting_human_commit`
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 - last_checked: `2026-05-04`
 
@@ -36,7 +36,8 @@
 - Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`;Claude / design-auditor 已产出 `plan_audit.md`(has-concerns;0 blockers / 5 concerns / 2 nits);Codex 已吸收 C1-C5 / N1-N2 到 plan。
 - Human 已提交 plan/audit absorption commit `8878fd7 docs(plan): absorb lto-2 retrieval audit`,并切至 `feat/lto-2-retrieval-quality-evidence-serving`。
 - M1 Source-anchor identity contract 已提交为 `f9b683a feat(wiki): add source anchor evidence identity`。
-- M2 Governed evidence dedup on promotion 已完成实现与 focused validation;当前等待 Human 审阅并提交 milestone。
+- M2 Governed evidence dedup on promotion 已提交为 `9b0a381 feat(wiki): dedupe source evidence on promotion`。
+- M3 Retrieval / EvidencePack dedup 已完成实现与 focused validation,等待 Human milestone commit。
 
 ---
 
@@ -47,14 +48,14 @@
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 - active_track: `Retrieval Quality`
 - active_phase: `lto-2-retrieval-quality-evidence-serving`
-- active_slice: `M2 governed evidence dedup on promotion`
-- workflow_status: `m2_complete_waiting_human_commit`
+- active_slice: `M3 retrieval / EvidencePack dedup`
+- workflow_status: `m3_validation_passed_waiting_human_commit`
 - recommended_implementation_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 
 下一步:
 
-1. Human 审阅并提交 M2 milestone。
-2. M2 commit 后继续 M3 Retrieval / EvidencePack dedup。
+1. Human 审阅并提交 M3 milestone。
+2. Codex 在提交后同步进入 M4 Operator report quality 状态。
 
 ---
 
@@ -83,7 +84,7 @@
 
 ## 最小验证命令
 
-恢复当前 M2 completion 状态时,建议至少执行以下检查:
+恢复当前 M3 validation-passed 状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -96,7 +97,7 @@ sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md
 sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
 ```
 
-当前 M1 validation 已记录在 `docs/active_context.md`;最低状态检查:
+当前 M3 validation 已记录在 `docs/active_context.md`;最低状态检查:
 
 ```bash
 git diff --check
@@ -106,7 +107,7 @@ git diff --check
 
 ## 当前已知边界
 
-- 当前只做 LTO-2 M2 Governed evidence dedup on promotion,不提前进入 M3 retrieval/EvidencePack dedup。
+- 当前已完成 LTO-2 M3 Retrieval / EvidencePack dedup,等待 Human 提交后再进入 M4 operator report quality。
 - Human Plan Gate 已通过;实现分支为 `feat/lto-2-retrieval-quality-evidence-serving`。
 - 不新增 `know_evidence` 物理表或 DATA_MODEL schema migration,除非 audit / Human 明确升级为本 phase blocker。
 - 不 backfill / rewrite 既有 `evidence-<candidate>-<index>` legacy rows。
@@ -119,18 +120,18 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前建议提交 M2 implementation milestone:
+当前建议提交范围:
 
-```bash
-git add docs/active_context.md current_state.md \
-  src/swallow/knowledge_retrieval/_internal_knowledge_store.py \
-  src/swallow/truth_governance/truth/knowledge.py \
-  tests/test_knowledge_store.py tests/test_governance.py \
-  tests/integration/cli/test_wiki_commands.py
-git commit -m "feat(wiki): dedupe source evidence on promotion"
-```
+- `src/swallow/knowledge_retrieval/retrieval.py`
+- `src/swallow/knowledge_retrieval/evidence_pack.py`
+- `tests/test_evidence_pack.py`
+- `tests/test_retrieval_adapters.py`
+- `docs/active_context.md`
+- `current_state.md`
 
-上一提交:`f9b683a feat(wiki): add source anchor evidence identity`。
+建议提交信息: `feat(retrieval): dedupe evidence serving by source anchor`
+
+上一提交:`9b0a381 feat(wiki): dedupe source evidence on promotion`。
 
 ---
 

@@ -84,6 +84,7 @@ TASK_ARTIFACT_MARKDOWN_NAMES = {
     "executor_prompt.md",
 }
 SOURCE_POLICY_NOISE_LABELS = {"archive_note", "current_state", "observation_doc"}
+SUPPORTING_EVIDENCE_LABELS = {"supporting_evidence"}
 logger = logging.getLogger(__name__)
 _sqlite_vec_warning_emitted = False
 _embedding_api_warning_emitted = False
@@ -234,10 +235,20 @@ def build_knowledge_item_metadata(
         "storage_scope": "task_knowledge",
         "knowledge_object_id": knowledge_object.get("object_id", ""),
         "knowledge_stage": knowledge_object.get("stage", ""),
+        "knowledge_source_kind": knowledge_object.get("source_kind", ""),
         "knowledge_reuse_scope": knowledge_object.get("knowledge_reuse_scope", ""),
+        "canonicalization_intent": knowledge_object.get("canonicalization_intent", ""),
         "evidence_status": knowledge_object.get("evidence_status", ""),
         "artifact_ref": knowledge_object.get("artifact_ref", ""),
         "source_ref": knowledge_object.get("source_ref", ""),
+        "content_hash": knowledge_object.get("content_hash", ""),
+        "parser_version": knowledge_object.get("parser_version", ""),
+        "span": knowledge_object.get("span", ""),
+        "heading_path": knowledge_object.get("heading_path", ""),
+        "source_anchor_key": knowledge_object.get("source_anchor_key", ""),
+        "source_anchor_version": knowledge_object.get("source_anchor_version", ""),
+        "source_pack_reference": knowledge_object.get("source_pack_reference", ""),
+        "source_pack_index": knowledge_object.get("source_pack_index", 0),
         "task_linked": bool(knowledge_object.get("task_linked", False)),
         "retrieval_eligible": bool(knowledge_object.get("retrieval_eligible", False)),
         "knowledge_task_id": knowledge_task_id,
@@ -441,6 +452,8 @@ def source_policy_label_for(item: RetrievalItem) -> str:
     path = item.path.replace("\\", "/").strip()
     storage_scope = str(item.metadata.get("storage_scope", "")).strip()
     if item.source_type == KNOWLEDGE_SOURCE_TYPE:
+        if _is_source_anchor_support(item):
+            return "supporting_evidence"
         if storage_scope == "canonical_registry" or str(item.metadata.get("canonical_id", "")).strip():
             return "canonical_truth"
         return "task_knowledge_truth"
@@ -464,7 +477,9 @@ def source_policy_flags_for(item: RetrievalItem, label: str | None = None) -> li
     flags: list[str] = []
     if resolved_label in SOURCE_POLICY_NOISE_LABELS:
         flags.append("operator_context_noise")
-    if resolved_label not in {"canonical_truth", "task_knowledge_truth"}:
+    if resolved_label == "supporting_evidence":
+        flags.append("source_anchor_support")
+    if resolved_label not in {"canonical_truth", "task_knowledge_truth", *SUPPORTING_EVIDENCE_LABELS}:
         flags.append("fallback_text_hit")
     if str(item.metadata.get("knowledge_retrieval_mode", "")).strip() == "text_fallback":
         flags.append("text_fallback_retrieval")
@@ -535,6 +550,17 @@ def _is_observation_doc_path(path: str) -> bool:
     if not path.startswith("docs/plans/"):
         return False
     return path.endswith("/observations.md") or path.endswith("/closeout.md") or "/candidate-r/" in path
+
+
+def _is_source_anchor_support(item: RetrievalItem) -> bool:
+    if str(item.metadata.get("source_anchor_key", "")).strip():
+        return True
+    if str(item.metadata.get("canonicalization_intent", "")).strip() == "support":
+        return True
+    if str(item.metadata.get("knowledge_source_kind", "")).strip() == "wiki_compiler_source_pack":
+        return True
+    object_id = str(item.metadata.get("knowledge_object_id", item.chunk_id)).strip()
+    return object_id.startswith("evidence-src-")
 
 
 def _item_rank(default_rank: int, item: RetrievalItem) -> int:
@@ -955,6 +981,7 @@ def expand_by_relations(
 
     store = SqliteTaskStore()
     expanded_items: list[RetrievalItem] = []
+    expanded_index_by_object_id: dict[str, int] = {}
     traversed: set[tuple[str, str]] = set()
 
     while queue:
@@ -993,6 +1020,9 @@ def expand_by_relations(
                             "expansion_depth": next_depth,
                             "expansion_relation_type": str(relation.get("relation_type", "")).strip(),
                             "expansion_parent_object_id": source_object_id,
+                            "expansion_parent_object_ids": [source_object_id],
+                            "expansion_relation_types": [str(relation.get("relation_type", "")).strip()],
+                            "expansion_path_count": 1,
                             "expansion_confidence": relation_confidence,
                         }
                     )
@@ -1010,11 +1040,57 @@ def expand_by_relations(
                             metadata=metadata,
                         )
                     )
+                    expanded_index_by_object_id[target_object_id] = len(expanded_items) - 1
                 seen_object_ids.add(target_object_id)
                 queue.append((target_object_id, expanded_score, next_depth))
-            elif next_depth < depth_limit:
-                queue.append((target_object_id, expanded_score, next_depth))
+            else:
+                expanded_index = expanded_index_by_object_id.get(target_object_id)
+                if expanded_index is not None:
+                    expanded_items[expanded_index] = _mark_duplicate_expansion_path(
+                        expanded_items[expanded_index],
+                        parent_object_id=source_object_id,
+                        relation_type=str(relation.get("relation_type", "")).strip(),
+                    )
+                if next_depth < depth_limit:
+                    queue.append((target_object_id, expanded_score, next_depth))
     return expanded_items
+
+
+def _mark_duplicate_expansion_path(
+    item: RetrievalItem,
+    *,
+    parent_object_id: str,
+    relation_type: str,
+) -> RetrievalItem:
+    metadata = dict(item.metadata)
+    metadata["dedup_reason"] = "duplicate_relation_path"
+    metadata["expansion_path_count"] = _positive_int_metadata(metadata, "expansion_path_count", default=1) + 1
+
+    parent_ids = _metadata_string_list(metadata.get("expansion_parent_object_ids", []))
+    if parent_object_id and parent_object_id not in parent_ids:
+        parent_ids.append(parent_object_id)
+    metadata["expansion_parent_object_ids"] = parent_ids
+
+    relation_types = _metadata_string_list(metadata.get("expansion_relation_types", []))
+    if relation_type and relation_type not in relation_types:
+        relation_types.append(relation_type)
+    metadata["expansion_relation_types"] = relation_types
+    return replace(item, metadata=metadata)
+
+
+def _positive_int_metadata(metadata: dict[str, Any], key: str, *, default: int) -> int:
+    try:
+        value = int(metadata.get(key, default) or default)
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
+
+
+def _metadata_string_list(value: object) -> list[str]:
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    text = str(value).strip()
+    return [text] if text else []
 
 
 def retrieve_context(

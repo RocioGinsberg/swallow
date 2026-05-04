@@ -733,6 +733,71 @@ class RetrievalAdaptersTest(unittest.TestCase):
         self.assertEqual(expanded.metadata["expansion_depth"], 1)
         self.assertEqual(expanded.metadata["expansion_relation_type"], "cites")
 
+    def test_retrieve_context_propagates_source_anchor_metadata_for_evidence_items(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            save_knowledge_objects(
+                tmp_path,
+                "task-evidence",
+                [
+                    {
+                        "object_id": "evidence-src-anchor-1",
+                        "text": "Source anchored support should carry anchor metadata into retrieval.",
+                        "stage": "verified",
+                        "source_kind": "wiki_compiler_source_pack",
+                        "source_ref": "file://workspace/docs/source.md",
+                        "content_hash": "sha256:abc",
+                        "parser_version": "wiki-compiler-v1",
+                        "span": "line:10-12",
+                        "heading_path": "Design > Anchors",
+                        "source_anchor_key": "anchor-1",
+                        "source_anchor_version": "source-anchor-v1",
+                        "evidence_status": "artifact_backed",
+                        "artifact_ref": ".swl/tasks/task-evidence/artifacts/source.md",
+                        "retrieval_eligible": True,
+                        "knowledge_reuse_scope": "retrieval_candidate",
+                        "canonicalization_intent": "support",
+                        "source_pack_reference": "source-pack:1",
+                        "source_pack_index": 1,
+                    }
+                ],
+            )
+
+            def _mock_vector_search(documents, *, query_text, query_plan, limit):
+                evidence_doc = next(document for document in documents if document.chunk_id == "evidence-src-anchor-1")
+                return [
+                    RetrievalSearchMatch(
+                        document=evidence_doc,
+                        score=20,
+                        score_breakdown={"vector_bonus": 4},
+                        matched_terms=["source", "anchor"],
+                        adapter_name="sqlite_vec",
+                    )
+                ]
+
+            with patch.dict("os.environ", {"SWL_RETRIEVAL_RERANK_ENABLED": "false"}, clear=False):
+                with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                    items = retrieve_context(
+                        tmp_path,
+                        query="source anchor support retrieval",
+                        source_types=[KNOWLEDGE_SOURCE_TYPE],
+                        limit=4,
+                    )
+
+        self.assertEqual(len(items), 1)
+        item = items[0]
+        self.assertEqual(item.chunk_id, "evidence-src-anchor-1")
+        self.assertEqual(item.metadata["source_anchor_key"], "anchor-1")
+        self.assertEqual(item.metadata["source_anchor_version"], "source-anchor-v1")
+        self.assertEqual(item.metadata["content_hash"], "sha256:abc")
+        self.assertEqual(item.metadata["parser_version"], "wiki-compiler-v1")
+        self.assertEqual(item.metadata["span"], "line:10-12")
+        self.assertEqual(item.metadata["heading_path"], "Design > Anchors")
+        self.assertEqual(item.metadata["source_pack_reference"], "source-pack:1")
+        self.assertEqual(item.metadata["source_pack_index"], 1)
+        self.assertEqual(item.metadata["source_policy_label"], "supporting_evidence")
+        self.assertEqual(item.metadata["source_policy_flags"], ["source_anchor_support"])
+
     def test_retrieve_context_relation_expansion_respects_depth_limit_and_decay(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -1145,6 +1210,67 @@ class RetrievalAdaptersTest(unittest.TestCase):
                 )
 
         self.assertEqual([item.chunk_id for item in items].count("knowledge-b"), 1)
+
+    def test_retrieve_context_relation_expansion_marks_duplicate_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            for task_id, object_id, text in [
+                ("task-a", "knowledge-a", "Seed A retrieval knowledge."),
+                ("task-b", "knowledge-b", "Seed B retrieval knowledge."),
+                ("task-c", "knowledge-c", "Shared linked retrieval knowledge."),
+            ]:
+                save_knowledge_objects(
+                    tmp_path,
+                    task_id,
+                    [
+                        {
+                            "object_id": object_id,
+                            "text": text,
+                            "stage": "verified",
+                            "evidence_status": "artifact_backed",
+                            "artifact_ref": f".swl/tasks/{task_id}/artifacts/summary.md",
+                            "retrieval_eligible": True,
+                            "knowledge_reuse_scope": "retrieval_candidate",
+                        }
+                    ],
+                )
+            create_knowledge_relation(tmp_path, source_object_id="knowledge-a", target_object_id="knowledge-c", relation_type="cites")
+            create_knowledge_relation(tmp_path, source_object_id="knowledge-b", target_object_id="knowledge-c", relation_type="related_to")
+
+            def _mock_vector_search(documents, *, query_text, query_plan, limit):
+                seed_a = next(document for document in documents if document.chunk_id == "knowledge-a")
+                seed_b = next(document for document in documents if document.chunk_id == "knowledge-b")
+                return [
+                    RetrievalSearchMatch(
+                        document=seed_a,
+                        score=20,
+                        score_breakdown={"vector_bonus": 4},
+                        matched_terms=["seed"],
+                        adapter_name="sqlite_vec",
+                    ),
+                    RetrievalSearchMatch(
+                        document=seed_b,
+                        score=18,
+                        score_breakdown={"vector_bonus": 3},
+                        matched_terms=["seed"],
+                        adapter_name="sqlite_vec",
+                    ),
+                ]
+
+            with patch("swallow.knowledge_retrieval.retrieval.VectorRetrievalAdapter.search", side_effect=_mock_vector_search):
+                items = retrieve_context(
+                    tmp_path,
+                    query="shared linked retrieval knowledge",
+                    source_types=[KNOWLEDGE_SOURCE_TYPE],
+                    limit=8,
+                )
+
+        self.assertEqual([item.chunk_id for item in items].count("knowledge-c"), 1)
+        expanded = next(item for item in items if item.chunk_id == "knowledge-c")
+        self.assertEqual(expanded.metadata["expansion_path_count"], 2)
+        self.assertEqual(expanded.metadata["dedup_reason"], "duplicate_relation_path")
+        self.assertEqual(expanded.metadata["expansion_parent_object_ids"], ["knowledge-a", "knowledge-b"])
+        self.assertEqual(expanded.metadata["expansion_relation_types"], ["cites", "related_to"])
 
 
 if __name__ == "__main__":

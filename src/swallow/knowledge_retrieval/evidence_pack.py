@@ -17,6 +17,7 @@ from swallow.orchestration.models import RetrievalItem
 ARTIFACTS_SOURCE_TYPE = "artifacts"
 KNOWLEDGE_SOURCE_TYPE = "knowledge"
 SOURCE_POLICY_NOISE_LABELS = {"archive_note", "current_state", "observation_doc"}
+SUPPORTING_EVIDENCE_LABELS = {"supporting_evidence"}
 WORKSPACE_FILE_PREFIX = "file://workspace/"
 
 
@@ -27,6 +28,11 @@ class SourcePointer:
     source_type: str
     source_ref: str = ""
     artifact_ref: str = ""
+    content_hash: str = ""
+    parser_version: str = ""
+    span: str = ""
+    source_anchor_key: str = ""
+    source_anchor_version: str = ""
     resolved_ref: str = ""
     resolved_path: str = ""
     resolution_status: str = "unresolved"
@@ -47,6 +53,9 @@ class EvidencePack:
     supporting_evidence: list[dict[str, Any]] = field(default_factory=list)
     fallback_hits: list[dict[str, Any]] = field(default_factory=list)
     source_pointers: list[SourcePointer] = field(default_factory=list)
+    deduped_supporting_evidence_count: int = 0
+    deduped_fallback_hit_count: int = 0
+    deduped_source_pointer_count: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -60,6 +69,14 @@ class EvidencePack:
             "supporting_evidence_count": len(self.supporting_evidence),
             "fallback_hit_count": len(self.fallback_hits),
             "source_pointer_count": len(self.source_pointers),
+            "deduped_supporting_evidence_count": self.deduped_supporting_evidence_count,
+            "deduped_fallback_hit_count": self.deduped_fallback_hit_count,
+            "deduped_source_pointer_count": self.deduped_source_pointer_count,
+            "deduped_total_count": (
+                self.deduped_supporting_evidence_count
+                + self.deduped_fallback_hit_count
+                + self.deduped_source_pointer_count
+            ),
         }
 
 
@@ -74,21 +91,44 @@ def build_evidence_pack(
     supporting_evidence: list[dict[str, Any]] = []
     fallback_hits: list[dict[str, Any]] = []
     source_pointers: list[SourcePointer] = []
+    support_index_by_anchor: dict[str, int] = {}
+    fallback_index_by_anchor: dict[str, int] = {}
+    pointer_index_by_anchor: dict[str, int] = {}
+    deduped_supporting_evidence_count = 0
+    deduped_fallback_hit_count = 0
+    deduped_source_pointer_count = 0
     raw_store = _raw_store_for(workspace_root=workspace_root, base_dir=base_dir)
 
     for index, item in enumerate(retrieval_items, start=1):
         label = _source_policy_label(item)
         flags = _source_policy_flags(item, label)
         entry = _evidence_entry(index, item, label, flags)
+        anchor_key = _source_anchor_key(item)
         if label in {"canonical_truth", "task_knowledge_truth"}:
             primary_objects.append(entry)
             if label == "canonical_truth":
                 canonical_objects.append(entry)
-        elif item.source_type == ARTIFACTS_SOURCE_TYPE:
-            supporting_evidence.append(entry)
+        elif _is_supporting_evidence(item, label):
+            if not _append_deduped_entry(
+                supporting_evidence,
+                support_index_by_anchor,
+                anchor_key=anchor_key,
+                entry=entry,
+                prefer_new=_is_source_anchor_support(item),
+            ):
+                deduped_supporting_evidence_count += 1
         if "fallback_text_hit" in flags:
-            fallback_hits.append(entry)
-        source_pointers.append(_source_pointer(item, raw_store=raw_store))
+            if not _append_deduped_entry(
+                fallback_hits,
+                fallback_index_by_anchor,
+                anchor_key=anchor_key,
+                entry=entry,
+                prefer_new=False,
+            ):
+                deduped_fallback_hit_count += 1
+        pointer = _source_pointer(item, raw_store=raw_store)
+        if not _append_deduped_pointer(source_pointers, pointer_index_by_anchor, pointer):
+            deduped_source_pointer_count += 1
 
     return EvidencePack(
         primary_objects=primary_objects,
@@ -96,6 +136,9 @@ def build_evidence_pack(
         supporting_evidence=supporting_evidence,
         fallback_hits=fallback_hits,
         source_pointers=source_pointers,
+        deduped_supporting_evidence_count=deduped_supporting_evidence_count,
+        deduped_fallback_hit_count=deduped_fallback_hit_count,
+        deduped_source_pointer_count=deduped_source_pointer_count,
     )
 
 
@@ -113,6 +156,15 @@ def _evidence_entry(index: int, item: RetrievalItem, label: str, flags: list[str
         "evidence_status": str(item.metadata.get("evidence_status", "")),
         "source_ref": str(item.metadata.get("source_ref", "")),
         "artifact_ref": str(item.metadata.get("artifact_ref", "")),
+        "content_hash": str(item.metadata.get("content_hash", "")),
+        "parser_version": str(item.metadata.get("parser_version", "")),
+        "span": str(item.metadata.get("span", "")),
+        "heading_path": _heading_path(item),
+        "source_anchor_key": str(item.metadata.get("source_anchor_key", "")),
+        "source_anchor_version": str(item.metadata.get("source_anchor_version", "")),
+        "duplicate_count": 0,
+        "dedup_reason": str(item.metadata.get("dedup_reason", "")),
+        "expansion_path_count": _positive_int_metadata(item, "expansion_path_count", default=1),
     }
 
 
@@ -124,6 +176,11 @@ def _source_pointer(item: RetrievalItem, *, raw_store: FilesystemRawMaterialStor
         source_type=item.source_type,
         source_ref=str(item.metadata.get("source_ref", "")),
         artifact_ref=str(item.metadata.get("artifact_ref", "")),
+        content_hash=str(item.metadata.get("content_hash", "")),
+        parser_version=str(item.metadata.get("parser_version", "")),
+        span=str(item.metadata.get("span", "")),
+        source_anchor_key=str(item.metadata.get("source_anchor_key", "")),
+        source_anchor_version=str(item.metadata.get("source_anchor_version", "")),
         resolved_ref=resolved["resolved_ref"],
         resolved_path=resolved["resolved_path"],
         resolution_status=resolved["resolution_status"],
@@ -143,6 +200,8 @@ def _source_policy_label(item: RetrievalItem) -> str:
     path = item.path.replace("\\", "/").strip()
     storage_scope = str(item.metadata.get("storage_scope", "")).strip()
     if item.source_type == KNOWLEDGE_SOURCE_TYPE:
+        if _is_source_anchor_support(item):
+            return "supporting_evidence"
         if storage_scope == "canonical_registry" or str(item.metadata.get("canonical_id", "")).strip():
             return "canonical_truth"
         return "task_knowledge_truth"
@@ -171,7 +230,9 @@ def _source_policy_flags(item: RetrievalItem, label: str) -> list[str]:
     inferred_flags: list[str] = []
     if label in SOURCE_POLICY_NOISE_LABELS:
         inferred_flags.append("operator_context_noise")
-    if label not in {"canonical_truth", "task_knowledge_truth"}:
+    if label == "supporting_evidence":
+        inferred_flags.append("source_anchor_support")
+    if label not in {"canonical_truth", "task_knowledge_truth", *SUPPORTING_EVIDENCE_LABELS}:
         inferred_flags.append("fallback_text_hit")
     if str(item.metadata.get("knowledge_retrieval_mode", "")).strip() == "text_fallback":
         inferred_flags.append("text_fallback_retrieval")
@@ -186,6 +247,90 @@ def _is_observation_doc_path(path: str) -> bool:
     if not path.startswith("docs/plans/"):
         return False
     return path.endswith("/observations.md") or path.endswith("/closeout.md") or "/candidate-r/" in path
+
+
+def _is_supporting_evidence(item: RetrievalItem, label: str) -> bool:
+    return label in SUPPORTING_EVIDENCE_LABELS or item.source_type == ARTIFACTS_SOURCE_TYPE
+
+
+def _is_source_anchor_support(item: RetrievalItem) -> bool:
+    if str(item.metadata.get("source_anchor_key", "")).strip():
+        return True
+    if str(item.metadata.get("canonicalization_intent", "")).strip() == "support":
+        return True
+    if str(item.metadata.get("knowledge_source_kind", "")).strip() == "wiki_compiler_source_pack":
+        return True
+    object_id = str(item.metadata.get("knowledge_object_id", item.chunk_id)).strip()
+    return object_id.startswith("evidence-src-")
+
+
+def _append_deduped_entry(
+    entries: list[dict[str, Any]],
+    index_by_anchor: dict[str, int],
+    *,
+    anchor_key: str,
+    entry: dict[str, Any],
+    prefer_new: bool,
+) -> bool:
+    if not anchor_key:
+        entries.append(entry)
+        return True
+
+    existing_index = index_by_anchor.get(anchor_key)
+    if existing_index is None:
+        index_by_anchor[anchor_key] = len(entries)
+        entries.append(entry)
+        return True
+
+    existing = entries[existing_index]
+    _mark_duplicate_entry(existing, entry)
+    if prefer_new and str(existing.get("source_policy_label", "")) != "supporting_evidence":
+        replacement = dict(entry)
+        replacement["duplicate_count"] = int(existing.get("duplicate_count", 0) or 0)
+        replacement["dedup_reason"] = existing.get("dedup_reason", "duplicate_source_anchor")
+        replacement["expansion_path_count"] = max(
+            int(existing.get("expansion_path_count", 1) or 1),
+            int(replacement.get("expansion_path_count", 1) or 1),
+        )
+        entries[existing_index] = replacement
+    return False
+
+
+def _mark_duplicate_entry(existing: dict[str, Any], duplicate: dict[str, Any]) -> None:
+    try:
+        duplicate_count = int(existing.get("duplicate_count", 0) or 0)
+    except (TypeError, ValueError):
+        duplicate_count = 0
+    existing["duplicate_count"] = duplicate_count + 1
+    existing["dedup_reason"] = "duplicate_source_anchor"
+    existing["expansion_path_count"] = max(
+        int(existing.get("expansion_path_count", 1) or 1),
+        int(duplicate.get("expansion_path_count", 1) or 1),
+    )
+
+
+def _append_deduped_pointer(
+    pointers: list[SourcePointer],
+    index_by_anchor: dict[str, int],
+    pointer: SourcePointer,
+) -> bool:
+    if not pointer.source_anchor_key:
+        pointers.append(pointer)
+        return True
+
+    existing_index = index_by_anchor.get(pointer.source_anchor_key)
+    if existing_index is None:
+        index_by_anchor[pointer.source_anchor_key] = len(pointers)
+        pointers.append(pointer)
+        return True
+
+    if pointers[existing_index].resolution_status != "resolved" and pointer.resolution_status == "resolved":
+        pointers[existing_index] = pointer
+    return False
+
+
+def _source_anchor_key(item: RetrievalItem) -> str:
+    return str(item.metadata.get("source_anchor_key", "")).strip()
 
 
 def _raw_store_for(
@@ -339,3 +484,11 @@ def _int_metadata(item: RetrievalItem, key: str) -> int:
         return int(item.metadata.get(key, 0) or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _positive_int_metadata(item: RetrievalItem, key: str, *, default: int) -> int:
+    try:
+        value = int(item.metadata.get(key, default) or default)
+    except (TypeError, ValueError):
+        return default
+    return value if value > 0 else default
