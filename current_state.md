@@ -24,7 +24,7 @@
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
 - current_working_phase: `lto-2-retrieval-quality-evidence-serving`
-- checkpoint_type: `feature_branch_m4_validation_passed_waiting_human_commit`
+- checkpoint_type: `feature_branch_m5_validation_passed_waiting_human_commit`
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 - last_checked: `2026-05-04`
 
@@ -38,7 +38,8 @@
 - M1 Source-anchor identity contract 已提交为 `f9b683a feat(wiki): add source anchor evidence identity`。
 - M2 Governed evidence dedup on promotion 已提交为 `9b0a381 feat(wiki): dedupe source evidence on promotion`。
 - M3 Retrieval / EvidencePack dedup 已提交为 `1590e62 feat(retrieval): dedupe evidence serving by source anchor`。
-- M4 Operator report quality 已完成实现与 focused validation,等待 Human milestone commit。
+- M4 Operator report quality 已提交为 `62a2a7d feat(retrieval): surface source-anchor evidence quality`。
+- M5 Eval, guards, closeout prep 已完成实现与 validation,等待 Human milestone commit。
 
 ---
 
@@ -49,14 +50,15 @@
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 - active_track: `Retrieval Quality`
 - active_phase: `lto-2-retrieval-quality-evidence-serving`
-- active_slice: `M4 operator report quality`
-- workflow_status: `m4_validation_passed_waiting_human_commit`
+- active_slice: `M5 eval, guards, closeout prep`
+- workflow_status: `m5_validation_passed_waiting_human_commit`
 - recommended_implementation_branch: `feat/lto-2-retrieval-quality-evidence-serving`
 
 下一步:
 
-1. Human 审阅并提交 M4 milestone。
-2. Codex 在提交后同步进入 M5 Eval, guards, closeout prep。
+1. Human 审阅并提交 M5 milestone。
+2. Claude 提交后进行 implementation review / consistency check。
+3. Codex review 后处理收口材料与 PR draft。
 
 ---
 
@@ -85,7 +87,7 @@
 
 ## 最小验证命令
 
-恢复当前 M4 validation-passed 状态时,建议至少执行以下检查:
+恢复当前 M5 validation-passed 状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -98,7 +100,7 @@ sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md
 sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
 ```
 
-当前 M4 validation 已记录在 `docs/active_context.md`;最低状态检查:
+当前 M5 validation 已记录在 `docs/active_context.md`;最低状态检查:
 
 ```bash
 git diff --check
@@ -108,7 +110,7 @@ git diff --check
 
 ## 当前已知边界
 
-- 当前已完成 LTO-2 M4 Operator report quality,等待 Human 提交后再进入 M5 eval/guards/closeout prep。
+- 当前已完成 LTO-2 M5 Eval, guards, closeout prep,等待 Human 提交后进入 implementation review / consistency check。
 - Human Plan Gate 已通过;实现分支为 `feat/lto-2-retrieval-quality-evidence-serving`。
 - 不新增 `know_evidence` 物理表或 DATA_MODEL schema migration,除非 audit / Human 明确升级为本 phase blocker。
 - 不 backfill / rewrite 既有 `evidence-<candidate>-<index>` legacy rows。
@@ -123,18 +125,14 @@ git diff --check
 
 当前建议提交范围:
 
-- `src/swallow/orchestration/task_report.py`
-- `src/swallow/knowledge_retrieval/retrieval.py`
-- `src/swallow/knowledge_retrieval/evidence_pack.py`
-- `tests/unit/orchestration/test_task_report_module.py`
-- `tests/test_evidence_pack.py`
-- `tests/test_retrieval_adapters.py`
+- `tests/eval/test_lto2_retrieval_quality.py`
+- `tests/test_invariant_guards.py`
 - `docs/active_context.md`
 - `current_state.md`
 
-建议提交信息: `feat(retrieval): surface source-anchor evidence quality`
+建议提交信息: `test(retrieval): add lto2 evidence quality eval`
 
-上一提交:`1590e62 feat(retrieval): dedupe evidence serving by source anchor`。
+上一提交:`62a2a7d feat(retrieval): surface source-anchor evidence quality`。
 
 ---
 

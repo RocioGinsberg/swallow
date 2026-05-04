@@ -715,6 +715,25 @@ def test_wiki_compiler_evidence_objectization_preserves_parser_version_anchor() 
     )
 
 
+def test_wiki_compiler_source_pack_evidence_id_is_source_anchor_key_based() -> None:
+    from swallow.knowledge_retrieval.knowledge_plane import build_source_anchor_identity
+
+    identity = build_source_anchor_identity(
+        {
+            "source_ref": "file://workspace/docs/source.md",
+            "content_hash": "sha256:source",
+            "parser_version": "wiki-compiler-v1",
+            "span": "line:1-3",
+            "heading_path": "Design > Evidence",
+        }
+    )
+
+    assert identity["source_anchor_version"] == "source-anchor-v1"
+    assert identity["evidence_id"] == f"evidence-src-{identity['source_anchor_key']}"
+    assert "candidate" not in identity["evidence_id"]
+    assert "index" not in identity["evidence_id"]
+
+
 def test_knowledge_relation_metadata_types_cover_design_modes() -> None:
     from swallow.knowledge_retrieval.knowledge_plane import KNOWLEDGE_RELATION_TYPES
     from swallow.application.services.wiki_compiler import WIKI_COMPILER_METADATA_RELATION_TYPES

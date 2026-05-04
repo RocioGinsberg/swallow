@@ -13,9 +13,9 @@
 - latest_completed_slice: `merged to main at 21f8dc8; roadmap synced at 25f7848`
 - active_track: `Retrieval Quality`
 - active_phase: `lto-2-retrieval-quality-evidence-serving`
-- active_slice: `M4 operator report quality`
+- active_slice: `M5 eval, guards, closeout prep`
 - active_branch: `feat/lto-2-retrieval-quality-evidence-serving`
-- status: `lto2_m4_validation_passed_waiting_human_commit`
+- status: `lto2_m5_validation_passed_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -23,7 +23,7 @@
 
 本轮计划按 roadmap §三 / §五 的最高优先级信号起草:消化 LTO-1 stage 2 留下的 cross-candidate evidence dedup 风险,并把它扩展为 bounded retrieval / EvidencePack / source grounding quality increment。
 
-Human Plan Gate 已通过,实现分支已创建。当前 M4 Operator report quality 已完成实现与 focused validation,等待 Human milestone commit:
+Human Plan Gate 已通过,实现分支已创建。当前 M5 Eval, guards, closeout prep 已完成实现与 validation,等待 Human milestone commit:
 
 - Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`。
 - Claude / design-auditor 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md`(has-concerns;0 blockers / 5 concerns / 2 nits)。
@@ -32,7 +32,8 @@ Human Plan Gate 已通过,实现分支已创建。当前 M4 Operator report qual
 - M1 Source-anchor identity contract 已提交为 `f9b683a feat(wiki): add source anchor evidence identity`。
 - M2 Governed evidence dedup on promotion 已提交为 `9b0a381 feat(wiki): dedupe source evidence on promotion`。
 - M3 Retrieval / EvidencePack dedup 已提交为 `1590e62 feat(retrieval): dedupe evidence serving by source anchor`。
-- M4 Operator report quality 已完成实现与 focused validation,待 Human 审阅提交。
+- M4 Operator report quality 已提交为 `62a2a7d feat(retrieval): surface source-anchor evidence quality`。
+- M5 Eval, guards, closeout prep 已完成实现与 validation,待 Human 审阅提交。
 
 ## 当前关键文档
 
@@ -93,10 +94,18 @@ Human Plan Gate 已通过,实现分支已创建。当前 M4 Operator report qual
 已验证待提交:
 
 - **[Codex]** M4 Operator report quality:在 retrieval/source grounding report 中展示 source anchor key、source pointer status、dedup counts、stored preview excerpt 与 unresolved/missing reason。
+- **[Human]** M4 milestone 已提交:`62a2a7d feat(retrieval): surface source-anchor evidence quality`。
+
+已验证待提交:
+
+- **[Codex]** M5 Eval, guards, closeout prep:
+  - 新增 deterministic LTO-2 retrieval quality eval,覆盖 duplicate source anchors、hash input discrimination、relation expansion dedup、stored preview reporting。
+  - 新增 narrow invariant guard,确保 source-pack evidence id 继续使用 `evidence-src-<source_anchor_key>`。
+  - 完成 focused validation 与默认 pytest,为 Human milestone commit 后的 PR review 做准备。
 
 待执行:
 
-- **[Human]** 审阅 M4 diff 并提交 milestone。
+- **[Human]** 审阅 M5 diff 并提交 milestone。
 
 ## 当前验证
 
@@ -154,6 +163,17 @@ git status --short --branch
   - `.venv/bin/python -m pytest tests/test_evidence_pack.py tests/test_grounding.py tests/test_retrieval_adapters.py tests/unit/orchestration/test_task_report_module.py tests/unit/orchestration/test_harness_facade.py -q` -> `48 passed`
   - `.venv/bin/python -m compileall -q src/swallow` passed
   - `git diff --check` passed
+- M4 milestone commit:`62a2a7d feat(retrieval): surface source-anchor evidence quality`
+- M5 focused validation:
+  - `.venv/bin/python -m pytest tests/eval/test_lto2_retrieval_quality.py -m eval -q` -> `3 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q -k "source_pack_evidence_id or evidence_objectization"` -> `2 passed, 39 deselected`
+  - `.venv/bin/python -m pytest tests/test_governance.py tests/test_knowledge_relations.py tests/test_sqlite_store.py -q` -> `39 passed`
+  - `.venv/bin/python -m pytest tests/test_evidence_pack.py tests/test_grounding.py tests/test_retrieval_adapters.py -q` -> `39 passed`
+  - `.venv/bin/python -m pytest tests/unit/orchestration/test_task_report_module.py tests/unit/orchestration/test_harness_facade.py -q` -> `9 passed`
+  - `.venv/bin/python -m pytest tests/test_invariant_guards.py -q` -> `41 passed`
+  - `.venv/bin/python -m compileall -q src/swallow` passed
+  - `.venv/bin/python -m pytest -q` -> `802 passed, 19 deselected`
+  - `git diff --check` passed
 
 本 phase 默认实现期验证计划已写入 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md` §Validation Plan。
 
@@ -171,8 +191,9 @@ git status --short --branch
 
 ## 当前下一步
 
-1. **[Human]** 审阅 M4 diff 并提交 milestone。
-2. **[Codex]** Human 提交后同步状态进入 M5 Eval, guards, closeout prep。
+1. **[Human]** 审阅 M5 diff 并提交 milestone。
+2. **[Claude]** 提交后进行 implementation review / consistency check。
+3. **[Codex]** review 后处理收口材料与 PR draft。
 
 ```markdown
 plan_gate:
@@ -183,14 +204,14 @@ plan_gate:
 - active_branch: feat/lto-2-retrieval-quality-evidence-serving
 - active_track: Retrieval Quality
 - active_phase: lto-2-retrieval-quality-evidence-serving
-- active_slice: M4 operator report quality
-- status: lto2_m4_validation_passed_waiting_human_commit
+- active_slice: M5 eval, guards, closeout prep
+- status: lto2_m5_validation_passed_waiting_human_commit
 - roadmap: docs/roadmap.md §三 Direction Gate candidate + §五 recommendation;LTO-2 retrieval quality has strongest current trigger
 - plan: docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md (Codex; status: review; audit absorbed)
 - plan_audit: docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - concerns_backlog: docs/concerns_backlog.md (LTO-1 stage 2 source-anchor dedup risk is Roadmap-Bound to LTO-2; task-scoped knowledge_evidence schema mismatch remains Active Open/deferred)
 - recommended_implementation_branch: feat/lto-2-retrieval-quality-evidence-serving
-- next_gate: Human M4 milestone commit -> M5 implementation
+- next_gate: Human M5 milestone commit -> Claude implementation review
 ```
 
 ## 当前产出物
@@ -215,3 +236,5 @@ plan_gate:
 - `src/swallow/knowledge_retrieval/evidence_pack.py`(codex, 2026-05-04, M4 `source_preview_excerpt` on evidence entries)
 - `tests/unit/orchestration/test_task_report_module.py`(codex, 2026-05-04, M4 report coverage for dedup counts, missing pointers, and stored preview excerpts)
 - `tests/test_evidence_pack.py` + `tests/test_retrieval_adapters.py`(codex, 2026-05-04, M4 stored preview propagation coverage)
+- `tests/eval/test_lto2_retrieval_quality.py`(codex, 2026-05-04, M5 deterministic LTO-2 retrieval quality eval)
+- `tests/test_invariant_guards.py`(codex, 2026-05-04, M5 source-pack evidence id source-anchor-key guard)
