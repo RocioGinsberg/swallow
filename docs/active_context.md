@@ -13,13 +13,13 @@
 - latest_completed_slice: `merged to main at e656bd3; roadmap synced at 449653a`
 - active_track: `Knowledge Authoring`
 - active_phase: `lto-1-wiki-compiler-second-stage`
-- active_slice: `phase-plan`
-- active_branch: `main`
-- status: `plan_review_pending`
+- active_slice: `plan_audit absorbed; revised plan awaiting Human Plan Gate`
+- active_branch: `feat/lto-1-wiki-compiler-second-stage`
+- status: `human_plan_gate_pending`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。当前 HEAD 为:
+当前 git 分支为 `feat/lto-1-wiki-compiler-second-stage`。当前 branch 从以下 main checkpoint 继续:
 
 - `449653a docs(state): update roadmap`
 - `e656bd3 refactor(hygiene): close service boundaries and router follow-ups`
@@ -37,7 +37,7 @@
 
 `v1.6.0` annotated tag 已 cut(2026-05-03,标记 cluster C closure;target `0e6215a`)。`v1.7.0` annotated tag 已 cut(标记 LTO-13 接口边界首次落地;tag target `2156d4a docs(release): sync v1.7.0 release docs`;merge commit `4ea7a9d FastAPI Local Web UI Write Surface`)。`v1.8.0` annotated tag 已 cut(标记 LTO-1 Wiki Compiler 第一阶段;tag target `d6f2442 docs(release): sync v1.8.0 release docs`;merge commit `349efa9 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`)。
 
-**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Codex 已产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,当前等待 `design-auditor` 产出 `plan_audit.md` 与 Human Plan Gate。尚未切 feature branch,因此当前不进入实现。
+**当前真实入口**:Human 已从 `docs/roadmap.md` §三 Direction Gate 候选中选择 **Wiki Compiler 第二阶段**。Claude / design-auditor 已产出 `plan_audit.md`(has-blockers;3 blockers / 5 concerns / 2 nits)。Codex 已吸收全部 blockers / concerns / nits 到 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,并按 Human 要求把 M2 schema reuse 与 idempotency 长期风险登记到 `docs/concerns_backlog.md`。当前重新提交 Human Plan Gate;未获通过前不得开始实现。
 
 **簇 C 状态**:LTO-7 / LTO-8(Step 1+Step 2)/ LTO-9(Step 1+Step 2)/ LTO-10 全部完成。LTO-8 Step 2 完整事实见 `docs/plans/orchestration-lifecycle-decomposition-step2/closeout.md`。
 
@@ -252,17 +252,28 @@ LTO-7 long-running follow-ups:
 
 进行中:
 
-- **[Codex]** 已产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(status:`review`)。当前等待 plan audit / Human Plan Gate。
+- **[Human]** 审阅已修订的 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md` + `plan_audit.md`,决定是否通过 Plan Gate。
+
+已完成(当前轮):
+
+- **[Codex]** 已产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(status:`review`)。
+- **[Claude / design-auditor]** 产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`:has-blockers;3 blockers / 5 concerns / 2 nits。关键阻塞:M1 `_CanonicalProposal` 无 `supersede_target_ids` 字段且 `_promote_canonical` 无 target-id flip 代码路径;M2 `know_evidence` 表在 SQLite store 未创建;M2 evidence write boundary 相对 INVARIANTS §0 rule 4 未显式声明。
+- **[Codex]** 已吸收 plan_audit 3 blockers / 5 concerns / 2 nits:
+  - M1 明确选择 `_CanonicalProposal.supersede_target_ids` + `KnowledgeRepo._promote_canonical(...)` 内 store helper 作为 target-id supersede apply 路径。
+  - M2 明确复用现有 task-scoped `knowledge_evidence` store,不创建 `know_evidence` / 不做 schema migration;promotion-derived evidence objectization 放入 canonical `apply_proposal` path。
+  - M2 明确 persisted relation enum 增加 `derived_from`,但不增加 `supersedes`;evidence idempotency 仅保证 per-candidate/source-pack entry。
+  - M3 明确 job records 写 `.swl/tasks/<task_id>/artifacts/wiki_jobs/<job_id>.json`,best-effort in-process background,不做 durable worker。
+  - M5 补 HTTP adapter 禁止 import `application.services.wiki_compiler`,并新增 second-stage eval file。
+  - `docs/concerns_backlog.md` Active Open + Roadmap-Bound 已各新增一条长期风险记录。
 
 待执行:
 
-- **[Claude / design-auditor]** 读取 `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`,产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`。
-- **[Human]** 审阅 plan + audit,决定是否通过 Plan Gate。
-- **[Human]** Plan Gate 通过后从 `main` 切到 `feat/lto-1-wiki-compiler-second-stage`。
-- **[Codex]** 分支切换完成后再进入 M1 implementation。
+- **[Human]** 审阅修订后 plan + audit,决定是否通过 Plan Gate。
+- **[Codex]** Human Plan Gate 通过后,确认当前分支仍为 `feat/lto-1-wiki-compiler-second-stage`,再进入 M1 implementation。
 
 当前验证:
 
+- plan audit absorption doc validation:`git diff --check` passed after revised plan + concerns backlog sync.
 - plan/status doc validation:`git diff --check` passed after Wiki Compiler 第二阶段 plan authoring.
 - `compileall -q src/swallow` passed.
 - focused gates passed: invariant guards `35 passed`; provider router `35 passed`; meta/executor/specialist `48 passed`; CLI/services `306 passed`; Web/API `22 passed`; knowledge/service `36 passed`.
@@ -272,7 +283,7 @@ LTO-7 long-running follow-ups:
 
 当前阻塞项:
 
-- 等待 `plan_audit.md` 与 Human Plan Gate。尚未切 feature branch,不得开始实现。
+- 等待 Human Plan Gate。`plan_audit.md` 初版 blockers 已在 `plan.md` 中显式吸收,但尚未获得 Human approval,因此不得开始实现。
 
 ## Tag 状态
 
@@ -284,30 +295,32 @@ LTO-7 long-running follow-ups:
 
 ## 当前下一步
 
-1. **[Claude / design-auditor]** 产出 `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`。
-2. **[Human]** 审阅 plan/audit 并决定 Plan Gate。
-3. **[Human]** 如通过,切至 `feat/lto-1-wiki-compiler-second-stage`。
-4. **[Codex]** 分支确认后从 M1 开始实现。
+1. **[Human]** 审阅修订后 plan/audit 并决定 Plan Gate。
+2. **[Codex]** 若 Human Plan Gate 通过,确认当前分支为 `feat/lto-1-wiki-compiler-second-stage` 后从 M1 开始实现。
 
 ```markdown
 plan_gate:
 - latest_completed_phase: Hygiene Bundle
 - latest_release_tag: v1.8.0 at d6f2442 docs(release): sync v1.8.0 release docs
-- active_branch: main
+- active_branch: feat/lto-1-wiki-compiler-second-stage
 - active_phase: lto-1-wiki-compiler-second-stage
 - active_slice: phase-plan
 - roadmap: docs/roadmap.md §三 Direction Gate candidate selected by Human: Wiki Compiler 第二阶段
-- plan: docs/plans/lto-1-wiki-compiler-second-stage/plan.md (review; Codex)
+- plan: docs/plans/lto-1-wiki-compiler-second-stage/plan.md (review; Codex; plan_audit blockers/concerns absorbed)
+- plan_audit: docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md (Claude/design-auditor; has-blockers; 3 blockers / 5 concerns / 2 nits)
+- concerns_backlog: docs/concerns_backlog.md (LTO-1 Stage2 M2 schema reuse + idempotency deferred risks logged)
 - lto1_design_docs: docs/design/EXECUTOR_REGISTRY.md + docs/design/SELF_EVOLUTION.md updated with Wiki Compiler specialist + 4 modes
 - lto1_plan: docs/plans/lto-1-wiki-compiler-first-stage/plan.md (review; Codex; plan_audit concerns absorbed)
 - lto1_plan_audit: docs/plans/lto-1-wiki-compiler-first-stage/plan_audit.md (Claude/design-auditor; has-concerns; 0 blockers / 5 concerns / 2 nits)
 - lto1_closeout: docs/plans/lto-1-wiki-compiler-first-stage/closeout.md (final; merged)
-- next_gate: design-auditor plan_audit.md -> Human Plan Gate -> feature branch
+- next_gate: Human Plan Gate -> M1 implementation
 ```
 
 ## 当前产出物
 
-- `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(codex, 2026-05-04, review;Wiki Compiler 第二阶段 plan:governed supersede apply、derived_from evidence objectization、Web fire-and-poll authoring、conflict/supersede review UX、guards/eval)
+- `docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md`(claude/design-auditor, 2026-05-04, has-blockers;3 blockers / 5 concerns / 2 nits;M1 blocker:_CanonicalProposal 无 supersede_target_ids 字段 + _promote_canonical 无 target-id flip 路径;M2 blocker:know_evidence 表未在 sqlite_store 创建;M2 blocker:evidence write boundary 相对 INVARIANTS §0 rule 4 未显式声明;M2 concern:KNOWLEDGE_RELATION_TYPES 不含 "derived_from";M3 concern:job storage path 未指定;M4 confirmed ready)
+- `docs/plans/lto-1-wiki-compiler-second-stage/plan.md`(codex, 2026-05-04, review;plan_audit absorbed;M1 `_CanonicalProposal.supersede_target_ids` + `_promote_canonical` target flip;M2 task-scoped `knowledge_evidence` reuse + per-candidate idempotency deferred;M3 artifact-backed fire-and-poll jobs;M5 guards/eval updated)
+- `docs/concerns_backlog.md`(codex, 2026-05-04, LTO-1 Stage2 deferred risks logged:Active Open for evidence schema reuse, Roadmap-Bound LTO-2 for cross-candidate source-anchor dedup)
 - `src/swallow/application/services/`(codex, 2026-05-04, Hygiene Bundle D4 Phase B:service-like residual modules moved out of `surface_tools`)
 - `src/swallow/application/infrastructure/`(codex, 2026-05-04, Hygiene Bundle D4 Phase C:`paths` / `workspace` / `identity` moved out of `surface_tools`)
 - `src/swallow/knowledge_retrieval/knowledge_plane.py` + `src/swallow/adapters/cli_commands/tasks.py`(codex, 2026-05-04, Hygiene Bundle LTO-6 C1:remove paired report `build_*` aliases and use `render_*`)

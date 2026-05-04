@@ -28,8 +28,8 @@ Wiki Compiler 第二阶段把第一阶段 CLI-only 起草能力接入 Web operat
 
 ## Plan Gate Status
 
-- 当前状态:`review`;等待 `design-auditor` 产出 `plan_audit.md` 与 Human Plan Gate。
-- 当前分支:`main`。
+- 当前状态:`review`;`plan_audit.md` 初版 verdict = `has-blockers`,3 blockers / 5 concerns / 2 nits。本 revision 已吸收全部 blocker/concern/nit 为显式设计决策,重新提交 Human Plan Gate。
+- 当前分支:`feat/lto-1-wiki-compiler-second-stage`。
 - 推荐实现分支:`feat/lto-1-wiki-compiler-second-stage`。
 - 实现开始条件:
   - 本 plan 经 review/audit 后无 unresolved blocker。
@@ -37,6 +37,20 @@ Wiki Compiler 第二阶段把第一阶段 CLI-only 起草能力接入 Web operat
   - Human 从 `main` 切到推荐 feature branch。
   - `docs/active_context.md` 的 `active_branch` 与实际分支一致。
 - `context_brief.md`:本 phase 尚未产出。当前 factual context 来自 `docs/roadmap.md` Direction Gate 选择、第一阶段 plan/closeout/review、设计锚点和当前代码表面。若 Human 需要 Claude context-analyst 补 `context_brief.md`,应在 plan audit 前补齐;否则本 plan 以这些文件为事实输入。
+
+## Plan Audit Absorption
+
+`docs/plans/lto-1-wiki-compiler-second-stage/plan_audit.md` raised 3 blockers,5 concerns,and 2 nits. This revision resolves them as follows:
+
+| Audit item | Resolution in this plan |
+|---|---|
+| B1: target-id supersede path unspecified | M1 now chooses `_CanonicalProposal.supersede_target_ids` as apply-time payload and a `KnowledgeRepo._promote_canonical(...)` store helper after new-record append, before derived refresh. |
+| B2: evidence physical store mismatch | M2 now explicitly reuses the existing task-scoped `knowledge_evidence` implementation store and does not create `know_evidence` or a schema migration in this phase. |
+| B3: evidence write boundary unspecified | Promotion-derived evidence objectization now runs inside the canonical `apply_proposal` path; `refresh-evidence` remains the separate no-LLM application command. |
+| M1 preflight / CLI force concerns | M1 now requires relation-metadata supersede notices and states that CLI `--force` is the existing local Operator confirmation while Web uses structured confirmations. |
+| M2 idempotency and relation type concerns | M2 now scopes idempotency to per-candidate/per-source-pack entry, extends persisted `KNOWLEDGE_RELATION_TYPES` with `derived_from`, and keeps `supersedes` out of persisted relation rows. |
+| M3 job storage and background nit | M3 now chooses task artifact job records at `wiki_jobs/<job_id>.json` and defines best-effort in-process execution, not durable workers. |
+| M5 guard/eval nits | M5 now forbids HTTP adapter imports of `application.services.wiki_compiler` and requires a second eval file for second-stage structural checks. |
 
 ## Goal
 
@@ -87,13 +101,13 @@ Wiki Compiler 第二阶段把第一阶段 CLI-only 起草能力接入 Web operat
 
 1. **Second stage scope = Web authoring + governed relationship application**. Retrieval quality remains a separate LTO-2 phase.
 2. **Fire-and-poll is mandatory for Web LLM actions**. `draft` and `refine` must return quickly with a `job_id`; the browser polls job status. Synchronous long request is not allowed for new Web Wiki Compiler LLM routes.
-3. **Use framework defaults**. For FastAPI, use Pydantic request/response models, `Depends`, centralized exception handlers, and FastAPI background task or an equivalent framework primitive. Any custom helper needs an inline reason.
+3. **Use framework defaults**. For FastAPI, use Pydantic request/response models, `Depends`, centralized exception handlers, and FastAPI background task or an equivalent framework primitive. Background execution is best-effort in-process execution for this local single-process server,not a durable worker. Any custom helper needs an inline reason.
 4. **Job state belongs below application boundary,not JS**. Web JS may render `queued/running/completed/failed`, but job creation/execution/status serialization lives in application service code. JS must not infer task/knowledge domain state transitions.
-5. **Job persistence is task-anchored**. Because Wiki Compiler commands require `task_id`, job records should be stored under task artifacts or a task-scoped application job store. In-memory-only job state is not acceptable as the sole status source.
-6. **Supersede target-id apply happens inside canonical apply path**. Marking an old canonical/wiki object `superseded` is a canonical/wiki truth mutation. It must happen in `KnowledgeRepo._promote_canonical` / store code reached by `apply_proposal`, not in CLI/HTTP adapter and not as an application-layer post-apply direct mutation.
+5. **Job persistence is task-anchored artifact persistence**. Job records are stored under `.swl/tasks/<task_id>/artifacts/wiki_jobs/<job_id>.json` via existing artifact-writing helpers. This phase does not add a SQLite job table. In-memory-only job state is not acceptable as the sole status source.
+6. **Supersede target-id apply happens inside canonical apply path**. Marking an old canonical/wiki object `superseded` is a canonical/wiki truth mutation. M1 extends `_CanonicalProposal` with `supersede_target_ids`;`KnowledgeRepo._promote_canonical(...)` calls a store helper after appending the new record and before `refresh_derived`. CLI/HTTP adapters and application post-apply helpers must not directly flip canonical status.
 7. **Application command owns confirmation semantics**. CLI may keep `--force`; Web must use structured confirmation fields such as `confirmed_notice_types=["supersede","conflict"]`. Adapter must not expose a naked `force: true` switch.
-8. **Evidence object IDs are derived deterministically from promoted source anchors**. A resolved source pack entry promoted by Operator should produce or reuse a stable evidence object id, e.g. `evidence-<candidate_id>-<index>` or another deterministic helper. The exact helper belongs in application/knowledge facade code and must be tested for idempotency.
-9. **`derived_from` relation rows require evidence object targets**. Raw `target_ref` remains metadata. A persisted `derived_from` relation row is allowed only when the target is an evidence object id created/resolved from a source anchor.
+8. **Evidence object IDs are deterministic per candidate/source-pack entry**. A resolved source pack entry promoted by Operator produces or reuses `evidence-<candidate_id>-<index>` or an equivalent deterministic id scoped to the staged candidate. This phase does not deduplicate evidence across multiple candidates with the same source_ref/content_hash.
+9. **`derived_from` relation rows require evidence object targets**. Raw `target_ref` remains metadata. M2 extends persisted `KNOWLEDGE_RELATION_TYPES` with `derived_from`;a persisted `derived_from` row is allowed only when the target is an evidence object id created/resolved from a source anchor. `supersedes` remains status/metadata,not a persisted relation row.
 10. **Conflict remains a review signal**. `conflict_flag = contradicts(<wiki_id>)` blocks promote until Operator confirms. Confirmation does not mean the system chooses supersede; it only allows the chosen Operator action.
 11. **No new public design docs by default**. This phase can implement existing DATA_MODEL / KNOWLEDGE / SELF_EVOLUTION semantics without modifying design docs. If implementation discovers schema or invariant gaps, stop and revise plan before code.
 
@@ -116,6 +130,8 @@ CLI and Web may present confirmation differently, but application semantics must
 - `promote_stage_candidate_command(..., force=True)` remains the CLI escape hatch for existing workflows.
 - Web should call a structured route such as `POST /api/knowledge/staged/{candidate_id}/promote` with `confirmed_notice_types`, not `force`.
 - Application code must compute preflight notices, compare them to confirmation, and reject missing confirmation with a typed `StagePromotePreflightError`.
+- `build_stage_promote_preflight_notices(...)` must scan both same-key canonical collisions and staged `relation_metadata` entries with `relation_type == "supersedes"` / `target_object_id`.
+- CLI `--force` is treated as explicit local Operator confirmation for all preflight notices,including target-id supersede and conflict. Web must not expose this raw bypass;it supplies structured confirmations instead.
 
 Required notices:
 
@@ -127,12 +143,13 @@ Required notices:
 Target-id supersede requires these properties:
 
 - The staged candidate carries `relation_metadata = [{"relation_type":"supersedes","target_object_id":"..."}]`.
-- Application command may include this metadata in the canonical proposal payload/record.
+- Application command passes target ids into `register_canonical_proposal(..., supersede_target_ids=[...])`;the canonical record may still persist `relation_metadata` for audit/display,but the apply-time ownership signal is the proposal dataclass field.
 - Only `apply_proposal(target=canonical_knowledge)` may apply the old-object status flip.
+- `KnowledgeRepo._promote_canonical(...)` appends the new canonical record,then calls a store helper to update target old records before any `refresh_derived` rebuild.
 - Store/write code updates old record fields: `canonical_status/state = "superseded"`, `superseded_by = <new_id>`, `superseded_at = <promoted_at>`.
 - No code path may delete the old object.
 
-If implementation needs to extend the in-memory canonical proposal dataclass to include `supersede_target_ids`, keep `apply_proposal(proposal_id, operator_token, target)` unchanged and test proposal registration compatibility.
+`apply_proposal(proposal_id, operator_token, target)` public signature remains unchanged. `_CanonicalProposal` gets the new `supersede_target_ids` field,cleared with the pending proposal after apply like the rest of the in-memory proposal payload.
 
 ## M2 Contract: Source Anchors To Evidence
 
@@ -146,15 +163,34 @@ Promotion of Wiki Compiler candidates should make source support inspectable as 
    - `span` or `heading_path`
    - bounded preview/content
    - source type and display path as metadata
-2. Persist evidence through Knowledge Plane/store helper, not by adapter code.
+2. Persist evidence through Knowledge Plane/store helper from inside the canonical `apply_proposal` path, not by adapter code and not by application post-apply direct mutation.
 3. Add the evidence ids to promoted wiki/canonical `source_evidence_ids`.
 4. Persist a `derived_from` relation only from promoted wiki/canonical object id to evidence object id.
 5. Keep raw `target_ref` entries in metadata for display, but do not write raw refs into relation rows.
 
 Idempotency requirement:
 
-- Re-running promote for the same already-decided candidate must not duplicate evidence or relation rows.
+- Re-running the evidence/relation helper for the same candidate id and source-pack index must not duplicate evidence or relation rows.
 - Existing staged candidates without source_pack still promote as before.
+
+### M2 Schema Reuse Decision
+
+This phase reuses the existing task-scoped `knowledge_evidence` implementation store (`knowledge_evidence` SQLite table plus mirrored `.swl/knowledge/evidence/<task_id>/<object_id>.json` entries) as the physical target for evidence support objects. It does **not** create the standalone `know_evidence` table described in `DATA_MODEL.md §3.3`,and therefore does not require a schema migration in this phase.
+
+Mapping for this phase:
+
+- DATA_MODEL `evidence_id` maps to the task-scoped evidence entry `object_id`.
+- DATA_MODEL `source_pointer` maps to the entry JSON fields `source_ref`, `content_hash`, `parser_version`, `span`, and `heading_path`.
+- `source_evidence_ids` on promoted wiki/canonical records point to these task-scoped evidence object ids.
+- `derived_from` persisted relation rows may target only these evidence object ids,not raw `file://` / `artifact://` refs.
+
+Deferred risk: this compatibility reuse keeps LTO-1 Stage 2 small, but it leaves the longer-term `know_evidence` vs `knowledge_evidence` physical schema reconciliation unresolved. Before any phase introduces global evidence ids, object-storage-backed evidence truth,or a schema migration touching evidence tables,that phase must revisit this decision and update DATA_MODEL / migration strategy explicitly.
+
+### M2 Idempotency Scope
+
+This phase guarantees idempotency only per staged candidate and source-pack entry. The deterministic evidence id should be derived from `(candidate_id, source_pack_index)` or an equivalent candidate-scoped key,so rerunning the same helper for the same candidate does not duplicate evidence objects or `derived_from` relation rows.
+
+This phase deliberately does **not** deduplicate evidence across different staged candidates that cite the same `source_ref`, `content_hash`, `parser_version`, and `span`. Cross-candidate source-anchor deduplication is deferred to a future retrieval/evidence quality phase,where source-level identity,global evidence ids,and relation expansion behavior can be designed together.
 
 ## M3 HTTP Contract
 
@@ -217,8 +253,10 @@ Job response sketch:
 Constraints:
 
 - `draft` / `refine` routes must not call `WikiCompilerAgent.compile()` inline before returning.
+- `draft` / `refine` routes write a queued job record at `wiki_jobs/<job_id>.json` before returning,then background execution updates the same artifact record to `running`, `completed`, or `failed`.
 - `refresh-evidence` may be synchronous because it has no LLM call, but it must still return a typed envelope.
 - Adapter imports stop at application command/service/query boundary.
+- Fire-and-poll is best-effort local background execution. Server restart may leave `queued` / `running` jobs stale;status readers may mark stale jobs failed, but this phase does not implement durable resume or retry.
 - Tests should mock application job execution so no live LLM is needed.
 
 ## M4 Web UX Contract
@@ -243,7 +281,7 @@ No visual graph, no frontend package, no build step.
 Add or extend guard coverage for:
 
 1. `test_wiki_compiler_web_routes_only_call_application_boundary`
-   - reject direct imports/calls to `provider_router.agent_llm`, `WikiCompilerAgent`, `apply_proposal`, `truth_governance.store.append_canonical_record`, knowledge internals from HTTP adapter.
+   - reject direct imports/calls to `provider_router.agent_llm`, `WikiCompilerAgent`, `application.services.wiki_compiler`, `apply_proposal`, `truth_governance.store.append_canonical_record`, knowledge internals from HTTP adapter.
 2. `test_wiki_compiler_supersede_status_flip_only_in_apply_proposal_path`
    - reject application/adapter direct writes of `canonical_status = "superseded"` or `superseded_by` outside governance/store apply path.
 3. `test_wiki_compiler_derived_from_relation_targets_evidence_only`
@@ -255,7 +293,7 @@ Add or extend guard coverage for:
 
 Eval signal:
 
-- Extend `tests/eval/test_wiki_compiler_quality.py` or add a second eval file for deterministic structural checks:
+- Add `tests/eval/test_wiki_compiler_second_stage_quality.py` for deterministic structural checks:
   - source_pack -> evidence object count matches resolved sources.
   - `supersedes` requires target id and does not appear in draft mode.
   - conflict payload remains visible to review response.
@@ -272,7 +310,7 @@ Minimum focused validation after implementation:
 .venv/bin/python -m pytest tests/integration/http/test_knowledge_browse_routes.py tests/integration/http/test_web_write_routes.py tests/test_web_api.py -q
 .venv/bin/python -m pytest tests/unit/application/test_knowledge_queries.py tests/test_staged_knowledge.py tests/test_knowledge_relations.py -q
 .venv/bin/python -m pytest tests/test_invariant_guards.py -q
-.venv/bin/python -m pytest -m eval tests/eval/test_wiki_compiler_quality.py -q
+.venv/bin/python -m pytest -m eval tests/eval/test_wiki_compiler_quality.py tests/eval/test_wiki_compiler_second_stage_quality.py -q
 .venv/bin/python -m compileall -q src/swallow
 git diff --check
 ```
@@ -310,7 +348,8 @@ git commit -m "docs(plan): add wiki compiler second stage plan"
 | Risk | Impact | Mitigation / Fallback |
 |---|---|---|
 | Supersede target-id mutation violates `apply_proposal` ownership | Architecture blocker | Keep status flip inside KnowledgeRepo/store path reached by `apply_proposal`; add guard before implementation continues |
-| Derived evidence objectization turns into schema migration | Phase expands too much | Use existing task knowledge evidence store and source pointer schema; if new SQLite fields are required, stop and revise plan/design |
+| Derived evidence objectization turns into schema migration | Phase expands too much | Use existing task-scoped `knowledge_evidence` store and source pointer fields; standalone `know_evidence` is deferred and logged in concerns backlog |
+| Per-candidate evidence idempotency creates duplicate evidence across candidates | Retrieval quality debt | Accept per-candidate idempotency for this phase; defer cross-candidate source-anchor/content-hash dedup to LTO-2 evidence quality |
 | Fire-and-poll runner becomes generic orchestration platform | Scope creep / Control Plane drift | Keep it as local task-anchored Web action job for Operator-triggered Wiki Compiler only; no scheduler, fan-out, retry policy, or task state advancement |
 | Web confirmation UX accidentally exposes raw force | Safety regression | Use structured confirmation fields; schema `extra="forbid"`; guard/static smoke checks route/request strings |
 | UI grows into graph/workbench | Scope creep | Keep form + job tray + candidate review; no project graph, no new package |
