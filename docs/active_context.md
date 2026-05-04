@@ -13,9 +13,9 @@
 - latest_completed_slice: `post-merge state sync committed at a3c1844`
 - active_track: `Test Architecture`
 - active_phase: `lto-4-test-architecture`
-- active_slice: `M1 CLI command-family split complete; waiting Human commit`
+- active_slice: `M2 shared builders/assertions helpers complete; waiting Human commit`
 - active_branch: `feat/lto-4-test-architecture`
-- status: `lto4_m1_complete_waiting_human_commit`
+- status: `lto4_m2_complete_waiting_human_commit`
 
 ## 当前状态说明
 
@@ -210,13 +210,20 @@ LTO-4 compressed-flow validation:
   - `.venv/bin/python -m pytest -q --co 2>&1 | tail -1` -> `802/821 tests collected (19 deselected) in 0.67s`
   - `time .venv/bin/python -m pytest -q 2>&1 | tail -1` -> `802 passed, 19 deselected in 116.89s`; real `1m57.852s`
 - M1 CLI command-family split:
+  - commits: `d63a880 refactor(tests): split test_cli.py command-family modules`;`79f6695 docs(state): record lto4 m1 test split`
   - `.venv/bin/python -m pytest -q --co 2>&1 | tail -1` -> `802/821 tests collected (19 deselected) in 0.82s`
   - `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py tests/integration/cli/test_knowledge_commands.py tests/integration/cli/test_route_commands.py tests/integration/cli/test_proposal_commands.py tests/integration/cli/test_synthesis_commands.py tests/integration/cli/test_retrieval_commands.py tests/integration/cli/test_system_commands.py -q` -> `253 passed in 78.09s`
   - test count change: `0` (baseline `802`, current `802`)
+- M2 shared builders/assertions helpers:
+  - `.venv/bin/python -m pytest tests/unit/test_helpers_builders.py tests/integration/cli/test_task_commands.py tests/integration/cli/test_knowledge_commands.py tests/integration/cli/test_wiki_commands.py -q` -> `121 passed in 49.06s`
+  - `.venv/bin/python -m compileall -q tests/helpers tests/unit/test_helpers_builders.py` passed
+  - `.venv/bin/python -m pytest -q --co 2>&1 | tail -1` -> `806/825 tests collected (19 deselected) in 0.71s`
+  - `git diff --check` passed
+  - test count change: `+4` (new helper self-tests only; no test deletion)
 
 ## 当前阻塞项
 
-- 等待 Human 审阅并提交 LTO-4 M1 CLI command-family split。
+- 等待 Human 审阅并提交 LTO-4 M2 shared builders/assertions helpers。
 
 ## Tag 状态
 
@@ -229,16 +236,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审阅并提交 LTO-4 M1 CLI command-family split。
-2. **[Codex]** Human 提交 M1 后继续 M2:`tests/helpers/builders.py` + `tests/helpers/assertions.py`。
+1. **[Human]** 审阅并提交 LTO-4 M2 shared builders/assertions helpers。
+2. **[Codex]** Human 提交 M2 后继续 M3:`tests/helpers/ast_guards.py`。
 3. **[Codex]** LTO-4 全部完成后把 status 改为 `lto4_complete_r_entry_ready`;不触发后续 phase,不 cut tag。
 
 ```markdown
 compressed_gate:
 - active_phase: lto-4-test-architecture
-- active_slice: M1 CLI command-family split complete;waiting Human commit
+- active_slice: M2 shared builders/assertions helpers complete;waiting Human commit
 - active_branch: feat/lto-4-test-architecture
-- status: lto4_m1_complete_waiting_human_commit
+- status: lto4_m2_complete_waiting_human_commit
 - latest_completed_phase: lto-2-retrieval-quality-evidence-serving
 - latest_completed_merge: 03744f0 Retrieval Quality / Evidence Serving
 - latest_roadmap_sync: a3c1844 docs(state): sync lto2 post-merge state
@@ -246,8 +253,9 @@ compressed_gate:
 - workflow: compressed;no plan.md / plan_audit.md / review_comments.md / closeout.md;git log + active_context are documentation
 - boundary: docs/active_context.md "待执行" LTO-4 block is authoritative
 - baseline_count: 802/821 collected;19 deselected
-- current_count: 802/821 collected;19 deselected
-- next_gate: Human M1 commit
+- current_count: 806/825 collected;19 deselected
+- latest_lto4_commit: 79f6695 docs(state): record lto4 m1 test split
+- next_gate: Human M2 commit
 ```
 
 ## 当前产出物
@@ -280,3 +288,6 @@ compressed_gate:
 - `docs/roadmap.md`(codex, 2026-05-04, post-LTO-2 merge roadmap sync;LTO-2 marked complete;Direction Gate reset)
 - `docs/concerns_backlog.md`(codex, 2026-05-04, LTO-2 cross-candidate evidence dedup concern moved from Roadmap-Bound to Resolved)
 - `tests/integration/cli/test_task_commands.py` + `tests/integration/cli/test_knowledge_commands.py` + `tests/integration/cli/test_route_commands.py` + `tests/integration/cli/test_proposal_commands.py` + `tests/integration/cli/test_synthesis_commands.py` + `tests/integration/cli/test_retrieval_commands.py` + `tests/integration/cli/test_system_commands.py` + `tests/test_cli.py`(codex, 2026-05-04, LTO-4 M1 mechanical CLI command-family split;test count unchanged)
+- `tests/helpers/builders.py` + `tests/helpers/assertions.py`(codex, 2026-05-04, LTO-4 M2 shared test builders/assertions)
+- `tests/unit/test_helpers_builders.py`(codex, 2026-05-04, LTO-4 M2 helper self-tests;accounts for +4 collected tests)
+- `tests/integration/cli/test_task_commands.py` + `tests/integration/cli/test_knowledge_commands.py` + `tests/integration/cli/test_wiki_commands.py`(codex, 2026-05-04, LTO-4 M2 sample helper adoption in high-duplication setup/assertion paths)
