@@ -11,7 +11,12 @@ from typing import Any
 from swallow._io_helpers import read_json_or_empty
 from swallow.knowledge_retrieval.canonical_reuse import is_canonical_reuse_visible
 from swallow.knowledge_retrieval._internal_knowledge_store import iter_file_knowledge_task_ids, load_task_knowledge_view
-from swallow.knowledge_retrieval.knowledge_objects import is_retrieval_reuse_ready
+from swallow.knowledge_retrieval.knowledge_objects import (
+    is_retrieval_reuse_ready,
+    summarize_knowledge_evidence,
+    summarize_knowledge_reuse,
+    summarize_knowledge_stages,
+)
 from swallow.orchestration.models import RetrievalItem, RetrievalRequest
 from swallow.application.infrastructure.paths import canonical_reuse_policy_path
 from swallow.knowledge_retrieval.retrieval_adapters import (
@@ -83,8 +88,17 @@ TASK_ARTIFACT_MARKDOWN_NAMES = {
     "executor_output.md",
     "executor_prompt.md",
 }
-SOURCE_POLICY_NOISE_LABELS = {"archive_note", "current_state", "observation_doc"}
+SOURCE_POLICY_NOISE_LABELS = {
+    "archive_note",
+    "build_cache",
+    "current_state",
+    "generated_artifact",
+    "generated_metadata",
+    "observation_doc",
+}
 SUPPORTING_EVIDENCE_LABELS = {"supporting_evidence"}
+DECLARED_DOCUMENT_PRIORITY_BONUS = 1000
+SOURCE_POLICY_NOISE_PENALTY = 250
 logger = logging.getLogger(__name__)
 _sqlite_vec_warning_emitted = False
 _embedding_api_warning_emitted = False
@@ -143,7 +157,13 @@ def build_retrieval_request(
     context_layers: list[str] | None = None,
     current_task_id: str = "",
     strategy: str = "system_baseline",
+    declared_document_paths: tuple[str, ...] | list[str] | None = None,
 ) -> RetrievalRequest:
+    normalized_declared_paths = tuple(
+        str(path).replace("\\", "/").strip()
+        for path in (declared_document_paths or ())
+        if str(path).strip()
+    )
     return RetrievalRequest(
         query=query,
         source_types=source_types or ["repo", "notes"],
@@ -151,6 +171,7 @@ def build_retrieval_request(
         current_task_id=current_task_id,
         limit=limit,
         strategy=strategy,
+        declared_document_paths=normalized_declared_paths,
     )
 
 
@@ -394,6 +415,85 @@ def summarize_reused_knowledge(retrieval_items: list[RetrievalItem]) -> dict[str
     }
 
 
+def summarize_truth_reuse_visibility(
+    retrieval_items: list[RetrievalItem],
+    *,
+    task_knowledge_objects: list[dict[str, Any]] | None = None,
+    base_dir: Path | None = None,
+) -> dict[str, Any]:
+    reused_knowledge = summarize_reused_knowledge(retrieval_items)
+    task_objects = list(task_knowledge_objects or [])
+    task_matched_count = reused_knowledge.get("task_knowledge_count", 0)
+    task_considered_count = max(len(task_objects), task_matched_count)
+    task_skipped_count = max(task_considered_count - task_matched_count, 0)
+    task_reuse_counts = summarize_knowledge_reuse(task_objects)
+    task_stage_counts = summarize_knowledge_stages(task_objects)
+    task_evidence_counts = summarize_knowledge_evidence(task_objects)
+
+    visible_canonical_records = _load_visible_canonical_records(base_dir)
+    canonical_matched_count = reused_knowledge.get("canonical_registry_count", 0)
+    canonical_considered_count = max(len(visible_canonical_records), canonical_matched_count)
+    canonical_skipped_count = max(canonical_considered_count - canonical_matched_count, 0)
+
+    return {
+        "task_knowledge": {
+            "status": _reuse_visibility_status(task_considered_count, task_matched_count),
+            "considered_count": task_considered_count,
+            "matched_count": task_matched_count,
+            "skipped_count": task_skipped_count,
+            "absent_count": 0 if task_considered_count else 1,
+            "reason_counts": {
+                "query_no_match": max(
+                    min(task_reuse_counts.get("retrieval_candidate", 0), task_skipped_count),
+                    0,
+                ),
+                "policy_excluded": task_reuse_counts.get("task_only", 0),
+                "status_not_active": task_stage_counts.get("raw", 0) + task_stage_counts.get("candidate", 0),
+                "missing_source_pointer": task_evidence_counts.get("unbacked", 0)
+                + task_evidence_counts.get("source_only", 0),
+            },
+        },
+        "canonical_registry": {
+            "status": _reuse_visibility_status(canonical_considered_count, canonical_matched_count),
+            "considered_count": canonical_considered_count,
+            "matched_count": canonical_matched_count,
+            "skipped_count": canonical_skipped_count,
+            "absent_count": 0 if canonical_considered_count else 1,
+            "reason_counts": {
+                "query_no_match": canonical_skipped_count,
+            },
+        },
+    }
+
+
+def _reuse_visibility_status(considered_count: int, matched_count: int) -> str:
+    if considered_count <= 0:
+        return "absent"
+    if matched_count > 0:
+        return "matched"
+    return "considered"
+
+
+def _load_visible_canonical_records(base_dir: Path | None) -> list[dict[str, Any]]:
+    if base_dir is None:
+        return []
+    policy_path = canonical_reuse_policy_path(base_dir)
+    if not policy_path.exists():
+        return []
+    try:
+        payload = read_json_or_empty(policy_path)
+    except (OSError, json.JSONDecodeError):
+        return []
+    visible_records = payload.get("visible_records", [])
+    if not isinstance(visible_records, list):
+        return []
+    return [
+        record
+        for record in visible_records
+        if isinstance(record, dict) and is_canonical_reuse_visible(record)
+    ]
+
+
 def summarize_retrieval_trace(retrieval_items: list[RetrievalItem]) -> dict[str, Any]:
     if not retrieval_items:
         return {
@@ -464,6 +564,12 @@ def source_policy_label_for(item: RetrievalItem) -> str:
         return "current_state"
     if path.startswith("docs/archive/") or path.startswith("docs/archive_phases/"):
         return "archive_note"
+    if _is_generated_metadata_path(path):
+        return "generated_metadata"
+    if _is_build_cache_path(path):
+        return "build_cache"
+    if _is_generated_artifact_path(path):
+        return "generated_artifact"
     if _is_observation_doc_path(path):
         return "observation_doc"
     if item.source_type == "repo":
@@ -553,6 +659,31 @@ def _is_observation_doc_path(path: str) -> bool:
     return path.endswith("/observations.md") or path.endswith("/closeout.md") or "/candidate-r/" in path
 
 
+def _is_generated_metadata_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").strip()
+    return ".egg-info/" in normalized or normalized.endswith(".egg-info")
+
+
+def _is_build_cache_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").strip()
+    prefixes = (
+        ".mypy_cache/",
+        ".pytest_cache/",
+        ".ruff_cache/",
+        "__pycache__/",
+        "build/",
+        "dist/",
+    )
+    if normalized.startswith(prefixes):
+        return True
+    return "/__pycache__/" in normalized or "/build/" in normalized or "/dist/" in normalized
+
+
+def _is_generated_artifact_path(path: str) -> bool:
+    normalized = path.replace("\\", "/").strip()
+    return normalized.startswith(".swl/tasks/") and "/artifacts/" in normalized
+
+
 def _is_source_anchor_support(item: RetrievalItem) -> bool:
     if str(item.metadata.get("source_anchor_key", "")).strip():
         return True
@@ -562,6 +693,49 @@ def _is_source_anchor_support(item: RetrievalItem) -> bool:
         return True
     object_id = str(item.metadata.get("knowledge_object_id", item.chunk_id)).strip()
     return object_id.startswith("evidence-src-")
+
+
+def _matches_declared_document_path(item: RetrievalItem, declared_paths: set[str]) -> str:
+    path = item.path.replace("\\", "/").strip()
+    if not path or not declared_paths:
+        return ""
+    if path in declared_paths:
+        return path
+    return ""
+
+
+def apply_source_scoping_policy(items: list[RetrievalItem], request: RetrievalRequest) -> list[RetrievalItem]:
+    declared_paths = {path.replace("\\", "/").strip() for path in request.declared_document_paths if path.strip()}
+    scoped_items: list[RetrievalItem] = []
+    for item in items:
+        metadata = dict(item.metadata)
+        score_breakdown = dict(item.score_breakdown)
+        adjusted_score = item.score
+
+        matched_declared_path = _matches_declared_document_path(item, declared_paths)
+        if matched_declared_path:
+            adjusted_score += DECLARED_DOCUMENT_PRIORITY_BONUS
+            score_breakdown["declared_document_priority"] = DECLARED_DOCUMENT_PRIORITY_BONUS
+            metadata["declared_document_path_status"] = "matched"
+            metadata["declared_document_path"] = matched_declared_path
+        elif declared_paths:
+            metadata.setdefault("declared_document_path_status", "not_declared_source")
+
+        source_policy_label = source_policy_label_for(replace(item, metadata=metadata))
+        if source_policy_label in SOURCE_POLICY_NOISE_LABELS:
+            adjusted_score -= SOURCE_POLICY_NOISE_PENALTY
+            score_breakdown["source_noise_penalty"] = -SOURCE_POLICY_NOISE_PENALTY
+            metadata["source_scope_policy"] = "noise_downgraded"
+
+        scoped_items.append(
+            replace(
+                item,
+                score=adjusted_score,
+                score_breakdown=score_breakdown,
+                metadata=metadata,
+            )
+        )
+    return scoped_items
 
 
 def _item_rank(default_rank: int, item: RetrievalItem) -> int:
@@ -1181,6 +1355,7 @@ def retrieve_context(
                 )
             )
 
+    items = apply_source_scoping_policy(items, retrieval_request)
     items.sort(key=lambda item: (-item.score, item.path, item.chunk_id))
     items = rerank_retrieval_items(
         items,

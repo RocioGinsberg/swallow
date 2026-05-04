@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
+from swallow.knowledge_retrieval import retrieval as retrieval_module
 from swallow.knowledge_retrieval.retrieval import ARTIFACTS_SOURCE_TYPE
 from swallow.orchestration import retrieval_flow
 from swallow.orchestration.models import (
@@ -120,11 +121,86 @@ def test_retrieval_request_prefers_explicit_source_override() -> None:
     assert request.source_types == ["repo", "knowledge", ARTIFACTS_SOURCE_TYPE]
 
 
+def test_retrieval_request_carries_workspace_relative_declared_document_paths(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    absolute_doc = workspace / "docs" / "design" / "KNOWLEDGE.md"
+    relative_doc = workspace / "docs" / "engineering" / "TEST_ARCHITECTURE.md"
+    absolute_doc.parent.mkdir(parents=True)
+    relative_doc.parent.mkdir(parents=True)
+    absolute_doc.write_text("# Knowledge\n", encoding="utf-8")
+    relative_doc.write_text("# Tests\n", encoding="utf-8")
+    outside_doc = tmp_path / "outside.md"
+    outside_doc.write_text("# Outside\n", encoding="utf-8")
+    state = _task_state(
+        workspace_root=str(workspace),
+        input_context={
+            "document_paths": [
+                str(absolute_doc),
+                "docs/engineering/TEST_ARCHITECTURE.md",
+                str(absolute_doc),
+                str(outside_doc),
+            ],
+        },
+    )
+
+    request = retrieval_flow.build_task_retrieval_request(state)
+
+    assert request.declared_document_paths == (
+        "docs/design/KNOWLEDGE.md",
+        "docs/engineering/TEST_ARCHITECTURE.md",
+    )
+    assert request.source_types == ["knowledge", "notes"]
+
+
+def test_retrieval_request_defaults_declared_document_paths_to_empty_tuple() -> None:
+    request = retrieval_flow.build_task_retrieval_request(_task_state())
+
+    assert request.declared_document_paths == ()
+
+
 def test_retrieval_request_rejects_invalid_explicit_source_override() -> None:
     state = _task_state(task_semantics={"retrieval_source_types": ["repo", "unsupported-source"]})
 
     with pytest.raises(ValueError, match="Invalid retrieval source type"):
         retrieval_flow.build_task_retrieval_request(state)
+
+
+def test_source_scoping_prioritizes_declared_docs_and_labels_generated_noise() -> None:
+    request = retrieval_module.build_retrieval_request(
+        query="knowledge invariants",
+        source_types=["notes", "repo"],
+        declared_document_paths=("docs/design/KNOWLEDGE.md",),
+    )
+    items = [
+        RetrievalItem(
+            path="src/swallow.egg-info/SOURCES.txt",
+            source_type="repo",
+            score=60,
+            preview="generated metadata",
+        ),
+        RetrievalItem(
+            path="docs/archive_phases/phase64/closeout.md",
+            source_type="notes",
+            score=55,
+            preview="archive note",
+        ),
+        RetrievalItem(
+            path="docs/design/KNOWLEDGE.md",
+            source_type="notes",
+            score=1,
+            preview="knowledge truth retrieval",
+        ),
+    ]
+
+    scoped_items = retrieval_module.apply_source_scoping_policy(items, request)
+    scoped_items.sort(key=lambda item: (-item.score, item.path, item.chunk_id))
+
+    assert scoped_items[0].path == "docs/design/KNOWLEDGE.md"
+    assert scoped_items[0].score_breakdown["declared_document_priority"] > 0
+    generated_item = next(item for item in scoped_items if item.path == "src/swallow.egg-info/SOURCES.txt")
+    assert generated_item.score_breakdown["source_noise_penalty"] < 0
+    assert retrieval_module.source_policy_label_for(generated_item) == "generated_metadata"
 
 
 def test_load_previous_retrieval_items_returns_none_for_missing_or_invalid_artifacts(tmp_path: Path) -> None:

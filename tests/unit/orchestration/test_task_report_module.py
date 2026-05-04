@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from swallow.application.infrastructure.paths import canonical_reuse_policy_path
 from swallow.orchestration import task_report
 from swallow.orchestration.models import RetrievalItem, TaskState
 
@@ -127,3 +128,49 @@ def test_reports_surface_source_anchor_dedup_missing_pointer_and_stored_preview(
     assert "status: missing" in retrieval_report
     assert "reason: raw_material_missing" in retrieval_report
     assert "source_preview_excerpt: Stored source preview excerpt." in retrieval_report
+
+
+def test_retrieval_report_explains_zero_truth_reuse_when_truth_objects_exist(tmp_path: Path) -> None:
+    state = _state(
+        workspace_root=str(tmp_path),
+        knowledge_objects=[
+            {
+                "object_id": "knowledge-0001",
+                "text": "Canonical retrieval scoping rule.",
+                "stage": "verified",
+                "evidence_status": "artifact_backed",
+                "knowledge_reuse_scope": "retrieval_candidate",
+            }
+        ],
+    )
+    policy_path = canonical_reuse_policy_path(tmp_path)
+    policy_path.parent.mkdir(parents=True, exist_ok=True)
+    policy_path.write_text(
+        (
+            "{\n"
+            '  "visible_records": [\n'
+            "    {\n"
+            '      "canonical_id": "canonical-1",\n'
+            '      "canonical_status": "active",\n'
+            '      "text": "Reusable canonical source scoping rule."\n'
+            "    }\n"
+            "  ]\n"
+            "}\n"
+        ),
+        encoding="utf-8",
+    )
+
+    report = task_report.build_retrieval_report(
+        state,
+        [_retrieval_item(path="docs/design/KNOWLEDGE.md", source_type="notes")],
+        base_dir=tmp_path,
+    )
+
+    assert "## Truth Reuse Visibility" in report
+    assert "- task_knowledge" in report
+    assert "  status: considered" in report
+    assert "  considered_count: 1" in report
+    assert "  matched_count: 0" in report
+    assert "  skipped_count: 1" in report
+    assert "  skipped_reasons: query_no_match=1" in report
+    assert "- canonical_registry" in report
