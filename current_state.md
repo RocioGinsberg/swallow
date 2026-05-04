@@ -19,30 +19,23 @@
 ## 当前稳定 checkpoint
 
 - repository_state: `runnable`
-- latest_main_checkpoint_phase: `post-LTO-2 Retrieval Quality / Evidence Serving merge`
-- latest_main_checkpoint: `03744f0 Retrieval Quality / Evidence Serving`
+- latest_main_checkpoint_phase: `post-LTO-4 Test Architecture;R-entry ready`
+- latest_main_checkpoint: `ac2d3ff docs(state): mark lto4 r-entry ready`
 - latest_executed_public_tag: `v1.8.0`
 - pending_release_tag: `none`
-- current_working_phase: `post-lto-2-direction-gate`
-- checkpoint_type: `main_post_lto2_merge_state_sync`
+- current_working_phase: `r-entry-real-usage`
+- checkpoint_type: `main_post_lto4_r_entry_ready`
 - active_branch: `main`
 - last_checked: `2026-05-04`
 
 说明:
 
-- LTO-1 Wiki Compiler 第二阶段已 merge 到 `main` at `21f8dc8 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`。
-- LTO-1 stage 2 post-merge roadmap 曾同步 at `25f7848 docs(state): update roadmap`,并把 **LTO-2 retrieval quality 增量**标为当时最高 Direction Gate 候选。
-- LTO-2 已在 `03744f0 Retrieval Quality / Evidence Serving` merge 后消化该硬触发;roadmap 当前近期队列为空,等待下一轮 Direction Gate。
-- Codex 已产出 `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`;Claude / design-auditor 已产出 `plan_audit.md`(has-concerns;0 blockers / 5 concerns / 2 nits);Codex 已吸收 C1-C5 / N1-N2 到 plan。
-- Human 已提交 plan/audit absorption commit `8878fd7 docs(plan): absorb lto-2 retrieval audit`,并切至 `feat/lto-2-retrieval-quality-evidence-serving`。
-- M1 Source-anchor identity contract 已提交为 `f9b683a feat(wiki): add source anchor evidence identity`。
-- M2 Governed evidence dedup on promotion 已提交为 `9b0a381 feat(wiki): dedupe source evidence on promotion`。
-- M3 Retrieval / EvidencePack dedup 已提交为 `1590e62 feat(retrieval): dedupe evidence serving by source anchor`。
-- M4 Operator report quality 已提交为 `62a2a7d feat(retrieval): surface source-anchor evidence quality`。
-- M5 Eval, guards, closeout prep 已提交为 `d6967f3 test(retrieval): add lto2 evidence quality eval`。
-- LTO-2 M1-M5 实现已完成并通过验证;Claude review 已通过(`recommend-merge`;0 blockers / 1 concern / 1 nit);Codex closeout 已完成。
-- Human 已完成 closeout commit `e8059d6 docs(closeout): finalize lto2 retrieval quality review`,并 merge 到 `main` at `03744f0 Retrieval Quality / Evidence Serving`。
-- 本次 post-merge sync 已将 roadmap 标记到 LTO-2 complete,并把 LTO-2 cross-candidate source-anchor dedup concern 从 Roadmap-Bound 移到 Resolved。
+- LTO-1 Wiki Compiler 第二阶段已 merge 到 `main` at `21f8dc8 Knowledge Authoring / LLM Wiki Compiler(authoring specialist)`,不单独 cut tag。
+- LTO-2 Retrieval Quality / Evidence Serving 已 merge 到 `main` at `03744f0`,不单独 cut tag。
+- LTO-4 Test Architecture 已按压缩流程完成:CLI test split、shared builders/assertions、AST guard helper extraction、global builder fixture entry;最终 `806/825` collected、`806 passed,19 deselected`。
+- 历史 phase 文档已归档到 `docs/archive_phases/` at `795aa4d docs(store): move history plans to archive`;`docs/plans/` 当前只保留 R-entry runbook。
+- 当前进入 R-entry Real Usage,入口为 `docs/plans/r-entry-real-usage/plan.md`;目标是用设计文档材料实测 CLI / knowledge / Wiki Compiler / retrieval / Web UI / Tailscale+nginx 展示链路。
+- R-entry 不是新开发 phase,不走 plan audit / review / closeout,不 cut tag;真实使用 issue log 是下一 Direction Gate 的主要输入。
 
 ---
 
@@ -51,17 +44,17 @@
 当前推荐从以下状态继续:
 
 - active_branch: `main`
-- active_track: `Direction Gate`
-- active_phase: `post-lto-2-direction-gate`
-- active_slice: `post-merge state sync`
-- workflow_status: `post_lto2_merge_state_synced_waiting_human_commit`
+- active_track: `R-entry Real Usage`
+- active_phase: `r-entry-real-usage`
+- active_slice: `plan ready;design-doc knowledge chain + UI/nginx smoke`
+- workflow_status: `r_entry_plan_ready`
 - recommended_implementation_branch: `none`
 
 下一步:
 
-1. Human 审阅并提交 post-merge state sync。
-2. Human 决定是否按 review 建议暂不 cut tag。
-3. 下一轮 Direction Gate 时从 roadmap 候选中选择新 phase。
+1. Human 按 `docs/plans/r-entry-real-usage/plan.md` 执行真实使用 runbook。
+2. Human 将实测问题记录到 `$BASE/notes/r-entry-issues.md`。
+3. Codex 在实测完成后整理 issue log,辅助下一轮 Direction Gate。
 
 ---
 
@@ -75,22 +68,21 @@
 4. `docs/active_context.md`
 5. `current_state.md`
 6. `docs/roadmap.md`
-7. `docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md`
-8. `docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md`
-9. `docs/concerns_backlog.md`
-10. `docs/design/INVARIANTS.md`
-11. `docs/design/KNOWLEDGE.md`
-12. `docs/design/DATA_MODEL.md`
-13. `docs/design/HARNESS.md`
-14. `docs/engineering/CODE_ORGANIZATION.md`
-15. `docs/engineering/TEST_ARCHITECTURE.md`
-16. `docs/engineering/ADAPTER_DISCIPLINE.md`
+7. `docs/plans/r-entry-real-usage/plan.md`
+8. `docs/concerns_backlog.md`
+9. `docs/design/INVARIANTS.md`
+10. `docs/design/KNOWLEDGE.md`
+11. `docs/design/DATA_MODEL.md`
+12. `docs/design/HARNESS.md`
+13. `docs/engineering/CODE_ORGANIZATION.md`
+14. `docs/engineering/TEST_ARCHITECTURE.md`
+15. `docs/engineering/ADAPTER_DISCIPLINE.md`
 
 ---
 
 ## 最小验证命令
 
-恢复当前 post-LTO-2 merge 状态时,建议至少执行以下检查:
+恢复当前 R-entry-ready 状态时,建议至少执行以下检查:
 
 ```bash
 git status --short --branch
@@ -99,7 +91,7 @@ git show --no-patch --decorate --oneline HEAD
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
 sed -n '1,260p' docs/roadmap.md
-sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/closeout.md
+sed -n '1,260p' docs/plans/r-entry-real-usage/plan.md
 sed -n '1,180p' docs/concerns_backlog.md
 ```
 
@@ -113,30 +105,26 @@ git diff --check
 
 ## 当前已知边界
 
-- 当前已完成并 merge LTO-2 M1-M5;Claude review 通过;closeout 已完成。
-- 不新增 `know_evidence` 物理表或 DATA_MODEL schema migration,除非 audit / Human 明确升级为本 phase blocker。
-- 不 backfill / rewrite 既有 `evidence-<candidate>-<index>` legacy rows。
-- Evidence 仍是 supporting material,不是 primary Knowledge Truth。
+- 当前不处于开发 phase;R-entry 只做真实使用验证与 issue logging。
+- 不新增 Dockerfile;当前远端展示只考虑 host `swl serve` loopback + host nginx 反代到 Tailscale。
+- 不把 `swl serve` 直接绑定到 `0.0.0.0` / Tailscale IP;不引入认证、多用户、公网语义。
+- 不把本轮发现直接改成代码;先记录 issue log,再进入 Direction Gate。
 - 不改变 `apply_proposal` 唯一 canonical / route / policy 写入入口。
-- 不绕过 Knowledge Plane facade。
-- 不新增 object storage、durable background worker、Graph RAG、项目级全图谱可视化、auth/multi-user、remote worker 或 Planner/DAG。
+- 不新增 object storage、durable background worker、Graph RAG、项目级全图谱可视化、remote worker 或 Planner/DAG。
 
 ---
 
 ## 当前建议提交范围
 
-当前无实现 milestone 建议提交。Codex 已完成 post-merge state sync,建议提交:
+当前无实现 milestone 建议提交。本轮是 R-entry plan + state / roadmap 文档同步,建议按文档纪律拆成两个提交:
 
-- `docs/active_context.md`
-- `current_state.md`
-- `docs/roadmap.md`
-- `docs/concerns_backlog.md`
+1. `docs/plans/r-entry-real-usage/plan.md`
+   - `docs(plan): add r-entry real usage runbook`
 
-建议提交信息: `docs(state): sync lto2 post-merge state`
+2. `docs/active_context.md` + `current_state.md` + `docs/roadmap.md`
+   - `docs(state): sync r-entry roadmap and state`
 
-本地 PR 草稿 `pr.md` 已同步到 LTO-2 review-passed / merge-ready 状态;该文件被 `.gitignore` 忽略,默认不纳入提交。
-
-上一提交:`03744f0 Retrieval Quality / Evidence Serving`。
+上一提交:`795aa4d docs(store): move history plans to archive`。
 
 ---
 
@@ -151,7 +139,7 @@ docker compose up -d openwebui
 docker compose ps
 ```
 
-当前 LTO-2 plan gate 不要求 live HTTP / API-key dependent test。
+当前 R-entry runbook 可使用本地 Provider Router / API-key 环境做 real Wiki Compiler draft;若环境不可用,先执行 dry-run 与 CLI/UI smoke 并记录缺口。
 
 ---
 
@@ -165,8 +153,7 @@ git status --short --branch
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
 sed -n '1,260p' docs/roadmap.md
-sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan.md
-sed -n '1,260p' docs/plans/lto-2-retrieval-quality-evidence-serving/plan_audit.md
+sed -n '1,260p' docs/plans/r-entry-real-usage/plan.md
 ```
 
 然后按“恢复时优先读取”的顺序进入当前工作上下文。
