@@ -280,10 +280,10 @@ Discovery:
 
 ```bash
 $SWL --base-dir "$BASE" knowledge stage-list --all
-$SWL --base-dir "$BASE" knowledge list --status active 2>/dev/null || true
+$SWL --base-dir "$BASE" knowledge canonical-audit
 ```
 
-If a relevant active canonical item exists, run a related task and inspect `Truth Reuse Visibility`.
+If `stage-list` or `canonical-audit` shows a relevant object, inspect/promote through the governed staged path before using it as canonical evidence. Then run a related task and inspect `Truth Reuse Visibility`.
 
 Observe:
 
@@ -310,7 +310,7 @@ $SWL --base-dir "$BASE" wiki draft \
   --dry-run
 
 $SWL --base-dir "$BASE" task artifacts "$TASK_ID"
-find "$BASE/artifacts/$TASK_ID" -maxdepth 2 -type f | sort
+find "$BASE/.swl/tasks/$TASK_ID/artifacts" -maxdepth 1 -type f | sort
 ```
 
 Observe:
@@ -359,11 +359,13 @@ Use only if R7 produced a candidate and you have a safe target. This test is abo
 Suggested path:
 
 ```bash
+export WIKI_TARGET=<staged-or-canonical-id>
+
 $SWL --base-dir "$BASE" wiki refine \
   --task-id "$TASK_ID" \
-  --topic "Test Architecture" \
-  --source-ref "file://workspace/docs/engineering/TEST_ARCHITECTURE.md" \
   --mode supersede \
+  --target "$WIKI_TARGET" \
+  --source-ref "file://workspace/docs/engineering/TEST_ARCHITECTURE.md" \
   --dry-run
 ```
 
@@ -518,4 +520,3 @@ This runbook is complete when:
 - at least one Wiki Compiler dry-run has been executed
 - CLI/Web truth consistency has been checked, or explicitly deferred with reason
 - `findings.md` has enough evidence to support either "continue real usage" or a specific next phase
-

@@ -13,13 +13,13 @@
 - latest_completed_slice: `merged to main at d4288a1`
 - active_track: `R-entry Real Usage`
 - active_phase: `r-entry-v1.9-real-usage`
-- active_slice: `r19-002 note-only offline status semantics fix`
-- active_branch: `fix/r19-002-note-only-offline-status`
-- status: `r19_002_note_only_offline_status_fix_verified`
+- active_slice: `r19-007 runbook command drift fix`
+- active_branch: `fix/r19-007-runbook-command-drift`
+- status: `r19_007_runbook_command_drift_fix_verified`
 
 ## 当前状态说明
 
-当前 git 分支为 `fix/r19-002-note-only-offline-status`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已 merge R19-001 narrow fix 到 `main` at `7516bc5 R19-001 fixed`,merge R19-003 truth reuse visibility fix 到 `main` at `ed08d8f R19-003 fixed`,并 merge R19-004 Wiki dry-run artifact visibility fix 到 `main` at `b4ed07e R19-004 fixed`。Codex 已开启 R19-002 note-only offline status semantics 小修:explicit `note-only` + `route_mode=offline` now completes as a no-live-executor run record instead of reporting `failed/unreachable_backend`;non-offline note-only fallback remains a failed backend-unavailable recovery record.
+当前 git 分支为 `fix/r19-007-runbook-command-drift`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已 merge R19-001 narrow fix 到 `main` at `7516bc5 R19-001 fixed`,merge R19-003 truth reuse visibility fix 到 `main` at `ed08d8f R19-003 fixed`,merge R19-004 Wiki dry-run artifact visibility fix 到 `main` at `b4ed07e R19-004 fixed`,并 merge R19-002 note-only offline status semantics fix 到 `main` at `45a2f87 R19-002 fixed`。Codex 已开启 R19-007 runbook command drift 小修:active runbook now uses supported `knowledge canonical-audit`, documents `wiki refine --target`, removes unsupported `wiki refine --topic`, and points dry-run artifact discovery at `.swl/tasks/<task_id>/artifacts`.
 
 LTO-2 source scoping 实现内容:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
 
@@ -110,11 +110,17 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
   - explicit `note-only` + `route_mode=offline` returns `ExecutorResult(status="completed", failure_kind="")`
   - `executor_output.md` uses `# Note-Only Offline Run` and records `live_executor_called: no`
   - non-offline `note-only` fallback still reports failed `unreachable_backend`, preserving existing backend recovery semantics
+- **[Human]** 已 merge R19-002 fix 回 `main` at `45a2f87 R19-002 fixed`。
+- **[Codex]** 已创建并切换到 `fix/r19-007-runbook-command-drift`。
+- **[Codex]** 已完成 R19-007 docs/config hygiene 小修:
+  - active runbook uses `knowledge canonical-audit` instead of nonexistent `knowledge list --status active`
+  - `wiki refine` runbook uses required `--target "$WIKI_TARGET"` and removes unsupported `--topic`
+  - dry-run artifact discovery now points to `$BASE/.swl/tasks/$TASK_ID/artifacts`
 
 待执行:
 
-- **[Human]** 审阅 R19-002 narrow fix,决定是否提交并 merge。
-- **[Codex]** 如 Human 继续,建议下一项处理 R19-007 runbook command drift。
+- **[Human]** 审阅 R19-007 docs fix,决定是否提交并 merge。
+- **[Codex]** merge 后可继续按 corrected runbook 做下一轮 real usage。
 
 ## 当前验证
 
@@ -214,6 +220,12 @@ R19-002 note-only offline status semantics fix validation:
 - `task inspect e3795dbb6ce5` -> `status: completed`, `executor_status: completed`, `execution_lifecycle: completed`, `route_mode: offline`, `route_name: local-note`
 - `executor_output.md` -> `# Note-Only Offline Run`, `live_executor_called: no`, no `unreachable_backend` or backend/network repair guidance
 
+R19-007 runbook command drift fix validation:
+
+- `.venv/bin/swl knowledge --help` -> confirms supported subcommands include `stage-list`, `stage-inspect`, `stage-promote`, `stage-reject`, and `canonical-audit`;no `knowledge list`
+- `.venv/bin/swl wiki refine --help` -> confirms required `--target` and no `--topic`
+- `rg -n "knowledge list|wiki refine[\\s\\S]*--topic|find \"\\$BASE/artifacts" docs/plans/r-entry-v1.9-real-usage/plan.md` -> no stale active-runbook command pattern found
+
 本轮文档同步验证:
 
 - `git diff --check` -> passed
@@ -307,16 +319,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 R19-002 narrow fix。
-2. **[Human]** 提交并决定是否 merge `fix/r19-002-note-only-offline-status` 回 `main`。
-3. **[Codex]** merge 后同步 state;若继续小修,建议处理 R19-007 runbook command drift。
+1. **[Human]** 审阅 R19-007 docs fix。
+2. **[Human]** 提交并决定是否 merge `fix/r19-007-runbook-command-drift` 回 `main`。
+3. **[Codex]** merge 后同步 state;然后继续用 corrected runbook 做下一轮 real usage。
 
 ```markdown
 compressed_gate:
 - active_phase: r-entry-v1.9-real-usage
-- active_slice: r19-002 note-only offline status semantics fix
-- active_branch: fix/r19-002-note-only-offline-status
-- status: r19_002_note_only_offline_status_fix_verified
+- active_slice: r19-007 runbook command drift fix
+- active_branch: fix/r19-007-runbook-command-drift
+- status: r19_007_runbook_command_drift_fix_verified
 - latest_completed_phase: lto-2-retrieval-source-scoping
 - latest_completed_commit: d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
@@ -334,7 +346,7 @@ compressed_gate:
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human review and commit R19-002 narrow fix
+- next_gate: Human review and commit R19-007 docs fix
 ```
 
 ## 当前产出物
@@ -373,3 +385,4 @@ compressed_gate:
 - `tests/integration/cli/test_wiki_commands.py` / `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-05, regression coverage for wiki dry-run prompt artifact visibility)
 - `src/swallow/orchestration/executor.py`(codex, 2026-05-05, R19-002 note-only offline status semantics: explicit offline note-only completes as a no-live-executor run record)
 - `tests/integration/cli/test_task_commands.py`(codex, 2026-05-05, regression coverage for R19-002 offline note-only completion)
+- `docs/plans/r-entry-v1.9-real-usage/plan.md`(codex, 2026-05-05, R19-007 runbook command drift fix: canonical audit, wiki refine target, and current artifact path)
