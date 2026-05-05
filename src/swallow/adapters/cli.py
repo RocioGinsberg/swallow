@@ -307,10 +307,21 @@ def format_store_migration_summary(summary: dict[str, object]) -> str:
     return "\n".join(lines)
 
 
+def _task_document_paths(state: object) -> list[str]:
+    input_context = getattr(state, "input_context", {})
+    if not isinstance(input_context, dict):
+        return []
+    raw_paths = input_context.get("document_paths", [])
+    if not isinstance(raw_paths, list | tuple):
+        return []
+    return [normalized for item in raw_paths if (normalized := str(item).strip())]
+
+
 def build_intake_snapshot(base_dir: Path, task_id: str) -> list[str]:
     state = load_state(base_dir, task_id)
     task_semantics = read_json_or_empty(task_semantics_path(base_dir, task_id))
     knowledge_objects = load_knowledge_objects(base_dir, task_id)
+    document_paths = _task_document_paths(state)
     knowledge_stage_counts = {"raw": 0, "candidate": 0, "verified": 0, "canonical": 0}
     knowledge_evidence_counts = {"artifact_backed": 0, "source_only": 0, "unbacked": 0}
     knowledge_reuse_counts = {"task_only": 0, "retrieval_candidate": 0}
@@ -334,6 +345,8 @@ def build_intake_snapshot(base_dir: Path, task_id: str) -> list[str]:
         f"acceptance_criteria_count: {len(task_semantics.get('acceptance_criteria', state.task_semantics.get('acceptance_criteria', []) if state.task_semantics else []))}",
         f"priority_hints_count: {len(task_semantics.get('priority_hints', state.task_semantics.get('priority_hints', []) if state.task_semantics else []))}",
         f"next_action_proposals_count: {len(task_semantics.get('next_action_proposals', state.task_semantics.get('next_action_proposals', []) if state.task_semantics else []))}",
+        f"document_paths_count: {len(document_paths)}",
+        f"document_paths: {', '.join(document_paths) or '-'}",
         "",
         "Staged Knowledge Capture",
         f"knowledge_objects_count: {len(knowledge_objects)}",
@@ -1543,7 +1556,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--document-paths",
         action="append",
         default=[],
-        help="Local document path to pass into specialist input_context. Repeatable; currently used by literature-specialist.",
+        help="Local document path to persist in task input_context for retrieval source scoping and specialist inputs. Repeatable.",
     )
     create_parser.add_argument(
         "--constraint",
@@ -2392,6 +2405,7 @@ def main(argv: list[str] | None = None) -> int:
         retrieval = read_json_list_or_empty(retrieval_path(base_dir, args.task_id))
         task_semantics = read_json_or_empty(task_semantics_path(base_dir, args.task_id))
         knowledge_objects = load_knowledge_objects(base_dir, args.task_id)
+        document_paths = _task_document_paths(state)
         if not isinstance(retrieval, list):
             retrieval = []
         mock_remote_label = "[MOCK-REMOTE]" if is_mock_remote_task(state, topology) else ""
@@ -2436,6 +2450,8 @@ def main(argv: list[str] | None = None) -> int:
             f"task_semantics_source_ref: {task_semantics.get('source_ref', state.task_semantics.get('source_ref', '') if state.task_semantics else '') or '-'}",
             f"task_semantics_constraints: {len(task_semantics.get('constraints', state.task_semantics.get('constraints', []) if state.task_semantics else []))}",
             f"task_semantics_acceptance_criteria: {len(task_semantics.get('acceptance_criteria', state.task_semantics.get('acceptance_criteria', []) if state.task_semantics else []))}",
+            f"document_paths_count: {len(document_paths)}",
+            f"document_paths: {', '.join(document_paths) or '-'}",
             f"knowledge_objects_count: {len(knowledge_objects)}",
             f"knowledge_object_stages: raw={knowledge_stage_counts.get('raw', 0)} candidate={knowledge_stage_counts.get('candidate', 0)} verified={knowledge_stage_counts.get('verified', 0)} canonical={knowledge_stage_counts.get('canonical', 0)}",
             f"knowledge_object_evidence: artifact_backed={knowledge_evidence_counts.get('artifact_backed', 0)} source_only={knowledge_evidence_counts.get('source_only', 0)} unbacked={knowledge_evidence_counts.get('unbacked', 0)}",

@@ -65,6 +65,7 @@ def test_task_report_module_exports_and_shape_are_stable(tmp_path: Path) -> None
     assert "- retrieval_record_path: .swl/tasks/task-report-test/retrieval.json" in retrieval_report
     assert "- source_grounding_artifact: .swl/tasks/task-report-test/artifacts/source_grounding.md" in retrieval_report
     assert "## Top References" in retrieval_report
+    assert "  score_breakdown: keyword=5" in retrieval_report
 
 
 def test_reports_surface_source_anchor_dedup_missing_pointer_and_stored_preview(tmp_path: Path) -> None:

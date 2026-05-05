@@ -13,13 +13,13 @@
 - latest_completed_slice: `merged to main at d4288a1`
 - active_track: `R-entry Real Usage`
 - active_phase: `r-entry-v1.9-real-usage`
-- active_slice: `runbook ready;design-doc flow`
-- active_branch: `main`
-- status: `r_entry_v1_9_runbook_ready`
+- active_slice: `document-path plumbing fix`
+- active_branch: `fix/lto2-document-path-plumbing`
+- status: `r_entry_v1_9_post_fix_runbook_retested`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 决定继续真实使用驱动优化,本轮不开开发 phase,而是用 Swallow 自身设计文档执行 post-v1.9.0 R-entry runbook:`docs/plans/r-entry-v1.9-real-usage/plan.md`。该 runbook 重点验证 retrieval source scoping、truth reuse visibility、Wiki Compiler authoring、CLI/Web operator flow 与 nginx/Tailscale smoke。
+当前 git 分支为 `fix/lto2-document-path-plumbing`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已提交 R19-001 narrow fix:`8891b7f fix(cli): persist declared task document paths`。Codex 已在 `/tmp/swl-r-entry-v1.9-continue` 继续执行 post-fix R-entry runbook,确认 declared design-doc source scoping、Wiki real draft、Web API detail 均可工作;R19-002/R19-003/R19-004 仍是 open follow-up,R19-007 记录 runbook command drift。
 
 LTO-2 source scoping 实现内容:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
 
@@ -82,11 +82,20 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 - **[Codex]** 已产出 `docs/plans/r-entry-v1.9-real-usage/findings.md`,作为真实使用 issue log / Direction Gate evidence 模板。
 - **[Codex]** 已执行 R0-R4 / R6 / R9 loopback smoke:preflight、declared-doc task、retrieval report、task knowledge capture、Wiki dry-run、Web API smoke。
 - **[Codex]** 已记录 5 条 findings:R19-001 declared `document_paths` 未进入 task truth/source scoping 未应用(blocker);R19-002 note-only offline 被分类为 failed/unreachable_backend(concern);R19-003 Truth Reuse Visibility reason counts/ warning wording 复现 review concern(concern);R19-004 Wiki dry-run `prompt_artifact=-`(concern);R19-005 Web loopback smoke passed(observation)。
+- **[Codex]** 已完成 R19-001 narrow fix:普通 `task create --document-paths` 现在持久化到 task `input_context`, `task intake` / `task inspect` 显示声明文档, retrieval JSON/report 暴露 `declared_document_priority`。
+- **[Human]** 已提交 R19-001 narrow fix:`8891b7f fix(cli): persist declared task document paths`。
+- **[Codex]** 已继续 post-fix R-entry runbook:
+  - task `d0a84932a9f1` in `/tmp/swl-r-entry-v1.9-continue`
+  - `task inspect` / `task intake` / Web API detail show 4 declared document paths
+  - `retrieval_report.md` top hits are declared `docs/design/KNOWLEDGE.md` chunks with `declared_document_priority=1000`
+  - task-scoped knowledge reuse visibility still reproduces R19-003
+  - Wiki dry-run still prints `prompt_artifact=-`, but real `wiki draft` with `.env` created `staged-1d1c4524` and `wiki_compiler_prompt_pack.json` / `wiki_compiler_result.json`
+  - Web loopback on 127.0.0.1:8766 returned task detail, staged knowledge detail, and artifacts; server was stopped
 
 待执行:
 
-- **[Human]** 审阅 `docs/plans/r-entry-v1.9-real-usage/findings.md`,决定是否先开小修处理 R19-001/R19-002/R19-003,或继续执行 R7/R8 real Wiki draft/refine。
-- **[Codex]** 如 Human 选择修复,按流程输出对应 phase plan;如继续 R-entry,继续记录 findings。
+- **[Human]** 审阅 post-fix findings updates,决定下一步优先小修 R19-002/R19-003/R19-004/R19-007 中哪一项,或先 merge R19-001 fix 回 `main`。
+- **[Codex]** 按 Human 决策继续:若选择 merge,准备 PR/merge材料;若选择继续小修,保持当前分支并按单一 concern 实现。
 
 ## 当前验证
 
@@ -124,6 +133,32 @@ R-entry v1.9 partial execution validation:
 - R9 Web loopback smoke -> `GET /` 200; `/api/tasks` and `/api/tasks/10b2890bab71` returned task state; server stopped after smoke
 - findings -> R19-001..R19-005 recorded in `docs/plans/r-entry-v1.9-real-usage/findings.md`
 - final check -> `git diff --check` passed; port 8765 no longer listening; `wc -l findings/active/current` -> `161` / `276` / `179`
+
+R19-001 document path plumbing fix validation:
+
+- `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py tests/unit/orchestration/test_retrieval_flow_module.py tests/unit/orchestration/test_task_report_module.py -q` -> `57 passed in 24.57s`
+- `.venv/bin/python -m compileall -q src/swallow tests` -> passed
+- smoke base dir -> `/tmp/swl-r-entry-v1.9-document-path-fix`
+- smoke task -> `7c1e8a592ae1`
+- `task intake` / `task inspect` -> `document_paths_count: 2`
+- `task rerun 7c1e8a592ae1 --from-phase retrieval` -> produced retrieval artifacts; still reports failed due known R19-002 note-only/offline semantics
+- `retrieval.json` / `retrieval_report.md` -> `declared_document_priority=1000` visible
+- `git diff --check` -> passed
+
+Post-fix R-entry continuation validation:
+
+- commit under test -> `8891b7f fix(cli): persist declared task document paths`
+- base_dir -> `/tmp/swl-r-entry-v1.9-continue`
+- task -> `d0a84932a9f1`
+- R0/R1 -> `doctor --skip-stack` ok; migrate status `schema_version: 1, pending: 0`; source docs present
+- R2 -> `state.json`, `task inspect`, `task intake`, and `GET /api/tasks/d0a84932a9f1` show 4 declared document paths
+- R3 -> `task run` produced retrieval artifacts; `retrieval_report.md` top hits are declared `docs/design/KNOWLEDGE.md` chunks with `declared_document_priority=1000`
+- R4 -> task knowledge capture added `knowledge-0001`; rerun reproduced R19-003 reason/warning issue
+- R5 -> `knowledge list --status active` is not supported by current CLI; recorded R19-007
+- R6 -> wiki draft dry-run still reports `prompt_artifact=-`
+- R7 -> real `wiki draft` with `.env` succeeded; staged candidate `staged-1d1c4524`; artifacts `wiki_compiler_prompt_pack.json` and `wiki_compiler_result.json`
+- R8 -> current `wiki refine` requires `--target` and does not accept `--topic`; corrected dry-run with `--target staged-1d1c4524` still reports `prompt_artifact=-`
+- R9 -> loopback Web smoke on `127.0.0.1:8766` passed for `/`, `/api/tasks`, `/api/tasks/d0a84932a9f1`, `/api/tasks/d0a84932a9f1/knowledge`, `/api/knowledge/staged`, `/api/knowledge/staged-1d1c4524`, and `/api/tasks/d0a84932a9f1/artifacts`; server stopped and health check returned `000`
 
 本轮文档同步验证:
 
@@ -218,16 +253,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 R19-001..R19-005,尤其是 R19-001 declared document plumbing blocker。
-2. **[Human]** 决定先开修复 phase,还是继续 R7/R8 real Wiki draft/refine。
-3. **[Codex]** 按 Human 决策继续 plan 或继续 runbook。
+1. **[Human]** 审阅 post-fix findings updates。
+2. **[Human]** 决定是否先 merge `fix/lto2-document-path-plumbing` 回 `main`,还是继续在当前分支追加一个小修。
+3. **[Codex]** 如选择 merge,准备 PR/merge材料;如继续小修,建议优先 R19-003 truth reuse wording/counts 或 R19-004 wiki dry-run artifact visibility。
 
 ```markdown
 compressed_gate:
 - active_phase: r-entry-v1.9-real-usage
-- active_slice: runbook ready;design-doc flow
-- active_branch: main
-- status: r_entry_v1_9_runbook_ready
+- active_slice: document-path plumbing fix
+- active_branch: fix/lto2-document-path-plumbing
+- status: r_entry_v1_9_post_fix_runbook_retested
 - latest_completed_phase: lto-2-retrieval-source-scoping
 - latest_completed_commit: d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
@@ -245,7 +280,7 @@ compressed_gate:
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human review findings and choose fix-vs-continue
+- next_gate: Human review post-fix findings and choose merge-vs-next-small-fix
 ```
 
 ## 当前产出物
@@ -275,3 +310,6 @@ compressed_gate:
 - `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`(codex, 2026-05-04, post-`v1.9.0` tag status sync)
 - `docs/plans/r-entry-v1.9-real-usage/plan.md`(codex, 2026-05-05, post-v1.9.0 design-doc real usage runbook)
 - `docs/plans/r-entry-v1.9-real-usage/findings.md`(codex, 2026-05-05, findings template for post-v1.9.0 real usage)
+- `src/swallow/adapters/cli.py` / `src/swallow/adapters/cli_commands/tasks.py` / `src/swallow/orchestration/task_report.py`(codex, 2026-05-05, R19-001 narrow fix: task document path persistence, operator visibility, retrieval report score breakdown)
+- `tests/integration/cli/test_task_commands.py` / `tests/unit/orchestration/test_task_report_module.py`(codex, 2026-05-05, regression coverage for document path plumbing and retrieval report visibility)
+- `docs/plans/r-entry-v1.9-real-usage/findings.md`(codex, 2026-05-05, post-fix R-entry continuation results: R19-006 observation and R19-007 runbook drift)
