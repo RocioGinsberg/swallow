@@ -38,6 +38,7 @@
 - LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已 merge 到 `main` at `d4288a1`。
 - v1.9.0 release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`;tag `v1.9.0` 已打在该 commit。
 - Post-v1.9.0 R-entry runbook 已创建:`docs/plans/r-entry-v1.9-real-usage/plan.md`;findings 模板为 `docs/plans/r-entry-v1.9-real-usage/findings.md`。
+- R-entry v1.9 已完成部分执行:R0-R4 / R6 / R9 loopback smoke。当前 findings R19-001..R19-005 已记录,其中 R19-001 declared `document_paths` 未进入 task truth / source scoping 未应用是 blocker。
 - Claude review verdict:`acceptable to merge`;0 blocks / 3 tracked concerns。3 个 concerns 已聚合登记为 `docs/concerns_backlog.md` Active Open 的 `LTO-2 Source Scoping review follow-ups`。
 
 ---
@@ -55,9 +56,9 @@
 
 下一步:
 
-1. Human/Codex 按 `docs/plans/r-entry-v1.9-real-usage/plan.md` 执行 R0-R10。
-2. 将真实问题记录到 `docs/plans/r-entry-v1.9-real-usage/findings.md`。
-3. 根据 findings 决定继续 R-entry,或开 LTO-2 retrieval policy tuning / Wiki Compiler stage 3 / D2 driven ports 等下一 phase。
+1. Human 审阅 `docs/plans/r-entry-v1.9-real-usage/findings.md` 的 R19-001..R19-005。
+2. 决定先开小修 phase 处理 R19-001/R19-002/R19-003,或继续执行 R7/R8 real Wiki draft/refine。
+3. Codex 按 Human 决策输出 phase plan 或继续 runbook。
 
 ---
 

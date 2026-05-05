@@ -80,12 +80,13 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 - **[Codex]** 已同步 `latest_executed_public_tag` / active context / roadmap tag 状态。
 - **[Codex]** 已产出 `docs/plans/r-entry-v1.9-real-usage/plan.md`,作为 post-v1.9.0 设计文档真实使用 runbook。
 - **[Codex]** 已产出 `docs/plans/r-entry-v1.9-real-usage/findings.md`,作为真实使用 issue log / Direction Gate evidence 模板。
+- **[Codex]** 已执行 R0-R4 / R6 / R9 loopback smoke:preflight、declared-doc task、retrieval report、task knowledge capture、Wiki dry-run、Web API smoke。
+- **[Codex]** 已记录 5 条 findings:R19-001 declared `document_paths` 未进入 task truth/source scoping 未应用(blocker);R19-002 note-only offline 被分类为 failed/unreachable_backend(concern);R19-003 Truth Reuse Visibility reason counts/ warning wording 复现 review concern(concern);R19-004 Wiki dry-run `prompt_artifact=-`(concern);R19-005 Web loopback smoke passed(observation)。
 
 待执行:
 
-- **[Human/Codex]** 按 `docs/plans/r-entry-v1.9-real-usage/plan.md` 执行 R0-R10。
-- **[Human/Codex]** 将真实问题记录到 `docs/plans/r-entry-v1.9-real-usage/findings.md`。
-- **[Human]** 根据 findings 决定继续 R-entry,或从 roadmap §三 Direction Gate 候选中选择下一 phase。
+- **[Human]** 审阅 `docs/plans/r-entry-v1.9-real-usage/findings.md`,决定是否先开小修处理 R19-001/R19-002/R19-003,或继续执行 R7/R8 real Wiki draft/refine。
+- **[Codex]** 如 Human 选择修复,按流程输出对应 phase plan;如继续 R-entry,继续记录 findings。
 
 ## 当前验证
 
@@ -112,6 +113,17 @@ R-entry v1.9 runbook drafting validation:
 - `git diff --check` -> passed
 - `git status --short --branch` -> `## main...origin/main`;modified `current_state.md`, `docs/active_context.md`, `docs/roadmap.md`;untracked `docs/plans/r-entry-v1.9-real-usage/`
 - `wc -l docs/plans/r-entry-v1.9-real-usage/plan.md docs/plans/r-entry-v1.9-real-usage/findings.md docs/active_context.md current_state.md docs/roadmap.md` -> `521` / `73` / `265` / `178` / `152`
+
+R-entry v1.9 partial execution validation:
+
+- R0 preflight -> `doctor --skip-stack` ok; isolated base migrate status `schema_version: 1, pending: 0`
+- R2 task -> `10b2890bab71`
+- R3/R4 retrieval run -> task failed due note-only offline semantics, but produced `retrieval_count=8`
+- R4 task knowledge capture -> `knowledge_capture_added added=1 total=1`; review queue shows `knowledge-0001` blocked by `stage_not_verified`
+- R6 Wiki dry-run -> `wiki_draft_dry_run source_count=1 prompt_artifact=-`
+- R9 Web loopback smoke -> `GET /` 200; `/api/tasks` and `/api/tasks/10b2890bab71` returned task state; server stopped after smoke
+- findings -> R19-001..R19-005 recorded in `docs/plans/r-entry-v1.9-real-usage/findings.md`
+- final check -> `git diff --check` passed; port 8765 no longer listening; `wc -l findings/active/current` -> `161` / `276` / `179`
 
 本轮文档同步验证:
 
@@ -206,9 +218,9 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human/Codex]** 按 `docs/plans/r-entry-v1.9-real-usage/plan.md` 执行设计文档真实使用流程。
-2. **[Human/Codex]** 将问题记录到 `docs/plans/r-entry-v1.9-real-usage/findings.md`。
-3. **[Human]** 根据 findings 决定继续 R-entry,或开 LTO-2 retrieval policy tuning / Wiki Compiler stage 3 / D2 driven ports 等下一 phase。
+1. **[Human]** 审阅 R19-001..R19-005,尤其是 R19-001 declared document plumbing blocker。
+2. **[Human]** 决定先开修复 phase,还是继续 R7/R8 real Wiki draft/refine。
+3. **[Codex]** 按 Human 决策继续 plan 或继续 runbook。
 
 ```markdown
 compressed_gate:
@@ -233,7 +245,7 @@ compressed_gate:
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: execute R-entry v1.9 runbook and record findings
+- next_gate: Human review findings and choose fix-vs-continue
 ```
 
 ## 当前产出物
