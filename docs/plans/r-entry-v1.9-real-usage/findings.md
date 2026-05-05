@@ -145,7 +145,7 @@ Use this file to record real operator friction and decide whether the next phase
 
 ## R19-004 Wiki draft dry-run reports `prompt_artifact=-` and leaves no discoverable wiki artifact
 
-- status: open
+- status: resolved
 - severity: concern
 - surface: wiki
 - task_id: `10b2890bab71`
@@ -169,6 +169,14 @@ Use this file to record real operator friction and decide whether the next phase
   - CLI review surface: `knowledge stage-inspect staged-1d1c4524` shows `source_pack_count: 1`, rationale, and text, but not the source pack anchor/preview details.
   - API review surface: `GET /api/knowledge/staged-1d1c4524` includes full `source_pack` with `resolved_path`, `span`, `content_hash`, `parser_version`, and preview.
   - refine dry-run drift: runbook command with `--topic` fails because current `wiki refine` does not accept `--topic`; current CLI also requires `--target`.
+- fix verification:
+  - branch: `fix/r19-004-wiki-dry-run-artifacts`
+  - smoke_base_dir: `/tmp/swl-r19-004-wiki-dry-run-2`
+  - smoke_task_id: `d052660f390b`
+  - changed behavior: `wiki draft --dry-run` and `wiki refine --dry-run` now write `wiki_compiler_prompt_pack.json` and print its concrete `prompt_artifact` path.
+  - artifact visibility: `task artifacts d052660f390b` lists `wiki_compiler_prompt_pack` and `wiki_compiler_result` under `Core Run Record`.
+  - dry-run boundary: `knowledge stage-list --all` stays empty after dry-run, confirming no staged candidate is written.
+  - validation: `.venv/bin/python -m pytest tests/integration/cli/test_wiki_commands.py tests/unit/orchestration/test_artifact_writer_module.py -q` -> `15 passed`.
 
 ## R19-005 Web Control Center loopback smoke passed for task list/detail
 
@@ -236,8 +244,8 @@ Fill this after executing the runbook.
 
 | Candidate | Evidence | Recommendation |
 |---|---|---|
-| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-003 has a narrow fix verified; R19-005 Web smoke passed again; R19-004 real draft works when `.env` is loaded. | Continue real usage; next useful small fixes are R19-002/R19-004/R19-007 rather than broader retrieval architecture. |
+| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-003 and R19-004 have narrow fixes verified; R19-005 Web smoke passed again. | Continue real usage; next useful small fixes are R19-002/R19-007 rather than broader retrieval architecture. |
 | LTO-2 retrieval policy tuning | R19-001 and R19-003 are now resolved as narrow plumbing/reporting fixes. No current evidence requires broad retrieval architecture tuning. | Defer broad tuning unless later real runs show priority magnitude or filtering quality issues. |
-| Wiki Compiler stage 3 | R19-004 shows dry-run is not inspectable enough; real draft artifacts and Web detail are available, but CLI stage-inspect only summarizes source pack count. | Candidate for a small Wiki ergonomics slice, not necessarily a broad stage 3. |
+| Wiki Compiler stage 3 | R19-004 dry-run artifact visibility is resolved; remaining Wiki ergonomics is mostly CLI stage-inspect source pack detail. | Defer broad stage 3 unless later real usage shows supersede/relation review friction. |
 | D2 LTO-5 driven ports |  |  |
 | Docs/config hygiene | R19-007 shows command drift in the runbook; R19-002 may need operator guidance if note-only failure semantics are intentional. | Good low-risk cleanup candidate after deciding whether R19-002/R19-004 need code changes. |

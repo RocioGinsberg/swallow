@@ -259,12 +259,14 @@ class WikiCompilerAgent:
             target_object_id=normalized_target,
             source_pack=source_pack,
         )
+        prompt_artifact = write_artifact(base_dir, state.task_id, PROMPT_PACK_ARTIFACT, json.dumps(prompt_pack, indent=2))
         if dry_run:
             return WikiCompilerRunResult(
                 candidate=None,
                 prompt_pack=prompt_pack,
                 compiler_result={"status": "dry_run", "draft": {}},
                 source_pack=source_pack,
+                prompt_artifact=prompt_artifact,
                 dry_run=True,
             )
 
@@ -280,7 +282,6 @@ class WikiCompilerAgent:
             mode=normalized_mode,
             target_object_id=normalized_target,
         )
-        prompt_artifact = write_artifact(base_dir, state.task_id, PROMPT_PACK_ARTIFACT, json.dumps(prompt_pack, indent=2))
         compiler_result = {
             "status": "completed",
             "action": normalized_action,

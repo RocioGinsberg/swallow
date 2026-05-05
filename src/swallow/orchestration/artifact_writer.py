@@ -101,6 +101,10 @@ def build_create_task_artifact_paths(base_dir: Path, task_id: str) -> dict[str, 
         "librarian_change_log_report": _resolved_path_string(
             artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md"
         ),
+        "wiki_compiler_prompt_pack": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "wiki_compiler_prompt_pack.json"
+        ),
+        "wiki_compiler_result": _resolved_path_string(artifacts_dir(base_dir, task_id) / "wiki_compiler_result.json"),
         "knowledge_partition_json": _resolved_path_string(knowledge_partition_path(base_dir, task_id)),
         "knowledge_partition_report": _resolved_path_string(
             artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md"
@@ -156,6 +160,10 @@ def build_run_task_artifact_paths(
         "librarian_change_log_report": _resolved_path_string(
             artifacts_dir(base_dir, task_id) / "librarian_change_log_report.md"
         ),
+        "wiki_compiler_prompt_pack": _resolved_path_string(
+            artifacts_dir(base_dir, task_id) / "wiki_compiler_prompt_pack.json"
+        ),
+        "wiki_compiler_result": _resolved_path_string(artifacts_dir(base_dir, task_id) / "wiki_compiler_result.json"),
         "knowledge_partition_json": _resolved_path_string(knowledge_partition_path(base_dir, task_id)),
         "knowledge_partition_report": _resolved_path_string(
             artifacts_dir(base_dir, task_id) / "knowledge_partition_report.md"

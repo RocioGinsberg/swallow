@@ -133,6 +133,47 @@ def test_wiki_draft_cli_reports_llm_unavailable_without_traceback(
     assert "Traceback" not in result.stderr
 
 
+def test_wiki_draft_dry_run_writes_prompt_pack_without_llm(
+    tmp_path: Path,
+    task_builder: TaskBuilder,
+    workspace_builder: WorkspaceBuilder,
+) -> None:
+    state = task_builder.create(
+        title="Dry-run wiki note",
+        goal="Inspect wiki draft prompt pack without calling an LLM.",
+    )
+    workspace_builder.write_text("compiler-source.md", "# Compiler\n\nSource text.\n")
+
+    with patch("swallow.application.services.wiki_compiler.call_agent_llm", side_effect=AssertionError("LLM must not run")):
+        result = run_cli(
+            tmp_path,
+            "wiki",
+            "draft",
+            "--task-id",
+            state.task_id,
+            "--topic",
+            "compiler",
+            "--source-ref",
+            "file://workspace/compiler-source.md",
+            "--dry-run",
+        )
+
+    assert_cli_success(result)
+    assert "wiki_draft_dry_run" in result.stdout
+    assert "prompt_artifact=-" not in result.stdout
+    prompt_path = artifacts_dir(tmp_path, state.task_id) / "wiki_compiler_prompt_pack.json"
+    assert f"prompt_artifact={prompt_path}" in result.stdout
+    prompt_pack = json.loads(prompt_path.read_text(encoding="utf-8"))
+    assert prompt_pack["kind"] == "wiki_compiler_prompt_pack_v1"
+    assert prompt_pack["action"] == "draft"
+    assert prompt_pack["source_pack"][0]["resolved_path"] == "compiler-source.md"
+    assert list_staged_knowledge(tmp_path) == []
+    artifacts = run_cli(tmp_path, "task", "artifacts", state.task_id)
+    assert_cli_success(artifacts)
+    assert "wiki_compiler_prompt_pack" in artifacts.stdout
+    assert "wiki_compiler_prompt_pack.json" in artifacts.stdout
+
+
 def test_wiki_refine_cli_records_requested_relation_metadata(
     tmp_path: Path,
     task_builder: TaskBuilder,
@@ -183,6 +224,50 @@ def test_wiki_refine_cli_records_requested_relation_metadata(
     assert candidate.wiki_mode == "refines"
     assert candidate.target_object_id == "wiki-target"
     assert candidate.relation_metadata[0] == {"relation_type": "refines", "target_object_id": "wiki-target"}
+
+
+def test_wiki_refine_dry_run_writes_prompt_pack_without_llm(
+    tmp_path: Path,
+    task_builder: TaskBuilder,
+    workspace_builder: WorkspaceBuilder,
+) -> None:
+    state = task_builder.create(
+        title="Dry-run wiki refinement",
+        goal="Inspect wiki refine prompt pack without calling an LLM.",
+    )
+    workspace_builder.write_text("refine-source.md", "The existing wiki entry needs a narrower follow-up.\n")
+
+    with patch("swallow.application.services.wiki_compiler.call_agent_llm", side_effect=AssertionError("LLM must not run")):
+        result = run_cli(
+            tmp_path,
+            "wiki",
+            "refine",
+            "--task-id",
+            state.task_id,
+            "--mode",
+            "supersede",
+            "--target",
+            "wiki-target",
+            "--source-ref",
+            "file://workspace/refine-source.md",
+            "--dry-run",
+        )
+
+    assert_cli_success(result)
+    assert "wiki_refine_dry_run" in result.stdout
+    assert "prompt_artifact=-" not in result.stdout
+    prompt_path = artifacts_dir(tmp_path, state.task_id) / "wiki_compiler_prompt_pack.json"
+    assert f"prompt_artifact={prompt_path}" in result.stdout
+    prompt_pack = json.loads(prompt_path.read_text(encoding="utf-8"))
+    assert prompt_pack["action"] == "refine"
+    assert prompt_pack["mode"] == "supersede"
+    assert prompt_pack["target_object_id"] == "wiki-target"
+    assert prompt_pack["source_pack"][0]["resolved_path"] == "refine-source.md"
+    assert list_staged_knowledge(tmp_path) == []
+    artifacts = run_cli(tmp_path, "task", "artifacts", state.task_id)
+    assert_cli_success(artifacts)
+    assert "wiki_compiler_prompt_pack" in artifacts.stdout
+    assert "wiki_compiler_prompt_pack.json" in artifacts.stdout
 
 
 def test_wiki_refresh_evidence_updates_anchor_without_llm(

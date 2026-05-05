@@ -32,6 +32,10 @@ def test_create_task_artifact_paths_preserve_initial_path_keys(tmp_path: Path) -
     assert paths["remote_handoff_contract_report"].endswith(
         ".swl/tasks/artifact-task/artifacts/remote_handoff_contract_report.md"
     )
+    assert paths["wiki_compiler_prompt_pack"].endswith(
+        ".swl/tasks/artifact-task/artifacts/wiki_compiler_prompt_pack.json"
+    )
+    assert paths["wiki_compiler_result"].endswith(".swl/tasks/artifact-task/artifacts/wiki_compiler_result.json")
     assert "executor_output" not in paths
 
 
