@@ -426,9 +426,12 @@ def summarize_truth_reuse_visibility(
     task_matched_count = reused_knowledge.get("task_knowledge_count", 0)
     task_considered_count = max(len(task_objects), task_matched_count)
     task_skipped_count = max(task_considered_count - task_matched_count, 0)
-    task_reuse_counts = summarize_knowledge_reuse(task_objects)
-    task_stage_counts = summarize_knowledge_stages(task_objects)
-    task_evidence_counts = summarize_knowledge_evidence(task_objects)
+    matched_task_object_ids = _matched_task_knowledge_object_ids(retrieval_items)
+    task_reason_counts = _task_truth_skip_reason_counts(
+        task_objects,
+        matched_object_ids=matched_task_object_ids,
+        skipped_count=task_skipped_count,
+    )
 
     visible_canonical_records = _load_visible_canonical_records(base_dir)
     canonical_matched_count = reused_knowledge.get("canonical_registry_count", 0)
@@ -442,16 +445,7 @@ def summarize_truth_reuse_visibility(
             "matched_count": task_matched_count,
             "skipped_count": task_skipped_count,
             "absent_count": 0 if task_considered_count else 1,
-            "reason_counts": {
-                "query_no_match": max(
-                    min(task_reuse_counts.get("retrieval_candidate", 0), task_skipped_count),
-                    0,
-                ),
-                "policy_excluded": task_reuse_counts.get("task_only", 0),
-                "status_not_active": task_stage_counts.get("raw", 0) + task_stage_counts.get("candidate", 0),
-                "missing_source_pointer": task_evidence_counts.get("unbacked", 0)
-                + task_evidence_counts.get("source_only", 0),
-            },
+            "reason_counts": task_reason_counts,
         },
         "canonical_registry": {
             "status": _reuse_visibility_status(canonical_considered_count, canonical_matched_count),
@@ -472,6 +466,56 @@ def _reuse_visibility_status(considered_count: int, matched_count: int) -> str:
     if matched_count > 0:
         return "matched"
     return "considered"
+
+
+def _matched_task_knowledge_object_ids(retrieval_items: list[RetrievalItem]) -> set[str]:
+    object_ids: set[str] = set()
+    for item in retrieval_items:
+        if item.source_type != KNOWLEDGE_SOURCE_TYPE:
+            continue
+        storage_scope = str(item.metadata.get("storage_scope", "")).strip()
+        task_relation = str(item.metadata.get("knowledge_task_relation", "")).strip()
+        if storage_scope != "task_knowledge" and task_relation != "current_task":
+            continue
+        object_id = str(item.metadata.get("knowledge_object_id", item.chunk_id)).strip()
+        if object_id:
+            object_ids.add(object_id)
+    return object_ids
+
+
+def _task_truth_skip_reason_counts(
+    task_objects: list[dict[str, Any]],
+    *,
+    matched_object_ids: set[str],
+    skipped_count: int,
+) -> dict[str, int]:
+    if skipped_count <= 0:
+        return {}
+    reason_counts: dict[str, int] = {}
+    counted = 0
+    for obj in task_objects:
+        object_id = str(obj.get("object_id", "")).strip()
+        if object_id and object_id in matched_object_ids:
+            continue
+        reason = _primary_task_truth_skip_reason(obj)
+        reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        counted += 1
+        if counted >= skipped_count:
+            break
+    return reason_counts
+
+
+def _primary_task_truth_skip_reason(obj: dict[str, Any]) -> str:
+    reuse_scope = str(obj.get("knowledge_reuse_scope", "task_only")).strip() or "task_only"
+    if reuse_scope != "retrieval_candidate":
+        return "policy_excluded"
+    stage = str(obj.get("stage", "raw")).strip() or "raw"
+    if stage in {"raw", "candidate"}:
+        return "status_not_active"
+    evidence_status = str(obj.get("evidence_status", "unbacked")).strip() or "unbacked"
+    if evidence_status in {"unbacked", "source_only"}:
+        return "missing_source_pointer"
+    return "query_no_match"
 
 
 def _load_visible_canonical_records(base_dir: Path | None) -> list[dict[str, Any]]:
@@ -606,7 +650,11 @@ def annotate_source_policy(items: list[RetrievalItem]) -> list[RetrievalItem]:
     return annotated_items
 
 
-def summarize_source_policy_warnings(retrieval_items: list[RetrievalItem]) -> list[str]:
+def summarize_source_policy_warnings(
+    retrieval_items: list[RetrievalItem],
+    *,
+    truth_reuse_visibility: dict[str, Any] | None = None,
+) -> list[str]:
     warnings: list[str] = []
     ranked_items = list(enumerate(retrieval_items, start=1))
     canonical_ranks = [
@@ -647,8 +695,28 @@ def summarize_source_policy_warnings(retrieval_items: list[RetrievalItem]) -> li
         in {"canonical_truth", "task_knowledge_truth"}
     ]
     if fallback_hits and not truth_hits:
-        warnings.append("fallback_hits_without_truth_objects: no canonical or task knowledge item is present")
+        task_considered = _visibility_considered_count(truth_reuse_visibility, "task_knowledge")
+        canonical_considered = _visibility_considered_count(truth_reuse_visibility, "canonical_registry")
+        if task_considered or canonical_considered:
+            warnings.append(
+                "fallback_hits_without_reused_truth_objects: "
+                "canonical or task knowledge exists but did not match retrieval"
+            )
+        else:
+            warnings.append("fallback_hits_without_truth_objects: no canonical or task knowledge item is present")
     return warnings
+
+
+def _visibility_considered_count(visibility: dict[str, Any] | None, section_name: str) -> int:
+    if not isinstance(visibility, dict):
+        return 0
+    section = visibility.get(section_name, {})
+    if not isinstance(section, dict):
+        return 0
+    try:
+        return int(section.get("considered_count", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def _is_observation_doc_path(path: str) -> bool:

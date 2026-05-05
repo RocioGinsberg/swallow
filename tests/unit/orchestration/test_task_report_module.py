@@ -163,7 +163,13 @@ def test_retrieval_report_explains_zero_truth_reuse_when_truth_objects_exist(tmp
 
     report = task_report.build_retrieval_report(
         state,
-        [_retrieval_item(path="docs/design/KNOWLEDGE.md", source_type="notes")],
+        [
+            _retrieval_item(
+                path="docs/design/KNOWLEDGE.md",
+                source_type="notes",
+                metadata={"source_policy_label": "active_note", "source_policy_flags": ["fallback_text_hit"]},
+            )
+        ],
         base_dir=tmp_path,
     )
 
@@ -174,4 +180,45 @@ def test_retrieval_report_explains_zero_truth_reuse_when_truth_objects_exist(tmp
     assert "  matched_count: 0" in report
     assert "  skipped_count: 1" in report
     assert "  skipped_reasons: query_no_match=1" in report
+    assert "fallback_hits_without_reused_truth_objects: canonical or task knowledge exists but did not match retrieval" in report
+    assert "fallback_hits_without_truth_objects: no canonical or task knowledge item is present" not in report
     assert "- canonical_registry" in report
+
+
+def test_retrieval_report_uses_primary_skip_reason_for_inactive_task_knowledge(tmp_path: Path) -> None:
+    state = _state(
+        workspace_root=str(tmp_path),
+        knowledge_objects=[
+            {
+                "object_id": "knowledge-0001",
+                "text": "Truth before retrieval.",
+                "stage": "candidate",
+                "evidence_status": "source_only",
+                "knowledge_reuse_scope": "retrieval_candidate",
+            }
+        ],
+    )
+
+    report = task_report.build_retrieval_report(
+        state,
+        [
+            _retrieval_item(
+                path="docs/design/KNOWLEDGE.md",
+                source_type="notes",
+                metadata={"source_policy_label": "active_note", "source_policy_flags": ["fallback_text_hit"]},
+            )
+        ],
+        base_dir=tmp_path,
+    )
+
+    assert "## Truth Reuse Visibility" in report
+    assert "- task_knowledge" in report
+    assert "  status: considered" in report
+    assert "  considered_count: 1" in report
+    assert "  matched_count: 0" in report
+    assert "  skipped_count: 1" in report
+    assert "  skipped_reasons: status_not_active=1" in report
+    assert "query_no_match=1" not in report
+    assert "missing_source_pointer=1" not in report
+    assert "fallback_hits_without_reused_truth_objects: canonical or task knowledge exists but did not match retrieval" in report
+    assert "fallback_hits_without_truth_objects: no canonical or task knowledge item is present" not in report

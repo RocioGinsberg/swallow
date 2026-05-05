@@ -112,7 +112,7 @@ Use this file to record real operator friction and decide whether the next phase
 
 ## R19-003 Truth reuse visibility works, but skipped reason semantics are confusing and warning text is stale
 
-- status: open
+- status: resolved
 - severity: concern
 - surface: truth-reuse
 - task_id: `10b2890bab71`
@@ -134,6 +134,14 @@ Use this file to record real operator friction and decide whether the next phase
   - report section: `Truth Reuse Visibility`
   - observed: `task_knowledge status: considered`, `considered_count: 1`, `skipped_count: 1`, and `skipped_reasons: missing_source_pointer=1, query_no_match=1, status_not_active=1`.
   - warning text: `fallback_hits_without_truth_objects: no canonical or task knowledge item is present` still appears even though task knowledge exists and was considered.
+- fix verification:
+  - branch: `fix/r19-003-truth-reuse-visibility`
+  - smoke_base_dir: `/tmp/swl-r19-003-truth-reuse-fix`
+  - smoke_task_id: `6aa7d7ed9619`
+  - changed behavior: task knowledge skipped reasons are now primary/mutually exclusive for operator reporting. A candidate/source-only retrieval candidate reports `status_not_active=1` instead of also reporting `query_no_match=1` and `missing_source_pointer=1`.
+  - warning behavior: fallback hits with considered task/canonical truth now report `fallback_hits_without_reused_truth_objects: canonical or task knowledge exists but did not match retrieval` instead of claiming no truth object exists.
+  - evidence: `/tmp/swl-r19-003-truth-reuse-fix/.swl/tasks/6aa7d7ed9619/artifacts/retrieval_report.md`
+  - validation: `.venv/bin/python -m pytest tests/unit/orchestration/test_task_report_module.py tests/unit/orchestration/test_retrieval_flow_module.py tests/test_retrieval_adapters.py -q` -> `44 passed`.
 
 ## R19-004 Wiki draft dry-run reports `prompt_artifact=-` and leaves no discoverable wiki artifact
 
@@ -228,8 +236,8 @@ Fill this after executing the runbook.
 
 | Candidate | Evidence | Recommendation |
 |---|---|---|
-| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-005 Web smoke passed again; R19-004 real draft works when `.env` is loaded. | Continue real usage; next useful small fixes are R19-002/R19-003/R19-004/R19-007 rather than broader retrieval architecture. |
-| LTO-2 retrieval policy tuning | R19-003 reproduces confusing truth reuse reason counts and stale source-policy warning text. R19-001 no longer requires broad tuning. | Keep as a follow-up candidate, but do not block current R-entry continuation on it. |
+| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-003 has a narrow fix verified; R19-005 Web smoke passed again; R19-004 real draft works when `.env` is loaded. | Continue real usage; next useful small fixes are R19-002/R19-004/R19-007 rather than broader retrieval architecture. |
+| LTO-2 retrieval policy tuning | R19-001 and R19-003 are now resolved as narrow plumbing/reporting fixes. No current evidence requires broad retrieval architecture tuning. | Defer broad tuning unless later real runs show priority magnitude or filtering quality issues. |
 | Wiki Compiler stage 3 | R19-004 shows dry-run is not inspectable enough; real draft artifacts and Web detail are available, but CLI stage-inspect only summarizes source pack count. | Candidate for a small Wiki ergonomics slice, not necessarily a broad stage 3. |
 | D2 LTO-5 driven ports |  |  |
 | Docs/config hygiene | R19-007 shows command drift in the runbook; R19-002 may need operator guidance if note-only failure semantics are intentional. | Good low-risk cleanup candidate after deciding whether R19-002/R19-004 need code changes. |
