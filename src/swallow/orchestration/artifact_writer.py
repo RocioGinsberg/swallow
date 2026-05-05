@@ -643,9 +643,17 @@ def build_handoff_record(
         state.artifact_paths.get("handoff_report", ""),
     ]
     required_inputs = [path for path in required_inputs if path]
+    knowledge_policy_review_required = is_knowledge_policy_review_required(
+        executor_result,
+        compatibility_result,
+        execution_fit_result,
+        knowledge_policy_result,
+        validation_result,
+    )
     if (
         executor_result.status == "completed"
         and compatibility_result.status != "failed"
+        and execution_fit_result.status != "failed"
         and knowledge_policy_result.status != "failed"
         and validation_result.status != "failed"
     ):
@@ -660,6 +668,23 @@ def build_handoff_record(
         expected_outputs = [
             "review decision recorded by the operator",
             "next task iteration selection",
+        ]
+    elif knowledge_policy_review_required:
+        handoff_status = "knowledge_policy_review"
+        blocking_reason = knowledge_policy_result.message
+        next_operator_action = (
+            "Review knowledge_policy_report.md and resolve blocked task knowledge before relying on retrieval reuse."
+        )
+        handoff_contract_status = "ready"
+        handoff_contract_kind = "knowledge_policy_review"
+        handoff_contract_reason = (
+            "Executor completed, but knowledge policy requires operator review before the run can be treated as complete."
+        )
+        next_owner_kind = "operator"
+        next_owner_ref = "swl_cli"
+        expected_outputs = [
+            "blocked knowledge reviewed by the operator",
+            "knowledge object verified, rejected, or made non-reusable before rerun",
         ]
     else:
         handoff_status = "resume_from_failure"
@@ -737,6 +762,48 @@ def build_handoff_record(
         "knowledge_policy_status": knowledge_policy_result.status,
         "validation_status": validation_result.status,
     }
+
+
+def is_knowledge_policy_review_required(
+    executor_result: ExecutorResult,
+    compatibility_result: CompatibilityResult,
+    execution_fit_result: ExecutionFitResult,
+    knowledge_policy_result: KnowledgePolicyResult,
+    validation_result: ValidationResult,
+) -> bool:
+    return (
+        executor_result.status == "completed"
+        and compatibility_result.status != "failed"
+        and execution_fit_result.status != "failed"
+        and knowledge_policy_result.status == "failed"
+        and validation_result.status != "failed"
+    )
+
+
+def classify_task_terminal_state(
+    executor_result: ExecutorResult,
+    compatibility_result: CompatibilityResult,
+    execution_fit_result: ExecutionFitResult,
+    knowledge_policy_result: KnowledgePolicyResult,
+    validation_result: ValidationResult,
+) -> tuple[str, str]:
+    if is_knowledge_policy_review_required(
+        executor_result,
+        compatibility_result,
+        execution_fit_result,
+        knowledge_policy_result,
+        validation_result,
+    ):
+        return "waiting_human", "completed"
+    if (
+        executor_result.status == "completed"
+        and compatibility_result.status != "failed"
+        and execution_fit_result.status != "failed"
+        and knowledge_policy_result.status != "failed"
+        and validation_result.status != "failed"
+    ):
+        return "completed", "completed"
+    return "failed", "failed"
 
 
 def build_handoff_report(handoff_record: dict[str, object]) -> str:

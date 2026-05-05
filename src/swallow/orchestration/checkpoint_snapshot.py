@@ -16,6 +16,7 @@ def evaluate_checkpoint_snapshot(
     retry_ready = bool(retry_policy.get("retryable", False)) and bool(stop_policy.get("continue_allowed", False))
     review_ready = handoff_status == "review_completed_run"
     resume_ready = handoff_status == "resume_from_failure"
+    knowledge_policy_review_ready = handoff_status == "knowledge_policy_review"
     rerun_ready = state.status in {"completed", "failed"}
     monitor_needed = state.status == "running"
     recommended_reason = checkpoint_kind if checkpoint_kind != "pending" else handoff_status
@@ -80,9 +81,23 @@ def evaluate_checkpoint_snapshot(
         )
     elif state.status == "waiting_human":
         status = "warning"
-        checkpoint_state = "waiting_human"
-        recommended_path = "run"
-        if is_cost_exhausted:
+        if knowledge_policy_review_ready:
+            checkpoint_state = "knowledge_policy_review"
+            recovery_semantics = "knowledge_policy_review"
+            recommended_path = "review"
+            message = "Knowledge policy requires operator review before this run can be treated as complete."
+            findings.append(
+                CheckpointSnapshotFinding(
+                    code="checkpoint.knowledge_policy_review",
+                    level="warning",
+                    message=(
+                        "Executor completed, but knowledge policy blocked reuse or promotion; review knowledge_policy_report.md."
+                    ),
+                )
+            )
+        elif is_cost_exhausted:
+            checkpoint_state = "waiting_human"
+            recommended_path = "run"
             recovery_semantics = "human_gate_budget_exhausted"
             message = "Token cost budget is exhausted and the task now requires explicit operator approval before rerun."
             findings.append(
@@ -93,6 +108,8 @@ def evaluate_checkpoint_snapshot(
                 )
             )
         else:
+            checkpoint_state = "waiting_human"
+            recommended_path = "run"
             recovery_semantics = "human_gate_debate_exhausted"
             message = "Debate loop exhausted its review rounds and now requires explicit human-guided rerun."
             findings.append(

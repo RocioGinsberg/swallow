@@ -273,6 +273,91 @@ def test_handoff_and_compatibility_builders_preserve_failure_guidance_shape() ->
     assert compatibility_record["executor"]["failure_kind"] == "launch_error"
 
 
+def test_handoff_builder_routes_completed_executor_with_failed_knowledge_policy_to_review() -> None:
+    state = TaskState(
+        task_id="artifact-knowledge-policy-task",
+        title="Knowledge policy handoff",
+        goal="Review blocked knowledge",
+        workspace_root=".",
+        status="waiting_human",
+        execution_lifecycle="completed",
+        current_attempt_id="attempt-0001",
+        current_attempt_number=1,
+        artifact_paths={
+            "summary": ".swl/tasks/artifact-knowledge-policy-task/artifacts/summary.md",
+            "resume_note": ".swl/tasks/artifact-knowledge-policy-task/artifacts/resume_note.md",
+            "executor_output": ".swl/tasks/artifact-knowledge-policy-task/artifacts/executor_output.md",
+            "handoff_report": ".swl/tasks/artifact-knowledge-policy-task/artifacts/handoff_report.md",
+        },
+    )
+    executor_result = ExecutorResult(
+        executor_name="note-only",
+        status="completed",
+        message="Offline note-only completed.",
+        failure_kind="",
+    )
+    compatibility_result = CompatibilityResult(status="passed", message="Compatibility passed.")
+    execution_fit_result = ExecutionFitResult(status="passed", message="Execution fit passed.")
+    knowledge_policy_result = KnowledgePolicyResult(status="failed", message="Knowledge policy blocked reuse.")
+    validation_result = ValidationResult(status="passed", message="Validation passed.")
+    retry_policy_result = RetryPolicyResult(
+        status="passed",
+        message="No retry.",
+        retryable=False,
+        retry_decision="completed_no_retry",
+        max_attempts=2,
+        remaining_attempts=1,
+        checkpoint_required=False,
+        recommended_action="Review run.",
+    )
+    stop_policy_result = StopPolicyResult(
+        status="warning",
+        message="Review checkpoint.",
+        stop_required=True,
+        continue_allowed=False,
+        stop_decision="checkpoint_review",
+        escalation_level="operator_review",
+        checkpoint_kind="completed_run_review",
+        recommended_action="Review checkpoint.",
+    )
+    execution_budget_policy_result = ExecutionBudgetPolicyResult(
+        status="passed",
+        message="Budget available.",
+        timeout_seconds=20,
+        max_attempts=2,
+        remaining_attempts=1,
+        budget_state="available",
+        timeout_state="default",
+        recommended_action="Continue.",
+    )
+
+    final_status, final_lifecycle = artifact_writer.classify_task_terminal_state(
+        executor_result,
+        compatibility_result,
+        execution_fit_result,
+        knowledge_policy_result,
+        validation_result,
+    )
+    handoff_record = artifact_writer.build_handoff_record(
+        state,
+        executor_result,
+        compatibility_result,
+        execution_fit_result,
+        knowledge_policy_result,
+        validation_result,
+        retry_policy_result,
+        stop_policy_result,
+        execution_budget_policy_result,
+    )
+
+    assert (final_status, final_lifecycle) == ("waiting_human", "completed")
+    assert handoff_record["status"] == "knowledge_policy_review"
+    assert handoff_record["contract_kind"] == "knowledge_policy_review"
+    assert handoff_record["blocking_reason"] == "Knowledge policy blocked reuse."
+    assert "knowledge_policy_report.md" in handoff_record["next_operator_action"]
+    assert "live executor" not in handoff_record["next_operator_action"].lower()
+
+
 def test_artifact_writer_module_has_no_control_plane_write_surface() -> None:
     source = Path(artifact_writer.__file__).read_text(encoding="utf-8")
     public_names = {name for name in dir(artifact_writer) if not name.startswith("_")}
