@@ -88,6 +88,47 @@ def test_task_create_document_paths_drive_declared_document_retrieval_context(tm
     assert str(doc_b.resolve()) in inspect.stdout
 
 
+def test_note_only_offline_task_run_completes_without_backend_failure(tmp_path: Path) -> None:
+    notes = tmp_path / "docs" / "design" / "KNOWLEDGE.md"
+    notes.parent.mkdir(parents=True)
+    notes.write_text("# Knowledge\n\nTruth before retrieval.\n", encoding="utf-8")
+    create_result = run_cli(
+        tmp_path,
+        "task",
+        "create",
+        "--title",
+        "Offline note-only run",
+        "--goal",
+        "Review design-doc retrieval without calling a live executor.",
+        "--workspace-root",
+        str(tmp_path),
+        "--executor",
+        "note-only",
+        "--route-mode",
+        "offline",
+        "--document-paths",
+        str(notes),
+    )
+    assert_cli_success(create_result)
+    task_id = create_result.stdout.strip()
+
+    run_result = run_cli(tmp_path, "task", "run", task_id)
+
+    assert_cli_success(run_result)
+    assert f"{task_id} completed" in run_result.stdout
+    assert "unreachable_backend" not in run_result.stdout
+    state = load_state(tmp_path, task_id)
+    assert state.status == "completed"
+    assert state.executor_status == "completed"
+    assert state.execution_lifecycle == "completed"
+    output = (tmp_path / ".swl" / "tasks" / task_id / "artifacts" / "executor_output.md").read_text(
+        encoding="utf-8"
+    )
+    assert "# Note-Only Offline Run" in output
+    assert "live_executor_called: no" in output
+    assert "failure_kind: unreachable_backend" not in output
+
+
 def test_task_acknowledge_characterization_stdout_stderr_exit_code(tmp_path: Path, task_builder: TaskBuilder) -> None:
     created = task_builder.create(
         title="Dispatch blocked task",
