@@ -41,6 +41,53 @@ def test_task_create_and_list_characterization_stdout_stderr_exit_code(tmp_path:
     assert "Focused CLI task" in list_result.stdout
 
 
+def test_task_create_document_paths_drive_declared_document_retrieval_context(tmp_path: Path) -> None:
+    doc_a = tmp_path / "docs" / "design" / "KNOWLEDGE.md"
+    doc_b = tmp_path / "docs" / "engineering" / "TEST_ARCHITECTURE.md"
+    doc_a.parent.mkdir(parents=True)
+    doc_b.parent.mkdir(parents=True)
+    doc_a.write_text("# Knowledge\n", encoding="utf-8")
+    doc_b.write_text("# Test Architecture\n", encoding="utf-8")
+
+    result = run_cli(
+        tmp_path,
+        "task",
+        "create",
+        "--title",
+        "Design doc flow",
+        "--goal",
+        "Use declared design docs during retrieval.",
+        "--workspace-root",
+        str(tmp_path),
+        "--executor",
+        "note-only",
+        "--route-mode",
+        "offline",
+        "--document-paths",
+        str(doc_a),
+        "--document-paths",
+        str(doc_b),
+    )
+
+    assert_cli_success(result)
+    state = load_state(tmp_path, result.stdout.strip())
+    request = build_task_retrieval_request(state)
+
+    assert state.input_context["document_paths"] == [str(doc_a.resolve()), str(doc_b.resolve())]
+    assert request.declared_document_paths == (
+        "docs/design/KNOWLEDGE.md",
+        "docs/engineering/TEST_ARCHITECTURE.md",
+    )
+    intake = run_cli(tmp_path, "task", "intake", state.task_id)
+    inspect = run_cli(tmp_path, "task", "inspect", state.task_id)
+    assert_cli_success(intake)
+    assert_cli_success(inspect)
+    assert "document_paths_count: 2" in intake.stdout
+    assert str(doc_a.resolve()) in intake.stdout
+    assert "document_paths_count: 2" in inspect.stdout
+    assert str(doc_b.resolve()) in inspect.stdout
+
+
 def test_task_acknowledge_characterization_stdout_stderr_exit_code(tmp_path: Path, task_builder: TaskBuilder) -> None:
     created = task_builder.create(
         title="Dispatch blocked task",

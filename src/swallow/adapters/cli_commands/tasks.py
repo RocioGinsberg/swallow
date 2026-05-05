@@ -555,7 +555,7 @@ def _dispatch_artifact_printer(args: object, base_dir: Path) -> int:
 
 def _handle_task_create(base_dir: Path, args: object) -> int:
     input_context: dict[str, object] = {}
-    if getattr(args, "executor").strip() == "literature-specialist" and getattr(args, "document_paths"):
+    if getattr(args, "document_paths"):
         document_paths: list[str] = []
         seen_paths: set[str] = set()
         for raw_path in getattr(args, "document_paths"):

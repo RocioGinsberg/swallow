@@ -193,6 +193,7 @@ def build_retrieval_report(
         return "\n".join(lines)
 
     for item in retrieval_items[:8]:
+        score_context = ", ".join(f"{key}={value}" for key, value in item.score_breakdown.items()) or "none"
         source_policy_label = str(item.metadata.get("source_policy_label", "") or source_policy_label_for(item))
         source_policy_flags = item.metadata.get("source_policy_flags", source_policy_flags_for(item, source_policy_label))
         source_policy_flag_text = ", ".join(str(flag) for flag in source_policy_flags) or "none"
@@ -210,6 +211,7 @@ def build_retrieval_report(
                 f"  final_rank: {item.metadata.get('final_rank', 'unknown')}",
                 f"  score: {item.score}",
                 f"  raw_score: {item.metadata.get('raw_score', item.score)}",
+                f"  score_breakdown: {score_context}",
                 f"  vector_distance_milli: {item.score_breakdown.get('vector_distance_milli', 'n/a')}",
                 f"  rerank_position: {item.metadata.get('rerank_position', 'n/a')}",
                 f"  adapter: {item.metadata.get('adapter_name', 'unknown')}",

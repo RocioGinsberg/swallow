@@ -59,7 +59,7 @@ Use this file to record real operator friction and decide whether the next phase
 
 ## R19-001 Declared `document_paths` are not visible in task truth and source scoping did not apply
 
-- status: open
+- status: resolved
 - severity: blocker
 - surface: retrieval
 - task_id: `10b2890bab71`
@@ -75,7 +75,15 @@ Use this file to record real operator friction and decide whether the next phase
   - command evidence: `rg -n "declared_document_priority|source_noise_penalty|document_paths|INVARIANTS|KNOWLEDGE|PROVIDER_ROUTER|HARNESS" ...` returned no matches across task semantics, state, retrieval JSON, and retrieval report.
 - likely next direction:
   - LTO-2 retrieval policy tuning
-- notes: This is stronger than the review follow-up about score magnitudes. The operator-facing CLI accepted `--document-paths`, but the paths were not recoverable in task truth and did not influence retrieval. Before tuning score weights, the create/intake/run plumbing for declared document paths needs to be verified.
+- fix verification:
+  - branch: `fix/lto2-document-path-plumbing`
+  - smoke_base_dir: `/tmp/swl-r-entry-v1.9-document-path-fix`
+  - smoke_task_id: `7c1e8a592ae1`
+  - changed behavior: `task create --document-paths` now persists declared paths for ordinary task executors, not only `literature-specialist`.
+  - operator visibility: `task intake 7c1e8a592ae1` and `task inspect 7c1e8a592ae1` show `document_paths_count: 2` and both declared absolute paths.
+  - retrieval evidence: `retrieval.json` records `declared_document_priority: 1000`, `declared_document_path_status: matched`, and `declared_document_path: docs/design/KNOWLEDGE.md`; `retrieval_report.md` now surfaces `score_breakdown: ... declared_document_priority=1000`.
+  - validation: `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py tests/unit/orchestration/test_retrieval_flow_module.py tests/unit/orchestration/test_task_report_module.py -q` -> `57 passed`.
+- notes: Fixed as a narrow plumbing/visibility repair before broader retrieval tuning. R19-002 remains visible during the smoke: note-only/offline still reports `failed ... execution_phase=analysis_done`, but retrieval artifacts are produced and declared-document scoping applies.
 
 ## R19-002 `note-only` offline execution is classified as failed `unreachable_backend`
 
@@ -154,8 +162,8 @@ Fill this after executing the runbook.
 
 | Candidate | Evidence | Recommendation |
 |---|---|---|
-| Continue R-entry real usage | R19-001 blocks the source-scoping validation path, but R4-R10 can still test truth visibility absence, Wiki dry-run, and Web smoke. | Continue only for non-source-scoping surfaces unless a workaround is found. |
-| LTO-2 retrieval policy tuning | R19-001 shows declared docs were not persisted/applied; R19-003 reproduces confusing truth reuse reason counts and stale source-policy warning text. | Strong candidate for next phase if no simpler CLI plumbing bugfix is split first. |
+| Continue R-entry real usage | R19-001 has a narrow fix verified on `fix/lto2-document-path-plumbing`; R19-002 remains as note-only status semantics friction. | Continue R-entry source-scoping and Wiki/Web tests after Human commits or approves the repair. |
+| LTO-2 retrieval policy tuning | R19-003 reproduces confusing truth reuse reason counts and stale source-policy warning text. R19-001 no longer requires broad tuning. | Keep as a follow-up candidate, but do not block current R-entry continuation on it. |
 | Wiki Compiler stage 3 | R19-004 shows wiki draft dry-run is not inspectable enough for source-pack/prompt review. | Candidate only if real draft/refine also shows review friction; otherwise treat as CLI/docs hygiene. |
 | D2 LTO-5 driven ports |  |  |
 | Docs/config hygiene | R19-002 may need operator guidance if note-only failure semantics are intentional; R19-004 may need dry-run docs or artifact surfacing. | Defer until code semantics are confirmed. |
