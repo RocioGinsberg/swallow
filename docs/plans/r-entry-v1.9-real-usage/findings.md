@@ -87,7 +87,7 @@ Use this file to record real operator friction and decide whether the next phase
 
 ## R19-002 `note-only` offline execution is classified as failed `unreachable_backend`
 
-- status: open
+- status: resolved
 - severity: concern
 - surface: cli
 - task_id: `10b2890bab71`
@@ -109,6 +109,15 @@ Use this file to record real operator friction and decide whether the next phase
   - command: `.venv/bin/swl --base-dir /tmp/swl-r-entry-v1.9-continue task run d0a84932a9f1`
   - output: `d0a84932a9f1 failed retrieval=8 execution_phase=analysis_done`
   - notes: This remains open after R19-001. The run still produces useful retrieval and Wiki artifacts, but the operator-facing status still reads as a backend failure.
+- fix verification:
+  - branch: `fix/r19-002-note-only-offline-status`
+  - smoke_base_dir: `/tmp/swl-r19-002-note-only-status`
+  - smoke_task_id: `e3795dbb6ce5`
+  - changed behavior: explicitly selected `note-only` + `route_mode=offline` now completes as a no-live-executor run record instead of reporting `failed/unreachable_backend`.
+  - boundary: non-offline `note-only` fallback remains a failed backend-unavailable record, preserving the existing recovery semantics for accidental live-executor fallback.
+  - artifact behavior: `executor_output.md` now uses `# Note-Only Offline Run`, records `live_executor_called: no`, and avoids backend/network repair guidance.
+  - smoke output: `.venv/bin/swl --base-dir /tmp/swl-r19-002-note-only-status task run e3795dbb6ce5` -> `e3795dbb6ce5 completed retrieval=8 execution_phase=analysis_done`.
+  - validation: `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py -q` -> `43 passed`; focused note-only/route override compatibility checks -> `2 passed`.
 
 ## R19-003 Truth reuse visibility works, but skipped reason semantics are confusing and warning text is stale
 
@@ -244,8 +253,8 @@ Fill this after executing the runbook.
 
 | Candidate | Evidence | Recommendation |
 |---|---|---|
-| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-003 and R19-004 have narrow fixes verified; R19-005 Web smoke passed again. | Continue real usage; next useful small fixes are R19-002/R19-007 rather than broader retrieval architecture. |
+| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-002/R19-003/R19-004 have narrow fixes verified; R19-005 Web smoke passed again. | Continue real usage; next useful small fix is R19-007 runbook command drift rather than broader retrieval architecture. |
 | LTO-2 retrieval policy tuning | R19-001 and R19-003 are now resolved as narrow plumbing/reporting fixes. No current evidence requires broad retrieval architecture tuning. | Defer broad tuning unless later real runs show priority magnitude or filtering quality issues. |
 | Wiki Compiler stage 3 | R19-004 dry-run artifact visibility is resolved; remaining Wiki ergonomics is mostly CLI stage-inspect source pack detail. | Defer broad stage 3 unless later real usage shows supersede/relation review friction. |
 | D2 LTO-5 driven ports |  |  |
-| Docs/config hygiene | R19-007 shows command drift in the runbook; R19-002 may need operator guidance if note-only failure semantics are intentional. | Good low-risk cleanup candidate after deciding whether R19-002/R19-004 need code changes. |
+| Docs/config hygiene | R19-007 shows command drift in the runbook. R19-002 is now a code-level semantics fix rather than a docs-only workaround. | Good low-risk cleanup candidate after R19-002 is merged. |

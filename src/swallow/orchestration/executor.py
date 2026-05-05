@@ -966,6 +966,17 @@ def run_note_only_executor(
     retrieval_items: list[RetrievalItem],
     prompt: str,
 ) -> ExecutorResult:
+    if state.route_mode == "offline":
+        return ExecutorResult(
+            executor_name="note-only",
+            status="completed",
+            message="Operator selected note-only offline mode; live executor execution was skipped by design.",
+            output=build_note_only_output(state, retrieval_items),
+            prompt=prompt,
+            failure_kind="",
+            stdout="",
+            stderr="",
+        )
     base_result = ExecutorResult(
         executor_name="note-only",
         status="failed",
@@ -985,6 +996,43 @@ def run_note_only_executor(
         stdout="",
         stderr="",
     )
+
+
+def build_note_only_output(state: TaskState, retrieval_items: list[RetrievalItem]) -> str:
+    top_references = [item.reference() for item in retrieval_items[:5]]
+    lines = [
+        "# Note-Only Offline Run",
+        "",
+        "## Execution Boundary",
+        "- status: completed",
+        "- live_executor_called: no",
+        "- reason: Operator selected note-only offline mode; live executor execution was skipped by design.",
+        "- answer_contract: retrieval_record_not_semantic_answer",
+        "",
+        "## Task",
+        f"- id: {state.task_id}",
+        f"- title: {state.title}",
+        f"- goal: {state.goal}",
+        "",
+        "## Retrieved Context To Review",
+    ]
+    if top_references:
+        for item in retrieval_items[:5]:
+            lines.append(
+                f"- [{item.source_type}] {item.reference()} (score={item.score}, title={item.display_title()})"
+            )
+    else:
+        lines.append("- No retrieval matches were available.")
+
+    lines.extend(
+        [
+            "",
+            "## Recommended Next Action",
+            "- Review `retrieval_report.md`, `source_grounding.md`, and `executor_prompt.md` as the persisted run context.",
+            "- Continue manually or rerun with a live route if a semantic answer or code-changing executor is required.",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def run_local_executor(
