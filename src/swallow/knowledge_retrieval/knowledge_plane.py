@@ -703,8 +703,15 @@ def source_policy_flags_for(item: RetrievalItem, label: str | None = None) -> li
     return _retrieval.source_policy_flags_for(item, label)
 
 
-def summarize_source_policy_warnings(retrieval_items: list[RetrievalItem]) -> list[str]:
-    return _retrieval.summarize_source_policy_warnings(retrieval_items)
+def summarize_source_policy_warnings(
+    retrieval_items: list[RetrievalItem],
+    *,
+    truth_reuse_visibility: dict[str, Any] | None = None,
+) -> list[str]:
+    return _retrieval.summarize_source_policy_warnings(
+        retrieval_items,
+        truth_reuse_visibility=truth_reuse_visibility,
+    )
 
 
 def build_evidence_pack(

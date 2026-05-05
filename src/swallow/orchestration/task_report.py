@@ -86,7 +86,10 @@ def build_retrieval_report(
         base_dir=Path(base_dir) if base_dir is not None else None,
     )
     retrieval_trace = summarize_retrieval_trace(retrieval_items)
-    source_policy_warnings = summarize_source_policy_warnings(retrieval_items)
+    source_policy_warnings = summarize_source_policy_warnings(
+        retrieval_items,
+        truth_reuse_visibility=truth_reuse_visibility,
+    )
     evidence_pack = build_evidence_pack(retrieval_items, workspace_root=state.workspace_root, base_dir=base_dir)
     evidence_pack_summary = evidence_pack.summary()
     lines = [
