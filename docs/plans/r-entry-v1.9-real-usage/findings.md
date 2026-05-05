@@ -103,6 +103,12 @@ Use this file to record real operator friction and decide whether the next phase
   - docs/config hygiene
   - LTO-2 retrieval policy tuning
 - notes: Retrieval and validation artifacts were produced, so the run is useful for R-entry, but the failure classification creates false operator work. This may be a local runtime semantics issue rather than retrieval itself.
+- post-fix retest:
+  - base_dir: `/tmp/swl-r-entry-v1.9-continue`
+  - task_id: `d0a84932a9f1`
+  - command: `.venv/bin/swl --base-dir /tmp/swl-r-entry-v1.9-continue task run d0a84932a9f1`
+  - output: `d0a84932a9f1 failed retrieval=8 execution_phase=analysis_done`
+  - notes: This remains open after R19-001. The run still produces useful retrieval and Wiki artifacts, but the operator-facing status still reads as a backend failure.
 
 ## R19-003 Truth reuse visibility works, but skipped reason semantics are confusing and warning text is stale
 
@@ -121,6 +127,13 @@ Use this file to record real operator friction and decide whether the next phase
 - likely next direction:
   - LTO-2 retrieval policy tuning
 - notes: This directly reproduces the review concern about task-knowledge reason counts. The stale source-policy warning is a separate operator-facing wording issue: fallback hits can be present without reusable truth objects, but the message should distinguish "no active reusable truth" from "no task knowledge item exists."
+- post-fix retest:
+  - base_dir: `/tmp/swl-r-entry-v1.9-continue`
+  - task_id: `d0a84932a9f1`
+  - artifact: `/tmp/swl-r-entry-v1.9-continue/.swl/tasks/d0a84932a9f1/artifacts/retrieval_report.md`
+  - report section: `Truth Reuse Visibility`
+  - observed: `task_knowledge status: considered`, `considered_count: 1`, `skipped_count: 1`, and `skipped_reasons: missing_source_pointer=1, query_no_match=1, status_not_active=1`.
+  - warning text: `fallback_hits_without_truth_objects: no canonical or task knowledge item is present` still appears even though task knowledge exists and was considered.
 
 ## R19-004 Wiki draft dry-run reports `prompt_artifact=-` and leaves no discoverable wiki artifact
 
@@ -138,6 +151,16 @@ Use this file to record real operator friction and decide whether the next phase
   - Wiki Compiler stage 3
   - docs/config hygiene
 - notes: This does not prove Wiki Compiler real draft is broken. It does show dry-run is not yet a strong operator review surface.
+- post-fix retest:
+  - base_dir: `/tmp/swl-r-entry-v1.9-continue`
+  - task_id: `d0a84932a9f1`
+  - dry-run command: `.venv/bin/swl --base-dir /tmp/swl-r-entry-v1.9-continue wiki draft --task-id d0a84932a9f1 --topic "Test Architecture" --source-ref "file://workspace/docs/engineering/TEST_ARCHITECTURE.md" --dry-run`
+  - dry-run output: `wiki_draft_dry_run source_count=1 prompt_artifact=-`
+  - real draft command: `source .env` then `.venv/bin/swl --base-dir /tmp/swl-r-entry-v1.9-continue wiki draft --task-id d0a84932a9f1 --topic "Test Architecture" --source-ref "file://workspace/docs/engineering/TEST_ARCHITECTURE.md"`
+  - real draft output: `staged-1d1c4524 wiki_draft_staged source_count=1 prompt_artifact=/tmp/swl-r-entry-v1.9-continue/.swl/tasks/d0a84932a9f1/artifacts/wiki_compiler_prompt_pack.json result_artifact=/tmp/swl-r-entry-v1.9-continue/.swl/tasks/d0a84932a9f1/artifacts/wiki_compiler_result.json`
+  - CLI review surface: `knowledge stage-inspect staged-1d1c4524` shows `source_pack_count: 1`, rationale, and text, but not the source pack anchor/preview details.
+  - API review surface: `GET /api/knowledge/staged-1d1c4524` includes full `source_pack` with `resolved_path`, `span`, `content_hash`, `parser_version`, and preview.
+  - refine dry-run drift: runbook command with `--topic` fails because current `wiki refine` does not accept `--topic`; current CLI also requires `--target`.
 
 ## R19-005 Web Control Center loopback smoke passed for task list/detail
 
@@ -155,6 +178,49 @@ Use this file to record real operator friction and decide whether the next phase
 - likely next direction:
   - no phase; operator note only
 - notes: `HEAD /` returns 405 while `GET /` works; not a blocker for browser use. The temporary server was stopped after the smoke test.
+- post-fix retest:
+  - base_dir: `/tmp/swl-r-entry-v1.9-continue`
+  - port: `8766`
+  - `GET /` -> `200 text/html`
+  - `GET /api/tasks` -> returned task `d0a84932a9f1`
+  - `GET /api/tasks/d0a84932a9f1` -> returned `input_context.document_paths`, task knowledge, retrieval count, and action eligibility.
+  - `GET /api/knowledge/staged` -> returned staged candidate `staged-1d1c4524`.
+  - `GET /api/knowledge/staged-1d1c4524` -> returned staged candidate detail including source pack.
+  - server stopped after smoke; follow-up health check returned `000`.
+
+## R19-006 Post-fix declared-doc source scoping works on real design-doc flow
+
+- status: observation
+- severity: observation
+- surface: retrieval
+- task_id: `d0a84932a9f1`
+- command: `.venv/bin/swl --base-dir /tmp/swl-r-entry-v1.9-continue task create ... --document-paths INVARIANTS.md --document-paths KNOWLEDGE.md --document-paths HARNESS.md --document-paths PROVIDER_ROUTER.md`, then `task run`.
+- expected: declared docs persist into task input context, are visible through CLI/Web, and dominate retrieval when relevant.
+- actual: `task inspect`, `task intake`, `state.json`, and `GET /api/tasks/d0a84932a9f1` all show four document paths. `retrieval_report.md` top references are from `docs/design/KNOWLEDGE.md` and each top hit shows `declared_document_priority=1000`.
+- evidence:
+  - artifact: `/tmp/swl-r-entry-v1.9-continue/.swl/tasks/d0a84932a9f1/state.json`
+  - artifact: `/tmp/swl-r-entry-v1.9-continue/.swl/tasks/d0a84932a9f1/retrieval.json`
+  - artifact: `/tmp/swl-r-entry-v1.9-continue/.swl/tasks/d0a84932a9f1/artifacts/retrieval_report.md`
+  - report section: `Top References`
+- likely next direction:
+  - no phase; operator note only
+- notes: This validates the R19-001 narrow fix. The remaining retrieval-quality concern is not source scoping itself, but truth reuse warning/reason wording in R19-003.
+
+## R19-007 Runbook command drift around canonical list and wiki refine
+
+- status: open
+- severity: nit
+- surface: docs
+- task_id: `d0a84932a9f1`
+- command: `.venv/bin/swl --base-dir /tmp/swl-r-entry-v1.9-continue knowledge list --status active`; `.venv/bin/swl --base-dir /tmp/swl-r-entry-v1.9-continue wiki refine ... --topic "Test Architecture" ... --dry-run`
+- expected: runbook commands match the current CLI.
+- actual: `knowledge list` is not a valid command in this build; `wiki refine` requires `--target` and does not accept `--topic`.
+- evidence:
+  - `knowledge list` error: `invalid choice: 'list'`
+  - `wiki refine --help`: `--task-id`, `--mode`, `--target`, and `--source-ref` are accepted; no `--topic`.
+- likely next direction:
+  - docs/config hygiene
+- notes: This is not runtime breakage, but it makes the runbook less copy-pasteable for future self-tests.
 
 ## Direction Gate Summary
 
@@ -162,8 +228,8 @@ Fill this after executing the runbook.
 
 | Candidate | Evidence | Recommendation |
 |---|---|---|
-| Continue R-entry real usage | R19-001 has a narrow fix verified on `fix/lto2-document-path-plumbing`; R19-002 remains as note-only status semantics friction. | Continue R-entry source-scoping and Wiki/Web tests after Human commits or approves the repair. |
+| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-005 Web smoke passed again; R19-004 real draft works when `.env` is loaded. | Continue real usage; next useful small fixes are R19-002/R19-003/R19-004/R19-007 rather than broader retrieval architecture. |
 | LTO-2 retrieval policy tuning | R19-003 reproduces confusing truth reuse reason counts and stale source-policy warning text. R19-001 no longer requires broad tuning. | Keep as a follow-up candidate, but do not block current R-entry continuation on it. |
-| Wiki Compiler stage 3 | R19-004 shows wiki draft dry-run is not inspectable enough for source-pack/prompt review. | Candidate only if real draft/refine also shows review friction; otherwise treat as CLI/docs hygiene. |
+| Wiki Compiler stage 3 | R19-004 shows dry-run is not inspectable enough; real draft artifacts and Web detail are available, but CLI stage-inspect only summarizes source pack count. | Candidate for a small Wiki ergonomics slice, not necessarily a broad stage 3. |
 | D2 LTO-5 driven ports |  |  |
-| Docs/config hygiene | R19-002 may need operator guidance if note-only failure semantics are intentional; R19-004 may need dry-run docs or artifact surfacing. | Defer until code semantics are confirmed. |
+| Docs/config hygiene | R19-007 shows command drift in the runbook; R19-002 may need operator guidance if note-only failure semantics are intentional. | Good low-risk cleanup candidate after deciding whether R19-002/R19-004 need code changes. |
