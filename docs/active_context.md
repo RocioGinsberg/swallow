@@ -13,13 +13,13 @@
 - latest_completed_slice: `merged to main at d4288a1`
 - active_track: `R-entry Real Usage`
 - active_phase: `r-entry-v1.9-real-usage`
-- active_slice: `r19-003 truth reuse visibility fix`
-- active_branch: `fix/r19-003-truth-reuse-visibility`
-- status: `r19_003_truth_reuse_visibility_fix_verified`
+- active_slice: `r19-004 wiki dry-run artifact visibility fix`
+- active_branch: `fix/r19-004-wiki-dry-run-artifacts`
+- status: `r19_004_wiki_dry_run_artifact_fix_verified`
 
 ## 当前状态说明
 
-当前 git 分支为 `fix/r19-003-truth-reuse-visibility`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已 merge R19-001 narrow fix 到 `main` at `7516bc5 R19-001 fixed`。Codex 已开启 R19-003 truth reuse visibility 小修:task knowledge skipped reason 改为 primary/mutually-exclusive operator reason;fallback hits with considered truth objects now warn that truth exists but did not match retrieval, rather than claiming no task/canonical knowledge exists.
+当前 git 分支为 `fix/r19-004-wiki-dry-run-artifacts`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已 merge R19-001 narrow fix 到 `main` at `7516bc5 R19-001 fixed`,并 merge R19-003 truth reuse visibility fix 到 `main` at `ed08d8f R19-003 fixed`。Codex 已开启 R19-004 Wiki dry-run artifact visibility 小修:`wiki draft/refine --dry-run` now writes `wiki_compiler_prompt_pack.json` and prints a concrete `prompt_artifact` path; task artifact index now lists wiki compiler artifacts.
 
 LTO-2 source scoping 实现内容:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
 
@@ -97,11 +97,18 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
   - `summarize_truth_reuse_visibility` 使用 primary skipped reason,避免一个 skipped task knowledge item 同时计入 `missing_source_pointer` / `query_no_match` / `status_not_active`
   - `summarize_source_policy_warnings` 接收 truth reuse visibility context,当 task/canonical truth exists but did not match retrieval 时使用 `fallback_hits_without_reused_truth_objects`
   - smoke task `6aa7d7ed9619` in `/tmp/swl-r19-003-truth-reuse-fix` shows `skipped_reasons: status_not_active=1` and no stale “no canonical or task knowledge item is present” warning
+- **[Human]** 已 merge R19-003 fix 回 `main` at `ed08d8f R19-003 fixed`。
+- **[Codex]** 已创建并切换到 `fix/r19-004-wiki-dry-run-artifacts`。
+- **[Codex]** 已完成 R19-004 narrow fix:
+  - dry-run path writes `wiki_compiler_prompt_pack.json`
+  - CLI dry-run output includes concrete `prompt_artifact=.../wiki_compiler_prompt_pack.json`
+  - `task artifacts` lists `wiki_compiler_prompt_pack` / `wiki_compiler_result`
+  - smoke task `d052660f390b` in `/tmp/swl-r19-004-wiki-dry-run-2` confirms no staged candidate is written by dry-run
 
 待执行:
 
-- **[Human]** 审阅 R19-003 narrow fix,决定是否提交并 merge。
-- **[Codex]** 如 Human 继续,建议下一项在 R19-004 Wiki dry-run artifact visibility 或 R19-002 note-only/offline status semantics 中二选一。
+- **[Human]** 审阅 R19-004 narrow fix,决定是否提交并 merge。
+- **[Codex]** 如 Human 继续,建议下一项在 R19-002 note-only/offline status semantics 或 R19-007 runbook command drift 中二选一。
 
 ## 当前验证
 
@@ -176,6 +183,18 @@ R19-003 truth reuse visibility fix validation:
 - `retrieval_report.md` -> `fallback_hits_without_reused_truth_objects: canonical or task knowledge exists but did not match retrieval`
 - `retrieval_report.md` -> `task_knowledge status: considered`, `considered_count: 1`, `skipped_count: 1`, `skipped_reasons: status_not_active=1`
 - `memory.json` -> `truth_reuse_visibility.task_knowledge.reason_counts.status_not_active: 1`
+
+R19-004 wiki dry-run artifact visibility fix validation:
+
+- `.venv/bin/python -m pytest tests/integration/cli/test_wiki_commands.py tests/unit/orchestration/test_artifact_writer_module.py -q` -> `15 passed in 1.91s`
+- `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py::LegacyCliTaskCommandTest::test_task_artifacts_groups_paths_by_operator_concern -q` -> `1 passed in 0.81s`
+- `.venv/bin/python -m compileall -q src/swallow/application/services/wiki_compiler.py src/swallow/orchestration/artifact_writer.py src/swallow/adapters/cli.py tests/integration/cli/test_wiki_commands.py tests/unit/orchestration/test_artifact_writer_module.py` -> passed
+- smoke base dir -> `/tmp/swl-r19-004-wiki-dry-run-2`
+- smoke task -> `d052660f390b`
+- `wiki draft --dry-run` -> `prompt_artifact=/tmp/swl-r19-004-wiki-dry-run-2/.swl/tasks/d052660f390b/artifacts/wiki_compiler_prompt_pack.json`
+- `task artifacts d052660f390b` -> lists `wiki_compiler_prompt_pack` and `wiki_compiler_result`
+- `wiki_compiler_prompt_pack.json` -> includes source pack with `resolved_path: docs/engineering/TEST_ARCHITECTURE.md`, `span: L1-L185`, `content_hash`, and preview
+- `knowledge stage-list --all` -> `count: 0`
 
 本轮文档同步验证:
 
@@ -270,16 +289,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 R19-003 narrow fix。
-2. **[Human]** 提交并决定是否 merge `fix/r19-003-truth-reuse-visibility` 回 `main`。
-3. **[Codex]** merge 后同步 state;若继续小修,建议优先 R19-004 wiki dry-run artifact visibility。
+1. **[Human]** 审阅 R19-004 narrow fix。
+2. **[Human]** 提交并决定是否 merge `fix/r19-004-wiki-dry-run-artifacts` 回 `main`。
+3. **[Codex]** merge 后同步 state;若继续小修,建议优先 R19-002 note-only/offline status semantics。
 
 ```markdown
 compressed_gate:
 - active_phase: r-entry-v1.9-real-usage
-- active_slice: r19-003 truth reuse visibility fix
-- active_branch: fix/r19-003-truth-reuse-visibility
-- status: r19_003_truth_reuse_visibility_fix_verified
+- active_slice: r19-004 wiki dry-run artifact visibility fix
+- active_branch: fix/r19-004-wiki-dry-run-artifacts
+- status: r19_004_wiki_dry_run_artifact_fix_verified
 - latest_completed_phase: lto-2-retrieval-source-scoping
 - latest_completed_commit: d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
@@ -297,7 +316,7 @@ compressed_gate:
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human review and commit R19-003 narrow fix
+- next_gate: Human review and commit R19-004 narrow fix
 ```
 
 ## 当前产出物
@@ -332,3 +351,5 @@ compressed_gate:
 - `docs/plans/r-entry-v1.9-real-usage/findings.md`(codex, 2026-05-05, post-fix R-entry continuation results: R19-006 observation and R19-007 runbook drift)
 - `src/swallow/knowledge_retrieval/retrieval.py` / `src/swallow/knowledge_retrieval/knowledge_plane.py` / `src/swallow/orchestration/task_report.py`(codex, 2026-05-05, R19-003 truth reuse visibility primary skipped reasons and warning context)
 - `tests/unit/orchestration/test_task_report_module.py`(codex, 2026-05-05, regression coverage for R19-003 report wording/counts)
+- `src/swallow/application/services/wiki_compiler.py` / `src/swallow/orchestration/artifact_writer.py` / `src/swallow/adapters/cli.py`(codex, 2026-05-05, R19-004 wiki dry-run prompt pack artifact and task artifact index visibility)
+- `tests/integration/cli/test_wiki_commands.py` / `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-05, regression coverage for wiki dry-run prompt artifact visibility)

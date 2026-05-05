@@ -111,6 +111,8 @@ ARTIFACT_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "executor_prompt",
             "librarian_change_log",
             "librarian_change_log_report",
+            "wiki_compiler_prompt_pack",
+            "wiki_compiler_result",
         ),
     ),
     (
