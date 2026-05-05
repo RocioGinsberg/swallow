@@ -13,13 +13,13 @@
 - latest_completed_slice: `merged to main at d4288a1`
 - active_track: `R-entry Real Usage`
 - active_phase: `r-entry-v1.9-real-usage`
-- active_slice: `after-fixes corrected runbook real usage smoke`
-- active_branch: `main`
-- status: `r_entry_after_fixes_smoke_completed_with_r19_008_open`
+- active_slice: `r19-008 knowledge-policy terminal status / handoff guidance fix`
+- active_branch: `fix/r19-008-knowledge-policy-handoff`
+- status: `r19_008_knowledge_policy_handoff_fix_verified`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已 merge R19-001 narrow fix 到 `main` at `7516bc5 R19-001 fixed`,merge R19-003 truth reuse visibility fix 到 `main` at `ed08d8f R19-003 fixed`,merge R19-004 Wiki dry-run artifact visibility fix 到 `main` at `b4ed07e R19-004 fixed`,merge R19-002 note-only offline status semantics fix 到 `main` at `45a2f87 R19-002 fixed`,并 merge R19-007 runbook command drift fix 到 `main` at `b2dc17f R19-007 fixed`。Codex 已按 corrected runbook 在 `/tmp/swl-r-entry-v1.9-after-fixes` 完成 after-fixes real usage smoke:declared-doc retrieval/source scoping、exported `.env` dedicated rerank、offline note-only completion、task knowledge surfaces、Wiki dry-run/real draft/refine dry-run、Web loopback API 均已验证。新 open finding:R19-008 retrieval-eligible candidate task knowledge causes terminal task failure via knowledge policy and stale handoff guidance.
+当前 git 分支为 `fix/r19-008-knowledge-policy-handoff`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已 merge R19-001 narrow fix 到 `main` at `7516bc5 R19-001 fixed`,merge R19-003 truth reuse visibility fix 到 `main` at `ed08d8f R19-003 fixed`,merge R19-004 Wiki dry-run artifact visibility fix 到 `main` at `b4ed07e R19-004 fixed`,merge R19-002 note-only offline status semantics fix 到 `main` at `45a2f87 R19-002 fixed`,merge R19-007 runbook command drift fix 到 `main` at `b2dc17f R19-007 fixed`,并已提交 after-fixes smoke findings at `b92ef86 docs(test): record after-fixes r-entry smoke`。Codex 已完成 R19-008 narrow fix:retrieval-eligible `candidate/source_only` task knowledge 仍被 knowledge policy 阻断,但 executor 已完成且其他 policy/validation 通过时,terminal state now becomes `waiting_human` with `handoff_status: knowledge_policy_review` instead of `failed` executor recovery.
 
 LTO-2 source scoping 实现内容:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
 
@@ -125,11 +125,18 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
   - Wiki dry-run wrote discoverable prompt pack; real draft produced `staged-3f6fcea5`; refine dry-run with `--target staged-3f6fcea5` succeeded
   - Web loopback on `127.0.0.1:8770` returned 200 for `/`, task detail, staged candidate detail, and artifacts; server stopped
   - new finding R19-008 recorded: retrieval-eligible `candidate/source_only` task knowledge makes rerun terminal status `failed` via knowledge policy despite executor completion
+- **[Human]** 已提交 after-fixes smoke findings:`b92ef86 docs(test): record after-fixes r-entry smoke`。
+- **[Codex]** 已创建并切换到 `fix/r19-008-knowledge-policy-handoff`。
+- **[Codex]** 已完成 R19-008 narrow fix:
+  - shared terminal classifier maps completed executor + failed knowledge policy + otherwise-passed checks to `status: waiting_human`, `execution_lifecycle: completed`
+  - handoff uses `knowledge_policy_review` contract/status and points `next_operator_action` at `knowledge_policy_report.md`
+  - checkpoint snapshot uses `checkpoint_state: knowledge_policy_review`, `recovery_semantics: knowledge_policy_review`, `recommended_path: review`
+  - smoke task `4795c81e0c99` in `/tmp/swl-r19-008-knowledge-policy-handoff` confirms no live-executor recovery guidance
 
 待执行:
 
-- **[Human]** 审阅 after-fixes findings/state update,决定是否提交。
-- **[Codex]** 如继续小修,建议优先处理 R19-008 knowledge-policy terminal status / handoff guidance。
+- **[Human]** 审阅 R19-008 narrow fix,决定是否提交并 merge。
+- **[Codex]** merge 后可继续按 corrected runbook 做下一轮 real usage。
 
 ## 当前验证
 
@@ -249,6 +256,21 @@ After-fixes corrected runbook smoke validation:
 - R8 -> corrected `wiki refine --mode supersede --target staged-3f6fcea5 --dry-run` succeeded and returned concrete prompt artifact
 - R9 -> Web loopback on `127.0.0.1:8770`: `GET /` -> `200 text/html`; `/api/tasks/9efc0525e0d4`, `/api/knowledge/staged-3f6fcea5`, `/api/tasks/9efc0525e0d4/artifacts` all returned 200; server stopped
 
+R19-008 knowledge-policy handoff fix validation:
+
+- `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py::test_retrieval_candidate_task_knowledge_requires_policy_review_not_executor_recovery -q` -> `1 passed in 1.53s`
+- `.venv/bin/python -m pytest tests/unit/orchestration/test_artifact_writer_module.py::test_handoff_builder_routes_completed_executor_with_failed_knowledge_policy_to_review -q` -> `1 passed in 0.08s`
+- `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py -q` -> `44 passed in 17.45s`
+- `.venv/bin/python -m pytest tests/unit/orchestration/test_artifact_writer_module.py -q` -> `8 passed in 0.04s`
+- `.venv/bin/python -m pytest tests/unit/orchestration/test_task_report_module.py tests/unit/orchestration/test_retrieval_flow_module.py -q` -> `16 passed in 0.23s`
+- smoke base dir -> `/tmp/swl-r19-008-knowledge-policy-handoff`
+- smoke task -> `4795c81e0c99`
+- pre-capture `task run` -> `4795c81e0c99 completed retrieval=8 execution_phase=analysis_done`
+- post-capture `task rerun --from-phase retrieval` -> `4795c81e0c99 waiting_human retrieval=8 execution_phase=analysis_done`
+- `task inspect` -> `status: waiting_human`, `execution_lifecycle: completed`, `knowledge_policy_status: failed`, `handoff_status: knowledge_policy_review`, `recommended_path: review`
+- `handoff_report.md` -> `contract_kind: knowledge_policy_review`, `executor_status: completed`, `failure_kind: none`, `next_operator_action: Review knowledge_policy_report.md...`
+- `checkpoint_snapshot_report.md` -> `checkpoint_state: knowledge_policy_review`, `recovery_semantics: knowledge_policy_review`
+
 本轮文档同步验证:
 
 - `git diff --check` -> passed
@@ -342,16 +364,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 after-fixes findings/state update。
-2. **[Human]** 提交本轮 findings/state 文档同步。
-3. **[Codex]** 如继续小修,建议开启 R19-008 knowledge-policy terminal status / handoff guidance fix。
+1. **[Human]** 审阅 R19-008 narrow fix。
+2. **[Human]** 提交并决定是否 merge `fix/r19-008-knowledge-policy-handoff` 回 `main`。
+3. **[Codex]** merge 后同步 state;然后继续用 corrected runbook 做下一轮 real usage。
 
 ```markdown
 compressed_gate:
 - active_phase: r-entry-v1.9-real-usage
-- active_slice: after-fixes corrected runbook real usage smoke
-- active_branch: main
-- status: r_entry_after_fixes_smoke_completed_with_r19_008_open
+- active_slice: r19-008 knowledge-policy terminal status / handoff guidance fix
+- active_branch: fix/r19-008-knowledge-policy-handoff
+- status: r19_008_knowledge_policy_handoff_fix_verified
 - latest_completed_phase: lto-2-retrieval-source-scoping
 - latest_completed_commit: d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
@@ -369,7 +391,7 @@ compressed_gate:
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human review and commit after-fixes findings/state update
+- next_gate: Human review and commit R19-008 narrow fix
 ```
 
 ## 当前产出物
@@ -410,3 +432,5 @@ compressed_gate:
 - `tests/integration/cli/test_task_commands.py`(codex, 2026-05-05, regression coverage for R19-002 offline note-only completion)
 - `docs/plans/r-entry-v1.9-real-usage/plan.md`(codex, 2026-05-05, R19-007 runbook command drift fix: canonical audit, wiki refine target, and current artifact path)
 - `docs/plans/r-entry-v1.9-real-usage/findings.md`(codex, 2026-05-05, after-fixes corrected runbook smoke;records R19-008 open concern and R19-009 observation)
+- `src/swallow/orchestration/artifact_writer.py` / `src/swallow/orchestration/harness.py` / `src/swallow/orchestration/orchestrator.py` / `src/swallow/orchestration/checkpoint_snapshot.py`(codex, 2026-05-05, R19-008 knowledge-policy terminal status and handoff guidance)
+- `tests/integration/cli/test_task_commands.py` / `tests/unit/orchestration/test_artifact_writer_module.py`(codex, 2026-05-05, regression coverage for R19-008 knowledge policy review semantics)

@@ -129,6 +129,73 @@ def test_note_only_offline_task_run_completes_without_backend_failure(tmp_path: 
     assert "failure_kind: unreachable_backend" not in output
 
 
+def test_retrieval_candidate_task_knowledge_requires_policy_review_not_executor_recovery(tmp_path: Path) -> None:
+    notes = tmp_path / "docs" / "design" / "KNOWLEDGE.md"
+    notes.parent.mkdir(parents=True)
+    notes.write_text("# Knowledge\n\nWiki and canonical knowledge are governed truth surfaces.\n", encoding="utf-8")
+    create_result = run_cli(
+        tmp_path,
+        "task",
+        "create",
+        "--title",
+        "Knowledge policy review",
+        "--goal",
+        "Review retrieval-eligible task knowledge policy semantics.",
+        "--workspace-root",
+        str(tmp_path),
+        "--executor",
+        "note-only",
+        "--route-mode",
+        "offline",
+        "--document-paths",
+        str(notes),
+    )
+    assert_cli_success(create_result)
+    task_id = create_result.stdout.strip()
+    assert_cli_success(run_cli(tmp_path, "task", "run", task_id))
+    capture_result = run_cli(
+        tmp_path,
+        "task",
+        "knowledge-capture",
+        task_id,
+        "--knowledge-item",
+        "Candidate knowledge should not be reused until verified.",
+        "--knowledge-stage",
+        "candidate",
+        "--knowledge-source",
+        "operator:test",
+        "--knowledge-retrieval-eligible",
+        "--knowledge-canonicalization-intent",
+        "review",
+    )
+    assert_cli_success(capture_result)
+
+    rerun_result = run_cli(tmp_path, "task", "rerun", task_id, "--from-phase", "retrieval")
+
+    assert_cli_success(rerun_result)
+    assert f"{task_id} waiting_human" in rerun_result.stdout
+    state = load_state(tmp_path, task_id)
+    assert state.status == "waiting_human"
+    assert state.executor_status == "completed"
+    assert state.execution_lifecycle == "completed"
+    task_root = tmp_path / ".swl" / "tasks" / task_id
+    handoff = json.loads((task_root / "handoff.json").read_text(encoding="utf-8"))
+    checkpoint = json.loads((task_root / "checkpoint_snapshot.json").read_text(encoding="utf-8"))
+    assert handoff["status"] == "knowledge_policy_review"
+    assert handoff["contract_kind"] == "knowledge_policy_review"
+    assert handoff["knowledge_policy_status"] == "failed"
+    assert "knowledge_policy_report.md" in handoff["next_operator_action"]
+    assert "live executor" not in handoff["next_operator_action"].lower()
+    assert checkpoint["checkpoint_state"] == "knowledge_policy_review"
+    assert checkpoint["recommended_path"] == "review"
+    inspect_result = run_cli(tmp_path, "task", "inspect", task_id)
+    assert_cli_success(inspect_result)
+    assert "handoff_status: knowledge_policy_review" in inspect_result.stdout
+    assert "recovery_semantics: knowledge_policy_review" in inspect_result.stdout
+    assert "knowledge_policy_status: failed" in inspect_result.stdout
+    assert "live executor is reachable" not in inspect_result.stdout
+
+
 def test_task_acknowledge_characterization_stdout_stderr_exit_code(tmp_path: Path, task_builder: TaskBuilder) -> None:
     created = task_builder.create(
         title="Dispatch blocked task",

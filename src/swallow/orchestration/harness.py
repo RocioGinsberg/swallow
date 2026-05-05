@@ -50,6 +50,7 @@ from swallow.orchestration.artifact_writer import (
     build_route_report,
     build_topology_record,
     build_topology_report,
+    classify_task_terminal_state,
     format_route_capabilities,
     write_checkpoint_snapshot_artifacts,
     write_compatibility_policy_artifacts,
@@ -253,16 +254,13 @@ def write_task_artifacts(
         final_status = "waiting_human"
         final_execution_lifecycle = "waiting_human"
     else:
-        final_status = (
-            "completed"
-            if executor_result.status == "completed"
-            and compatibility_result.status != "failed"
-            and execution_fit_result.status != "failed"
-            and knowledge_policy_result.status != "failed"
-            and validation_result.status != "failed"
-            else "failed"
+        final_status, final_execution_lifecycle = classify_task_terminal_state(
+            executor_result,
+            compatibility_result,
+            execution_fit_result,
+            knowledge_policy_result,
+            validation_result,
         )
-        final_execution_lifecycle = "completed" if final_status == "completed" else "failed"
     render_state = replace(
         state,
         status=final_status,

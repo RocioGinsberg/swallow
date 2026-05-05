@@ -53,6 +53,7 @@ from swallow.orchestration.dispatch_policy import validate_handoff_semantics, va
 from swallow.orchestration.harness import (
     build_remote_handoff_contract_record,
     build_remote_handoff_contract_report,
+    classify_task_terminal_state,
     run_retrieval,
     write_task_artifacts,
 )
@@ -3156,16 +3157,13 @@ async def run_task_async(
         state.phase = "waiting_human"
         state.execution_lifecycle = "waiting_human"
     else:
-        state.status = (
-            "completed"
-            if executor_result.status == "completed"
-            and compatibility_result.status != "failed"
-            and execution_fit_result.status != "failed"
-            and knowledge_policy_result.status != "failed"
-            and validation_result.status != "failed"
-            else "failed"
+        state.status, state.execution_lifecycle = classify_task_terminal_state(
+            executor_result,
+            compatibility_result,
+            execution_fit_result,
+            knowledge_policy_result,
+            validation_result,
         )
-        state.execution_lifecycle = "completed" if state.status == "completed" else "failed"
     staged_candidate_count = 0
     save_state(base_dir, state)
     _record_phase_checkpoint(base_dir, state, "analysis_done", source="live_analysis")

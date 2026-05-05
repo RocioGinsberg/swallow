@@ -255,7 +255,7 @@ Use this file to record real operator friction and decide whether the next phase
 
 ## R19-008 Retrieval-eligible candidate task knowledge makes note-only rerun fail via knowledge policy
 
-- status: open
+- status: resolved
 - severity: concern
 - surface: knowledge-policy
 - task_id: `9efc0525e0d4`
@@ -271,6 +271,15 @@ Use this file to record real operator friction and decide whether the next phase
   - knowledge policy operator semantics
   - docs/config hygiene if behavior is intentional
 - notes: The truth reuse visibility part is now clear after R19-003. The remaining friction is terminal task status and handoff guidance when a deliberately captured candidate knowledge item is retrieval-eligible but not verified.
+- fix verification:
+  - branch: `fix/r19-008-knowledge-policy-handoff`
+  - smoke_base_dir: `/tmp/swl-r19-008-knowledge-policy-handoff`
+  - smoke_task_id: `4795c81e0c99`
+  - changed behavior: when executor/compatibility/execution-fit/validation pass but knowledge policy fails, the terminal task state is now `waiting_human` with `execution_lifecycle: completed`.
+  - handoff behavior: `handoff_status: knowledge_policy_review`, `checkpoint_state: knowledge_policy_review`, `recovery_semantics: knowledge_policy_review`, and `next_operator_action` points to `knowledge_policy_report.md` instead of live executor recovery.
+  - boundary: the knowledge policy still blocks retrieval-eligible `candidate/source_only` task knowledge; R19-008 only changes terminal semantics and operator guidance.
+  - smoke output: `task rerun 4795c81e0c99 --from-phase retrieval` -> `4795c81e0c99 waiting_human retrieval=8 execution_phase=analysis_done`.
+  - validation: `.venv/bin/python -m pytest tests/integration/cli/test_task_commands.py -q` -> `44 passed`; `.venv/bin/python -m pytest tests/unit/orchestration/test_artifact_writer_module.py -q` -> `8 passed`; `.venv/bin/python -m pytest tests/unit/orchestration/test_task_report_module.py tests/unit/orchestration/test_retrieval_flow_module.py -q` -> `16 passed`.
 
 ## R19-009 After-fixes design-doc real usage smoke passed for source scoping, rerank, Wiki, and Web API
 
@@ -297,7 +306,7 @@ Fill this after executing the runbook.
 
 | Candidate | Evidence | Recommendation |
 |---|---|---|
-| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-002/R19-003/R19-004/R19-007 have narrow fixes verified; R19-009 passes the corrected after-fixes smoke across retrieval/rerank/wiki/web. | Continue real usage; the next narrow code candidate is R19-008 knowledge-policy terminal status/handoff semantics. |
+| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-002/R19-003/R19-004/R19-007/R19-008 have narrow fixes verified; R19-009 passes the corrected after-fixes smoke across retrieval/rerank/wiki/web. | Continue real usage; no current evidence requires broader retrieval architecture. |
 | LTO-2 retrieval policy tuning | R19-001 and R19-003 are now resolved as narrow plumbing/reporting fixes. No current evidence requires broad retrieval architecture tuning. | Defer broad tuning unless later real runs show priority magnitude or filtering quality issues. |
 | Wiki Compiler stage 3 | R19-004 dry-run artifact visibility is resolved; remaining Wiki ergonomics is mostly CLI stage-inspect source pack detail. | Defer broad stage 3 unless later real usage shows supersede/relation review friction. |
 | D2 LTO-5 driven ports |  |  |
