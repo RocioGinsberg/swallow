@@ -13,13 +13,13 @@
 - latest_completed_slice: `merged to main at d4288a1`
 - active_track: `R-entry Real Usage`
 - active_phase: `r-entry-v1.9-real-usage`
-- active_slice: `r19-007 runbook command drift fix`
-- active_branch: `fix/r19-007-runbook-command-drift`
-- status: `r19_007_runbook_command_drift_fix_verified`
+- active_slice: `after-fixes corrected runbook real usage smoke`
+- active_branch: `main`
+- status: `r_entry_after_fixes_smoke_completed_with_r19_008_open`
 
 ## 当前状态说明
 
-当前 git 分支为 `fix/r19-007-runbook-command-drift`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已 merge R19-001 narrow fix 到 `main` at `7516bc5 R19-001 fixed`,merge R19-003 truth reuse visibility fix 到 `main` at `ed08d8f R19-003 fixed`,merge R19-004 Wiki dry-run artifact visibility fix 到 `main` at `b4ed07e R19-004 fixed`,并 merge R19-002 note-only offline status semantics fix 到 `main` at `45a2f87 R19-002 fixed`。Codex 已开启 R19-007 runbook command drift 小修:active runbook now uses supported `knowledge canonical-audit`, documents `wiki refine --target`, removes unsupported `wiki refine --topic`, and points dry-run artifact discovery at `.swl/tasks/<task_id>/artifacts`.
+当前 git 分支为 `main`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 已 merge R19-001 narrow fix 到 `main` at `7516bc5 R19-001 fixed`,merge R19-003 truth reuse visibility fix 到 `main` at `ed08d8f R19-003 fixed`,merge R19-004 Wiki dry-run artifact visibility fix 到 `main` at `b4ed07e R19-004 fixed`,merge R19-002 note-only offline status semantics fix 到 `main` at `45a2f87 R19-002 fixed`,并 merge R19-007 runbook command drift fix 到 `main` at `b2dc17f R19-007 fixed`。Codex 已按 corrected runbook 在 `/tmp/swl-r-entry-v1.9-after-fixes` 完成 after-fixes real usage smoke:declared-doc retrieval/source scoping、exported `.env` dedicated rerank、offline note-only completion、task knowledge surfaces、Wiki dry-run/real draft/refine dry-run、Web loopback API 均已验证。新 open finding:R19-008 retrieval-eligible candidate task knowledge causes terminal task failure via knowledge policy and stale handoff guidance.
 
 LTO-2 source scoping 实现内容:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
 
@@ -116,11 +116,20 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
   - active runbook uses `knowledge canonical-audit` instead of nonexistent `knowledge list --status active`
   - `wiki refine` runbook uses required `--target "$WIKI_TARGET"` and removes unsupported `--topic`
   - dry-run artifact discovery now points to `$BASE/.swl/tasks/$TASK_ID/artifacts`
+- **[Human]** 已 merge R19-007 fix 回 `main` at `b2dc17f R19-007 fixed`。
+- **[Codex]** 已按 corrected runbook 完成 after-fixes smoke:
+  - base_dir `/tmp/swl-r-entry-v1.9-after-fixes`,task `9efc0525e0d4`
+  - declared docs persisted and retrieval top hits stayed in declared design docs
+  - `set -a; source .env; set +a` made dedicated rerank active: `rerank_backend=dedicated_http`, `rerank_model=rerank-v3.5`, `rerank_applied=True`
+  - explicit offline note-only run completed before task knowledge capture
+  - Wiki dry-run wrote discoverable prompt pack; real draft produced `staged-3f6fcea5`; refine dry-run with `--target staged-3f6fcea5` succeeded
+  - Web loopback on `127.0.0.1:8770` returned 200 for `/`, task detail, staged candidate detail, and artifacts; server stopped
+  - new finding R19-008 recorded: retrieval-eligible `candidate/source_only` task knowledge makes rerun terminal status `failed` via knowledge policy despite executor completion
 
 待执行:
 
-- **[Human]** 审阅 R19-007 docs fix,决定是否提交并 merge。
-- **[Codex]** merge 后可继续按 corrected runbook 做下一轮 real usage。
+- **[Human]** 审阅 after-fixes findings/state update,决定是否提交。
+- **[Codex]** 如继续小修,建议优先处理 R19-008 knowledge-policy terminal status / handoff guidance。
 
 ## 当前验证
 
@@ -226,6 +235,20 @@ R19-007 runbook command drift fix validation:
 - `.venv/bin/swl wiki refine --help` -> confirms required `--target` and no `--topic`
 - `rg -n "knowledge list|wiki refine[\\s\\S]*--topic|find \"\\$BASE/artifacts" docs/plans/r-entry-v1.9-real-usage/plan.md` -> no stale active-runbook command pattern found
 
+After-fixes corrected runbook smoke validation:
+
+- base_dir -> `/tmp/swl-r-entry-v1.9-after-fixes`
+- task -> `9efc0525e0d4`
+- R0 -> `doctor --skip-stack` ok; `migrate` scanned 0 tasks; source docs present
+- R2/R3 -> `task run 9efc0525e0d4` initially returned `completed retrieval=8 execution_phase=analysis_done`; `task inspect` showed `document_paths_count: 6`, `route_mode: offline`, `route_name: local-note`, `executor_status: completed`
+- `.env` rerun -> `set -a; source .env; set +a` then `task rerun --from-phase retrieval`; `retrieval_report.md` showed `rerank_backend: dedicated_http`, `rerank_model: rerank-v3.5`, `rerank_applied: True`, `final_order_basis: dedicated_rerank`
+- R4 -> task knowledge capture added `knowledge-0001`; `task staged --task` correctly pointed to task-scoped knowledge review queue; `knowledge stage-list --all` stayed empty; `knowledge canonical-audit` succeeded with 0 active records
+- R4 rerun -> terminal status became `failed` because `knowledge_policy_status: failed` for `candidate/source_only/retrieval_candidate`; recorded as R19-008
+- R6 -> `wiki draft --dry-run` returned concrete `wiki_compiler_prompt_pack.json`; `task artifacts` listed wiki compiler artifacts; no staged candidate written by dry-run
+- R7 -> real `wiki draft` with exported `.env` created `staged-3f6fcea5`; `wiki_compiler_result.json` recorded `status: completed`, `model: openai/gpt-4o-mini`, source pack `docs/engineering/TEST_ARCHITECTURE.md`
+- R8 -> corrected `wiki refine --mode supersede --target staged-3f6fcea5 --dry-run` succeeded and returned concrete prompt artifact
+- R9 -> Web loopback on `127.0.0.1:8770`: `GET /` -> `200 text/html`; `/api/tasks/9efc0525e0d4`, `/api/knowledge/staged-3f6fcea5`, `/api/tasks/9efc0525e0d4/artifacts` all returned 200; server stopped
+
 本轮文档同步验证:
 
 - `git diff --check` -> passed
@@ -319,16 +342,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 审阅 R19-007 docs fix。
-2. **[Human]** 提交并决定是否 merge `fix/r19-007-runbook-command-drift` 回 `main`。
-3. **[Codex]** merge 后同步 state;然后继续用 corrected runbook 做下一轮 real usage。
+1. **[Human]** 审阅 after-fixes findings/state update。
+2. **[Human]** 提交本轮 findings/state 文档同步。
+3. **[Codex]** 如继续小修,建议开启 R19-008 knowledge-policy terminal status / handoff guidance fix。
 
 ```markdown
 compressed_gate:
 - active_phase: r-entry-v1.9-real-usage
-- active_slice: r19-007 runbook command drift fix
-- active_branch: fix/r19-007-runbook-command-drift
-- status: r19_007_runbook_command_drift_fix_verified
+- active_slice: after-fixes corrected runbook real usage smoke
+- active_branch: main
+- status: r_entry_after_fixes_smoke_completed_with_r19_008_open
 - latest_completed_phase: lto-2-retrieval-source-scoping
 - latest_completed_commit: d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
@@ -346,7 +369,7 @@ compressed_gate:
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human review and commit R19-007 docs fix
+- next_gate: Human review and commit after-fixes findings/state update
 ```
 
 ## 当前产出物
@@ -386,3 +409,4 @@ compressed_gate:
 - `src/swallow/orchestration/executor.py`(codex, 2026-05-05, R19-002 note-only offline status semantics: explicit offline note-only completes as a no-live-executor run record)
 - `tests/integration/cli/test_task_commands.py`(codex, 2026-05-05, regression coverage for R19-002 offline note-only completion)
 - `docs/plans/r-entry-v1.9-real-usage/plan.md`(codex, 2026-05-05, R19-007 runbook command drift fix: canonical audit, wiki refine target, and current artifact path)
+- `docs/plans/r-entry-v1.9-real-usage/findings.md`(codex, 2026-05-05, after-fixes corrected runbook smoke;records R19-008 open concern and R19-009 observation)

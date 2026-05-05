@@ -253,14 +253,52 @@ Use this file to record real operator friction and decide whether the next phase
   - adjacent cleanup: dry-run artifact discovery now points at `$BASE/.swl/tasks/$TASK_ID/artifacts` instead of the old `$BASE/artifacts/$TASK_ID` path.
   - validation: `.venv/bin/swl knowledge --help` confirms available knowledge subcommands; `.venv/bin/swl wiki refine --help` confirms required `--target` and no `--topic`; `rg` found no remaining stale active-runbook command pattern.
 
+## R19-008 Retrieval-eligible candidate task knowledge makes note-only rerun fail via knowledge policy
+
+- status: open
+- severity: concern
+- surface: knowledge-policy
+- task_id: `9efc0525e0d4`
+- command: `.venv/bin/swl --base-dir /tmp/swl-r-entry-v1.9-after-fixes task knowledge-capture 9efc0525e0d4 --knowledge-stage candidate --knowledge-retrieval-eligible ...`, then `task rerun --from-phase retrieval` with `.env` exported.
+- expected: rerun should either complete while clearly reporting the candidate knowledge as not reusable yet, or use an operator-facing state that explains "knowledge policy review required" without suggesting backend recovery.
+- actual: rerun output was `9efc0525e0d4 failed retrieval=8 execution_phase=analysis_done`; `executor_status=completed` and `validation_status=passed`, but `knowledge_policy_status=failed` because `knowledge-0001` is `candidate/source_only/retrieval_candidate`.
+- evidence:
+  - artifact: `/tmp/swl-r-entry-v1.9-after-fixes/.swl/tasks/9efc0525e0d4/artifacts/knowledge_policy_report.md`
+  - report section: `knowledge.reuse.stage_not_ready`
+  - report section: `Truth Reuse Visibility` shows `task_knowledge status: considered`, `skipped_count: 1`, `skipped_reasons: status_not_active=1`
+  - `task inspect` guidance still says `next_operator_action: Re-run when the configured live executor is reachable...`, even though the executor completed and the blocker is knowledge policy.
+- likely next direction:
+  - knowledge policy operator semantics
+  - docs/config hygiene if behavior is intentional
+- notes: The truth reuse visibility part is now clear after R19-003. The remaining friction is terminal task status and handoff guidance when a deliberately captured candidate knowledge item is retrieval-eligible but not verified.
+
+## R19-009 After-fixes design-doc real usage smoke passed for source scoping, rerank, Wiki, and Web API
+
+- status: observation
+- severity: observation
+- surface: retrieval | wiki | web | config
+- task_id: `9efc0525e0d4`
+- command: corrected R-entry runbook on `/tmp/swl-r-entry-v1.9-after-fixes`
+- expected: R19-001/R19-002/R19-004/R19-007 fixes should hold together on a fresh base dir.
+- actual: declared document paths persisted and dominated retrieval; explicit offline note-only run completed; exported `.env` enabled dedicated rerank; Wiki draft/refine dry-run artifacts were discoverable; real Wiki draft produced staged candidate `staged-3f6fcea5`; Web API returned task detail, staged candidate detail, and artifacts.
+- evidence:
+  - run output: `9efc0525e0d4 completed retrieval=8 execution_phase=analysis_done` before candidate task knowledge was captured.
+  - retrieval report: `rerank_backend: dedicated_http`, `rerank_model: rerank-v3.5`, `rerank_applied: True`, `final_order_basis: dedicated_rerank`.
+  - Wiki dry-run output: `prompt_artifact=/tmp/swl-r-entry-v1.9-after-fixes/.swl/tasks/9efc0525e0d4/artifacts/wiki_compiler_prompt_pack.json`.
+  - real Wiki draft output: `staged-3f6fcea5 wiki_draft_staged ... result_artifact=.../wiki_compiler_result.json`.
+  - Web loopback: `GET /` -> `200 text/html`; `/api/tasks/9efc0525e0d4`, `/api/knowledge/staged-3f6fcea5`, and `/api/tasks/9efc0525e0d4/artifacts` returned 200.
+- likely next direction:
+  - continue real usage
+- notes: `.env` must be exported (`set -a; source .env; set +a`) for child `swl` processes to see rerank/provider variables. The active runbook already documents this.
+
 ## Direction Gate Summary
 
 Fill this after executing the runbook.
 
 | Candidate | Evidence | Recommendation |
 |---|---|---|
-| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-002/R19-003/R19-004/R19-007 have narrow fixes verified; R19-005 Web smoke passed again. | Continue real usage with the corrected runbook; no current evidence requires broader retrieval architecture. |
+| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-002/R19-003/R19-004/R19-007 have narrow fixes verified; R19-009 passes the corrected after-fixes smoke across retrieval/rerank/wiki/web. | Continue real usage; the next narrow code candidate is R19-008 knowledge-policy terminal status/handoff semantics. |
 | LTO-2 retrieval policy tuning | R19-001 and R19-003 are now resolved as narrow plumbing/reporting fixes. No current evidence requires broad retrieval architecture tuning. | Defer broad tuning unless later real runs show priority magnitude or filtering quality issues. |
 | Wiki Compiler stage 3 | R19-004 dry-run artifact visibility is resolved; remaining Wiki ergonomics is mostly CLI stage-inspect source pack detail. | Defer broad stage 3 unless later real usage shows supersede/relation review friction. |
 | D2 LTO-5 driven ports |  |  |
-| Docs/config hygiene | R19-007 runbook command drift is resolved. | No open docs/config hygiene item from this findings log. |
+| Docs/config hygiene | R19-007 runbook command drift is resolved. R19-009 confirms the documented `set -a; source .env; set +a` pattern is required for rerank/provider env propagation. | No open docs/config hygiene item from this findings log. |
