@@ -23,10 +23,10 @@
 - latest_main_checkpoint: `d598e58 docs(release): sync v1.9.0 release docs`
 - latest_executed_public_tag: `v1.9.0`
 - pending_release_tag: `none`
-- current_working_phase: `none;post-merge checkpoint`
-- checkpoint_type: `post_v1.9.0_tag_checkpoint`
+- current_working_phase: `r-entry-v1.9-real-usage`
+- checkpoint_type: `r_entry_v1_9_runbook_ready`
 - active_branch: `main`
-- last_checked: `2026-05-04`
+- last_checked: `2026-05-05`
 
 说明:
 
@@ -37,6 +37,7 @@
 - R-entry Real Usage 已完成本机可验证部分并触发 `lto-2-retrieval-source-scoping`。
 - LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已 merge 到 `main` at `d4288a1`。
 - v1.9.0 release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`;tag `v1.9.0` 已打在该 commit。
+- Post-v1.9.0 R-entry runbook 已创建:`docs/plans/r-entry-v1.9-real-usage/plan.md`;findings 模板为 `docs/plans/r-entry-v1.9-real-usage/findings.md`。
 - Claude review verdict:`acceptable to merge`;0 blocks / 3 tracked concerns。3 个 concerns 已聚合登记为 `docs/concerns_backlog.md` Active Open 的 `LTO-2 Source Scoping review follow-ups`。
 
 ---
@@ -46,17 +47,17 @@
 当前推荐从以下状态继续:
 
 - active_branch: `main`
-- active_track: `LTO-2 Retrieval Quality / Evidence Serving`
-- active_phase: `none;post-merge checkpoint`
-- active_slice: `post-v1.9.0 tag checkpoint`
-- workflow_status: `tag_complete_ready_for_next_direction`
+- active_track: `R-entry Real Usage`
+- active_phase: `r-entry-v1.9-real-usage`
+- active_slice: `runbook ready;design-doc flow`
+- workflow_status: `r_entry_v1_9_runbook_ready`
 - recommended_implementation_branch: `none`
 
 下一步:
 
-1. Human 决定下一轮方向:继续 R-entry 真实使用,或从 roadmap Direction Gate 候选中选择下一 phase。
-2. 如选择新 phase,Codex 按流程输出 `docs/plans/<phase>/plan.md`。
-3. 如继续 R-entry,记录真实使用反馈并按需更新 `docs/plans/r-entry-real-usage/findings.md`。
+1. Human/Codex 按 `docs/plans/r-entry-v1.9-real-usage/plan.md` 执行 R0-R10。
+2. 将真实问题记录到 `docs/plans/r-entry-v1.9-real-usage/findings.md`。
+3. 根据 findings 决定继续 R-entry,或开 LTO-2 retrieval policy tuning / Wiki Compiler stage 3 / D2 driven ports 等下一 phase。
 
 ---
 
@@ -70,15 +71,17 @@
 4. `docs/active_context.md`
 5. `current_state.md`
 6. `docs/roadmap.md`
-7. `docs/plans/lto-2-retrieval-source-scoping/plan.md`
-8. `docs/concerns_backlog.md`
-9. `docs/design/INVARIANTS.md`
-10. `docs/design/KNOWLEDGE.md`
-11. `docs/design/DATA_MODEL.md`
-12. `docs/design/HARNESS.md`
-13. `docs/engineering/CODE_ORGANIZATION.md`
-14. `docs/engineering/TEST_ARCHITECTURE.md`
-15. `docs/engineering/ADAPTER_DISCIPLINE.md`
+7. `docs/plans/r-entry-v1.9-real-usage/plan.md`
+8. `docs/plans/r-entry-v1.9-real-usage/findings.md`
+9. `docs/plans/lto-2-retrieval-source-scoping/plan.md`
+10. `docs/concerns_backlog.md`
+11. `docs/design/INVARIANTS.md`
+12. `docs/design/KNOWLEDGE.md`
+13. `docs/design/DATA_MODEL.md`
+14. `docs/design/HARNESS.md`
+15. `docs/engineering/CODE_ORGANIZATION.md`
+16. `docs/engineering/TEST_ARCHITECTURE.md`
+17. `docs/engineering/ADAPTER_DISCIPLINE.md`
 
 ---
 
@@ -93,6 +96,8 @@ git show --no-patch --decorate --oneline HEAD
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
 sed -n '1,260p' docs/roadmap.md
+sed -n '1,260p' docs/plans/r-entry-v1.9-real-usage/plan.md
+sed -n '1,220p' docs/plans/r-entry-v1.9-real-usage/findings.md
 sed -n '1,220p' docs/plans/lto-2-retrieval-source-scoping/closeout.md
 sed -n '1,220p' docs/plans/lto-2-retrieval-source-scoping/review_comments.md
 sed -n '1,180p' docs/concerns_backlog.md
@@ -119,21 +124,24 @@ git diff --check
 
 ## 当前建议提交范围
 
-当前 phase 已 merge,release tag 已完成:
+当前 release tag 已完成,下一步为 R-entry v1.9 real usage:
 
 - `d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility`
 - `d598e58 docs(release): sync v1.9.0 release docs`
 - `v1.9.0`
+- `docs/plans/r-entry-v1.9-real-usage/plan.md`
+- `docs/plans/r-entry-v1.9-real-usage/findings.md`
 
-当前建议提交 tag 状态同步:
+当前建议提交 runbook/state:
 
 ```bash
 git add \
+  docs/plans/r-entry-v1.9-real-usage/plan.md \
+  docs/plans/r-entry-v1.9-real-usage/findings.md \
   docs/active_context.md \
-  current_state.md \
-  docs/roadmap.md
+  current_state.md
 
-git commit -m "docs(state): mark v1.9.0 tagged"
+git commit -m "docs(plan): add r-entry v1.9 real usage runbook"
 ```
 
 ---
@@ -163,6 +171,7 @@ git status --short --branch
 sed -n '1,220p' docs/active_context.md
 sed -n '1,220p' current_state.md
 sed -n '1,260p' docs/roadmap.md
+sed -n '1,260p' docs/plans/r-entry-v1.9-real-usage/plan.md
 sed -n '1,220p' docs/plans/lto-2-retrieval-source-scoping/closeout.md
 ```
 

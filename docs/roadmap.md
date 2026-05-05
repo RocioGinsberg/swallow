@@ -21,7 +21,7 @@ status: living-document
 
 - **最新 tag**: `v1.9.0` at `d598e58`(Retrieval Quality + Wiki Authoring 二代 + R-entry-driven source scoping)
 - **最新 main**: `d598e58`(v1.9.0 release docs;能力基线含 `d4288a1` LTO-2 Retrieval Source Scoping And Truth Reuse Visibility)
-- **近期队列**: 空 —— 等 R-entry 真实使用反馈触发下一 phase
+- **近期队列**: `R-entry v1.9 Real Usage`(非开发 phase) —— runbook: `docs/plans/r-entry-v1.9-real-usage/plan.md`;findings: `docs/plans/r-entry-v1.9-real-usage/findings.md`
 
 自 v1.8.0 以来累积 5 个 phase(LTO-1 stage 2 / LTO-2 retrieval quality / Hygiene Bundle / LTO-4 / LTO-2 source scoping),其中 3 个 operator-visible 增量,2 个工程纪律。详情见 git log 与 closeout。
 
@@ -49,7 +49,7 @@ status: living-document
 | ID | 长期目标 | 下一类增量 | 触发条件 | 工程锚点 |
 |----|---------|-----------|---------|---------|
 | **LTO-1** | Knowledge Authoring / Wiki Compiler | (1) Wiki Compiler 第三阶段(视图 3 全图谱 / 多 worker durable runner / 文件上传 source ingestion);(2) cross-task evidence schema migration / standalone `know_evidence` 表(`concerns_backlog.md` Active Open);(3) relation creation site decision matrix(若引入新 relation 类型时复审) | R-entry 真实 operator 反馈中具体痛点 | `KNOWLEDGE.md`, `SELF_EVOLUTION.md`, `ADAPTER_DISCIPLINE.md` |
-| **LTO-2** | Retrieval Quality / Evidence Serving | (1) **retrieval policy tuning** —— score magnitude 配置化 / task-knowledge reason-count 语义 partition / canonical reason coverage(`concerns_backlog.md` 中 `LTO-2 Source Scoping review follow-ups`);(2) evidence schema migration(同 LTO-1 项 2);(3) chunk 策略调整(仅在真实使用证实必要时) | R-entry 真实使用复现 declared-doc priority 过强 / report 数字误读 / canonical 静默过滤 | `KNOWLEDGE.md`, `HARNESS.md`, `docs/plans/r-entry-real-usage/findings.md` |
+| **LTO-2** | Retrieval Quality / Evidence Serving | (1) **retrieval policy tuning** —— score magnitude 配置化 / task-knowledge reason-count 语义 partition / canonical reason coverage(`concerns_backlog.md` 中 `LTO-2 Source Scoping review follow-ups`);(2) evidence schema migration(同 LTO-1 项 2);(3) chunk 策略调整(仅在真实使用证实必要时) | R-entry 真实使用复现 declared-doc priority 过强 / report 数字误读 / canonical 静默过滤 | `KNOWLEDGE.md`, `HARNESS.md`, `docs/plans/r-entry-v1.9-real-usage/findings.md` |
 | **LTO-5** | Driven Ports Rollout(N phases,首推 `TaskStorePort`)| `application/ports/` 显式化 + 第一个 port 落定;之后再做 `OrchestratorPort` / `KnowledgePort` / `ProposalPort` / `ProviderRouterPort` / `HttpClientPort` 等 | 测试需要 mock application boundary、引入 second adapter、或注入复杂度上升 —— LTO-4 builders 形态会让边界更清晰 | `CODE_ORGANIZATION.md`, `INVARIANTS.md` |
 | **LTO-11** | Planner / DAG / Strategy Router | Planner interface / DAG dependency / Strategy Router observability;LTO-8 `debate_loop_core` 9 callable 注入纪律边缘问题在此一并处理 | 真实编排瓶颈或新 loop control pattern 设计需求 | `ORCHESTRATION.md` |
 | **LTO-12** | Long-horizon Runtime / Sync | multi-actor / sync / object storage 扩展 | 真实跨设备 / 团队 / remote worker 需求 | `INVARIANTS.md §7` |
@@ -70,9 +70,11 @@ status: living-document
 
 按真实使用触发条件 / 优先级排序。Human 在每次 phase 完成后从中选下一 phase。
 
-### 候选 A:R-entry 真实使用(非 phase,持续进行)
+### 候选 A:R-entry v1.9 真实使用(非 phase,active)
 
-- **触发条件**:LTO-2 source scoping 刚 merge,operator 还未真实任务验证。
+- **入口**:`docs/plans/r-entry-v1.9-real-usage/plan.md`
+- **记录**:`docs/plans/r-entry-v1.9-real-usage/findings.md`
+- **触发条件**:v1.9.0 刚发布,operator 还未用设计文档完整验证 source scoping / truth reuse visibility / Wiki Compiler stage 2 / CLI-Web consistency。
 - **期望产出**:retrieval 质量真实反馈;Truth Reuse Visibility 是否解释清楚 canonical 不复用的原因;declared-doc priority 是否过强 / 过弱;R-entry findings 中 R9(host nginx + 第二台 Tailscale 反代 smoke)/ note-only offline semantics / wiki ergonomics 等条目消化进度。
 - **性质**:不开 phase,只跑任务 + 更新 `docs/plans/r-entry-real-usage/findings.md`。
 - **退出条件**:出现具体反馈触发下方任一候选,或 operator 判定当前能力已稳定。
@@ -124,7 +126,7 @@ status: living-document
 - 新 phase 写成"推进哪个 LTO 的哪个增量",例如 `feat/lto-2-retrieval-policy-tuning`;不复用旧编号"未完成"语义。
 - LTO-3 已归档,编号不复用。
 - 已完成 phase 的细节不复制到本文件;查 `git log` + active / archived `closeout.md`。
-- 近期队列默认空,出现明确 Direction Gate 触发条件再加入。
+- 近期队列默认空;允许保留一个 active R-entry runbook 作为真实使用反馈入口,出现明确 Direction Gate 触发条件后再加入开发 phase。
 - Phase closeout 时,只更新对应 LTO 的"下一类增量"与触发条件;不复读已完成内容。
 - 长度上限 250 行 —— 超过说明本文件又开始变成"phase 历史叙事"。
 - `docs/active_context.md` 是当前 phase 高频状态唯一入口;`docs/concerns_backlog.md` 是 review CONCERN 唯一索引;`docs/design/INVARIANTS.md` 是设计原则唯一权威。

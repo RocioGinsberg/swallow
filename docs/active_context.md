@@ -11,15 +11,15 @@
 - latest_completed_track: `LTO-2 Retrieval Quality / Evidence Serving`
 - latest_completed_phase: `lto-2-retrieval-source-scoping`
 - latest_completed_slice: `merged to main at d4288a1`
-- active_track: `LTO-2 Retrieval Quality / Evidence Serving`
-- active_phase: `none;post-merge checkpoint`
-- active_slice: `post-v1.9.0 tag checkpoint`
+- active_track: `R-entry Real Usage`
+- active_phase: `r-entry-v1.9-real-usage`
+- active_slice: `runbook ready;design-doc flow`
 - active_branch: `main`
-- status: `tag_complete_ready_for_next_direction`
+- status: `r_entry_v1_9_runbook_ready`
 
 ## 当前状态说明
 
-当前 git 分支为 `main`。LTO-2 Retrieval Source Scoping And Truth Reuse Visibility 已由 Human merge 到 `main` at `d4288a1`,post-merge state sync 已提交为 `7fa5019 docs(state): sync lto2 source scoping merge`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。该 tag 覆盖 `v1.8.0` 之后的 Wiki Compiler stage 2、retrieval quality / evidence serving、LTO-4 test architecture、R-entry-driven retrieval source scoping 与 truth reuse visibility。
+当前 git 分支为 `main`。`v1.9.0` release docs 已提交为 `d598e58 docs(release): sync v1.9.0 release docs`,tag `v1.9.0` 已打在该 commit。Human 决定继续真实使用驱动优化,本轮不开开发 phase,而是用 Swallow 自身设计文档执行 post-v1.9.0 R-entry runbook:`docs/plans/r-entry-v1.9-real-usage/plan.md`。该 runbook 重点验证 retrieval source scoping、truth reuse visibility、Wiki Compiler authoring、CLI/Web operator flow 与 nginx/Tailscale smoke。
 
 LTO-2 source scoping 实现内容:task-declared `document_paths` 现在进入 `RetrievalRequest.declared_document_paths`;`build_task_retrieval_request` 是唯一注入点并把路径规范为 workspace-relative;retrieval 在 rerank 前应用 declared-document priority 与 generated/archive/build-cache noise downgrade;`score_breakdown` 暴露 `declared_document_priority` / `source_noise_penalty`;`retrieval_report.md` 新增 `Truth Reuse Visibility`;task memory/summary 也记录 truth reuse visibility 状态。非目标仍保持:Graph RAG、schema migration、vector index overhaul、chunk 大改、provider/rerank 新集成。
 
@@ -39,14 +39,16 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 1. `docs/active_context.md`(本文)
 2. `current_state.md`
 3. `docs/roadmap.md`
-4. `docs/plans/r-entry-real-usage/plan.md`
-5. `docs/design/INVARIANTS.md`
-6. `docs/design/KNOWLEDGE.md`
-7. `docs/design/DATA_MODEL.md`
-8. `docs/engineering/TEST_ARCHITECTURE.md`
-9. `docs/engineering/ADAPTER_DISCIPLINE.md`
-10. `docs/engineering/CODE_ORGANIZATION.md`
-11. `docs/concerns_backlog.md`
+4. `docs/plans/r-entry-v1.9-real-usage/plan.md`
+5. `docs/plans/r-entry-v1.9-real-usage/findings.md`
+6. `docs/plans/r-entry-real-usage/plan.md`
+7. `docs/design/INVARIANTS.md`
+8. `docs/design/KNOWLEDGE.md`
+9. `docs/design/DATA_MODEL.md`
+10. `docs/engineering/TEST_ARCHITECTURE.md`
+11. `docs/engineering/ADAPTER_DISCIPLINE.md`
+12. `docs/engineering/CODE_ORGANIZATION.md`
+13. `docs/concerns_backlog.md`
 
 ## 当前推进
 
@@ -76,11 +78,14 @@ LTO-4 已完成 M1-M4:CLI command-family split、shared builders/assertions、AS
 - **[Human]** 已提交 `v1.9.0` release docs:`d598e58 docs(release): sync v1.9.0 release docs`。
 - **[Human]** 已执行 tag:`v1.9.0` -> `d598e58`。
 - **[Codex]** 已同步 `latest_executed_public_tag` / active context / roadmap tag 状态。
+- **[Codex]** 已产出 `docs/plans/r-entry-v1.9-real-usage/plan.md`,作为 post-v1.9.0 设计文档真实使用 runbook。
+- **[Codex]** 已产出 `docs/plans/r-entry-v1.9-real-usage/findings.md`,作为真实使用 issue log / Direction Gate evidence 模板。
 
 待执行:
 
-- **[Human]** 决定下一轮方向:继续 R-entry 真实使用,或从 roadmap §三 Direction Gate 候选中选择下一 phase。
-- **[Codex]** 如 Human 选择新 phase,按流程输出 `docs/plans/<phase>/plan.md`。
+- **[Human/Codex]** 按 `docs/plans/r-entry-v1.9-real-usage/plan.md` 执行 R0-R10。
+- **[Human/Codex]** 将真实问题记录到 `docs/plans/r-entry-v1.9-real-usage/findings.md`。
+- **[Human]** 根据 findings 决定继续 R-entry,或从 roadmap §三 Direction Gate 候选中选择下一 phase。
 
 ## 当前验证
 
@@ -101,6 +106,12 @@ Post-`v1.9.0` tag sync validation:
 - `git diff --check` -> passed
 - `git status --short --branch` -> `## main...origin/main`;modified `current_state.md`, `docs/active_context.md`, `docs/roadmap.md`
 - `wc -l docs/roadmap.md docs/active_context.md current_state.md` -> `150` / `248` / `169`
+
+R-entry v1.9 runbook drafting validation:
+
+- `git diff --check` -> passed
+- `git status --short --branch` -> `## main...origin/main`;modified `current_state.md`, `docs/active_context.md`, `docs/roadmap.md`;untracked `docs/plans/r-entry-v1.9-real-usage/`
+- `wc -l docs/plans/r-entry-v1.9-real-usage/plan.md docs/plans/r-entry-v1.9-real-usage/findings.md docs/active_context.md current_state.md docs/roadmap.md` -> `521` / `73` / `265` / `178` / `152`
 
 本轮文档同步验证:
 
@@ -195,16 +206,16 @@ LTO-4 compressed-flow validation:
 
 ## 当前下一步
 
-1. **[Human]** 决定下一轮方向:继续 R-entry 真实使用,或从 roadmap §三 Direction Gate 候选中选择下一 phase。
-2. **[Codex]** 如 Human 选择新 phase,按流程输出 `docs/plans/<phase>/plan.md`。
-3. **[Codex]** 如 Human 继续 R-entry,按实测结果更新 findings / issue log。
+1. **[Human/Codex]** 按 `docs/plans/r-entry-v1.9-real-usage/plan.md` 执行设计文档真实使用流程。
+2. **[Human/Codex]** 将问题记录到 `docs/plans/r-entry-v1.9-real-usage/findings.md`。
+3. **[Human]** 根据 findings 决定继续 R-entry,或开 LTO-2 retrieval policy tuning / Wiki Compiler stage 3 / D2 driven ports 等下一 phase。
 
 ```markdown
 compressed_gate:
-- active_phase: none;post-merge checkpoint
-- active_slice: post-v1.9.0 tag checkpoint
+- active_phase: r-entry-v1.9-real-usage
+- active_slice: runbook ready;design-doc flow
 - active_branch: main
-- status: tag_complete_ready_for_next_direction
+- status: r_entry_v1_9_runbook_ready
 - latest_completed_phase: lto-2-retrieval-source-scoping
 - latest_completed_commit: d4288a1 LTO-2 Retrieval Source Scoping And Truth Reuse Visibility
 - latest_history_archive_commit: 795aa4d docs(store): move history plans to archive
@@ -217,10 +228,12 @@ compressed_gate:
 - final_full_pytest: 806 passed, 19 deselected in 131.76s; real 2m12.909s
 - r_entry_plan: docs/plans/r-entry-real-usage/plan.md
 - findings: docs/plans/r-entry-real-usage/findings.md
+- r_entry_v1_9_plan: docs/plans/r-entry-v1.9-real-usage/plan.md
+- r_entry_v1_9_findings: docs/plans/r-entry-v1.9-real-usage/findings.md
 - phase_plan: docs/plans/lto-2-retrieval-source-scoping/plan.md
 - plan_audit: docs/plans/lto-2-retrieval-source-scoping/plan_audit.md
 - ux_fixes: wiki llm unavailable CLI hint; task staged task-knowledge hint; env/rerank runbook docs
-- next_gate: Human next-direction decision
+- next_gate: execute R-entry v1.9 runbook and record findings
 ```
 
 ## 当前产出物
@@ -248,3 +261,5 @@ compressed_gate:
 - `docs/active_context.md` / `current_state.md` / `docs/roadmap.md`(codex, 2026-05-04, post-merge state sync for `main@d4288a1`)
 - `README.md` / `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`(codex, 2026-05-04, pre-`v1.9.0` release docs sync)
 - `current_state.md` / `docs/active_context.md` / `docs/roadmap.md`(codex, 2026-05-04, post-`v1.9.0` tag status sync)
+- `docs/plans/r-entry-v1.9-real-usage/plan.md`(codex, 2026-05-05, post-v1.9.0 design-doc real usage runbook)
+- `docs/plans/r-entry-v1.9-real-usage/findings.md`(codex, 2026-05-05, findings template for post-v1.9.0 real usage)
