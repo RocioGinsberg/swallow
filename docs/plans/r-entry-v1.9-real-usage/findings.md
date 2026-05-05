@@ -233,7 +233,7 @@ Use this file to record real operator friction and decide whether the next phase
 
 ## R19-007 Runbook command drift around canonical list and wiki refine
 
-- status: open
+- status: resolved
 - severity: nit
 - surface: docs
 - task_id: `d0a84932a9f1`
@@ -246,6 +246,12 @@ Use this file to record real operator friction and decide whether the next phase
 - likely next direction:
   - docs/config hygiene
 - notes: This is not runtime breakage, but it makes the runbook less copy-pasteable for future self-tests.
+- fix verification:
+  - branch: `fix/r19-007-runbook-command-drift`
+  - changed behavior: `plan.md` now uses `knowledge canonical-audit` instead of nonexistent `knowledge list --status active`.
+  - changed behavior: `wiki refine` now documents required `--target "$WIKI_TARGET"` and removes unsupported `--topic`.
+  - adjacent cleanup: dry-run artifact discovery now points at `$BASE/.swl/tasks/$TASK_ID/artifacts` instead of the old `$BASE/artifacts/$TASK_ID` path.
+  - validation: `.venv/bin/swl knowledge --help` confirms available knowledge subcommands; `.venv/bin/swl wiki refine --help` confirms required `--target` and no `--topic`; `rg` found no remaining stale active-runbook command pattern.
 
 ## Direction Gate Summary
 
@@ -253,8 +259,8 @@ Fill this after executing the runbook.
 
 | Candidate | Evidence | Recommendation |
 |---|---|---|
-| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-002/R19-003/R19-004 have narrow fixes verified; R19-005 Web smoke passed again. | Continue real usage; next useful small fix is R19-007 runbook command drift rather than broader retrieval architecture. |
+| Continue R-entry real usage | R19-006 verifies source scoping after the R19-001 fix; R19-002/R19-003/R19-004/R19-007 have narrow fixes verified; R19-005 Web smoke passed again. | Continue real usage with the corrected runbook; no current evidence requires broader retrieval architecture. |
 | LTO-2 retrieval policy tuning | R19-001 and R19-003 are now resolved as narrow plumbing/reporting fixes. No current evidence requires broad retrieval architecture tuning. | Defer broad tuning unless later real runs show priority magnitude or filtering quality issues. |
 | Wiki Compiler stage 3 | R19-004 dry-run artifact visibility is resolved; remaining Wiki ergonomics is mostly CLI stage-inspect source pack detail. | Defer broad stage 3 unless later real usage shows supersede/relation review friction. |
 | D2 LTO-5 driven ports |  |  |
-| Docs/config hygiene | R19-007 shows command drift in the runbook. R19-002 is now a code-level semantics fix rather than a docs-only workaround. | Good low-risk cleanup candidate after R19-002 is merged. |
+| Docs/config hygiene | R19-007 runbook command drift is resolved. | No open docs/config hygiene item from this findings log. |
